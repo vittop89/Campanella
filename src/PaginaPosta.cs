@@ -1120,7 +1120,11 @@ namespace Campanella
                 "L'estensione legge solo quello che vedi gia' tu sullo schermo, non\n" +
                 "manda niente a nessuno e non ha bisogno del Web Store. Se la\n" +
                 "cartella sta nel Drive, la ritrovi uguale su tutti i computer\n" +
-                "(su ognuno va caricata una volta da chrome://extensions).";
+                "(su ognuno va caricata una volta da chrome://extensions).\n\n" +
+                "Le condizioni d'uso di ClasseViva non vietano gli script, ma vietano\n" +
+                "di scaricare e riformattare i contenuti della piattaforma senza\n" +
+                "permesso: usala una volta, per il tuo elenco, non in modo sistematico.\n" +
+                "Se preferisci non avere il dubbio, chiedi l'elenco in segreteria.";
             using (FormTesto f = new FormTesto("Estensione per Chrome", guida,
                        "Apri la cartella dell'estensione", null))
             {

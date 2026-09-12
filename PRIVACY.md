@@ -136,12 +136,24 @@ Due avvertenze che restano valide anche così:
 La funzione per la Console e l'estensione per Chrome leggono soltanto quello
 che è già visibile sullo schermo di un utente autenticato: non aggirano
 l'autenticazione, non interrogano API riservate, non accedono a niente che tu
-non possa già vedere, non mandano niente a nessuno. Detto questo, i termini
-d'uso dei registri elettronici a volte vietano l'interazione automatizzata:
-se hai dubbi, l'elenco lo si può sempre chiedere alla segreteria, ed è anche
-il modo più affidabile. L'estensione non passa dal Web Store: si carica dalla
-cartella con la modalità sviluppatore di Chrome, quindi non c'è nessuna
-pubblicazione.
+non possa già vedere, non mandano niente a nessuno. L'estensione non passa
+dal Web Store: si carica dalla cartella con la modalità sviluppatore di
+Chrome, quindi non c'è nessuna pubblicazione.
+
+Le Condizioni generali di utilizzo di ClasseViva (web.spaggiari.eu, versione
+del luglio 2024) non parlano di accesso automatizzato, bot o script.
+Contengono però, al punto 2, clausole sulla proprietà intellettuale dei
+"Materiali" della piattaforma, cioè informazioni, testi, software e contenuti
+editoriali: ne è consentito un uso occasionale e non sistematico per scopi
+personali o didattici, mentre scaricarli, riformattarli o riprodurli con
+qualsiasi tecnologia senza autorizzazione scritta non è consentito. L'elenco
+del personale è un dato della scuola, che ne è titolare, non un contenuto
+editoriale di Spaggiari; la clausola però è scritta in modo ampio, e
+un'estrazione automatica le si avvicina più di una copia a mano. In pratica:
+usa l'estensione una volta, per il tuo elenco, non in modo sistematico. Se
+preferisci non avere il dubbio, chiedi l'elenco alla segreteria, che resta
+anche il modo più affidabile. Il contratto fra la scuola e Spaggiari può
+contenere regole d'uso ulteriori, che non sono pubbliche.
 
 ## Se pubblichi l'eseguibile
 
