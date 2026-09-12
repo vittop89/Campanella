@@ -144,7 +144,8 @@ jobs:
           Copy-Item dist\Campanella.exe release\
           if (Test-Path signed-installer) { Copy-Item signed-installer\*.exe release\ }
           else { Copy-Item dist\Installa-Campanella-*.exe release\ }
-          Copy-Item "ISTRUZIONI - Campanella.txt" release\
+          Copy-Item "ISTRUZIONI - Campanella.txt" releaseISTRUZIONI-Campanella.txt
+
           Copy-Item PRIVACY.md release\
           Get-ChildItem release
 
