@@ -1,11 +1,15 @@
 <#
-    prova_orario.ps1 - controlla il lettore .xlsx e il riconoscimento del
-    tabellone contro un file vero, senza aprire l'interfaccia.
+    prova_orario.ps1 - controlla il lettore .xlsx/.csv e il riconoscimento del
+    tabellone, senza aprire l'interfaccia.
 
-        .\test\prova_orario.ps1 "H:\...\orario_docenti.xlsx"
+        .\test\prova_orario.ps1                       # tabellone inventato (test\tabellone_esempio.csv)
+        .\test\prova_orario.ps1 "H:\...\orario.xlsx"  # un tabellone vero
+
+    I controlli sono scritti in modo da valere per tutti e due: contano
+    minimi, non numeri esatti.
 #>
 param(
-    [string]$File = 'H:\Il mio Drive\A.S. PRECEDENTI\A.S. 2025-26\Orari e calendari\orario_docenti_29_3_ottobre_2025.xlsx'
+    [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,8 +57,9 @@ function Stampa($titolo, $griglia) {
 }
 
 Stampa "ORARIO DI $($docenti[0])  ($($o.OreDi($docenti[0])) ore)" $o.GrigliaDocente($docenti[0])
-$pant = $docenti | Where-Object { $_ -like 'PANTALEO*' } | Select-Object -First 1
-if ($pant) { Stampa "ORARIO DI $pant  ($($o.OreDi($pant)) ore)" $o.GrigliaDocente($pant) }
+if ($docenti.Count -gt 1) {
+    Stampa "ORARIO DI $($docenti[1])  ($($o.OreDi($docenti[1])) ore)" $o.GrigliaDocente($docenti[1])
+}
 Stampa "ORARIO DELLA CLASSE $($classi[0])" $o.GrigliaClasse($classi[0])
 
 # --- controlli ------------------------------------------------------------
@@ -64,9 +69,11 @@ function Verifica($testo, $ok) {
     if ($ok) { Write-Host "  OK      $testo" }
     else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
 }
-Verifica "trova almeno 50 docenti"            ($docenti.Count -ge 50)
-Verifica "cinque giorni"                       ($o.Giorni.Count -eq 5)
-Verifica "otto ore al giorno"                  ($o.OrePerGiorno -eq 8)
+Verifica "riconosce il formato"                ($o.Formato -ne 'non riconosciuto')
+Verifica "trova almeno 5 docenti"              ($docenti.Count -ge 5)
+Verifica "almeno cinque giorni"                ($o.Giorni.Count -ge 5)
+Verifica "almeno sei ore al giorno"            ($o.OrePerGiorno -ge 6)
+Verifica "legge il periodo"                    (-not [string]::IsNullOrEmpty($o.Periodo))
 Verifica "nessun docente si chiama LUN/MAR"    (-not ($docenti | Where-Object { $_ -in @('LUN','MAR','MER','GIO','VEN') }))
 Verifica "niente righe di copyright"           (-not ($docenti | Where-Object { $_ -like '*opyright*' }))
 Verifica "le classi hanno nomi corti"          (-not ($classi | Where-Object { $_.Length -gt 12 }))

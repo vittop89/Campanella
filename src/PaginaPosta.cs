@@ -251,9 +251,9 @@ namespace Campanella
                                        14, 46, 215, Tema.Piccolo, Ruolo.Tenue));
             g.Controls.Add(Tema.Bottone("Incolla elenco", 14, 76, 150, delegate { IncollaElenco(); }));
 
-            g.Controls.Add(Tema.Testo1("B) Dal registro Spaggiari", 246, 26, 230, Tema.Grassetto, Ruolo.Normale));
-            g.Controls.Add(Tema.Testo1("Nomi e ruoli dalla pagina \"Tutto il personale\".",
-                                       246, 46, 230, Tema.Piccolo, Ruolo.Tenue));
+            g.Controls.Add(Tema.Testo1("B) Da ClasseViva (solo Spaggiari)", 246, 26, 240, Tema.Grassetto, Ruolo.Normale));
+            g.Controls.Add(Tema.Testo1("Nomi e ruoli da \"Tutto il personale\". Altri registri: usa A o C.",
+                                       246, 46, 240, Tema.Piccolo, Ruolo.Tenue));
             g.Controls.Add(Tema.Bottone("Come si fa...", 246, 76, 118, delegate { GuidaSpaggiari(); }));
             g.Controls.Add(Tema.Bottone("Estensione...", 370, 76, 118, delegate { CreaEstensione(); }));
 
@@ -1041,7 +1041,10 @@ namespace Campanella
         void GuidaSpaggiari()
         {
             string guida =
-                "COME PRENDERE L'ELENCO DA SPAGGIARI\n\n" +
+                "COME PRENDERE L'ELENCO DA CLASSEVIVA (SPAGGIARI)\n\n" +
+                "Vale solo per il registro ClasseViva: con Argo, Axios, Nuvola o altri\n" +
+                "registri questa funzione non trova niente. In quel caso incolla\n" +
+                "l'elenco a mano (metodo A) o fallo leggere dalla casella (metodo C).\n\n" +
                 "Due strade. La piu' comoda e' l'estensione per Chrome (pulsante\n" +
                 "\"Estensione...\"): una volta installata, basta un clic sulla pagina\n" +
                 "del personale. Questa e' la strada senza estensione, dalla Console:\n\n" +
@@ -1104,6 +1107,8 @@ namespace Campanella
 
             string guida =
                 "ESTENSIONE CREATA IN\n" + cartella + "\n\n" +
+                "Funziona solo con il registro ClasseViva di Spaggiari: con Argo,\n" +
+                "Axios, Nuvola o altri registri non trova niente.\n\n" +
                 "COME INSTALLARLA IN CHROME (una volta sola)\n\n" +
                 "1.  Apri Chrome e vai su  chrome://extensions  (scrivilo nella barra\n" +
                 "    degli indirizzi). Vale anche per Edge: edge://extensions.\n" +

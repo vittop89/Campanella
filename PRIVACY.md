@@ -133,6 +133,10 @@ Due avvertenze che restano valide anche così:
 
 ## L'elenco del personale da Spaggiari
 
+Vale solo per ClasseViva di Spaggiari: con altri registri (Argo, Axios,
+Nuvola e simili) l'estensione e la funzione per la Console non trovano
+niente, e l'elenco si incolla a mano o si chiede in segreteria.
+
 La funzione per la Console e l'estensione per Chrome leggono soltanto quello
 che è già visibile sullo schermo di un utente autenticato: non aggirano
 l'autenticazione, non interrogano API riservate, non accedono a niente che tu

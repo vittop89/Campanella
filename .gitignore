@@ -18,6 +18,7 @@ test/Configurazione_prova.gs
 *.xlsx
 *.xls
 *.csv
+!test/tabellone_esempio.csv
 personale*
 documenti/
 

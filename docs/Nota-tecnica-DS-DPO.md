@@ -21,6 +21,12 @@ l'account Google Workspace della scuola, sull'infrastruttura di Google già
 contrattualizzata dall'istituto; il programma sul computer non accede né alla
 posta né al Drive.
 
+Requisiti e limiti: Windows; un account Google Workspace (non funziona con
+Microsoft 365); l'estrazione dell'elenco del personale è specifica per il
+registro ClasseViva di Spaggiari e legge soltanto la pagina già visibile al
+docente autenticato, senza interrogare altri sistemi; il tabellone orario è
+l'export di Orario Facile o una tabella docente/giorno/ora/classe.
+
 Quattro funzioni, tutte facoltative e indipendenti:
 
 1. **Posta** — crea in Gmail delle etichette (Dirigenza, Segreteria, Circolari,

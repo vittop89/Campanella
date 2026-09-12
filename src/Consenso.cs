@@ -37,6 +37,12 @@ namespace Campanella
 "statistiche, non ha bisogno di un account. Si collega a internet solo se sei\r\n" +
 "tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.\r\n" +
 "\r\n" +
+"Funziona su Windows con un account Google Workspace (Gmail, Drive,\r\n" +
+"Calendar): con Microsoft 365 non fa niente. L'elenco del personale si puo'\r\n" +
+"leggere dal registro ClasseViva di Spaggiari; con altri registri (Argo,\r\n" +
+"Axios, Nuvola...) va incollato a mano o chiesto in segreteria. Il tabellone\r\n" +
+"degli orari e' quello di Orario Facile, o una tabella docente/giorno/ora.\r\n" +
+"\r\n" +
 "\r\n" +
 "2. I DATI CHE TRATTERAI NON SONO TUOI\r\n" +
 "\r\n" +

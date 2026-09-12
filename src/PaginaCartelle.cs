@@ -32,6 +32,8 @@ namespace Campanella
         TextBox txtAnno, txtClassi, txtDrive, txtExtra, logBox;
         CheckedListBox clbModelli, clbStruttura;
 
+        // Le cartelle fisse di partenza: generiche apposta. Chi vuole le proprie
+        // le cambia da "Modifica struttura...", che scrive struttura.json.
         static readonly string[] StrutturaDiDefault =
         {
             "CLASSI",
@@ -40,20 +42,18 @@ namespace Campanella
             "Orari e calendari",
             "Materiali insegnante",
             "Griglie di valutazione",
-            "Liceo potenziato-attivita",
-            "Dipartimento di matematica e fisica",
+            "Dipartimento",
             "RECUPERI\\TRIMESTRE",
             "RECUPERI\\PENTAMESTRE",
-            "Simulazioni seconda prova",
-            "DigComp2.2",
             "Da stampare",
             "Adempimenti finali",
-            "Educazione Civica\\Lezioni e patente",
-            "Educazione Civica\\Curricolo e programmazione",
-            "Educazione Civica\\Orientamento"
+            "Educazione Civica"
         };
 
         const string FileStruttura = "struttura.json";
+
+        /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
+        const string CartellaPerClasse = "PER CLASSE";
 
         public PaginaCartelle(Guscio g) : base(g) { Costruisci(); }
 
@@ -65,12 +65,15 @@ namespace Campanella
             int y = 6;
             Controls.Add(Tema.Testo1("La struttura del nuovo anno", 0, y, 0, Tema.Sezione, Ruolo.Sezione));
             y += 40;
-            Controls.Add(Tema.Testo1(
+            Label intro = Tema.Testo1(
                 "Crea nel Drive la cartella \"A.S. <anno>\" con dentro le classi, le materie, i " +
-                "recuperi e le cartelle fisse, e ci copia i modelli presi da MODELLI. " +
-                "Non sovrascrive e non cancella mai niente: aggiunge solo cio' che manca.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue));
-            y += 48;
+                "recuperi e le cartelle fisse, e ci copia i modelli presi da MODELLI: una " +
+                "sottocartella per gruppo, e i file di MODELLI\\PER CLASSE dentro ogni classe con " +
+                "il nome della classe in coda. Non sovrascrive e non cancella mai niente: " +
+                "aggiunge solo cio' che manca.",
+                0, y, 880, Tema.Normale, Ruolo.Tenue);
+            Controls.Add(intro);
+            y += intro.Height + 10;
 
             Controls.Add(Tema.Testo1("Anno scolastico", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtAnno = Tema.Casella(0, y + 22, 180, Stato.AnnoScolastico(DateTime.Now));
@@ -225,6 +228,8 @@ namespace Campanella
                 foreach (string d in cartelle)
                 {
                     string nome = Path.GetFileName(d);
+                    // PER CLASSE non e' un gruppo: va dentro ogni classe, sempre
+                    if (nome.Equals(CartellaPerClasse, StringComparison.OrdinalIgnoreCase)) continue;
                     bool spuntata = prima.ContainsKey(nome) ? prima[nome] : true;
                     clbModelli.Items.Add(nome, spuntata);
                 }
@@ -283,7 +288,7 @@ namespace Campanella
                 {
                     VoceStruttura v = new VoceStruttura();
                     v.Nome = s;
-                    v.Spuntata = (s != "Liceo potenziato-attivita");
+                    v.Spuntata = true;
                     voci.Add(v);
                 }
             }
@@ -393,6 +398,9 @@ namespace Campanella
             bool conModelli = Directory.Exists(modelli);
             if (!conModelli)
                 log.Add("Nota: non c'e' la cartella MODELLI in " + drive + ": creo solo le cartelle.");
+            List<string> perClasse = conModelli ? ModelliPerClasse(modelli) : new List<string>();
+            if (perClasse.Count > 0)
+                log.Add("Modelli da copiare in ogni classe: " + perClasse.Count);
 
             List<string> classi = new List<string>();
             foreach (string riga in (classiText ?? "").Split(new char[] { '\r', '\n', ';' }))
@@ -468,40 +476,39 @@ namespace Campanella
                     elenco += m;
                 }
 
-                if (conModelli)
+                // i modelli "per classe": ogni file entra nella cartella della classe
+                // con il nome della classe in coda. I documenti Google non si copiano
+                // come file normali: per quelli resta una nota con cosa duplicare.
+                List<string> daDuplicare = new List<string>();
+                foreach (string src in perClasse)
                 {
-                    string moduloSrc = TrovaModulo(modelli);
-                    if (moduloSrc != null)
+                    if (EFileGoogle(src)) { daDuplicare.Add(Path.GetFileName(src)); continue; }
+                    string dest = Path.Combine(dirClasse,
+                        Path.GetFileNameWithoutExtension(src) + " " + nomeClasse + Path.GetExtension(src));
+                    if (File.Exists(dest)) continue;
+                    try
                     {
-                        string dest = Path.Combine(dirClasse,
-                            "Modulo di controllo - segni " + nomeClasse + Path.GetExtension(moduloSrc));
-                        if (File.Exists(dest)) log.Add("  classe " + nomeClasse + ": modulo gia' presente");
-                        else
-                        {
-                            try
-                            {
-                                File.Copy(moduloSrc, dest, false);
-                                log.Add("  classe " + nomeClasse + ": copiato il modulo di controllo");
-                                creati++;
-                            }
-                            catch (Exception ex) { errori.Add("Modulo classe " + nomeClasse + ": " + ex.Message); }
-                        }
+                        File.Copy(src, dest, false);
+                        log.Add("  classe " + nomeClasse + ": copiato " + Path.GetFileName(dest));
+                        creati++;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        string nota = "DUPLICA IN GOOGLE DOCS - Modulo di controllo - segni " + nomeClasse + ".txt";
-                        string percorsoNota = Path.Combine(dirClasse, nota);
-                        if (!File.Exists(percorsoNota))
-                        {
-                            File.WriteAllLines(percorsoNota, new string[]
-                            {
-                                "Per la classe " + nomeClasse + ": duplicare in Google Drive",
-                                "(tasto destro -> Crea una copia) il documento",
-                                "'Modulo di verifica compiti_assegnati' e rinominarlo:",
-                                "Modulo di controllo - segni " + nomeClasse,
-                                "Sorgente: un anno qualsiasi dentro A.S. PRECEDENTI"
-                            }, Encoding.UTF8);
-                        }
+                        errori.Add("Classe " + nomeClasse + ", " + Path.GetFileName(src) + ": " + ex.Message);
+                    }
+                }
+                if (daDuplicare.Count > 0)
+                {
+                    string percorsoNota = Path.Combine(dirClasse, "DUPLICA IN GOOGLE DOCS - " + nomeClasse + ".txt");
+                    if (!File.Exists(percorsoNota))
+                    {
+                        List<string> righe = new List<string>();
+                        righe.Add("Per la classe " + nomeClasse + ": duplicare in Google Drive (tasto destro ->");
+                        righe.Add("Crea una copia) questi documenti di MODELLI\\" + CartellaPerClasse +
+                                  " e aggiungere \"" + nomeClasse + "\" al nome:");
+                        righe.Add("");
+                        foreach (string g in daDuplicare) righe.Add("- " + g);
+                        File.WriteAllLines(percorsoNota, righe.ToArray(), Encoding.UTF8);
                     }
                 }
 
@@ -513,6 +520,7 @@ namespace Campanella
             {
                 foreach (string nome in gruppiIn)
                 {
+                    if (nome.Equals(CartellaPerClasse, StringComparison.OrdinalIgnoreCase)) continue;
                     string g = Path.Combine(modelli, nome);
                     if (!Directory.Exists(g)) { errori.Add("Modello non trovato: " + g); continue; }
                     string dest = Path.Combine(target, nome);
@@ -521,7 +529,7 @@ namespace Campanella
                     foreach (string f in Directory.GetFiles(g))
                     {
                         if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
-                        if (Path.GetFileNameWithoutExtension(f) == "Modulo di controllo - segni") continue;
+                        if (perClasse.Contains(f)) continue;     // gia' copiato dentro ogni classe
                         Directory.CreateDirectory(dest);
                         string df = Path.Combine(dest, Path.GetFileName(f));
                         if (File.Exists(df)) continue;
@@ -573,17 +581,32 @@ namespace Campanella
             return res;
         }
 
-        static string TrovaModulo(string modelli)
+        /// <summary>
+        /// I file da copiare dentro ogni classe: tutto cio' che sta in
+        /// MODELLI\PER CLASSE. Per chi viene dalle versioni precedenti valgono
+        /// ancora i file "Modulo di controllo - segni.*" nella radice di MODELLI
+        /// o in "Verifiche e valutazione".
+        /// </summary>
+        static List<string> ModelliPerClasse(string modelli)
         {
+            List<string> fuori = new List<string>();
+            string cartella = Path.Combine(modelli, CartellaPerClasse);
+            if (Directory.Exists(cartella))
+            {
+                string[] file = Directory.GetFiles(cartella);
+                Array.Sort(file);
+                foreach (string f in file)
+                    if (!Path.GetFileName(f).StartsWith("~$")) fuori.Add(f);
+            }
             string[] basi =
             {
                 Path.Combine(modelli, "Modulo di controllo - segni"),
                 Path.Combine(modelli, "Verifiche e valutazione", "Modulo di controllo - segni")
             };
             foreach (string b in basi)
-                foreach (string est in new string[] { ".xlsx", ".docx", ".xls", ".doc" })
-                    if (File.Exists(b + est)) return b + est;
-            return null;
+                foreach (string est in new string[] { ".xlsx", ".docx", ".xls", ".doc", ".gsheet", ".gdoc" })
+                    if (File.Exists(b + est) && !fuori.Contains(b + est)) fuori.Add(b + est);
+            return fuori;
         }
 
         static bool EFileGoogle(string percorso)

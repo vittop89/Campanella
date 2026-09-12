@@ -12,6 +12,12 @@ sei sempre tu a premere Esegui. Non manda dati a nessuno, non raccoglie
 statistiche, non ha bisogno di un account. Si collega a internet solo se sei
 tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.
 
+Funziona su Windows con un account Google Workspace (Gmail, Drive,
+Calendar): con Microsoft 365 non fa niente. L'elenco del personale si può
+leggere dal registro ClasseViva di Spaggiari; con altri registri (Argo,
+Axios, Nuvola...) va incollato a mano o chiesto in segreteria. Il tabellone
+degli orari è quello di Orario Facile, o una tabella docente/giorno/ora.
+
 
 2. I DATI CHE TRATTERAI NON SONO TUOI
 

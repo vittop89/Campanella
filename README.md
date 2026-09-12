@@ -22,6 +22,22 @@ per chiedere a GitHub l'ultima versione di rizzo-pii e per scaricarla. Non
 manda dati a nessuno, non raccoglie statistiche, non controlla niente
 all'avvio.
 
+## Per chi è, e per chi no
+
+- Docenti con un account **Google Workspace for Education**: Gmail, Drive,
+  Calendar. Con una scuola su Microsoft 365 non fa niente.
+- **Windows** 10 o 11. Niente Mac, niente Linux.
+- L'elenco del personale si legge dal registro **ClasseViva di Spaggiari**,
+  pagina "Tutto il personale", con l'estensione per Chrome o con la funzione
+  per la Console. Con Argo, Axios, Nuvola o altri registri le due cose non
+  trovano niente: l'elenco si incolla a mano (quasi qualunque formato va
+  bene), si chiede in segreteria, oppure lo si fa leggere allo script dai
+  mittenti veri della casella, che è il metodo più preciso.
+- Il tabellone degli orari è l'export "TABELLONE DOCENTI" di **Orario
+  Facile**, oppure una tabella Docente / Giorno / Ora / Classe. Altri formati
+  vanno prima ridotti a questa.
+- Tutto in italiano: interfaccia, documenti, script.
+
 ## Installazione, per chi la usa
 
 `Installa Campanella.exe` si porta dentro l'applicazione come risorsa.
@@ -248,6 +264,23 @@ Cambiare lingua **dentro** l'applicazione non è ancora possibile: i testi sono
 scritti nel codice. Farlo significa raccogliere tutte le stringhe in un
 dizionario per lingua (circa 600 voci) e ricalcolare il layout delle etichette,
 che hanno larghezze fisse. È il passo successivo, non un dettaglio.
+
+## Le cartelle dell'anno: cosa è convenzione
+
+Lo strumento Cartelle crea `A.S. <anno>` nella radice del Drive e cerca i
+modelli in `MODELLI`, con una sottocartella per gruppo. La sottocartella
+`MODELLI\PER CLASSE` è speciale: ogni file che contiene viene copiato dentro
+ogni classe con il nome della classe in coda (`Griglia 3A.xlsx`). L'elenco
+delle cartelle fisse è generico; chi vuole il proprio lo cambia da "Modifica
+struttura...", che scrive `struttura.json` accanto al programma e da lì in
+poi comanda quello. Il file è per utente e non è versionato.
+
+## Segnalazioni e contributi
+
+Errori e proposte: le *issue* di GitHub. Per un problema di sicurezza non
+aprire una issue pubblica: vedi [SECURITY.md](SECURITY.md). Le modifiche
+arrivano con le *pull request*; prima di aprirne una, far girare i banchi di
+prova. Le versioni sono elencate in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licenza e marchi
 

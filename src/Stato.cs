@@ -692,8 +692,10 @@ namespace Campanella
             Regola registro = new Regola();
             registro.Etichetta = "Registro elettronico";
             registro.Sorgente = "registro";
-            registro.Descrizione = "Avvisi automatici del registro (Spaggiari / ClasseViva). " +
-                "Molti li archiviano subito: sono notifiche, non posta da leggere.";
+            registro.Descrizione = "Avvisi automatici del registro elettronico. Di partenza " +
+                "vale per ClasseViva (@spaggiari.eu): se la scuola usa un altro registro, scrivi " +
+                "il suo dominio nella pagina \"La tua scuola\". Molti li archiviano subito: " +
+                "sono notifiche, non posta da leggere.";
             r.Add(registro);
 
             Regola colleghi = new Regola();

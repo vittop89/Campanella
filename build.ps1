@@ -157,6 +157,9 @@ if ($Pubblica) {
     Copy-Item $istruzioni -Destination $Produzione -Force
     # PRIVACY.md sta accanto all'exe: chi apre la cartella lo trova subito
     Copy-Item $privacy -Destination $Produzione -Force
+    # la struttura delle cartelle e' per utente: se in dist ce n'e' una, la porto con me
+    $struttura = Join-Path $dist 'struttura.json'
+    if (Test-Path $struttura) { Copy-Item $struttura -Destination $Produzione -Force }
     Write-Host "Pubblicato in: $Produzione" -ForegroundColor Green
     Get-ChildItem $Produzione | Select-Object Name, @{n='KB';e={[math]::Round($_.Length/1KB,1)}} | Format-Table -AutoSize
 }

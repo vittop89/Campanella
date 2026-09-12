@@ -162,8 +162,9 @@ namespace Campanella
 
             p.Controls.Add(Tema.Testo1(
                 "Scegli il file Excel del tabellone orario: quello con una riga per docente e, " +
-                "in orizzontale, i giorni divisi nelle loro ore. Va bene anche un CSV, o una " +
-                "tabella con le colonne Docente, Giorno, Ora, Classe.",
+                "in orizzontale, i giorni divisi nelle loro ore, come l'export \"TABELLONE " +
+                "DOCENTI\" di Orario Facile. Va bene anche un CSV, o una tabella con le " +
+                "colonne Docente, Giorno, Ora, Classe. Altri formati vanno prima ridotti a questi.",
                 0, y, 880, Tema.Normale, Ruolo.Tenue));
             y += 52;
 

@@ -29,7 +29,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const esito = risultati && risultati[0] && risultati[0].result;
       if (!esito || !esito.righe) {
         area.value = '';
-        mostra('Nessun nominativo trovato: apri "Tutto il personale" e riprova.', 'no');
+        mostra('Nessun nominativo trovato: apri "Tutto il personale" di ClasseViva (Spaggiari) e riprova. ' +
+               'Con altri registri questa estensione non funziona.', 'no');
         return;
       }
       area.value = esito.testo;

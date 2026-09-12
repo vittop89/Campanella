@@ -1,6 +1,10 @@
 /* ===========================================================================
    ESTRAI L'ELENCO DEL PERSONALE DA SPAGGIARI (ClasseViva)
    ---------------------------------------------------------------------------
+   Vale SOLO per ClasseViva: con altri registri (Argo, Axios, Nuvola...) non
+   trova niente. Legge la pagina gia' visibile a chi e' autenticato e non
+   manda nulla a nessuno.
+
    DOVE SI USA
      Spaggiari  ->  icona del profilo  ->  Network  ->  TUTTO IL PERSONALE
      tasto destro in un punto qualsiasi  ->  Ispeziona (o Esamina)

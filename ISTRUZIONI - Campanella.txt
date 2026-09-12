@@ -22,6 +22,21 @@ colleghi. Si collega a internet solo se glielo chiedi tu: per cercare
 aggiornamenti o per scaricare rizzo-pii.
 
 
+CON COSA FUNZIONA (E CON COSA NO)
+  - Windows 10 o 11.
+  - Un account Google Workspace della scuola: Gmail, Drive, Calendar. Con
+    Microsoft 365 non fa niente.
+  - L'elenco del personale si legge dal registro ClasseViva di Spaggiari,
+    pagina "Tutto il personale". Con Argo, Axios, Nuvola o altri registri
+    l'estensione e la funzione per la Console non trovano niente: incolla
+    l'elenco a mano, chiedilo in segreteria, oppure fallo leggere allo
+    script dalla tua casella (metodo C, il piu' preciso).
+  - Il tabellone degli orari e' quello di Orario Facile ("TABELLONE
+    DOCENTI"), oppure una tabella con le colonne Docente, Giorno, Ora,
+    Classe.
+  - Tutto in italiano.
+
+
 INSTALLAZIONE
 Doppio clic su "Installa Campanella.exe".
 
@@ -78,9 +93,9 @@ POSTA - riordinare la casella
    "Scuola" (Scuola/Circolari, Scuola/Colleghi...).
 2) Passo 3: carica l'elenco del personale. Tre modi:
    A) incolli gli indirizzi che hai gia';
-   B) li prendi da Spaggiari: con l'estensione per Chrome che il programma
-      crea per te (pulsante "Estensione...": si carica una volta da
-      chrome://extensions, poi basta un clic sulla pagina "Tutto il
+   B) li prendi da ClasseViva (solo Spaggiari): con l'estensione per Chrome
+      che il programma crea per te (pulsante "Estensione...": si carica una
+      volta da chrome://extensions, poi basta un clic sulla pagina "Tutto il
       personale"), oppure con la funzione da incollare nella Console;
    C) li fai estrarre dalla tua casella con EXTRA_elencaIndirizziScuola:
       e' il modo piu' preciso, perche' legge i mittenti veri.
@@ -98,7 +113,10 @@ classi (una per riga, dopo i due punti le materie: nella casella c'e' un
 esempio), percorso del Drive (trovato da solo, se c'e' Drive per desktop),
 quali modelli copiare. Non sovrascrive e non cancella mai niente: aggiunge
 solo quello che manca. Le cartelle fisse si cambiano da "Modifica
-struttura...".
+struttura...", che scrive struttura.json accanto al programma.
+I modelli stanno in "Il mio Drive\MODELLI", una sottocartella per gruppo.
+La sottocartella "PER CLASSE" e' speciale: ogni file che contiene viene
+copiato dentro ogni classe, con il nome della classe in coda.
 
 
 ORARI - le email a te e il calendario

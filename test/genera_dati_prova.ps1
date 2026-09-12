@@ -6,7 +6,8 @@
         .\test\genera_dati_prova.ps1 ; node test\mock_orari.js test\DatiOrari_prova.gs
 #>
 param(
-    [string]$File = 'H:\Il mio Drive\A.S. PRECEDENTI\A.S. 2025-26\Orari e calendari\orario_docenti_29_3_ottobre_2025.xlsx'
+    # di partenza il tabellone inventato; passa il tuo .xlsx per generare i dati veri
+    [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv')
 )
 
 $ErrorActionPreference = 'Stop'

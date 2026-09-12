@@ -12,6 +12,13 @@ always the one pressing Run. It sends no data to anyone, collects no
 statistics and needs no account. It connects to the internet only when you
 ask it to: to check for updates or to download rizzo-pii.
 
+It runs on Windows with a Google Workspace account (Gmail, Drive, Calendar):
+with Microsoft 365 it does nothing. The staff list can be read from the
+ClasseViva register by Spaggiari; with other registers it must be pasted by
+hand or requested from the school office. The timetable file is the one
+produced by Orario Facile, or a teacher/day/period table. The interface is
+in Italian only.
+
 
 2. THE DATA YOU WILL PROCESS IS NOT YOURS
 
