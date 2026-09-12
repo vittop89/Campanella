@@ -49,8 +49,15 @@ WizardStyle=modern
 ShowLanguageDialog=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
-VersionInfoVersion={#MyAppVersion}
+; risorsa di versione: SignPath controlla nome e versione del prodotto di ogni
+; file firmato (vedi signpath-artifact-configuration.xml)
+VersionInfoVersion={#MyAppVersion}.0
+VersionInfoTextVersion={#MyAppVersion}.0
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}.0
+VersionInfoProductTextVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
+VersionInfoCopyright=Licenza MIT
 VersionInfoDescription=Installazione di Campanella
 MinVersion=6.1sp1
 

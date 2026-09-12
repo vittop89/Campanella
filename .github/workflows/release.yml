@@ -1,24 +1,32 @@
 # ===========================================================================
-#  Rilascio di Campanella: compila, prova, firma con SignPath, pubblica.
+#  Campanella release: build, test, sign with SignPath, publish.
 #
-#  Parte quando si spinge un tag "v1.2.0" (o a mano da Actions). Produce:
-#    - Campanella.exe firmato
-#    - Installa-Campanella-<versione>.exe (Inno Setup, it/en) firmato
-#  e li allega al rilascio GitHub del tag.
+#  Runs when a tag like "v1.2.0" is pushed (or by hand from the Actions tab).
+#  It produces
+#    - Campanella.exe
+#    - Installa-Campanella-<version>.exe   (Inno Setup, Italian/English)
+#  signed through SignPath once the settings below exist, and attaches them,
+#  with the instructions and PRIVACY.md, to the GitHub release of the tag.
+#  The release notes are the CHANGELOG.md section of that version.
 #
-#  COSA SERVE, UNA VOLTA SOLA (Settings del repository):
-#    secrets.SIGNPATH_API_TOKEN       token API creato su SignPath
-#    vars.SIGNPATH_ORGANIZATION_ID    l'identificativo dell'organizzazione SignPath
-#    vars.SIGNPATH_PROJECT_SLUG       lo slug del progetto (per esempio "campanella")
-#    vars.SIGNPATH_POLICY_SLUG        lo slug della policy di firma (per esempio "release-signing")
+#  ONE-TIME SETUP (repository Settings > Secrets and variables > Actions):
+#    secrets.SIGNPATH_API_TOKEN      API token of the SignPath CI user
+#    vars.SIGNPATH_ORGANIZATION_ID   SignPath organization id (a GUID)
+#    vars.SIGNPATH_PROJECT_SLUG      project slug, e.g. "campanella"
+#    vars.SIGNPATH_POLICY_SLUG       signing policy slug, e.g. "release-signing"
+#    vars.SIGNPATH_CONFIG_SLUG       artifact configuration slug, e.g. "campanella-exe";
+#                                    its content is installer/signpath-artifact-configuration.xml
+#  Until SIGNPATH_ORGANIZATION_ID exists the signing steps are skipped and
+#  the release goes out unsigned, saying so (useful to test the flow).
 #
-#  Con SignPath Foundation (gratuito per l'open source) la firma la fa il
-#  loro certificato: il progetto viene verificato da loro, e le richieste di
-#  firma devono arrivare da questo workflow, non da un computer qualunque.
-#  Finche' le variabili non ci sono, i passi di firma vengono saltati e il
-#  rilascio esce non firmato (utile per provare il flusso).
+#  With SignPath Foundation (free for open source) the certificate is theirs:
+#  the project is vetted by them and signing requests must come from this
+#  workflow, run on GitHub-hosted runners, not from a developer's machine.
+#  The artifact configuration takes a "version" parameter and checks that
+#  every signed file carries product name "Campanella" and that product
+#  version; the version is read from src\Guscio.cs and must match the tag.
 # ===========================================================================
-name: Rilascio
+name: Release
 
 on:
   push:
@@ -26,95 +34,156 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write   # create the release and upload its files
+  actions: read     # SignPath reads the run and downloads the artifact to sign
 
 jobs:
-  compila:
-    name: Compila, prova, firma, pubblica
+  release:
+    name: Build, test, sign, publish
     runs-on: windows-latest
     steps:
-      - name: Sorgenti
-        uses: actions/checkout@v4
+      - name: Check out the sources
+        uses: actions/checkout@v7
 
-      - name: Compila Campanella.exe
+      - name: Read the version and check it against the tag
         shell: pwsh
+        run: |
+          $guscio = Get-Content src\Guscio.cs -Raw
+          if ($guscio -match '\[assembly: AssemblyVersion\("(\d+\.\d+\.\d+)\.0"\)\]') { $v = $Matches[1] }
+          else { throw 'AssemblyVersion not found in src\Guscio.cs' }
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $tag = $env:GITHUB_REF.Substring('refs/tags/'.Length)
+            if ($tag -ne "v$v") { throw "Tag $tag does not match AssemblyVersion $v in src\Guscio.cs" }
+          }
+          if ((Get-Content installer\Campanella.iss -Raw) -notmatch ('#define MyAppVersion\s+"' + [regex]::Escape($v) + '"')) { throw "installer\Campanella.iss does not say $v" }
+          if ((Get-Content src\Aggiornamenti.cs -Raw) -notmatch ('VersioneCampanella = "' + [regex]::Escape($v) + '"')) { throw "src\Aggiornamenti.cs does not say $v" }
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PRODUCT_VERSION=$v.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Version $v"
+
+      - name: Build Campanella.exe
+        shell: powershell
         run: .\build.ps1 -SenzaInstaller
 
-      - name: Banchi di prova degli script
+      - name: Test the Apps Script code on mock services
         shell: pwsh
         run: |
           node test\mock_apps_script.js
           node test\mock_orari.js
 
-      - name: Conserva l'eseguibile non firmato
+      - name: Test the timetable reader
+        shell: powershell
+        run: .\test\prova_orario.ps1
+
+      - name: Upload the unsigned executable
         id: exe
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: campanella-exe
           path: dist/Campanella.exe
 
-      # ---- firma dell'applicazione ------------------------------------------
-      - name: Firma Campanella.exe (SignPath)
+      # ---- signature of the application ---------------------------------------
+      - name: Sign Campanella.exe (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        id: firma_exe
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_CONFIG_SLUG }}
           github-artifact-id: ${{ steps.exe.outputs.artifact-id }}
+          parameters: |
+            version: "${{ env.PRODUCT_VERSION }}"
           wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed
 
-      - name: Metto l'eseguibile firmato al posto di quello non firmato
+      - name: Put the signed executable in place of the unsigned one
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
         shell: pwsh
         run: Copy-Item signed\Campanella.exe dist\Campanella.exe -Force
 
-      # ---- installer --------------------------------------------------------
-      - name: Installer con Inno Setup
+      # ---- installer ----------------------------------------------------------
+      - name: Build the installer (Inno Setup)
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
           & $iscc installer\Campanella.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
           Get-ChildItem dist
 
-      - name: Conserva l'installer non firmato
+      - name: Upload the unsigned installer
         id: setup
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: campanella-installer
           path: dist/Installa-Campanella-*.exe
 
-      - name: Firma l'installer (SignPath)
+      - name: Sign the installer (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_CONFIG_SLUG }}
           github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          parameters: |
+            version: "${{ env.PRODUCT_VERSION }}"
           wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: signed-installer
 
-      - name: Raccolgo i file da pubblicare
+      - name: Collect the release files
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force rilascio | Out-Null
-          Copy-Item dist\Campanella.exe rilascio\
-          if (Test-Path signed-installer) { Copy-Item signed-installer\*.exe rilascio\ }
-          else { Copy-Item dist\Installa-Campanella-*.exe rilascio\ }
-          Copy-Item "ISTRUZIONI - Campanella.txt" rilascio\
-          Copy-Item PRIVACY.md rilascio\
-          Get-ChildItem rilascio
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist\Campanella.exe release\
+          if (Test-Path signed-installer) { Copy-Item signed-installer\*.exe release\ }
+          else { Copy-Item dist\Installa-Campanella-*.exe release\ }
+          Copy-Item "ISTRUZIONI - Campanella.txt" release\
+          Copy-Item PRIVACY.md release\
+          Get-ChildItem release
 
-      # ---- rilascio ---------------------------------------------------------
-      - name: Pubblica il rilascio
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        env:
+          SIGNED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        run: |
+          $lines = Get-Content CHANGELOG.md
+          $notes = @()
+          $from = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match ('^## ' + [regex]::Escape($env:VERSION) + '\b')) { $from = $i + 1; break }
+          }
+          if ($from -ge 0) {
+            for ($i = $from; $i -lt $lines.Count -and $lines[$i] -notmatch '^## '; $i++) { $notes += $lines[$i] }
+          } else { $notes += 'See CHANGELOG.md.' }
+          $notes += ''
+          $notes += '---'
+          if ($env:SIGNED -eq 'true') {
+            $notes += 'Binaries built by GitHub Actions from this tag and signed with a SignPath Foundation certificate. Free code signing provided by SignPath.io, certificate by SignPath Foundation.'
+            $notes += ''
+            $notes += 'Eseguibili compilati da GitHub Actions da questo tag e firmati con un certificato di SignPath Foundation.'
+          } else {
+            $notes += '**These binaries are not code-signed yet.** Windows SmartScreen will warn: choose "More info", then "Run anyway" if you trust this source, or build from the sources with `build.ps1`. Signing through SignPath Foundation is planned (see "Code signing policy" in the README).'
+            $notes += ''
+            $notes += '**Questi eseguibili non sono ancora firmati.** Windows SmartScreen avvisa: scegli "Ulteriori informazioni" e poi "Esegui comunque" se ti fidi della fonte, oppure compila dai sorgenti con `build.ps1`. La firma tramite SignPath Foundation è in programma (vedi "Code signing policy" nel README).'
+          }
+          $notes += ''
+          $notes += 'Campanella is for Italian teachers on Google Workspace: the application, its documents and the scripts it generates are in Italian; Windows 10/11 only. The README says what it does, and for whom.'
+          $notes | Set-Content release-notes.md -Encoding utf8
+          Get-Content release-notes.md
+
+      - name: Publish the release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          files: rilascio/*
+          name: Campanella ${{ env.VERSION }}
+          body_path: release-notes.md
+          files: release/*
+          fail_on_unmatched_files: true
           generate_release_notes: true

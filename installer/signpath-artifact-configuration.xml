@@ -1,0 +1,22 @@
+<!--
+  SignPath artifact configuration for Campanella: paste it into the SignPath
+  project (slug suggested: "campanella-exe", the value of the repository
+  variable SIGNPATH_CONFIG_SLUG).
+
+  Each signing request from .github/workflows/release.yml is a ZIP archive
+  made by actions/upload-artifact holding exactly one executable:
+  Campanella.exe, or Installa-Campanella-<version>.exe. The "version"
+  parameter is passed by the workflow (e.g. "1.2.0.0") and is enforced
+  against the product version stored in the file, together with the product
+  name, as SignPath Foundation requires for signed binaries.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="*.exe" product-name="Campanella" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

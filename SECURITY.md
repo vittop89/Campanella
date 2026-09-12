@@ -1,31 +1,31 @@
-# Segnalare un problema di sicurezza
+# Reporting a security issue
 
-Se trovi una vulnerabilità in Campanella, nell'applicazione, negli script
-Apps Script, nell'installer o nell'estensione per Chrome, **non aprire una
-issue pubblica**: usa la segnalazione privata di GitHub, dalla scheda
-*Security* del repository ("Report a vulnerability"), oppure
-<https://github.com/vittop89/Campanella/security/advisories/new>.
+If you find a vulnerability in Campanella — the application, the Apps Script
+code, the installer or the Chrome extension — **do not open a public
+issue**: use GitHub's private vulnerability reporting, from the *Security*
+tab of the repository ("Report a vulnerability"), or
+<https://github.com/vittop89/Campanella/security/advisories/new>. Italian or
+English, as you prefer.
 
-Scrivi come riprodurla e quale dato o permesso è in gioco. Il progetto è
-mantenuto da una persona sola nel tempo libero: la risposta può richiedere
-qualche settimana, ma arriva.
+Say how to reproduce it and which data or permission is at stake. The
+project is maintained by one person in their spare time: an answer may take
+a few weeks, but it comes.
 
-## Cosa conta come problema di sicurezza, qui
+## What counts as a security issue, here
 
-- Lo script fa qualcosa che il testo non dice: manda email ad altri, cancella,
-  contatta servizi esterni, chiede permessi non documentati.
-- L'applicazione scrive dati personali in un posto diverso da quelli
-  dichiarati (`campanella.json`, `campanella-dati.json`, le cartelle scelte
-  dall'utente), o li manda in rete.
-- Il download di rizzo-pii dalle Impostazioni può essere dirottato.
-- L'estensione per Chrome legge o manda più di quello che dichiara.
-- L'installer o il disinstallatore toccano file fuori dalla propria cartella.
+- The script does something the text does not say: sends email to others,
+  deletes, contacts external services, asks for undocumented permissions.
+- The application writes personal data somewhere other than the declared
+  places (`campanella.json`, `campanella-dati.json`, the folders chosen by
+  the user), or sends it over the network.
+- The download of rizzo-pii from Settings can be hijacked.
+- The Chrome extension reads or sends more than it declares.
+- The installer or the uninstaller touch files outside their own folder.
 
-Non sono problemi di sicurezza: l'avviso di SmartScreen sugli eseguibili non
-firmati (vedi README, sezione sulla firma) e l'avviso "app non verificata" di
-Google, che compare per tutti gli script personali.
+Not security issues: the SmartScreen warning on unsigned executables (see
+the README, "Code signing policy") and Google's "unverified app" warning,
+which appears for every personal script.
 
-## Versioni supportate
+## Supported versions
 
-Solo l'ultima versione pubblicata. Le precedenti non ricevono correzioni:
-si aggiorna.
+Only the latest published release. Earlier ones receive no fixes: update.
