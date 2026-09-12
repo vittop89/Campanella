@@ -275,6 +275,24 @@ delle cartelle fisse è generico; chi vuole il proprio lo cambia da "Modifica
 struttura...", che scrive `struttura.json` accanto al programma e da lì in
 poi comanda quello. Il file è per utente e non è versionato.
 
+## Code signing policy
+
+I binari dei rilasci vengono compilati da GitHub Actions a partire da questo
+repository (`.github/workflows/release.yml`) e firmati tramite SignPath:
+la firma attesta che l'eseguibile è stato costruito da questi sorgenti, senza
+passaggi a mano. Finché il progetto non è accettato dal programma per l'open
+source, i rilasci escono non firmati e lo dicono.
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate
+by [SignPath Foundation](https://signpath.org).
+
+- Committers e reviewer: [vittop89](https://github.com/vittop89)
+- Approver delle richieste di firma: [vittop89](https://github.com/vittop89)
+
+Il progetto è mantenuto da una persona sola: chi scrive il codice è anche chi
+lo rivede e chi approva la firma. Le modifiche esterne arrivano solo tramite
+pull request, riviste prima di essere unite.
+
 ## Segnalazioni e contributi
 
 Errori e proposte: le *issue* di GitHub. Per un problema di sicurezza non
