@@ -19,6 +19,7 @@ test/Configurazione_prova.gs
 *.xls
 *.csv
 !test/tabellone_esempio.csv
+!test/DatiOrari_esempio.gs
 personale*
 documenti/
 
