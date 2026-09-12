@@ -154,7 +154,11 @@ lett. c) ed f) GDPR).
    un'autorizzazione per gli script, seguila.
 2. Manda al dirigente, per conoscenza al DPO, la comunicazione: il modello di
    email e la nota tecnica sono nella pagina Privacy di Campanella e nella
-   cartella «documenti» accanto al programma. Allega la nota tecnica.
+   cartella «documenti» accanto al programma. Allega la nota tecnica. Se la
+   scuola ha un animatore digitale o qualcuno che amministra il Workspace,
+   mettilo in copia: è chi ha lasciato abilitati gli script nel dominio, e
+   chi potrebbe chiudere la porta domani. Se quel ruolo è vacante, basta il
+   DPO.
 3. In Campanella, Impostazioni: tieni i dati di altre persone nel Drive.
 4. Non copiare posta o documenti di servizio sul computer se non ti servono;
    non dare all'IA testi con dati di studenti.

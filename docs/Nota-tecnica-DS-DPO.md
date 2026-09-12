@@ -91,9 +91,16 @@ non pubblicati). Le autorizzazioni sono determinate dalle funzioni usate:
   filtri nativi di Gmail (passo facoltativo).
 
 Non vengono richiesti: accesso al Drive, accesso a servizi esterni, accesso a
-dati di altri utenti del dominio. L'amministratore del Workspace può in ogni
-momento limitare o revocare l'esecuzione di script nel dominio; il docente
-può revocare l'accesso da https://myaccount.google.com/permissions.
+dati di altri utenti del dominio.
+
+L'esecuzione di script Apps Script è una funzione del Google Workspace che
+l'amministratore del dominio può consentire o bloccare per tutti gli utenti:
+se è consentita, lo script si autorizza con la procedura standard di Google;
+se è bloccata, non parte. L'amministratore può in ogni momento limitare o
+revocare l'esecuzione di script nel dominio, e il docente può revocare
+l'accesso concesso allo script da https://myaccount.google.com/permissions.
+*[Nel dominio dell'istituto l'esecuzione risulta consentita: verificato
+eseguendo lo script il [data].]*
 
 ## 5. Misure di sicurezza e reversibilità
 

@@ -9,7 +9,7 @@ qualcosa. Se prevede un'autorizzazione, aspettala.
 ---
 
 **A:** [indirizzo del dirigente scolastico]
-**Cc:** [indirizzo del DPO], [eventualmente: animatore digitale / amministratore del Workspace]
+**Cc:** [indirizzo del DPO], [se esistono: animatore digitale, oppure chi amministra il Google Workspace della scuola]
 **Oggetto:** Comunicazione: uso di uno script personale (Google Apps Script) per organizzare la mia casella istituzionale
 
 Gentile Dirigente,
@@ -29,7 +29,10 @@ dettaglio funzionamento, dati coinvolti e autorizzazioni; in sintesi:
 - **dove gira**: dentro il mio account Google Workspace istituzionale, tramite
   uno script Google Apps Script che autorizzo ed eseguo io stesso. Il codice
   non contatta servizi esterni, non trasmette dati a terzi e non condivide
-  nulla con altri utenti;
+  nulla con altri utenti. L'esecuzione di script è una funzione del Workspace
+  che l'amministratore del dominio può consentire o bloccare: nel nostro
+  dominio risulta consentita [scrivilo solo se lo hai verificato eseguendo lo
+  script];
 - **cosa non fa**: non cancella messaggi né file, non invia messaggi ad altre
   persone (le uniche email partono verso il mio stesso indirizzo), non tratta
   dati di studenti o famiglie per finalità diverse da quelle già proprie della
@@ -45,13 +48,21 @@ dettaglio funzionamento, dati coinvolti e autorizzazioni; in sintesi:
   artificiale. La uso proprio per evitare che dati di terzi escano
   dall'istituto.
 
+[Se la scuola ha un documento di e-policy o un regolamento sugli strumenti
+digitali, dillo: mostra che hai guardato prima di scrivere.] Ho letto [il
+Documento di e-Policy / il regolamento sull'uso degli strumenti digitali]
+pubblicato sul sito dell'istituto: non prevede adempimenti specifici per
+strumenti di questo tipo e indica il Responsabile della protezione dei dati
+come riferimento per le questioni in materia di privacy; per questo scrivo
+anche a lui.
+
 Sono consapevole che il titolare del trattamento di questi dati è l'istituto
 e che opero sotto la sua autorità e secondo le sue istruzioni. Per questo Le
-chiedo cortesemente di indicarmi se il regolamento d'istituto o le regole
-d'uso del Workspace prevedono, per uno strumento di questo tipo, una
-specifica autorizzazione o adempimenti ulteriori: in tal caso attenderò le
-Sue indicazioni prima di attivarlo. In assenza di prescrizioni particolari,
-intendo utilizzarlo come descritto.
+chiedo cortesemente di indicarmi se il regolamento d'istituto, le regole
+d'uso del Workspace o le istruzioni date al personale prevedono, per uno
+strumento di questo tipo, una specifica autorizzazione o adempimenti
+ulteriori: in tal caso attenderò le Sue indicazioni prima di attivarlo. In
+assenza di prescrizioni particolari, intendo utilizzarlo come descritto.
 
 Il codice è pubblico (https://github.com/vittop89/Campanella) e resto a
 disposizione per mostrarlo o per qualunque chiarimento, anche al DPO.
@@ -81,3 +92,13 @@ Cordiali saluti,
   strumento locale, separato dallo script, che serve a non far uscire dati
   dall'istituto. Non è un'autorizzazione a usare l'IA su documenti della
   scuola: quella, se serve, va chiesta a parte.
+- **Cita i documenti della tua scuola**: e-policy, regolamento sugli strumenti
+  digitali, informativa per i dipendenti, lettera di autorizzazione al
+  trattamento che hai firmato. Se non dicono niente sugli script, dirlo è
+  la prova che hai guardato; se dicono qualcosa, vale quello e non serve
+  questa email così com'è.
+- **Il fatto che lo script si autorizzi e giri** vuol dire che
+  l'amministratore del Workspace ha lasciato abilitata l'esecuzione di script
+  nel dominio: è una scelta del titolare, e vale la pena dirlo. Non è però
+  un'autorizzazione a trattare qualunque dato in qualunque modo: per questo
+  l'email descrive cosa fa lo strumento, non solo che gira.
