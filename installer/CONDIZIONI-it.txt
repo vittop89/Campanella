@@ -1,0 +1,113 @@
+CAMPANELLA - CONDIZIONI D'USO
+Da leggere una volta. È corto apposta.
+
+
+1. CHE COS'È
+
+Campanella è uno strumento personale che prepara testo: il codice di script
+Google da incollare nel tuo account, le cartelle di un anno scolastico, le
+email degli orari (che arrivano solo a te) e il tuo orario sul calendario.
+Non tocca la tua posta, il tuo calendario né il tuo Drive di sua iniziativa:
+sei sempre tu a premere Esegui. Non manda dati a nessuno, non raccoglie
+statistiche, non ha bisogno di un account. Si collega a internet solo se sei
+tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.
+
+
+2. I DATI CHE TRATTERAI NON SONO TUOI
+
+Nomi, indirizzi di servizio, orari, corrispondenza con colleghi e famiglie
+sono dati personali di cui il titolare del trattamento è la scuola, non tu.
+L'esenzione per uso domestico del GDPR non copre l'attività professionale.
+
+In concreto:
+
+  - L'elenco del personale e gli orari con i cognomi restano sul computer
+    dove usi Campanella. Dalle Impostazioni puoi tenerli in un file dentro
+    il Drive della scuola invece che accanto al programma: è la scelta
+    consigliata, perché così restano nell'account istituzionale.
+
+  - Meglio NON portare sul computer personale la posta e i documenti di
+    servizio. Se ti servono davvero, prendine il meno possibile.
+
+  - Lascia sempre fuori i dati degli studenti: certificazioni, PDP e PEI,
+    relazioni cliniche, segnalazioni. Sono categorie particolari di dati
+    (art. 9 GDPR) e non vanno copiate in locale.
+
+  - Cancella quello che non ti serve più: un file sul disco non scade
+    da solo.
+
+  - Se il computer non è solo tuo, o non è cifrato, il problema si
+    moltiplica. Una chiavetta smarrita è una violazione di dati da
+    notificare.
+
+
+3. INTELLIGENZA ARTIFICIALE: PRIMA SI ANONIMIZZA
+
+Quando incolli un documento in ChatGPT, Claude, Gemini o simili, quel testo
+esce dal tuo computer e finisce su server che non controlli, dove può
+essere conservato. Se contiene dati personali di terzi, è un trasferimento
+a un soggetto esterno che, per un'iniziativa personale, non ha una base
+giuridica.
+
+Per questo Campanella include lo strumento Privacy: togli i dati personali
+in locale, dai all'assistente solo i segnaposto, e rimetti i nomi veri nella
+risposta quando torna.
+
+Due cose che restano vere anche così:
+
+  - Nessun riconoscitore automatico prende il 100%. Rileggi il testo pulito
+    prima di incollarlo: la responsabilità del controllo finale è tua.
+
+  - Anonimizzare non basta sempre. In una classe di venti persone il
+    contesto reidentifica: "la collega di sostegno della 3B" non contiene
+    nomi e identifica benissimo.
+
+
+4. QUELLO CHE DECIDI TU
+
+L'applicazione ti mostra sempre prima cosa sta per succedere, parte in
+modalità prova e non scrive mai a nessun altro: le email degli orari
+arrivano soltanto a te. Ma le decisioni restano tue: cosa tenere sul
+computer, cosa incollare in un assistente, per quanto conservare.
+
+Sei tu a dover rispettare il GDPR, il regolamento del tuo istituto e le
+indicazioni del Responsabile della protezione dei dati (DPO). La legge non
+ti obbliga a chiedere un permesso per riordinare la tua posta dentro
+l'account della scuola, ma le istruzioni del tuo istituto possono farlo:
+Campanella ti dà una nota tecnica e un modello di email per avvisare
+dirigenza e DPO, se vuoi o se serve.
+
+
+5. NESSUNA GARANZIA, NESSUNA RESPONSABILITÀ DELL'AUTORE
+
+Il programma è distribuito gratuitamente e "così com'è" (as is), senza
+garanzie di alcun tipo, esplicite o implicite, comprese quelle di
+commerciabilità, idoneità a uno scopo particolare e assenza di difetti.
+
+Nei limiti consentiti dalla legge, l'autore non risponde di alcun danno
+diretto o indiretto derivante dall'uso o dal mancato funzionamento del
+programma: perdita o divulgazione di dati, email mandate per errore,
+sanzioni, contestazioni disciplinari, danni a terzi. L'uso è a tuo rischio
+e sotto la tua esclusiva responsabilità.
+
+Questo testo non è un parere legale e non sostituisce il regolamento della
+tua scuola né il parere del DPO.
+
+
+6. SOFTWARE DI ALTRI
+
+L'anonimizzazione la fa rizzo-pii (licenza MIT, Rizzo AI Academy), un
+programma separato che scarichi e installi tu. Gli script girano dentro
+Google Apps Script. Valgono le licenze e i termini d'uso di quei progetti.
+Campanella non ha alcun rapporto con Google, con il Gruppo Spaggiari Parma
+né con gli altri marchi citati.
+
+Campanella è distribuita con licenza MIT: il codice si può leggere,
+modificare e ridistribuire, mantenendo questa esclusione di responsabilità.
+
+
+7. IN DUE RIGHE
+
+Tieni fuori dal computer i dati che non ti servono. Se li dai a un'IA,
+anonimizzali prima e rileggi. Il programma è senza garanzie e quello che
+ci fai è responsabilità tua.

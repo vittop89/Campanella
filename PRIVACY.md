@@ -1,0 +1,161 @@
+# Privacy, dati personali e pubblicazione su GitHub
+
+Nota pratica, non un parere legale. Se la scuola ha un DPO, è a lui che vanno
+le domande che contano. Per il quadro giuridico completo, con i riferimenti
+di legge, vedi [docs/GDPR-e-DPO.md](docs/GDPR-e-DPO.md).
+
+## In breve
+
+**Il codice si può pubblicare in chiaro. I dati che ci passano dentro no.**
+
+Campanella è un generatore di testo: non contiene dati personali, non chiama
+nessun server, non raccoglie statistiche. Tutto quello che tratta resta
+nell'account Google dell'utente e nel suo computer. Il rischio non è il
+programma: è quello che finisce per sbaglio dentro al repository.
+
+## Cosa NON deve mai finire nel repository
+
+| File | Perché |
+|---|---|
+| `campanella.json`, `campanella-dati.json` | contengono l'elenco del personale: nomi, cognomi, ruoli, indirizzi email di colleghi. Dati personali di terzi. |
+| `test/DatiOrari_prova.gs`, `test/Configurazione_prova.gs` | generati dai dati veri (cognomi, indirizzi, orario di servizio). I banchi di prova usano i file `*_esempio.gs`, inventati. |
+| qualunque `.xlsx` di orario | come sopra |
+| `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
+| `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
+
+Il `.gitignore` del progetto li esclude già tutti. Prima di ogni `push`
+conviene comunque controllare a mano:
+
+```bash
+git ls-files | grep -iE "json|gs$|xlsx|csv"
+```
+
+Devono comparire solo i file `*_esempio.gs`, i `.gs` di `src/risorse` e il
+`manifest.json` dell'estensione. Se un file con dati è già stato committato,
+non basta cancellarlo: resta nella storia. Va riscritta la storia
+(`git filter-repo`) oppure, molto più semplice, si ricomincia da un
+repository nuovo.
+
+## Cosa resta nel codice, e va bene
+
+- I domini dei sindacati e del ministero nelle regole di partenza: sono
+  informazioni pubbliche, stanno sui siti istituzionali. Il dominio della
+  scuola di partenza è vuoto: lo scrive chi usa il programma.
+- La cartella del Drive viene cercata all'avvio (`Il mio Drive` nel profilo o
+  nella radice di un'unità): il percorso di pubblicazione in `build.ps1` è una
+  preferenza di chi compila, non un dato.
+- Il nome dell'autore nelle proprietà dell'eseguibile: è una scelta di chi
+  pubblica.
+
+## Il trattamento dei dati, quando lo usi
+
+Qui sta la sostanza, ed è indipendente da GitHub.
+
+**Chi tratta cosa.** Nomi, indirizzi di servizio e orari dei colleghi sono
+dati personali (comuni, non particolari). Il titolare del trattamento è la
+scuola, non il singolo docente. Usando questi strumenti stai trattando dati
+di cui disponi legittimamente per ragioni di servizio, come persona
+autorizzata che opera sotto l'autorità della scuola: l'esenzione "domestica"
+del GDPR non copre l'attività professionale, quindi ti muovi dentro il
+perimetro della scuola e delle sue istruzioni.
+
+**Dove finiscono i dati.** In nessun posto nuovo: restano nell'account Google
+che stai già usando. Campanella non li manda a nessun servizio terzo, e
+nemmeno a chi l'ha scritta. Lo script scrive email soltanto al tuo stesso
+indirizzo.
+
+**Dove stanno i dati sul computer.** L'elenco del personale, gli indirizzi di
+dirigenza e segreteria e gli orari con i cognomi stanno in `campanella.json`
+accanto al programma, oppure — dalle Impostazioni, ed è la scelta
+consigliata — in `campanella-dati.json` dentro la cartella del Drive della
+scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
+non ne resta traccia. Quando non ti servono più, svuota l'elenco.
+
+**I punti che meritano attenzione.**
+
+1. **Il computer e i supporti.** Un computer non cifrato o condiviso, una
+   chiavetta: una chiavetta smarrita con l'elenco del personale è una
+   violazione di dati che la scuola deve valutare e, se del caso, notificare
+   al Garante entro 72 ore. Avvisa subito la scuola, secondo le sue
+   istruzioni.
+2. **I dati degli studenti.** Certificazioni, PDP e PEI, relazioni cliniche
+   sono categorie particolari (art. 9 GDPR). Campanella non li tratta; non
+   copiarli sul computer e non darli a un assistente di IA, nemmeno
+   anonimizzati.
+3. **Conservazione.** Un file sul disco non ha una scadenza automatica.
+   Decidi tu per quanto tenerlo e cancellalo quando non serve più.
+
+**Base giuridica.** Per l'organizzazione del servizio scolastico si ricade
+nell'esecuzione di un compito di interesse pubblico (art. 6, par. 1, lett. e)
+GDPR; art. 2-ter del Codice privacy), esercitato dalla scuola. Un'iniziativa
+personale che coinvolge i dati dei colleghi va quindi ricondotta a quel
+quadro: da qui i documenti per dirigenza e DPO che Campanella ti mette a
+disposizione (pagina Privacy e cartella `documenti`).
+
+## Devo avvisare il DPO?
+
+Non c'è un obbligo di legge di chiedere un'autorizzazione per riordinare la
+propria casella dentro l'account della scuola: il DPO informa, consiglia e
+sorveglia, non autorizza. Ci sono però le istruzioni della scuola, che devi
+seguire (art. 29 e 32, par. 4 GDPR): se il regolamento d'istituto prevede
+una segnalazione o un'autorizzazione per gli script, vale quella. La strada
+prudente è una comunicazione con allegata la nota tecnica. Tutto spiegato,
+con i riferimenti, in [docs/GDPR-e-DPO.md](docs/GDPR-e-DPO.md); i testi
+pronti sono [docs/Nota-tecnica-DS-DPO.md](docs/Nota-tecnica-DS-DPO.md) e
+[docs/Email-DS-DPO.md](docs/Email-DS-DPO.md).
+
+## Dare documenti a un'intelligenza artificiale
+
+Quando incolli un documento in ChatGPT, Claude o Gemini quel testo esce dal tuo
+computer e finisce su server che non controlli, dove può essere conservato o
+usato. Se il documento contiene dati personali di colleghi, studenti o
+famiglie, quello è un trasferimento a un terzo — ed è esattamente il caso in
+cui il GDPR chiede una base giuridica che, per un'iniziativa personale, non
+c'è.
+
+Lo strumento **Privacy** dell'applicazione serve a togliere il problema alla
+radice invece di gestirlo: il testo viene ripulito **in locale** da rizzo-pii,
+all'assistente arriva solo `[FULLNAME_1]`, `[CF_2]`, `[IBAN_1]`, e i nomi veri
+si rimettono nella risposta sempre in locale. Il dizionario che collega
+segnaposto e valori resta nella memoria dell'applicazione: non viene scritto su
+disco e non passa dalla rete.
+
+Due avvertenze che restano valide anche così:
+
+1. **Nessun riconoscitore prende il 100%.** Rileggi sempre il testo pulito
+   prima di incollarlo. E soprattutto: un dato che identifica una persona non
+   è per forza un nome. "La collega di sostegno della 3B" non contiene nomi e
+   identifica benissimo.
+
+2. **Sui dati degli studenti non basta anonimizzare.** In una classe di venti
+   persone il contesto reidentifica quasi sempre. Certificazioni, PDP e PEI,
+   relazioni cliniche non vanno date a un assistente, nemmeno con i segnaposto.
+
+## L'elenco del personale da Spaggiari
+
+La funzione per la Console e l'estensione per Chrome leggono soltanto quello
+che è già visibile sullo schermo di un utente autenticato: non aggirano
+l'autenticazione, non interrogano API riservate, non accedono a niente che tu
+non possa già vedere, non mandano niente a nessuno. Detto questo, i termini
+d'uso dei registri elettronici a volte vietano l'interazione automatizzata:
+se hai dubbi, l'elenco lo si può sempre chiedere alla segreteria, ed è anche
+il modo più affidabile. L'estensione non passa dal Web Store: si carica dalla
+cartella con la modalità sviluppatore di Chrome, quindi non c'è nessuna
+pubblicazione.
+
+## Se pubblichi l'eseguibile
+
+Il binario compilato in locale è firmato con un certificato autofirmato: sul
+computer dove è stato creato Windows lo accetta senza storie, su qualunque
+altro SmartScreen avvisa lo stesso. Per i rilasci pubblici c'è il workflow
+con SignPath (`.github/workflows/release.yml`), che firma con un certificato
+di un'autorità riconosciuta senza costi per i progetti open source.
+
+## Lista di controllo prima di rendere pubblico il repository
+
+- [ ] `git ls-files` non mostra `campanella*.json`, `.xlsx`, `*_prova.gs`
+- [ ] nessun indirizzo email di persone reali nei sorgenti e nei commenti
+- [ ] nessun cognome reale nei file di prova (usa nomi inventati: `*_esempio.gs`)
+- [ ] il dominio predefinito è vuoto
+- [ ] README, PRIVACY, LICENSE e `docs/` presenti
+- [ ] la storia dei commit è pulita quanto i file attuali

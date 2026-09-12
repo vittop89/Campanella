@@ -1,0 +1,14 @@
+# testo normalizzato a LF nel repository; Windows lo legge lo stesso
+* text=auto
+*.cs   text
+*.gs   text
+*.js   text
+*.ps1  text
+*.iss  text
+*.md   text
+*.txt  text
+*.yml  text
+*.json text
+*.exe  binary
+*.png  binary
+*.ico  binary

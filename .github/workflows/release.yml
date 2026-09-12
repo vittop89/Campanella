@@ -1,0 +1,120 @@
+# ===========================================================================
+#  Rilascio di Campanella: compila, prova, firma con SignPath, pubblica.
+#
+#  Parte quando si spinge un tag "v1.2.0" (o a mano da Actions). Produce:
+#    - Campanella.exe firmato
+#    - Installa-Campanella-<versione>.exe (Inno Setup, it/en) firmato
+#  e li allega al rilascio GitHub del tag.
+#
+#  COSA SERVE, UNA VOLTA SOLA (Settings del repository):
+#    secrets.SIGNPATH_API_TOKEN       token API creato su SignPath
+#    vars.SIGNPATH_ORGANIZATION_ID    l'identificativo dell'organizzazione SignPath
+#    vars.SIGNPATH_PROJECT_SLUG       lo slug del progetto (per esempio "campanella")
+#    vars.SIGNPATH_POLICY_SLUG        lo slug della policy di firma (per esempio "release-signing")
+#
+#  Con SignPath Foundation (gratuito per l'open source) la firma la fa il
+#  loro certificato: il progetto viene verificato da loro, e le richieste di
+#  firma devono arrivare da questo workflow, non da un computer qualunque.
+#  Finche' le variabili non ci sono, i passi di firma vengono saltati e il
+#  rilascio esce non firmato (utile per provare il flusso).
+# ===========================================================================
+name: Rilascio
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compila:
+    name: Compila, prova, firma, pubblica
+    runs-on: windows-latest
+    steps:
+      - name: Sorgenti
+        uses: actions/checkout@v4
+
+      - name: Compila Campanella.exe
+        shell: pwsh
+        run: .\build.ps1 -SenzaInstaller
+
+      - name: Banchi di prova degli script
+        shell: pwsh
+        run: |
+          node test\mock_apps_script.js
+          node test\mock_orari.js
+
+      - name: Conserva l'eseguibile non firmato
+        id: exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: campanella-exe
+          path: dist/Campanella.exe
+
+      # ---- firma dell'applicazione ------------------------------------------
+      - name: Firma Campanella.exe (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        id: firma_exe
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Metto l'eseguibile firmato al posto di quello non firmato
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        shell: pwsh
+        run: Copy-Item signed\Campanella.exe dist\Campanella.exe -Force
+
+      # ---- installer --------------------------------------------------------
+      - name: Installer con Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
+          & $iscc installer\Campanella.iss
+          Get-ChildItem dist
+
+      - name: Conserva l'installer non firmato
+        id: setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: campanella-installer
+          path: dist/Installa-Campanella-*.exe
+
+      - name: Firma l'installer (SignPath)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-installer
+
+      - name: Raccolgo i file da pubblicare
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force rilascio | Out-Null
+          Copy-Item dist\Campanella.exe rilascio\
+          if (Test-Path signed-installer) { Copy-Item signed-installer\*.exe rilascio\ }
+          else { Copy-Item dist\Installa-Campanella-*.exe rilascio\ }
+          Copy-Item "ISTRUZIONI - Campanella.txt" rilascio\
+          Copy-Item PRIVACY.md rilascio\
+          Get-ChildItem rilascio
+
+      # ---- rilascio ---------------------------------------------------------
+      - name: Pubblica il rilascio
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rilascio/*
+          generate_release_notes: true

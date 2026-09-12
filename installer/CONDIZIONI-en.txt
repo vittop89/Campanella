@@ -1,0 +1,113 @@
+CAMPANELLA - TERMS OF USE
+Read once. It is short on purpose.
+
+
+1. WHAT IT IS
+
+Campanella is a personal tool that prepares text: the Google Apps Script code
+to paste into your account, the folders of a school year, the timetable
+emails (which are sent only to you) and your own timetable in your calendar.
+It never touches your mail, your calendar or your Drive on its own: you are
+always the one pressing Run. It sends no data to anyone, collects no
+statistics and needs no account. It connects to the internet only when you
+ask it to: to check for updates or to download rizzo-pii.
+
+
+2. THE DATA YOU WILL PROCESS IS NOT YOURS
+
+Names, work addresses, timetables, correspondence with colleagues and
+families are personal data whose controller is the school, not you. The
+GDPR household exemption does not cover professional activity.
+
+In practice:
+
+  - The staff list and the timetables with surnames stay on the computer
+    where you use Campanella. From Settings you can keep them in a file
+    inside the school Drive instead of next to the program: this is the
+    recommended choice, because they then stay within the institutional
+    account.
+
+  - Better NOT to bring work mail and documents onto a personal computer.
+    If you really need them, take as little as possible.
+
+  - Always leave students' data out: certifications, individual education
+    plans, clinical reports, referrals. They are special categories of data
+    (Article 9 GDPR) and must not be copied locally.
+
+  - Delete what you no longer need: a file on disk does not expire by
+    itself.
+
+  - If the computer is not yours alone, or is not encrypted, the problem
+    multiplies. A lost USB stick is a data breach that must be reported.
+
+
+3. ARTIFICIAL INTELLIGENCE: ANONYMISE FIRST
+
+When you paste a document into ChatGPT, Claude, Gemini or similar, that text
+leaves your computer and ends up on servers you do not control, where it may
+be retained. If it contains personal data of third parties, that is a
+transfer to an external party which, for a personal initiative, has no legal
+basis.
+
+That is why Campanella includes the Privacy tool: remove the personal data
+locally, give the assistant only the placeholders, and put the real names
+back into the answer when it comes back.
+
+Two things remain true even so:
+
+  - No automatic recogniser catches 100%. Re-read the cleaned text before
+    pasting it: the final check is your responsibility.
+
+  - Anonymising is not always enough. In a class of twenty, context
+    re-identifies: "the support teacher of class 3B" contains no names and
+    identifies perfectly well.
+
+
+4. WHAT YOU DECIDE
+
+The application always shows you beforehand what is about to happen, starts
+in trial mode and never writes to anyone else: the timetable emails go only
+to you. But the decisions are yours: what to keep on the computer, what to
+paste into an assistant, how long to retain it.
+
+You are the one who must comply with the GDPR, your school's regulations and
+the instructions of the Data Protection Officer (DPO). The law does not
+require you to ask permission to tidy up your own mail inside the school
+account, but your school's instructions may: Campanella gives you a
+technical note and an email template to inform the principal and the DPO,
+if you wish or if it is required.
+
+
+5. NO WARRANTY, NO LIABILITY OF THE AUTHOR
+
+The program is distributed free of charge and "as is", without warranties of
+any kind, express or implied, including those of merchantability, fitness
+for a particular purpose and absence of defects.
+
+To the extent permitted by law, the author is not liable for any direct or
+indirect damage arising from the use of, or the inability to use, the
+program: loss or disclosure of data, emails sent by mistake, penalties,
+disciplinary actions, damage to third parties. Use is at your own risk and
+under your sole responsibility.
+
+This text is not legal advice and does not replace your school's regulations
+or the opinion of the DPO.
+
+
+6. THIRD-PARTY SOFTWARE
+
+Anonymisation is performed by rizzo-pii (MIT licence, Rizzo AI Academy), a
+separate program that you download and install yourself. The scripts run
+inside Google Apps Script. The licences and terms of use of those projects
+apply. Campanella has no relationship with Google, with Gruppo Spaggiari
+Parma or with the other trademarks mentioned.
+
+Campanella is distributed under the MIT licence: the code may be read,
+modified and redistributed, keeping this disclaimer.
+
+
+7. IN TWO LINES
+
+Keep off your computer the data you do not need. If you give it to an AI,
+anonymise it first and re-read. The program comes without warranty and what
+you do with it is your responsibility.

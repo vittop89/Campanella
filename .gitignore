@@ -1,0 +1,32 @@
+# --- output della compilazione -------------------------------------------
+dist/
+*.exe
+*.pdb
+installer/Output/
+signed/
+
+# --- dati personali: non devono MAI entrare nel repository ----------------
+# elenco del personale, orari, configurazioni generate
+campanella.json
+campanella-dati.json
+struttura.json
+Configurazione.gs
+DatiOrari*.gs
+*_prova.gs
+test/DatiOrari_prova.gs
+test/Configurazione_prova.gs
+*.xlsx
+*.xls
+*.csv
+personale*
+documenti/
+
+# --- roba di sistema -------------------------------------------------------
+Thumbs.db
+desktop.ini
+.vs/
+
+# --- scarti di altri strumenti --------------------------------------------
+ruvector.db
+*.db
+.claude/

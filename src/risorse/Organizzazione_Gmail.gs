@@ -1,0 +1,776 @@
+/**
+ * ============================================================================
+ *  ORGANIZZAZIONE GMAIL  -  riordino automatico della posta scolastica
+ * ============================================================================
+ *
+ *  Questo codice NON va modificato a mano.
+ *  Tutte le impostazioni (dominio della scuola, elenco del personale, regole,
+ *  etichette) stanno nel file "Configurazione.gs", che viene generato
+ *  dall'applicazione Campanella (strumento Posta) e incollato qui accanto.
+ *
+ *  Usa soltanto Gmail: non scrive nel Drive, non chiama servizi esterni
+ *  (nessun UrlFetchApp) e le uniche email che manda sono i riepiloghi a te
+ *  stesso. Non cancella mai niente.
+ *
+ *  COSA FA
+ *    1. crea le etichette in Gmail;
+ *    2. le applica alla posta gia' ricevuta, in blocchi, riprendendo da sola
+ *       se il tempo massimo di esecuzione finisce;
+ *    3. resta attiva e smista i messaggi nuovi ogni ora;
+ *    4. (facoltativo) crea i veri filtri di Gmail, cosi' lo smistamento
+ *       avviene anche senza lo script.
+ *
+ *  COSA NON FA
+ *    Non cancella niente. Non svuota il cestino. Non segnala come spam.
+ *    Applica etichette e, se richiesto, archivia: l'archiviazione toglie dalla
+ *    Posta in arrivo ma il messaggio resta in "Tutti i messaggi".
+ *
+ *  FUNZIONI DA ESEGUIRE, NELL'ORDINE
+ *  (menu a tendina in alto nell'editor, accanto al pulsante "Esegui")
+ *
+ *    PASSO_1_anteprima ............. prova a vuoto: dice cosa farebbe
+ *    PASSO_2_creaEtichette ......... crea solo le etichette
+ *    PASSO_3_riordinaPostaEsistente  applica le etichette alla posta vecchia
+ *    PASSO_4_attivaAutomazione ..... smista da solo i messaggi nuovi
+ *
+ *    EXTRA_elencaIndirizziScuola ... estrae dalla casella gli indirizzi del
+ *                                    dominio della scuola, per compilare
+ *                                    l'elenco del personale nell'applicazione
+ *    EXTRA_creaFiltriGmail ......... crea i filtri veri di Gmail (facoltativo)
+ *
+ *    ANNULLA_automazione ........... spegne lo smistamento automatico
+ *    ANNULLA_etichettatura ......... toglie dalle mail le etichette applicate
+ *    ANNULLA_progressoRiordino ..... azzera il segnaposto del PASSO 3
+ * ============================================================================
+ */
+
+// ---------------------------------------------------------------------------
+// Limiti e costanti interne
+// ---------------------------------------------------------------------------
+var _MAX_SECONDI_ESECUZIONE = 260;   // ~4 min 20 s: sotto il limite di Google
+var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
+var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
+var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
+var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
+var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
+
+
+// ===========================================================================
+//  PASSO 1 - ANTEPRIMA (non modifica niente)
+// ===========================================================================
+function PASSO_1_anteprima() {
+  var cfg = _config();
+  var righe = [];
+  righe.push('ANTEPRIMA - nessun messaggio verra\' modificato.');
+  righe.push('Account: ' + _mioIndirizzo());
+  righe.push('Dominio scuola: ' + (cfg.dominioScuola || '(non impostato)'));
+  righe.push('Persone in elenco: ' + ((cfg.personale || []).length));
+  righe.push('Periodo: ' + _descrizionePeriodo(cfg));
+  righe.push('');
+
+  var totale = 0;
+  var regole = _regoleAttive(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    var n = 0;
+    var queries = _queryDellaRegola(cfg, regole[i]);
+    for (var q = 0; q < queries.length; q++) {
+      // il conteggio si ferma a 500 per ricerca: serve solo a dare un'idea
+      n += GmailApp.search(queries[q], 0, 500).length;
+    }
+    totale += n;
+    righe.push('  ' + _pad(_etichettaCompleta(cfg, regole[i]), 34) + _contaTesto(n) +
+               (regole[i].archivia ? '   (poi archivia)' : ''));
+  }
+  righe.push('');
+  righe.push('Totale conversazioni interessate (stima): ' + totale);
+  righe.push('');
+  righe.push('Nota: i numeri sono una stima per eccesso. Le regole che escludono');
+  righe.push('altre etichette (per esempio Studenti, che esclude Colleghi) qui');
+  righe.push('contano di piu\' del reale, perche\' le etichette non esistono ancora.');
+  righe.push('');
+  righe.push('Se il risultato ti convince: esegui PASSO_2_creaEtichette');
+  righe.push('e poi PASSO_3_riordinaPostaEsistente.');
+
+  var testo = righe.join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  PASSO 2 - CREA LE ETICHETTE
+// ===========================================================================
+function PASSO_2_creaEtichette() {
+  var cfg = _config();
+  var regole = _regoleAttive(cfg);
+  var create = [];
+  var esistenti = [];
+
+  for (var i = 0; i < regole.length; i++) {
+    // le etichette annidate vanno create anche nei livelli superiori
+    var parti = _etichettaCompleta(cfg, regole[i]).split('/');
+    var progressivo = '';
+    for (var p = 0; p < parti.length; p++) {
+      progressivo = (p === 0) ? parti[0] : progressivo + '/' + parti[p];
+      if (GmailApp.getUserLabelByName(progressivo)) {
+        if (esistenti.indexOf(progressivo) < 0) esistenti.push(progressivo);
+      } else {
+        GmailApp.createLabel(progressivo);
+        create.push(progressivo);
+      }
+    }
+  }
+
+  var testo = 'Etichette create adesso: ' + create.length +
+              (create.length ? '\n  - ' + create.join('\n  - ') : '') +
+              '\n\nEtichette gia\' presenti: ' + esistenti.length +
+              (esistenti.length ? '\n  - ' + esistenti.join('\n  - ') : '');
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  PASSO 3 - RIORDINA LA POSTA GIA' RICEVUTA
+//  Lavora a blocchi e, se finisce il tempo, riprende da sola dopo un minuto.
+// ===========================================================================
+function PASSO_3_riordinaPostaEsistente() {
+  // un blocco per volta: se la ripresa automatica parte mentre un'altra
+  // esecuzione e' ancora in corso, la seconda aspetta o lascia perdere
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(10000)) {
+    var occupato = 'Un\'altra esecuzione del riordino e\' in corso: riprovo piu\' tardi.';
+    Logger.log(occupato);
+    _programmaRipresa();
+    return occupato;
+  }
+  try { return _riordina(); }
+  finally { lock.releaseLock(); }
+}
+
+function _riordina() {
+  var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+  var cfg = _config();
+  var regole = _regoleAttive(cfg);
+  var stato = _leggiProgresso();
+  var prova = !!cfg.provaSenzaModifiche;
+
+  if (!stato.iniziato) {
+    stato.iniziato = new Date().toISOString();
+    stato.fatti = {};
+    // in prova non si crea niente, nemmeno le etichette: "non modifica
+    // niente" deve valere alla lettera
+    if (!prova) PASSO_2_creaEtichette();
+  }
+
+  var interrotto = false;
+
+  while (stato.indice < regole.length && !interrotto) {
+    var regola = regole[stato.indice];
+    var nomeEtichetta = _etichettaCompleta(cfg, regola);
+    var etichetta = prova ? null
+      : (GmailApp.getUserLabelByName(nomeEtichetta) || GmailApp.createLabel(nomeEtichetta));
+    var queries = _queryDellaRegola(cfg, regola);
+
+    while (stato.query < queries.length) {
+      var query = queries[stato.query];
+      var guardia = '';               // prima conversazione del giro precedente
+
+      while (true) {
+        if (Date.now() > scadenza) { interrotto = true; break; }
+
+        if (prova) {
+          // in prova non applico nulla, quindi la stessa ricerca tornerebbe
+          // sempre uguale: conto a pagine (fino a un tetto) e passo oltre
+          _somma(stato.fatti, nomeEtichetta, _contaConversazioni(query, 2000));
+          break;
+        }
+
+        var threads;
+        try {
+          threads = GmailApp.search(query, 0, _THREAD_PER_BLOCCO);
+        } catch (errore) {
+          // una ricerca scritta male (di solito la "ricerca avanzata" di una
+          // regola) non deve bloccare tutte le altre: la salto e lo dico
+          Logger.log('Regola "' + nomeEtichetta + '": ricerca non accettata da Gmail (' +
+                     errore.message + '). Regola saltata: ' + query);
+          _somma(stato.fatti, nomeEtichetta + ' (ricerca rifiutata)', 0);
+          break;
+        }
+        if (!threads.length) break;
+
+        var primo = threads[0].getId();
+        if (primo === guardia) {
+          // stessa conversazione due giri di fila: l'indice di Gmail non si e'
+          // ancora aggiornato. Mi fermo per non girare a vuoto.
+          Logger.log('Regola "' + nomeEtichetta + '": indice di Gmail in ritardo, ' +
+                     'riprendo alla prossima esecuzione.');
+          interrotto = true;
+          break;
+        }
+        guardia = primo;
+
+        etichetta.addToThreads(threads);
+        if (regola.archivia)       GmailApp.moveThreadsToArchive(threads);
+        if (regola.segnaComeLette) GmailApp.markThreadsRead(threads);
+        _somma(stato.fatti, nomeEtichetta, threads.length);
+        Utilities.sleep(300);         // gentile con le quote di Gmail
+      }
+
+      if (interrotto) break;
+      stato.query++;
+    }
+
+    if (interrotto) break;
+    stato.indice++;
+    stato.query = 0;
+  }
+
+  if (interrotto) {
+    _salvaProgresso(stato);
+    _programmaRipresa();
+    var parziale = 'Tempo massimo di esecuzione raggiunto.\n' +
+                   'Il riordino riprende da solo tra circa un minuto: ' +
+                   'puoi anche chiudere la pagina.\n\nFatto finora:\n' +
+                   _riepilogo(stato.fatti);
+    Logger.log(parziale);
+    return parziale;
+  }
+
+  _rimuoviTrigger(_TRIGGER_RIPRESA);
+  var riepilogo = (cfg.provaSenzaModifiche
+        ? 'PROVA COMPLETATA - nessuna modifica applicata.\n' +
+          'Per applicare davvero: in Configurazione.gs metti\n' +
+          '  provaSenzaModifiche: false\n\n'
+        : 'RIORDINO COMPLETATO.\n\n') + _riepilogo(stato.fatti);
+  _azzeraProgresso();
+  Logger.log(riepilogo);
+  if (cfg.inviaReport && !cfg.provaSenzaModifiche) {
+    _inviaReport('Riordino completato', riepilogo);
+  }
+  return riepilogo;
+}
+
+
+// ===========================================================================
+//  PASSO 4 - SMISTAMENTO AUTOMATICO DEI MESSAGGI NUOVI
+// ===========================================================================
+function PASSO_4_attivaAutomazione() {
+  var cfg = _config();
+  var ore = Math.max(1, cfg.ogniQuanteOre || 1);
+  _rimuoviTrigger(_TRIGGER_ORARIO);
+  ScriptApp.newTrigger(_TRIGGER_ORARIO).timeBased().everyHours(ore).create();
+
+  var testo = 'Smistamento automatico attivo: ogni ' + ore + ' ora/e i messaggi ' +
+              'nuovi vengono etichettati da soli.\n\n' +
+              (cfg.provaSenzaModifiche
+                ? 'ATTENZIONE: sei ancora in modalita\' prova, quindi ' +
+                  'l\'automazione non modifichera\' nulla.\n' +
+                  'In Configurazione.gs metti  provaSenzaModifiche: false\n\n'
+                : '') +
+              'Per spegnerlo esegui ANNULLA_automazione.';
+  Logger.log(testo);
+  return testo;
+}
+
+/** Bersaglio del trigger orario: guarda solo la posta recente. */
+function smistaNuoviMessaggi() {
+  var cfg = _config();
+  if (cfg.provaSenzaModifiche) return;      // in prova non tocca nulla
+
+  // se il riordino grosso (PASSO 3) sta ancora girando, questo giro salta:
+  // la posta nuova la prende il prossimo, fra un'ora
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(0)) return;
+  try {
+    var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+    var regole = _regoleAttive(cfg);
+    var giorni = Math.max(1, cfg.giorniPostaNuova || 3);
+    var fatti = {};
+
+    for (var i = 0; i < regole.length && Date.now() < scadenza; i++) {
+      var regola = regole[i];
+      var nome = _etichettaCompleta(cfg, regola);
+      var etichetta = GmailApp.getUserLabelByName(nome) || GmailApp.createLabel(nome);
+      var queries = _queryDellaRegola(cfg, regola, 'newer_than:' + giorni + 'd');
+
+      for (var q = 0; q < queries.length && Date.now() < scadenza; q++) {
+        var threads;
+        try { threads = GmailApp.search(queries[q], 0, _THREAD_PER_BLOCCO); }
+        catch (errore) {
+          Logger.log('Regola "' + nome + '": ricerca non accettata da Gmail, saltata.');
+          continue;
+        }
+        if (!threads.length) continue;
+        etichetta.addToThreads(threads);
+        if (regola.archivia)       GmailApp.moveThreadsToArchive(threads);
+        if (regola.segnaComeLette) GmailApp.markThreadsRead(threads);
+        _somma(fatti, nome, threads.length);
+      }
+    }
+    if (_totale(fatti) > 0) Logger.log('Smistamento automatico:\n' + _riepilogo(fatti));
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Conta le conversazioni di una ricerca a pagine, fino a un tetto. */
+function _contaConversazioni(query, tetto) {
+  var n = 0;
+  while (n < tetto) {
+    var pagina = GmailApp.search(query, n, Math.min(_THREAD_PER_BLOCCO, tetto - n));
+    n += pagina.length;
+    if (pagina.length < _THREAD_PER_BLOCCO) break;
+  }
+  return n;
+}
+
+
+// ===========================================================================
+//  EXTRA - ELENCO DEGLI INDIRIZZI DEL DOMINIO DELLA SCUOLA
+//  Legge i mittenti gia' presenti nella casella: gli indirizzi cosi' ottenuti
+//  sono quelli veri, senza doverli indovinare da nome e cognome.
+// ===========================================================================
+function EXTRA_elencaIndirizziScuola() {
+  var cfg = _config();
+  var dominio = String(cfg.dominioScuola || '').replace(/^@/, '').toLowerCase();
+  if (!dominio) throw new Error('In Configurazione.gs manca "dominioScuola".');
+
+  var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+  var anni  = Math.max(1, cfg.anniDaEsaminare || 3);
+  var query = '(from:@' + dominio + ' OR to:@' + dominio + ') newer_than:' +
+              anni + 'y -in:chats';
+
+  var trovati = {};        // indirizzo -> { nome: '', n: 0 }
+  var start = 0;
+  while (Date.now() < scadenza && start < 1000) {
+    var threads = GmailApp.search(query, start, 50);
+    if (!threads.length) break;
+    var perThread = GmailApp.getMessagesForThreads(threads);
+    for (var t = 0; t < perThread.length; t++) {
+      for (var m = 0; m < perThread[t].length; m++) {
+        var msg = perThread[t][m];
+        _raccogliIndirizzi(msg.getFrom(), dominio, trovati);
+        _raccogliIndirizzi(msg.getTo(),   dominio, trovati);
+        _raccogliIndirizzi(msg.getCc(),   dominio, trovati);
+      }
+    }
+    start += 50;
+  }
+
+  delete trovati[_mioIndirizzo().toLowerCase()];   // io non sono un mio collega
+
+  var elenco = [];
+  for (var indirizzo in trovati) {
+    elenco.push({ ind: indirizzo, nome: trovati[indirizzo].nome, n: trovati[indirizzo].n });
+  }
+  elenco.sort(function (a, b) { return b.n - a.n; });
+
+  var righe = [];
+  for (var i = 0; i < elenco.length; i++) {
+    righe.push(elenco[i].ind + '\t' + elenco[i].nome + '\t' + elenco[i].n);
+  }
+  var tsv = righe.join('\n');
+
+  Logger.log('Trovati ' + elenco.length + ' indirizzi @' + dominio +
+             ' (esaminate ' + start + ' conversazioni)\n\n' + tsv);
+  _inviaReport('Indirizzi @' + dominio + ' trovati nella tua casella',
+    'Copia tutto il blocco qui sotto e incollalo in Campanella, strumento Posta,\n' +
+    'passo 3 (Il personale), pulsante "Incolla elenco".\n\n' +
+    'INDIRIZZO\tNOME\tN. MESSAGGI\n' + tsv);
+  return tsv;
+}
+
+
+// ===========================================================================
+//  EXTRA - FILTRI VERI DI GMAIL (facoltativo)
+//  Richiede: editor -> Servizi (+) -> "Gmail API" -> Aggiungi.
+// ===========================================================================
+function EXTRA_creaFiltriGmail() {
+  if (typeof Gmail === 'undefined') {
+    throw new Error('Servizio "Gmail API" non attivo.\n' +
+      'Nell\'editor, colonna di sinistra: Servizi -> "+" -> scegli "Gmail API" ' +
+      '-> Aggiungi. Poi riesegui questa funzione.');
+  }
+  var cfg = _config();
+  PASSO_2_creaEtichette();
+
+  var idEtichette = {};
+  var lista = Gmail.Users.Labels.list('me').labels || [];
+  for (var i = 0; i < lista.length; i++) idEtichette[lista[i].name] = lista[i].id;
+
+  var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
+  var creati = [], saltati = [], falliti = [];
+  var regole = _regoleAttive(cfg);
+
+  for (var r = 0; r < regole.length; r++) {
+    var regola = regole[r];
+    var nome = _etichettaCompleta(cfg, regola);
+    var id = idEtichette[nome];
+    if (!id) continue;
+
+    var criteri = _criteriFiltro(cfg, regola);
+    for (var c = 0; c < criteri.length; c++) {
+      if (_filtroGiaPresente(esistenti, criteri[c], id)) { saltati.push(nome); continue; }
+      var azione = { addLabelIds: [id] };
+      var togli = [];
+      if (regola.archivia)       togli.push('INBOX');
+      if (regola.segnaComeLette) togli.push('UNREAD');
+      if (togli.length) azione.removeLabelIds = togli;
+      try {
+        Gmail.Users.Settings.Filters.create({ criteria: criteri[c], action: azione }, 'me');
+        creati.push(nome);
+      } catch (e) {
+        falliti.push(nome + ': ' + e.message);
+      }
+    }
+  }
+
+  var testo = 'Filtri creati: ' + creati.length +
+              '\nFiltri gia\' presenti (saltati): ' + saltati.length +
+              (falliti.length ? '\nNon riusciti:\n  - ' + falliti.join('\n  - ') : '') +
+              '\n\nDa adesso Gmail smista da solo la posta in arrivo, anche ' +
+              'senza lo script.\nLi trovi in Gmail: Impostazioni -> Vedi tutte ' +
+              'le impostazioni -> Filtri e indirizzi bloccati.';
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  EXTRA - CODICE DI STATO PER L'APPLICAZIONE
+//  Stampa una riga sola da incollare in Campanella, Impostazioni.
+//  Non contiene indirizzi ne' testi: solo tre numeri e una data.
+// ===========================================================================
+function EXTRA_codiceStato() {
+  var cfg = _config();
+  var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
+  var etichette = GmailApp.getUserLabels();
+  var nostre = 0, conversazioni = 0;
+
+  for (var i = 0; i < etichette.length; i++) {
+    var nome = etichette[i].getName();
+    if (prefisso && nome.indexOf(prefisso + '/') !== 0) continue;
+    nostre++;
+    try { conversazioni += GmailApp.search('label:' + _virgolette(nome), 0, 500).length; }
+    catch (e) { }
+  }
+
+  var automazione = 0;
+  var trigger = ScriptApp.getProjectTriggers();
+  for (var t = 0; t < trigger.length; t++)
+    if (trigger[t].getHandlerFunction() === _TRIGGER_ORARIO) automazione = 1;
+
+  var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  var codice = 'CMP1-' + oggi + '-' + nostre + '-' + automazione + '-' + conversazioni;
+
+  var testo = 'Etichette dello strumento: ' + nostre +
+              '\nConversazioni etichettate: ' + conversazioni +
+              (conversazioni >= 500 ? ' o piu\'' : '') +
+              '\nSmistamento automatico: ' + (automazione ? 'attivo' : 'spento') +
+              '\n\nCODICE DA INCOLLARE NELL\'APPLICAZIONE (Impostazioni):\n\n    ' +
+              codice;
+  Logger.log(testo);
+  return codice;
+}
+
+
+// ===========================================================================
+//  ANNULLA
+// ===========================================================================
+function ANNULLA_automazione() {
+  _rimuoviTrigger(_TRIGGER_ORARIO);
+  _rimuoviTrigger(_TRIGGER_RIPRESA);
+  var testo = 'Automazione spenta. Le etichette gia\' applicate restano dove sono.';
+  Logger.log(testo);
+  return testo;
+}
+
+/** Toglie dalle conversazioni le etichette applicate da questo strumento. */
+function ANNULLA_etichettatura() {
+  var cfg = _config();
+  var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+  var regole = _regoleAttive(cfg);
+  var tolte = {};
+
+  for (var i = 0; i < regole.length && Date.now() < scadenza; i++) {
+    var nome = _etichettaCompleta(cfg, regole[i]);
+    var etichetta = GmailApp.getUserLabelByName(nome);
+    if (!etichetta) continue;
+    while (Date.now() < scadenza) {
+      var threads = etichetta.getThreads(0, _THREAD_PER_BLOCCO);
+      if (!threads.length) break;
+      etichetta.removeFromThreads(threads);
+      _somma(tolte, nome, threads.length);
+    }
+  }
+
+  var testo = 'Etichette rimosse dalle conversazioni:\n' + _riepilogo(tolte) +
+    '\n\nLe etichette restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
+    'cancellarle da Gmail -> Impostazioni -> Etichette.\n' +
+    'Nota: i messaggi archiviati non tornano nella Posta in arrivo, ' +
+    'ma li trovi in "Tutti i messaggi".';
+  Logger.log(testo);
+  return testo;
+}
+
+function ANNULLA_progressoRiordino() {
+  _azzeraProgresso();
+  _rimuoviTrigger(_TRIGGER_RIPRESA);
+  var testo = 'Segnaposto azzerato: il prossimo PASSO_3 ricomincia dall\'inizio.';
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  COSTRUZIONE DELLE RICERCHE
+// ===========================================================================
+
+/** Regole attive, nell'ordine di priorita' scritto in Configurazione.gs. */
+function _regoleAttive(cfg) {
+  var out = [];
+  var regole = cfg.regole || [];
+  for (var i = 0; i < regole.length; i++) {
+    if (regole[i] && regole[i].attiva !== false) out.push(regole[i]);
+  }
+  return out;
+}
+
+function _etichettaCompleta(cfg, regola) {
+  var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
+  return prefisso ? prefisso + '/' + regola.etichetta : regola.etichetta;
+}
+
+/**
+ * Traduce una regola in una o piu' ricerche di Gmail.
+ * Gli elenchi lunghi di indirizzi vengono spezzati in gruppi da
+ * _INDIRIZZI_PER_QUERY: una singola ricerca troppo lunga verrebbe rifiutata.
+ */
+function _queryDellaRegola(cfg, regola, periodoExtra) {
+  var comune = [];
+
+  if (regola.oggetto  && regola.oggetto.length)  comune.push('subject:(' + _orDiTesti(regola.oggetto) + ')');
+  if (regola.contiene && regola.contiene.length) comune.push('(' + _orDiTesti(regola.contiene) + ')');
+  if (regola.a && regola.a.length)               comune.push('to:(' + _espandi(cfg, regola.a).join(' OR ') + ')');
+  if (regola.haAllegato)                         comune.push('has:attachment');
+  if (regola.queryLibera)                        comune.push('(' + regola.queryLibera + ')');
+
+  // non riprocessare cio' che ha gia' l'etichetta
+  comune.push('-label:' + _virgolette(_etichettaCompleta(cfg, regola)));
+
+  // etichette da escludere: e' cosi' che "Studenti" evita chi e' gia' "Colleghi"
+  var escludi = regola.escludiEtichette || [];
+  for (var e = 0; e < escludi.length; e++) {
+    var pieno = cfg.prefissoEtichette
+      ? String(cfg.prefissoEtichette).replace(/\/+$/, '') + '/' + escludi[e]
+      : escludi[e];
+    comune.push('-label:' + _virgolette(pieno));
+  }
+
+  comune.push('-in:chats');
+  if (cfg.escludiPostaInviata !== false) comune.push('-in:sent');
+  if (cfg.escludiGiaArchiviati)          comune.push('in:inbox');
+
+  if (periodoExtra) comune.push(periodoExtra);
+  else if (cfg.soloUltimiMesi > 0) comune.push('newer_than:' + cfg.soloUltimiMesi + 'm');
+
+  var base = comune.join(' ');
+
+  // i mittenti sono l'unica parte che puo' diventare lunghissima
+  var mittenti = _espandi(cfg, regola.da || []);
+  if (!mittenti.length) return [base];
+
+  var queries = [];
+  for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
+    queries.push('from:(' + mittenti.slice(i, i + _INDIRIZZI_PER_QUERY).join(' OR ') + ') ' + base);
+  }
+  return queries;
+}
+
+/** Sostituisce i segnaposto @PERSONALE@ e @DOMINIO@ con i valori veri. */
+function _espandi(cfg, elenco) {
+  var out = [];
+  for (var i = 0; i < elenco.length; i++) {
+    var v = String(elenco[i] || '').trim();
+    if (!v) continue;
+    if (v === '@PERSONALE@') {
+      var p = cfg.personale || [];
+      for (var k = 0; k < p.length; k++) {
+        var indirizzo = String(p[k] || '').trim();
+        if (indirizzo) out.push(indirizzo);
+      }
+    } else if (v === '@DOMINIO@') {
+      if (cfg.dominioScuola) out.push('@' + String(cfg.dominioScuola).replace(/^@/, ''));
+    } else {
+      out.push(v);
+    }
+  }
+  return _senzaDoppioni(out);
+}
+
+function _orDiTesti(elenco) {
+  var out = [];
+  for (var i = 0; i < elenco.length; i++) {
+    var t = String(elenco[i] || '').trim();
+    if (!t) continue;
+    out.push(/\s/.test(t) ? '"' + t.replace(/"/g, '') + '"' : t);
+  }
+  return out.join(' OR ');
+}
+
+function _virgolette(s) { return '"' + String(s).replace(/"/g, '') + '"'; }
+
+/** Criteri per i filtri veri di Gmail (stessa logica, sintassi dell'API). */
+function _criteriFiltro(cfg, regola) {
+  var criteri = [];
+  var mittenti = _espandi(cfg, regola.da || []);
+  var libera = [];
+  if (regola.contiene && regola.contiene.length) libera.push('(' + _orDiTesti(regola.contiene) + ')');
+  if (regola.queryLibera) libera.push('(' + regola.queryLibera + ')');
+  var soggetto = (regola.oggetto && regola.oggetto.length) ? _orDiTesti(regola.oggetto) : '';
+
+  if (mittenti.length) {
+    for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
+      var c = { from: mittenti.slice(i, i + _INDIRIZZI_PER_QUERY).join(' OR ') };
+      if (soggetto)      c.subject = soggetto;
+      if (libera.length) c.query = libera.join(' ');
+      criteri.push(c);
+    }
+  } else if (soggetto || libera.length) {
+    var c2 = {};
+    if (soggetto)      c2.subject = soggetto;
+    if (libera.length) c2.query = libera.join(' ');
+    criteri.push(c2);
+  }
+  return criteri;
+}
+
+function _filtroGiaPresente(esistenti, criterio, idEtichetta) {
+  for (var i = 0; i < esistenti.length; i++) {
+    var f = esistenti[i];
+    if (!f.action || !f.action.addLabelIds) continue;
+    if (f.action.addLabelIds.indexOf(idEtichetta) < 0) continue;
+    var c = f.criteria || {};
+    if ((c.from || '')    === (criterio.from || '') &&
+        (c.subject || '') === (criterio.subject || '') &&
+        (c.query || '')   === (criterio.query || '')) return true;
+  }
+  return false;
+}
+
+
+// ===========================================================================
+//  UTILITA'
+// ===========================================================================
+function _config() {
+  if (typeof CONFIG === 'undefined') {
+    throw new Error('Manca il file "Configurazione.gs".\n' +
+      'Apri Campanella, strumento Posta, passo 5 "Codice da incollare": scegli ' +
+      '"Configurazione", premi "Copia negli appunti" e incolla il testo in un ' +
+      'nuovo file dell\'editor chiamato Configurazione.');
+  }
+  return CONFIG;
+}
+
+function _mioIndirizzo() {
+  try { return Session.getActiveUser().getEmail() || '(sconosciuto)'; }
+  catch (e) { return '(sconosciuto)'; }
+}
+
+/** Estrae da un campo "Nome <indirizzo>, Nome2 <indirizzo2>" quelli del dominio. */
+function _raccogliIndirizzi(campo, dominio, mappa) {
+  if (!campo) return;
+  var pezzi = String(campo).split(',');
+  for (var i = 0; i < pezzi.length; i++) {
+    var m = pezzi[i].match(/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i);
+    if (!m) continue;
+    var indirizzo = m[0].toLowerCase();
+    if (indirizzo.indexOf('@' + dominio) < 0) continue;
+    var nome = pezzi[i].replace(m[0], '').replace(/[<>"]/g, '').trim();
+    if (!mappa[indirizzo]) mappa[indirizzo] = { nome: nome, n: 0 };
+    if (!mappa[indirizzo].nome && nome) mappa[indirizzo].nome = nome;
+    mappa[indirizzo].n++;
+  }
+}
+
+function _senzaDoppioni(elenco) {
+  var visti = {}, out = [];
+  for (var i = 0; i < elenco.length; i++) {
+    var k = String(elenco[i]).toLowerCase();
+    if (visti[k]) continue;
+    visti[k] = true;
+    out.push(elenco[i]);
+  }
+  return out;
+}
+
+function _somma(mappa, chiave, quanti) { mappa[chiave] = (mappa[chiave] || 0) + quanti; }
+
+function _totale(mappa) {
+  var t = 0;
+  for (var k in mappa) t += mappa[k];
+  return t;
+}
+
+function _riepilogo(mappa) {
+  var righe = [];
+  for (var k in mappa) righe.push('  ' + _pad(k, 34) + _contaTesto(mappa[k]));
+  if (!righe.length) righe.push('  (nessuna conversazione)');
+  righe.push('');
+  righe.push('  TOTALE: ' + _totale(mappa));
+  return righe.join('\n');
+}
+
+function _contaTesto(n) { return n + (n === 1 ? ' conversazione' : ' conversazioni'); }
+
+function _pad(s, n) {
+  s = String(s);
+  while (s.length < n) s += ' ';
+  return s;
+}
+
+function _descrizionePeriodo(cfg) {
+  return (cfg.soloUltimiMesi > 0) ? 'ultimi ' + cfg.soloUltimiMesi + ' mesi' : 'tutta la posta';
+}
+
+function _leggiProgresso() {
+  var vuoto = { indice: 0, query: 0, fatti: {}, iniziato: null };
+  var raw = PropertiesService.getUserProperties().getProperty(_CHIAVE_PROGRESSO);
+  if (!raw) return vuoto;
+  try {
+    var s = JSON.parse(raw);
+    s.indice = s.indice || 0;
+    s.query  = s.query  || 0;
+    s.fatti  = s.fatti  || {};
+    return s;
+  } catch (e) { return vuoto; }
+}
+
+function _salvaProgresso(stato) {
+  PropertiesService.getUserProperties().setProperty(_CHIAVE_PROGRESSO, JSON.stringify(stato));
+}
+
+function _azzeraProgresso() {
+  PropertiesService.getUserProperties().deleteProperty(_CHIAVE_PROGRESSO);
+}
+
+function _programmaRipresa() {
+  _rimuoviTrigger(_TRIGGER_RIPRESA);
+  ScriptApp.newTrigger(_TRIGGER_RIPRESA).timeBased().after(60 * 1000).create();
+}
+
+function _rimuoviTrigger(nomeFunzione) {
+  var trigger = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < trigger.length; i++) {
+    if (trigger[i].getHandlerFunction() === nomeFunzione) ScriptApp.deleteTrigger(trigger[i]);
+  }
+}
+
+function _inviaReport(oggetto, corpo) {
+  try {
+    MailApp.sendEmail(_mioIndirizzo(), '[Organizzazione Gmail] ' + oggetto, corpo);
+  } catch (e) {
+    Logger.log('Report non inviato: ' + e.message);
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Estrattore personale (Campanella)",
+  "version": "1.0",
+  "description": "Legge l'elenco del personale dalla pagina 'Tutto il personale' di ClasseViva e lo prepara per Campanella. Non manda niente a nessuno.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Estrattore personale"
+  }
+}

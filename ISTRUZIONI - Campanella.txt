@@ -1,0 +1,183 @@
+CAMPANELLA - ISTRUZIONI
+=======================
+
+COS'E'
+Quattro strumenti in un programma solo:
+
+  POSTA      riordina la casella Gmail in etichette (dirigenza, segreteria,
+             circolari, colleghi, studenti...), la posta vecchia e quella nuova
+  CARTELLE   crea nel Drive la struttura del nuovo anno scolastico: classi,
+             materie, recuperi, e ci copia i modelli
+  ORARI      legge il tabellone degli orari da un file Excel, ti manda una
+             email per ogni docente con il suo orario (tutte a te, per
+             ritrovarle in Gmail) e mette il tuo orario su Google Calendar
+  PRIVACY    le regole sui dati della scuola, gli strumenti per togliere i
+             dati personali da un testo o da dei file, e i documenti per
+             dirigenza e DPO
+
+Il programma non tocca mai la posta, il calendario ne' il Drive da solo:
+prepara il codice di uno script Google che poi sei tu a incollare nel tuo
+account e a far partire. Lo script scrive solo a te: nessuna email ai
+colleghi. Si collega a internet solo se glielo chiedi tu: per cercare
+aggiornamenti o per scaricare rizzo-pii.
+
+
+INSTALLAZIONE
+Doppio clic su "Installa Campanella.exe".
+
+  1) Leggi le condizioni d'uso e spunta le due caselle. Riguardano i dati di
+     altre persone: non e' una formalita'.
+  2) Scegli dove installare. La cartella proposta sta dentro il tuo profilo,
+     quindi Windows non chiede la password di amministratore.
+  3) Se vuoi anche l'anonimizzazione, spunta "Scarica e installa anche
+     rizzo-pii": sono circa 1,2 GB e ci vuole qualche minuto. Puoi farlo anche
+     dopo, da Campanella > Impostazioni.
+  4) Lascia spuntato "Copia i documenti per dirigenza e DPO": finiscono nella
+     cartella "documenti" (vedi piu' avanti).
+  5) Fine. Campanella e' nel menu Start.
+
+SENZA INSTALLARE (uso "portabile")
+Non sei obbligato a installare: Campanella.exe funziona anche copiato in una
+cartella qualsiasi, o nella cartella del Drive. Non tocca il registro e salva
+le impostazioni accanto a se' stesso.
+
+Se metti Campanella in una cartella dove non puoi scrivere (chiavetta
+protetta, cartella di rete senza permessi) te lo dice all'avvio, invece di
+farti perdere il lavoro alla chiusura.
+
+
+DOVE STANNO I DATI DI ALTRE PERSONE
+L'elenco del personale (nomi, ruoli, indirizzi dei colleghi), gli indirizzi
+di dirigenza e segreteria e gli orari con i cognomi sono dati personali di
+altre persone. Di partenza stanno in campanella.json accanto al programma.
+In Impostazioni > "Dove tenere i dati di altre persone" puoi spostarli in un
+file (campanella-dati.json) dentro la cartella del Drive della scuola: cosi'
+restano nell'account istituzionale, li ritrovi su tutti i computer che
+sincronizzano quel Drive, e nel file accanto al programma non ne resta
+traccia. E' la scelta consigliata. Su una chiavetta, invece, mai: una
+chiavetta persa con quei dati e' una violazione da segnalare alla scuola.
+
+
+PER TOGLIERLA
+Impostazioni di Windows > App > App installate > Campanella > Disinstalla.
+Oppure il collegamento "Disinstalla Campanella" nel menu Start. Ti chiede se
+cancellare anche le tue impostazioni: rispondi No se pensi di reinstallare.
+Gli script che hai gia' messo nel tuo account Google restano dove sono: quelli
+si spengono da li', con le funzioni ANNULLA_...
+
+
+L'ASPETTO
+Parte con il tema scuro. In alto a destra c'e' il pulsante per il tema chiaro;
+la scelta resta salvata.
+
+
+POSTA - riordinare la casella
+1) Passo 2: scrivi il dominio della scuola e, se li conosci, gli indirizzi
+   della dirigenza e della segreteria. Il tuo indirizzo non serve: lo script
+   gira nel tuo account e lo sa da solo. Le etichette finiscono tutte sotto
+   "Scuola" (Scuola/Circolari, Scuola/Colleghi...).
+2) Passo 3: carica l'elenco del personale. Tre modi:
+   A) incolli gli indirizzi che hai gia';
+   B) li prendi da Spaggiari: con l'estensione per Chrome che il programma
+      crea per te (pulsante "Estensione...": si carica una volta da
+      chrome://extensions, poi basta un clic sulla pagina "Tutto il
+      personale"), oppure con la funzione da incollare nella Console;
+   C) li fai estrarre dalla tua casella con EXTRA_elencaIndirizziScuola:
+      e' il modo piu' preciso, perche' legge i mittenti veri.
+   Serve a distinguere i colleghi dagli studenti: hanno lo stesso dominio.
+3) Passo 4: scegli le etichette. Lascia accesa la modalita' prova: in prova
+   lo script conta soltanto, non crea nemmeno le etichette.
+   "Mandami un riepilogo per email" manda il riepilogo al tuo stesso account.
+4) Passo 5: copia il codice.
+5) Passo 6: otto passi guidati, con i pulsanti che copiano al posto tuo.
+
+
+CARTELLE - il nuovo anno scolastico
+Anno (si aggiorna da solo il primo settembre; se lo scrivi tu resta quello),
+classi (una per riga, dopo i due punti le materie: nella casella c'e' un
+esempio), percorso del Drive (trovato da solo, se c'e' Drive per desktop),
+quali modelli copiare. Non sovrascrive e non cancella mai niente: aggiunge
+solo quello che manca. Le cartelle fisse si cambiano da "Modifica
+struttura...".
+
+
+ORARI - le email a te e il calendario
+1) Passo 1: scegli il file Excel del tabellone (una riga per docente, in
+   orizzontale i giorni divisi nelle ore). Il programma dice cosa ha capito.
+2) Passo 2: controlla la griglia di un paio di docenti e di una classe.
+3) Passo 3: le email. Arrivano tutte a te, all'indirizzo dell'account in cui
+   incolli lo script: una per docente (e una per classe, se lo spunti).
+   Nessuno riceve niente. Copi Orari.gs e DatiOrari.gs nell'editor, esegui
+   ORARI_1_anteprima e poi ORARI_2_invia.
+4) Passo 4: Google Calendar. Scegli il docente (di norma te), il nome del
+   calendario, il periodo e gli orari delle ore. Rigenera DatiOrari.gs,
+   incollalo ed esegui ORARI_4_calendario: la prima volta Google chiede anche
+   il permesso per il Calendario. Ogni blocco di ore consecutive della stessa
+   classe diventa un evento settimanale fino alla data di fine. Se l'orario
+   cambia: ORARI_ANNULLA_calendario toglie solo quegli eventi, poi rifai.
+
+Quante email al giorno: 100 con un account Gmail normale, 1500 con quello
+della scuola. Se non bastano, lo script si ferma e riprende il giorno dopo da
+dove era arrivato, senza mandare niente due volte.
+
+
+PRIVACY - le regole, la pulizia, i documenti
+Passo 1: le sette cose da sapere sui dati della scuola, e la risposta alla
+   domanda "devo avvisare il DPO?": non c'e' un obbligo di legge, ma contano
+   le istruzioni della tua scuola. I pulsanti aprono la nota tecnica per
+   dirigente e DPO, il modello di email e la spiegazione del GDPR con i
+   riferimenti di legge. Li trovi anche nella cartella "documenti" accanto
+   al programma e in Impostazioni.
+Passo 2: il testo da dare a ChatGPT, Claude o Gemini. Incolli il testo, premi
+   "Togli i dati personali", copi il risultato e lo incolli nell'assistente.
+   Quando risponde, incolli la risposta e premi "Rimetti i nomi veri". La
+   corrispondenza fra segnaposto e nomi resta su questo computer.
+Passo 3: trascini dei file (PDF, TXT, MD, CSV, HTML) e ne ottieni una copia
+   senza dati personali. Gli originali non vengono toccati.
+
+SERVE RIZZO-PII
+L'anonimizzazione la fa rizzo-pii, un programma italiano gratuito e open
+source che riconosce 22 categorie di dati personali (compresi codice fiscale,
+partita IVA e IBAN) e gira sul tuo computer, senza collegamento.
+Lo installa l'installer di Campanella se glielo chiedi, oppure lo trovi in
+Campanella > Impostazioni > "Scarica e installa rizzo-pii".
+Deve essere avviato mentre Campanella lavora: il pulsante "Controlla" dice
+se lo vede. L'indirizzo del servizio si cambia in Impostazioni.
+
+AGGIORNAMENTI
+Impostazioni > "Cerca aggiornamenti": chiede a GitHub qual e' l'ultima
+versione di rizzo-pii e, se serve, la scarica. Parte solo quando premi il
+pulsante: l'applicazione non controlla niente da sola.
+
+
+COSE CHE NON SUCCEDONO MAI
+- Nessuno strumento cancella posta, file o eventi. Al massimo archivia, ed e'
+  reversibile.
+- La prima esecuzione del riordino parte in modalita' prova: conta e basta.
+- Lo script non scrive a nessun altro: le email arrivano solo a te.
+- Ogni strumento ha la sua funzione ANNULLA_...
+
+
+L'AVVISO DI GOOGLE ("app non verificata")
+Compare per tutti gli script personali, anche i tuoi:
+   Rivedi autorizzazioni -> il tuo account -> Avanzate (in basso a sinistra)
+   -> Apri ... (non sicura) -> Consenti.
+Il codice gira solo dentro il tuo account e nessun altro lo vede.
+
+
+SE WINDOWS BLOCCA IL PROGRAMMA
+E' SmartScreen, che diffida dei programmi poco diffusi.
+   Ulteriori informazioni -> Esegui comunque
+Se il file arriva da un download o da una chiavetta:
+   tasto destro -> Proprieta' -> in fondo "Annulla blocco" -> OK
+
+
+I FILE
+   Installa Campanella.exe    l'installer (contiene tutto il resto)
+   Campanella.exe             il programma
+   Disinstalla Campanella.exe lo toglie dal computer
+   campanella.json            le tue impostazioni, salvate da solo
+   campanella-dati.json       i dati di altre persone, se li tieni nel Drive
+   PRIVACY.md                 le note su dati personali e GDPR, per esteso
+   documenti\                 nota tecnica, modello di email, GDPR
+   struttura.json             le cartelle fisse dell'anno (solo se lo modifichi)
