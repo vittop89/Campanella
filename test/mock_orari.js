@@ -276,18 +276,50 @@ if (D.calendario && D.calendario.docente) {
   verifica('crea il calendario con il nome scelto', !!cal);
   verifica('un solo calendario', calendari.length === 1);
 
-  // i blocchi attesi: ore consecutive della stessa classe nello stesso giorno
+  // i blocchi attesi: ore consecutive della stessa classe nello stesso giorno,
+  // ricavati qui in modo indipendente dallo script, con gli orari delle ore
   const doc = D.docenti.find(d => d.nome === c.docente);
-  let attesi = 0;
+  const leggibile = v => {
+    const s = String(v || '').trim();
+    return /^(D|DISP\.?|DISPOSIZIONE)$/i.test(s) ? 'A disposizione' : s;
+  };
+  const attesi = [];
   for (let g = 0; g < D.giorni.length; g++) {
-    let prec = '';
+    let aperto = null;
     for (let o = 0; o < D.ore; o++) {
-      const v = doc.celle[g * D.ore + o] || '';
-      if (v && v !== prec) attesi++;
-      prec = v;
+      const v = leggibile(doc.celle[g * D.ore + o]);
+      if (aperto && v && v === aperto.testo && aperto.oraA === o) { aperto.oraA = o + 1; continue; }
+      if (!v) { aperto = null; continue; }
+      aperto = { giorno: g, oraDa: o + 1, oraA: o + 1, testo: v };
+      attesi.push(aperto);
     }
   }
-  verifica('un evento settimanale per ogni blocco di ore (' + attesi + ')', cal.serie.length === attesi);
+  verifica('un evento settimanale per ogni blocco di ore (' + attesi.length + ')',
+    cal.serie.length === attesi.length);
+
+  const giornoSettimana = nome => {
+    const n = String(nome).toLowerCase().replace(/[^a-z]/g, '');
+    return ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato']
+      .findIndex(x => n.startsWith(x));
+  };
+  const inizioOre = c.inizioOre || ['08:00'];
+  const minuti = Number(c.minutiOra) || 60;
+  const minutiDellOra = n => {                      // minuti dalla mezzanotte in cui comincia l'ora n
+    const scritta = inizioOre[Math.min(n, inizioOre.length) - 1];
+    const [h, m] = scritta.split(':').map(Number);
+    return h * 60 + m + (n > inizioOre.length ? (n - inizioOre.length) * minuti : 0);
+  };
+  const minutiDi = d => d.getHours() * 60 + d.getMinutes();
+  const abbinati = attesi.filter(b => cal.serie.some(s =>
+    s.titolo === b.testo &&
+    s.inizio.getDay() === giornoSettimana(D.giorni[b.giorno]) &&
+    minutiDi(s.inizio) === minutiDellOra(b.oraDa) &&
+    minutiDi(s.fine) === minutiDellOra(b.oraA) + minuti));
+  verifica('ogni blocco ha un evento nel giorno giusto, con inizio e fine giusti (' +
+    abbinati.length + ' su ' + attesi.length + ')', abbinati.length === attesi.length);
+  const multipli = attesi.filter(b => b.oraA > b.oraDa).length;
+  verifica('ci sono blocchi di piu\' ore consecutive, quindi la fusione e\' stata provata (' +
+    multipli + ')', multipli > 0);
   verifica('tutti gli eventi portano il contrassegno',
     cal.serie.every(s => s.getTag('campanella') === 'orario'));
   verifica('la descrizione dice da dove vengono',
@@ -302,21 +334,6 @@ if (D.calendario && D.calendario.docente) {
   verifica('gli eventi cadono tutti entro una settimana dall\'inizio',
     cal.serie.every(s => (s.inizio - primoGiorno) < 7 * 24 * 3600 * 1000));
 
-  // ROSSI: mercoledi' 1a-3a ora in 3C -> un evento dalle 08:00 alle 11:00
-  const mer = cal.serie.find(s => s.titolo === '3C');
-  if (mer) {
-    verifica('un blocco di tre ore dura dalle 08:00 alle 11:00',
-      mer.inizio.getHours() === 8 && mer.inizio.getMinutes() === 0 &&
-      mer.fine.getHours() === 11 && mer.fine.getMinutes() === 0);
-    verifica('e cade di mercoledi\'', mer.inizio.getDay() === 3);
-  }
-  // ROSSI: giovedi' 5a-6a ora in 2B -> 12:10 - 14:10 (orari delle ore con intervallo)
-  const gio = cal.serie.find(s => s.titolo === '2B' && s.inizio.getDay() === 4);
-  if (gio) {
-    verifica('le ore dopo l\'intervallo usano l\'orario scritto (12:10-14:10)',
-      gio.inizio.getHours() === 12 && gio.inizio.getMinutes() === 10 &&
-      gio.fine.getHours() === 14 && gio.fine.getMinutes() === 10);
-  }
   if (c.colore) verifica('il colore viene applicato', cal.colore === CalendarApp.Color[c.colore]);
 
   // una seconda esecuzione trova il calendario e non ne crea un altro

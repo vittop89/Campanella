@@ -86,7 +86,9 @@ $senzaNulla = $docenti | Where-Object {
     }
     $vuoto
 }
-Verifica "ogni docente ha almeno una casella"  ($senzaNulla.Count -eq 0)
+# un docente con la riga vuota resta in elenco (e' un docente senza ore, non un errore)
+Write-Host ("  nota    docenti senza nessuna casella: {0}" -f $senzaNulla.Count)
+Verifica "i docenti senza caselle sono pochi rispetto al totale" ($senzaNulla.Count * 3 -le $docenti.Count)
 $soloDisposizione = $docenti | Where-Object { $o.OreDi($_) -eq 0 }
 Write-Host ("  nota    docenti con sole ore a disposizione: {0}" -f $soloDisposizione.Count)
 
