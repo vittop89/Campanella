@@ -33,8 +33,8 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.4.0.0")]
-[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.4.1.0")]
+[assembly: AssemblyFileVersion("1.4.1.0")]
 
 namespace Campanella
 {

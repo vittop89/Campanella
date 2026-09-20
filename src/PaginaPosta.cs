@@ -139,17 +139,19 @@ namespace Campanella
             if (pre != "")
             {
                 lblPrefisso.Text =
-                    "Le etichette nascono sotto \"" + pre + "\" e non toccano quelle che hai gia'.\r\n" +
-                    "Svuota la casella per usare i nomi cosi' come sono, e riempire le TUE etichette.";
+                    "Tutte dentro \"" + pre + "\": " + pre + "/Circolari, " + pre + "/Colleghi... Serve se questa casella\r\n" +
+                    "e' personale e raccoglie anche la posta della scuola: la tiene insieme, separata\r\n" +
+                    "dal resto, e si toglie in un colpo solo. Svuota la casella per i nomi diretti.";
                 lblPrefisso.Tag = Ruolo.Tenue;
             }
             else
             {
                 lblPrefisso.Text =
-                    "Senza gruppo lo script usa le etichette con questi nomi esatti: se in Gmail ci sono\r\n" +
-                    "gia', riempie quelle. Occhio: ANNULLA_etichettatura le toglierebbe anche dai messaggi\r\n" +
-                    "a cui le avevi messe a mano.";
-                lblPrefisso.Tag = Ruolo.Avviso;
+                    "Etichette con questi nomi esatti, senza genitore: e' quello che serve dentro l'account\r\n" +
+                    "della scuola, dove tutta la posta e' di lavoro. Quelle che hai gia' in Gmail con lo\r\n" +
+                    "stesso nome vengono riempite, non duplicate; in cambio ANNULLA_etichettatura le\r\n" +
+                    "toglierebbe anche dai messaggi a cui le avevi messe tu.";
+                lblPrefisso.Tag = Ruolo.Tenue;
             }
             Tema.Applica(lblPrefisso);
         }
@@ -388,8 +390,8 @@ namespace Campanella
                 0, y, 800, Tema.Normale, Ruolo.Tenue));
             y += 40;
 
-            p.Controls.Add(Tema.Testo1("Tutte sotto l'etichetta", 0, y + 4, 0, Tema.Normale, Ruolo.Normale));
-            txtPrefisso = Tema.Casella(150, y, 160, "Scuola");
+            p.Controls.Add(Tema.Testo1("Raggruppa sotto", 0, y + 4, 0, Tema.Normale, Ruolo.Normale));
+            txtPrefisso = Tema.Casella(150, y, 160, "vuoto: nomi diretti");
             txtPrefisso.TextChanged += delegate
             {
                 if (zitto) return;
@@ -399,7 +401,7 @@ namespace Campanella
             };
             p.Controls.Add(txtPrefisso);
             lblPrefisso = Tema.Testo1("", 322, y, 578, Tema.Piccolo, Ruolo.Tenue);
-            lblPrefisso.Height = 40;
+            lblPrefisso.Height = 56;
             p.Controls.Add(lblPrefisso);
             y += 48;
 

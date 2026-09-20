@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.1 — 20 September 2026
+
+- No parent label by default. The labels are now created with the names you
+  read in the list (Circolari, Colleghi, Studenti), not under "Scuola". A
+  teacher who already sorts by hand gets their own labels filled instead of a
+  second set alongside them. Type a name in "Raggruppa sotto" to get the old
+  behaviour back, for every label at once.
+- The hint next to the box now says when each choice fits. Inside the school
+  account every message is work, so a parent label adds a level for nothing;
+  it earns its keep when a personal mailbox also collects school mail, where
+  it keeps that mail together and removable in one go.
+
 ## 1.4.0 — 20 September 2026
 
 **The label group is back, as a field you can empty.** Campanella files its

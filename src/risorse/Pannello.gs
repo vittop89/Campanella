@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE = '1.4.0';
+var _PAN_VERSIONE = '1.4.1';
 var _PAN_TRIGGER  = 'PANNELLO_chiusura';
 var _PAN_CHIAVE   = 'CAMPANELLA_PANNELLO';
 

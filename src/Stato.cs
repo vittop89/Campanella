@@ -121,7 +121,7 @@ namespace Campanella
 
         // ---- la scuola -----------------------------------------------------
         public string Dominio = "";
-        public string Prefisso = "Scuola";     // gruppo delle etichette, non si cambia dall'interfaccia
+        public string Prefisso = "";           // gruppo delle etichette: vuoto = nomi diretti (passo 4)
         public string Dirigenza = "";          // dato personale
         public string Segreteria = "";         // dato personale
         public string Registro = "@spaggiari.eu";
