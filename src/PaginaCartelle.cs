@@ -55,7 +55,7 @@ namespace Campanella
         ComboBox cmbModulo, cmbCartellaFoglio, cmbCosaVedereM;
         TextBox txtNomeFoglio, txtChiusura, txtAnteprimaM;
         CheckBox chkChiusura, chkSvuota, chkDriveM;
-        Label lblModuloRiepilogo, lblModuloTrovati;
+        Label lblModuloRiepilogo, lblModuloTrovati, lblCartellaFoglio;
         bool zittoM = false;
         string cartellaProposta = "", foglioProposto = "";
 
@@ -524,9 +524,9 @@ namespace Campanella
             txtNomeFoglio.TextChanged += delegate { if (!zittoM) AggiornaModulo(); };
             p.Controls.Add(txtNomeFoglio);
             y += 54;
-            p.Controls.Add(Tema.Testo1(
-                "Vuota = direttamente nella cartella dell'anno. Sottocartelle con la barra: RECUPERI\\TRIMESTRE.",
-                0, y, 350, Tema.Piccolo, Ruolo.Tenue));
+            lblCartellaFoglio = Tema.Testo1("", 0, y, 350, Tema.Piccolo, Ruolo.Tenue);
+            lblCartellaFoglio.Height = 46;
+            p.Controls.Add(lblCartellaFoglio);
             p.Controls.Add(Tema.Testo1(
                 "{anno} diventa l'anno scolastico (2026-27). Se un foglio con questo nome c'e' gia', lo " +
                 "script usa quello: niente doppioni.",
@@ -687,7 +687,16 @@ namespace Campanella
 
                 string cartella = cmbCartellaFoglio.Text;
                 cmbCartellaFoglio.Items.Clear();
-                foreach (string c in CartelleDellAnno()) cmbCartellaFoglio.Items.Add(c);
+                // "RECUPERI\TRIMESTRE" da solo inviterebbe a mettere il foglio un
+                // piano troppo sotto: in elenco ci va prima "RECUPERI"
+                List<string> proponibili = new List<string>();
+                foreach (string c in CartelleDellAnno())
+                {
+                    string primo = (c ?? "").Split('\\', '/')[0].Trim();
+                    if (primo != "" && !proponibili.Contains(primo)) proponibili.Add(primo);
+                    if (c != primo && !proponibili.Contains(c)) proponibili.Add(c);
+                }
+                foreach (string c in proponibili) cmbCartellaFoglio.Items.Add(c);
                 cmbCartellaFoglio.Text = cartella;
             }
             finally { zittoM = false; }
@@ -829,6 +838,17 @@ namespace Campanella
             ParametriModulo p = Parametri();
             string anno = AnnoCorrente();
             string problema = ProblemaModulo();
+
+            // la casella qui sopra confonde: meglio far vedere il percorso che ne esce
+            if (lblCartellaFoglio != null)
+            {
+                string dentro = (cmbCartellaFoglio.Text ?? "").Trim().Trim('\\');
+                lblCartellaFoglio.Text = (dentro == "")
+                    ? "Vuota: il foglio nasce dentro \"A.S. " + anno + "\".\r\n" +
+                      "Scrivendo RECUPERI nascerebbe in \"A.S. " + anno + "\\RECUPERI\"."
+                    : "Il foglio nasce in \"A.S. " + anno + "\\" + dentro + "\".\r\n" +
+                      "Vuota = dentro \"A.S. " + anno + "\"; la barra scende di un livello.";
+            }
 
             if (problema != "")
             {
