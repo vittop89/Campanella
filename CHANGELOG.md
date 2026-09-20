@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.0 — 20 September 2026
+
+**The label group is back, as a field you can empty.** Campanella files its
+labels under "Scuola": Scuola/Dirigenza, Scuola/Colleghi and so on. That keeps
+them separate from whatever you already have, and lets you remove them in one
+go, but a teacher who already sorts by hand ends up with two labels for the
+same thing. Step 4 now has a "Tutte sotto l'etichetta" box.
+
+- Leave it as "Scuola" and nothing you already have is touched.
+- Empty it and the script uses the names in the list as they are. Gmail labels
+  with those exact names are reused, not duplicated, so your own Colleghi and
+  Studenti get filled instead of being shadowed. Rename a rule to match one of
+  your labels and that one gets used too.
+- The warning next to the box says the price of the second choice:
+  ANNULLA_etichettatura would then strip those labels from the messages you had
+  labelled by hand, because it can no longer tell them apart.
+- The test bench covers it: with no group, existing labels are reused and the
+  ones under "Scuola" stay where they are.
+
 ## 1.3.6 — 20 September 2026
 
 - When the control sheet finds this year's response sheet by name, instead of

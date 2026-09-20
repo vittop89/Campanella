@@ -446,6 +446,28 @@ verifica('nessuna conversazione ha piu\' le etichette dello strumento',
 console.log(contesto.ANNULLA_automazione());
 verifica('nessun trigger residuo', trigger.length === 0);
 
+intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
+{
+  const conGruppo = [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length;
+  verifica('con il gruppo le etichette stanno sotto "Scuola"', conGruppo > 0);
+
+  // due etichette fatte a mano, come quelle che uno ha gia' in Gmail
+  GmailApp.createLabel('Colleghi');
+  GmailApp.createLabel('Studenti');
+  const quante = etichette.size;
+  contesto.CONFIG.prefissoEtichette = '';
+  console.log(contesto.PASSO_2_creaEtichette());
+  verifica('riusa quelle che ci sono, non le duplica',
+    etichette.has('Colleghi') && etichette.has('Studenti') &&
+    ![...etichette.keys()].some(n => n === 'Colleghi/Colleghi' || n === '/Colleghi'));
+  verifica('le altre nascono senza barra',
+    [...etichette.keys()].filter(n => n.indexOf('/') < 0).length > 2);
+  verifica('quelle con il gruppo restano dov\'erano, intatte',
+    [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length === conGruppo);
+  verifica('e ne sono nate di nuove', etichette.size > quante);
+  contesto.CONFIG.prefissoEtichette = 'Scuola';
+}
+
 intestazione('RISULTATO');
 if (fallimenti === 0) {
   console.log('  Tutte le prove superate.');

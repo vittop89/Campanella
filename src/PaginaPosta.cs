@@ -42,6 +42,9 @@ namespace Campanella
         bool aggiornandoRuoli = false;
 
         CheckedListBox clbRegole;
+        TextBox txtPrefisso;
+        Label lblPrefisso;
+        bool zitto = false;
         TextBox txtDescrizioneRegola;
         CheckBox chkArchiviaRegola, chkProva, chkReport, chkEscludiInviata, chkFiltri;
         ComboBox cmbPeriodo;
@@ -101,6 +104,8 @@ namespace Campanella
         // ===================================================================
         void Mostra()
         {
+            zitto = true;
+            try { txtPrefisso.Text = S.Prefisso; } finally { zitto = false; }
             txtDominio.Text = S.Dominio;
             txtDirigenza.Text = S.Dirigenza;
             txtSegreteria.Text = S.Segreteria;
@@ -118,10 +123,40 @@ namespace Campanella
                 spunte[i].Checked = S.SpunteInstallazione[i];
             AggiornaPersonale();
             AggiornaElencoRegole(0);
+            AggiornaAvvisoPrefisso();
+        }
+
+        /// <summary>
+        /// Spiega cosa cambia nel raggruppare le etichette. Senza gruppo lo script
+        /// usa i nomi cosi' come sono: se in Gmail ci sono gia' etichette con quei
+        /// nomi, applica quelle, e ANNULLA_etichettatura le toglierebbe anche dai
+        /// messaggi a cui le avevi messe tu.
+        /// </summary>
+        void AggiornaAvvisoPrefisso()
+        {
+            if (lblPrefisso == null) return;
+            string pre = S.PrefissoPulito();
+            if (pre != "")
+            {
+                lblPrefisso.Text =
+                    "Le etichette nascono sotto \"" + pre + "\" e non toccano quelle che hai gia'.\r\n" +
+                    "Svuota la casella per usare i nomi cosi' come sono, e riempire le TUE etichette.";
+                lblPrefisso.Tag = Ruolo.Tenue;
+            }
+            else
+            {
+                lblPrefisso.Text =
+                    "Senza gruppo lo script usa le etichette con questi nomi esatti: se in Gmail ci sono\r\n" +
+                    "gia', riempie quelle. Occhio: ANNULLA_etichettatura le toglierebbe anche dai messaggi\r\n" +
+                    "a cui le avevi messe a mano.";
+                lblPrefisso.Tag = Ruolo.Avviso;
+            }
+            Tema.Applica(lblPrefisso);
         }
 
         void Raccogli()
         {
+            S.Prefisso = txtPrefisso.Text;
             S.Dominio = txtDominio.Text;
             S.Dirigenza = txtDirigenza.Text;
             S.Segreteria = txtSegreteria.Text;
@@ -351,7 +386,22 @@ namespace Campanella
                 "Ogni riga e' un'etichetta di Gmail. Togli la spunta a quelle che non ti servono. " +
                 "L'ordine conta: le regole piu' in alto hanno la precedenza.",
                 0, y, 800, Tema.Normale, Ruolo.Tenue));
-            y += 44;
+            y += 40;
+
+            p.Controls.Add(Tema.Testo1("Tutte sotto l'etichetta", 0, y + 4, 0, Tema.Normale, Ruolo.Normale));
+            txtPrefisso = Tema.Casella(150, y, 160, "Scuola");
+            txtPrefisso.TextChanged += delegate
+            {
+                if (zitto) return;
+                S.Prefisso = txtPrefisso.Text;
+                AggiornaElencoRegole(clbRegole.SelectedIndex);
+                AggiornaAvvisoPrefisso();
+            };
+            p.Controls.Add(txtPrefisso);
+            lblPrefisso = Tema.Testo1("", 322, y, 578, Tema.Piccolo, Ruolo.Tenue);
+            lblPrefisso.Height = 40;
+            p.Controls.Add(lblPrefisso);
+            y += 48;
 
             clbRegole = new CheckedListBox();
             clbRegole.Location = new Point(0, y);
