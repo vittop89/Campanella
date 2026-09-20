@@ -4,7 +4,9 @@
 #  Runs when a tag like "v1.2.0" is pushed (or by hand from the Actions tab).
 #  It produces
 #    - Campanella.exe
-#    - Installa-Campanella-<version>.exe   (Inno Setup, Italian/English)
+#    - Installa-Campanella.exe             (Inno Setup, Italian/English)
+#  The installer keeps a version-less name on purpose, so that
+#  /releases/latest/download/Installa-Campanella.exe is a permanent link.
 #  signed through SignPath once the settings below exist, and attaches them,
 #  with the instructions and PRIVACY.md, to the GitHub release of the tag.
 #  The release notes are the CHANGELOG.md section of that version.
@@ -124,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: campanella-installer
-          path: dist/Installa-Campanella-*.exe
+          path: dist/Installa-Campanella.exe
 
       - name: Sign the installer (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
@@ -148,7 +150,7 @@ jobs:
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item dist\Campanella.exe release\
           if (Test-Path signed-installer) { Copy-Item signed-installer\*.exe release\ }
-          else { Copy-Item dist\Installa-Campanella-*.exe release\ }
+          else { Copy-Item dist\Installa-Campanella.exe release\ }
           Copy-Item "ISTRUZIONI - Campanella.txt" release\ISTRUZIONI-Campanella.txt
           Copy-Item PRIVACY.md release\
           Get-ChildItem release

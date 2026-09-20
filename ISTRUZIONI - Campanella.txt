@@ -139,6 +139,12 @@ Se la scuola blocca l'accesso a Drive agli script, togli la spunta "metti il
 foglio nella cartella dell'anno": quella versione Drive non lo nomina
 nemmeno, e il foglio lo sposti tu.
 
+Se i moduli sono piu' di uno, le voci 4 e 5 del menu preparano invece un
+foglio Google di controllo: una riga per modulo, e da li' si prepara l'anno
+per tutti insieme. E' piu' comodo ma chiede il permesso su TUTTI i tuoi
+moduli, non su uno solo: con uno o due moduli conviene lo script dentro il
+modulo.
+
 
 ORARI - le email a te e il calendario
 1) Passo 1: scegli il file Excel del tabellone (una riga per docente, in

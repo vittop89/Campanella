@@ -137,5 +137,49 @@ try {
 }
 finally { Remove-Item -Recurse -Force $finto -ErrorAction SilentlyContinue }
 
+# --- 5. il pannello: un foglio per piu' moduli ------------------------------------
+Write-Host "`nIL PANNELLO" -ForegroundColor Cyan
+$tipoLista = [System.Collections.Generic.List`1].MakeGenericType($tP)
+$tipoIList = [System.Collections.Generic.IList`1].MakeGenericType($tP)
+$elenco = [Activator]::CreateInstance($tipoLista)
+$uno = Parametri $true
+$due = [Activator]::CreateInstance($tP)
+$due.Modulo = 'Uscite didattiche'
+$due.Anno = 'auto'
+$due.CartellaFoglio = ''
+$due.NomeFoglio = 'Risposte Uscite - A.S. {anno}'
+$due.Chiusura = '30/06'
+$elenco.Add($uno.PSObject.BaseObject)
+$elenco.Add($due.PSObject.BaseObject)
+$tipiPannello = @($tipoIList)
+# @($elenco) srotolerebbe la lista in piu' argomenti: l'array va costruito a mano
+$argPannello = New-Object 'object[]' 1
+$argPannello[0] = $elenco
+$pannello = Chiama 'CodicePannello' $argPannello $tipiPannello
+$fp = Join-Path $qui 'Pannello_prova.gs'
+Scrivi $fp $pannello
+
+Verifica "il pannello non sta dentro un modulo"      (-not $pannello.Contains('FormApp.getActiveForm'))
+Verifica "apre i moduli per id"                      ($pannello.Contains('FormApp.openById'))
+Verifica "la configurazione e' stata sostituita"     (($pannello -split 'var PANNELLO = ').Count -eq 2)
+$lettura = "const vm=require('vm'),fs=require('fs');const s={};vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'),s);process.stdout.write(JSON.stringify(s.PANNELLO));"
+$conf = (& node -e $lettura $fp) | ConvertFrom-Json
+Verifica "una riga per modulo"                       ($conf.moduli.Count -eq 2)
+Verifica "nomi, cartelle e chiusure delle righe"     ($conf.moduli[0].modulo -eq 'Recuperi' -and $conf.moduli[0].cartella -eq 'RECUPERI' -and $conf.moduli[1].chiusura -eq '30/06')
+Verifica "le impostazioni comuni vengono dal primo"  ($conf.anno -eq 'auto' -and $conf.cartellaAnno -eq 'A.S. {anno}' -and $conf.fusoOrario -eq 'Europe/Rome')
+Verifica "la scheda si chiama Moduli"                ($conf.scheda -eq 'Moduli')
+
+& node (Join-Path $qui 'mock_pannello.js') $fp | Out-Host
+Verifica "il banco di prova accetta Pannello_prova.gs" ($LASTEXITCODE -eq 0)
+
+$mp = (Chiama 'ManifestPannello' @($uno)) | ConvertFrom-Json
+Verifica "il manifest del pannello chiede tutti i moduli (serve openById)" ($mp.oauthScopes -contains 'https://www.googleapis.com/auth/forms')
+$argIstr = New-Object 'object[]' 2
+$argIstr[0] = $elenco
+$argIstr[1] = '2026-27'
+$istrP = Chiama 'IstruzioniPannello' $argIstr @($tipoIList, [string])
+Verifica "le istruzioni avvisano del permesso piu' largo" ($istrP.Contains('TUTTI i moduli'))
+Verifica "e spiegano il link giusto"                  ($istrP.Contains('/edit'))
+
 if ($script:fallimenti -eq 0) { Write-Host "`nTutte le prove superate." -ForegroundColor Green }
 else { Write-Host "`nPROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

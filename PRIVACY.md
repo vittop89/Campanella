@@ -83,6 +83,11 @@ cartella dell'anno, e ne esiste una versione che ne fa a meno. Le risposte
 degli anni scorsi le toglie dal modulo solo se lo chiedi tu, e solo dopo aver
 verificato che un foglio vecchio le contiene tutte. Vale anche qui la
 conservazione: i fogli degli anni passati non scadono da soli.
+Se i moduli sono piu' di uno c'e' la variante "foglio di controllo": stesso
+lavoro, ma lo script sta in un foglio e apre i moduli elencati li' dentro,
+quindi Google gli chiede il permesso su tutti i moduli dell'account. Il
+codice e' leggibile e tocca solo quelli in elenco, ma il permesso e' piu'
+largo: con pochi moduli conviene lo script dentro il modulo.
 
 **I punti che meritano attenzione.**
 

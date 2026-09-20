@@ -506,6 +506,13 @@ namespace Campanella
                 20, y, 860, Tema.Piccolo, Ruolo.Tenue));
             y += 46;
 
+            p.Controls.Add(Tema.Testo1(
+                "Piu' moduli? Le voci 4 e 5 del menu qui sotto preparano un foglio Google con una riga per " +
+                "modulo, da cui si fa tutto insieme. Quello pero' chiede il permesso su tutti i tuoi moduli, " +
+                "non su uno solo: con pochi moduli conviene questa strada.",
+                0, y, 880, Tema.Piccolo, Ruolo.Tenue));
+            y += 36;
+
             lblModuloRiepilogo = Tema.Testo1("", 0, y, 880, Tema.Grassetto, Ruolo.Normale);
             lblModuloRiepilogo.Height = 62;
             p.Controls.Add(lblModuloRiepilogo);
@@ -520,7 +527,9 @@ namespace Campanella
             {
                 "1. Il codice da incollare nel modulo",
                 "2. Cosa fare, passo per passo",
-                "3. (facoltativo) Il manifest, per chiedere meno permessi"
+                "3. (facoltativo) Il manifest, per chiedere meno permessi",
+                "4. Piu' moduli: il codice del foglio di controllo",
+                "5. Piu' moduli: cosa fare, passo per passo"
             });
             cmbCosaVedereM.SelectedIndex = 1;
             cmbCosaVedereM.SelectedIndexChanged += delegate { AggiornaModulo(); };
@@ -529,14 +538,16 @@ namespace Campanella
             p.Controls.Add(Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
             {
                 string problema = ProblemaModulo();
-                if (cmbCosaVedereM.SelectedIndex == 0 && problema != "")
+                if ((cmbCosaVedereM.SelectedIndex == 0 || cmbCosaVedereM.SelectedIndex == 3) && problema != "")
                 {
                     MessageBox.Show(this, problema, "Manca qualcosa",
                                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 Guscio.Copia(TestoModulo(cmbCosaVedereM.SelectedIndex),
-                    cmbCosaVedereM.SelectedIndex == 0 ? "Codice copiato: incollalo nel modulo." : "Copiato.");
+                    cmbCosaVedereM.SelectedIndex == 0 ? "Codice copiato: incollalo nel modulo."
+                    : cmbCosaVedereM.SelectedIndex == 3 ? "Codice copiato: incollalo nel foglio."
+                    : "Copiato.");
             }));
             p.Controls.Add(Tema.Bottone("Salva su file...", 542, y, 130, delegate { SalvaModulo(); }));
             p.Controls.Add(Tema.Bottone("Apri Google Moduli", 682, y, 198,
@@ -659,6 +670,36 @@ namespace Campanella
             return (a == Stato.AnnoScolastico(DateTime.Now)) ? "auto" : a;
         }
 
+        /// <summary>
+        /// Tutti i moduli del Drive, per il foglio di controllo: quello scelto con le
+        /// impostazioni di qui, gli altri con le proposte.
+        /// </summary>
+        List<ParametriModulo> TuttiIModuli()
+        {
+            List<ParametriModulo> fuori = new List<ParametriModulo>();
+            List<string> cartelle = CartelleDellAnno();
+            ParametriModulo scelto = Parametri();
+            bool trovato = false;
+
+            foreach (string percorso in ScriptModuli.TrovaModuli(PercorsoDrive()))
+            {
+                string nome = ScriptModuli.NomeModulo(percorso);
+                if (nome == scelto.Modulo && !trovato) { fuori.Add(scelto); trovato = true; continue; }
+                ParametriModulo p = new ParametriModulo();
+                p.Modulo = nome;
+                p.Anno = scelto.Anno;
+                p.CartellaAnno = scelto.CartellaAnno;
+                p.CartellaFoglio = ScriptModuli.CartellaProposta(percorso, cartelle);
+                p.NomeFoglio = ScriptModuli.NomeFoglioProposto(nome);
+                p.Chiusura = scelto.Chiusura;
+                p.FusoOrario = scelto.FusoOrario;
+                fuori.Add(p);
+            }
+            if (!trovato && scelto.Modulo.Trim() != "") fuori.Insert(0, scelto);
+            if (fuori.Count == 0) fuori.Add(scelto);
+            return fuori;
+        }
+
         ParametriModulo Parametri()
         {
             ParametriModulo p = new ParametriModulo();
@@ -727,7 +768,7 @@ namespace Campanella
             }
             Tema.Applica(lblModuloRiepilogo);
 
-            string testo = (cmbCosaVedereM.SelectedIndex == 0 && problema != "")
+            string testo = ((cmbCosaVedereM.SelectedIndex == 0 || cmbCosaVedereM.SelectedIndex == 3) && problema != "")
                 ? "Il codice si puo' generare quando e' tutto a posto:\n\n" + problema
                 : TestoModulo(cmbCosaVedereM.SelectedIndex);
             txtAnteprimaM.Text = testo.Replace("\r\n", "\n").Replace("\n", "\r\n");
@@ -740,6 +781,8 @@ namespace Campanella
             {
                 if (voce == 0) return ScriptModuli.Codice(Parametri());
                 if (voce == 2) return ScriptModuli.Manifest(Parametri());
+                if (voce == 3) return ScriptModuli.CodicePannello(TuttiIModuli());
+                if (voce == 4) return ScriptModuli.IstruzioniPannello(TuttiIModuli(), AnnoCorrente());
                 return ScriptModuli.Istruzioni(Parametri(), AnnoCorrente());
             }
             catch (Exception ex) { return "Non riesco a preparare il testo: " + ex.Message; }
@@ -749,7 +792,7 @@ namespace Campanella
         {
             int voce = cmbCosaVedereM.SelectedIndex;
             string problema = ProblemaModulo();
-            if (voce == 0 && problema != "")
+            if ((voce == 0 || voce == 3) && problema != "")
             {
                 MessageBox.Show(this, problema, "Manca qualcosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
@@ -759,7 +802,8 @@ namespace Campanella
             using (SaveFileDialog d = new SaveFileDialog())
             {
                 d.FileName = (voce == 0) ? "Moduli" + (modulo != "" ? " - " + modulo : "") + ".gs"
-                           : (voce == 2) ? "appsscript.json" : "moduli - cosa fare.txt";
+                           : (voce == 2) ? "appsscript.json"
+                           : (voce == 3) ? "Pannello.gs" : "pannello - cosa fare.txt";
                 d.Filter = "Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false));

@@ -27,9 +27,21 @@ puzzle-piece icon, menu Campanella.
   says so, instead of failing alone next August.
 - Cartelle no longer tells you to duplicate a form by hand: the note it writes
   next to the templates now points to step 2.
+
+**More than one form?** The same step writes a control sheet instead: one
+Google Sheet with a row per form, a menu to prepare the whole year at once,
+and the outcome written back into each row. It is more convenient and more
+expensive: a sheet-bound script opens forms that live outside it, so Google
+asks for access to all the account's forms. With one or two forms the script
+inside the form remains the better deal, and the app says so.
+
+- The installer is now published as `Installa-Campanella.exe`, without the
+  version in the name, so that the links in the README always point to the
+  latest release.
 - New test benches: `test/mock_moduli.js` (fake Forms, Sheets, Drive, triggers
   and clock; two school years in a row) and `test/prova_moduli.ps1`, which
-  generates the script with the real generator and runs it in the bench.
+  generates both scripts with the real generator and runs them in the benches;
+  `test/mock_pannello.js` simulates a Google Sheet, cell by cell.
 
 **Posta.** Step 2 no longer repeats the label-group explanation under the
 school domain field.

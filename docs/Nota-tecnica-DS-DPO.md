@@ -132,6 +132,15 @@ sommano a quelle dello script della posta:
 Lo script dei moduli non invia email, non contatta servizi esterni, non
 condivide file e non modifica le domande del modulo.
 
+Se i moduli sono più di uno, l'applicazione può generare in alternativa un
+**foglio di controllo**: lo stesso lavoro, ma lo script risiede in un foglio
+Google e opera sui moduli elencati in una sua scheda. Poiché in questo caso
+apre moduli esterni al file che lo ospita, Apps Script richiede l'ambito
+completo di Google Moduli (tutti i moduli dell'account) invece di quello
+limitato al modulo corrente; lo script apre soltanto quelli elencati, e il
+codice è leggibile. L'applicazione segnala la differenza e consiglia lo
+script dentro il modulo quando i moduli sono pochi.
+
 L'esecuzione di script Apps Script è una funzione del Google Workspace che
 l'amministratore del dominio può consentire o bloccare per tutti gli utenti:
 se è consentita, lo script si autorizza con la procedura standard di Google;
