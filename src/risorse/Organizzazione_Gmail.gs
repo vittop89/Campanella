@@ -50,6 +50,8 @@
 var _MAX_SECONDI_ESECUZIONE = 260;   // ~4 min 20 s: sotto il limite di Google
 var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
 var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
+var _THREAD_INDIRIZZI       = 4000;  // tetto di EXTRA_elencaIndirizziScuola
+var _RIGHE_PER_SCRITTA      = 40;    // il registro taglia le scritte lunghe
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
@@ -343,7 +345,7 @@ function EXTRA_elencaIndirizziScuola() {
 
   var trovati = {};        // indirizzo -> { nome: '', n: 0 }
   var start = 0;
-  while (Date.now() < scadenza && start < 1000) {
+  while (Date.now() < scadenza && start < _THREAD_INDIRIZZI) {
     var threads = GmailApp.search(query, start, 50);
     if (!threads.length) break;
     var perThread = GmailApp.getMessagesForThreads(threads);
@@ -372,9 +374,31 @@ function EXTRA_elencaIndirizziScuola() {
   }
   var tsv = righe.join('\n');
 
+  var dove = '';
+  if (Date.now() >= scadenza)
+    dove = ' Mi sono fermato qui per non sforare il tempo massimo di Google: ' +
+           'rieseguimi e guardo le stesse, oppure abbassa "anniDaEsaminare" in ' +
+           'Configurazione.gs per arrivare piu\' indietro nel tempo.';
+  else if (start >= _THREAD_INDIRIZZI)
+    dove = ' Mi sono fermato al tetto di ' + _THREAD_INDIRIZZI + ' conversazioni.';
+
+  // Il registro dell'editor taglia le scritte lunghe ("Logging output too
+  // large"): in cima va il sommario, che e' la parte che serve; l'elenco lo
+  // ripeto sotto a blocchi, e per intero arriva per email.
   Logger.log('Trovati ' + elenco.length + ' indirizzi @' + dominio +
-             ' (esaminate ' + start + ' conversazioni)\n\n' + tsv);
+             ' (esaminate ' + start + ' conversazioni).' + dove);
+  Logger.log('L\'ELENCO COMPLETO E\' NELL\'EMAIL CHE TI SEI APPENA MANDATO: cercala in ' +
+             'Gmail con oggetto "[Organizzazione Gmail] Indirizzi @' + dominio + '". ' +
+             'Aprila, copia il blocco e incollalo in Campanella, strumento Posta, ' +
+             'passo 3 (Il personale), pulsante "Incolla elenco".');
+  for (var b = 0; b < righe.length; b += _RIGHE_PER_SCRITTA) {
+    Logger.log('Indirizzi ' + (b + 1) + '-' + Math.min(b + _RIGHE_PER_SCRITTA, righe.length) +
+               ' di ' + righe.length + '\n' + righe.slice(b, b + _RIGHE_PER_SCRITTA).join('\n'));
+  }
+
   _inviaReport('Indirizzi @' + dominio + ' trovati nella tua casella',
+    'Trovati ' + elenco.length + ' indirizzi, esaminando ' + start + ' conversazioni.' +
+    dove + '\n\n' +
     'Copia tutto il blocco qui sotto e incollalo in Campanella, strumento Posta,\n' +
     'passo 3 (Il personale), pulsante "Incolla elenco".\n\n' +
     'INDIRIZZO\tNOME\tN. MESSAGGI\n' + tsv);

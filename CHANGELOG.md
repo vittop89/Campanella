@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.3 — 21 September 2026
+
+**"Logging output too large" while listing the school addresses.**
+`EXTRA_elencaIndirizziScuola` wrote every address it found into a single log
+entry. With a few hundred addresses Google truncates that entry, so the run
+looked like it had failed and the count at the top was buried in the notice.
+The list was never lost — the script always mails it to you — but nothing said
+so.
+
+- The log now starts with the summary line, then says in capitals that the
+  full list is in the email it just sent you, and only then repeats the
+  addresses in blocks of 40. Whatever Google truncates is at the bottom, where
+  it no longer matters.
+- The email says how many conversations were examined, and why the scan
+  stopped: time budget or ceiling.
+- The ceiling went from 1000 conversations to 4000. The 4 minute 20 second
+  budget was already the real limit; 1000 was cutting mailboxes short before
+  the time ran out.
+- Step 7 has a question for that exact message, and the method C guide says
+  the log only carries the count.
+
 ## 1.4.2 — 20 September 2026
 
 **Lighter pages: the long explanations moved into "?" bubbles.** Every page

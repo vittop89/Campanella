@@ -99,7 +99,9 @@ POSTA - riordinare la casella
       volta da chrome://extensions, poi basta un clic sulla pagina "Tutto il
       personale"), oppure con la funzione da incollare nella Console;
    C) li fai estrarre dalla tua casella con EXTRA_elencaIndirizziScuola:
-      e' il modo piu' preciso, perche' legge i mittenti veri.
+      e' il modo piu' preciso, perche' legge i mittenti veri. L'elenco
+      arriva per email a te stesso; nel registro dell'editor resta solo il
+      conto, perche' Google accorcia le scritte lunghe.
    Serve a distinguere i colleghi dagli studenti: hanno lo stesso dominio.
 3) Passo 4: scegli le etichette. Di norma nascono con il nome che leggi
    nell'elenco (Circolari, Colleghi...) e quelle che hai gia' in Gmail con lo

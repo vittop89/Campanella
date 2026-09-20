@@ -710,6 +710,11 @@ namespace Campanella
                   "Vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello stesso " +
                   "dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del passo 3 " +
                   "(EXTRA_elencaIndirizziScuola): legge i mittenti veri dalla tua casella." },
+                { "Il registro dice \"Logging output too large. Truncating output.\"",
+                  "Non e' un errore: e' Google che accorcia quello che lo script scrive nel " +
+                  "registro. Succede con EXTRA_elencaIndirizziScuola, che di indirizzi ne trova " +
+                  "centinaia. L'elenco intero non passa da li': arriva nell'email che lo script " +
+                  "manda a te stesso, con oggetto \"[Organizzazione Gmail] Indirizzi ...\"." },
                 { "Quanto tempo ci mette?",
                   "Dipende da quanta posta hai. Indicativamente un migliaio di conversazioni al " +
                   "minuto. Con caselle molto grandi lo script lavora a riprese, in automatico, " +
@@ -1221,6 +1226,9 @@ namespace Campanella
                 "    l'oggetto \"[Organizzazione Gmail] Indirizzi ...\".\n" +
                 "4.  Apri quella email, seleziona l'elenco e copialo.\n" +
                 "5.  Torna qui e premi \"Incolla elenco\".\n\n" +
+                "Il registro dell'editor mostra solo quanti ne ha trovati: se\n" +
+                "scrive \"Logging output too large\" non e' un errore, l'elenco\n" +
+                "intero sta nell'email.\n\n" +
                 "Nell'elenco ci sono anche gli studenti: qui nella tabella togli\n" +
                 "la spunta a chi non e' personale, oppure usa i ruoli a sinistra.";
             using (FormTesto f = new FormTesto("Indirizzi dalla casella", guida, null, null))

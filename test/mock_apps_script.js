@@ -433,11 +433,33 @@ contesto.CONFIG.regole.shift();
 GmailApp.search = cercaVera;
 
 intestazione('EXTRA - elenco indirizzi del dominio');
+const primaDegliIndirizzi = registro.length;
+const postaPrima = posta.length;
 const tsv = contesto.EXTRA_elencaIndirizziScuola();
 console.log(tsv.split('\n').slice(0, 6).join('\n') + '\n  ...');
 verifica('trova gli indirizzi del dominio della scuola', tsv.includes('mario.rossi@' + DOM));
 verifica('non tira dentro i domini esterni', !tsv.includes('amico@gmail.com'));
 verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
+{
+  // il registro dell'editor taglia le scritte lunghe: l'elenco intero in una
+  // riga sola spariva, e con lui il conto dei trovati
+  const scritte = registro.slice(primaDegliIndirizzi);
+  verifica('nessuna scritta nel registro e\' lunga da farsi tagliare',
+    scritte.every(r => r.length < 6000));
+  verifica('la prima scritta e\' il sommario, non l\'elenco',
+    /^Trovati \d+ indirizzi @/.test(scritte[0]) && scritte[0].split('\n').length === 1);
+  verifica('e subito dopo dice che l\'elenco e\' nell\'email',
+    /EMAIL/.test(scritte[1]) && /Incolla elenco/.test(scritte[1]));
+  verifica('l\'elenco nel registro c\'e\' lo stesso, a blocchi',
+    scritte.slice(2).some(r => r.includes('mario.rossi@' + DOM)));
+
+  const email = posta.slice(postaPrima).filter(m => /Indirizzi @/.test(m.o));
+  verifica('l\'email con l\'elenco parte sempre', email.length === 1);
+  verifica('e dentro ci sono tutti gli indirizzi trovati',
+    tsv.split('\n').every(r => email[0].c.includes(r)));
+  verifica('con il conto di quante conversazioni ha guardato',
+    /esaminando \d+ conversazioni/.test(email[0].c));
+}
 
 intestazione('ANNULLA - rimozione delle etichette');
 console.log(contesto.ANNULLA_etichettatura());
