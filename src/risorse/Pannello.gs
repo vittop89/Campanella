@@ -8,6 +8,12 @@
  *  li' si prepara l'anno nuovo per tutti insieme, e si vede a colpo d'occhio
  *  quali sono a posto.
  *
+ *  LA SCHEDA NON SI AGGIORNA DA SOLA. Le righe le comandi tu: un modulo nuovo
+ *  e' una riga in piu' (nome, poi "Trova i moduli nel Drive"), uno che non
+ *  serve piu' e' una spunta "Attivo" tolta. Le colonne Stato e Ultima
+ *  esecuzione dicono com'e' andata l'ultima volta che hai eseguito qualcosa:
+ *  per rileggere la situazione vera c'e' "Controlla com'e' messo adesso".
+ *
  *  Va incollato in un FOGLIO GOOGLE nuovo (Estensioni -> Apps Script), non
  *  dentro un modulo. Con un modulo solo conviene l'altro script, che chiede
  *  meno permessi.
@@ -30,6 +36,7 @@
  *    PANNELLO_2_trovaIModuli ...... cerca i moduli nel Drive e riempie i link
  *    PANNELLO_3_anteprima ......... dice cosa farebbe, senza fare niente
  *    PANNELLO_4_preparaAnno ....... prepara l'anno nuovo per tutte le righe
+ *    PANNELLO_5_controlla ......... rilegge da Google com'e' messo ogni modulo
  *    PANNELLO_ANNULLA ............. toglie chiusura e collegamento (tutte)
  *    PANNELLO_chiusura ............ la chiama Google quando arriva il giorno
  *
@@ -58,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE = '1.3.0';
+var _PAN_VERSIONE = '1.3.2';
 var _PAN_TRIGGER  = 'PANNELLO_chiusura';
 var _PAN_CHIAVE   = 'CAMPANELLA_PANNELLO';
 
@@ -81,6 +88,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Anteprima: cosa succederebbe', 'PANNELLO_3_anteprima')
       .addItem('Prepara l\'anno nuovo', 'PANNELLO_4_preparaAnno')
+      .addItem('Controlla com\'e\' messo adesso', 'PANNELLO_5_controlla')
       .addSeparator()
       .addItem('Annulla: togli chiusure e collegamenti', 'PANNELLO_ANNULLA')
       .addToUi();
@@ -111,6 +119,16 @@ function PANNELLO_4_preparaAnno() {
   return _panRacconta(_panUnoAllaVolta(function () { return _panEsegui(true); }));
 }
 
+/**
+ * Rilegge da Google com'e' messo ogni modulo adesso e lo riscrive nelle righe.
+ * Le colonne Stato e Ultima esecuzione sono un diario di quello che ha fatto lo
+ * script: se qualcosa cambia fuori di qui (un modulo scollegato a mano, chiuso,
+ * buttato nel cestino) restano indietro finche' non si guarda davvero.
+ */
+function PANNELLO_5_controlla() {
+  return _panRacconta(_panUnoAllaVolta(function () { return _panControlla(); }));
+}
+
 function PANNELLO_ANNULLA() {
   if (!_panConferma('Tolgo le chiusure programmate e scollego i fogli di quest\'anno.\n' +
                     'I fogli restano nel Drive con le risposte che contengono. Procedo?')) return '';
@@ -138,7 +156,10 @@ function PANNELLO_chiusura() {
 
     var form = null;
     try { form = FormApp.openById(r.id); } catch (e2) {
-      righe.push(r.nome + ': non riesco ad aprirlo (' + (e2.message || e2) + ')');
+      // cancellato durante l'anno: tolgo la scadenza, altrimenti resterebbe in
+      // sospeso per sempre e terrebbe in piedi le chiusure programmate
+      righe.push(r.nome + ': non riesco ad aprirlo (' + (e2.message || e2) + '). Tolgo la sua scadenza.');
+      delete memoria.scadenze[r.id];
       continue;
     }
     try { form.setAcceptingResponses(false); } catch (e3) { /* gia' chiuso, o non pubblicato */ }
@@ -446,6 +467,61 @@ function _panRiapri(form, davvero, righe) {
   if (!davvero) { righe.push('  il modulo e\' chiuso: verrebbe riaperto.'); return; }
   try { form.setAcceptingResponses(true); righe.push('  il modulo era chiuso: riaperto.'); }
   catch (e3) { righe.push('  non sono riuscito a riaprirlo (' + (e3.message || e3) + ').'); }
+}
+
+function _panControlla() {
+  var foglio = _panScheda(true);
+  var dati = _panLeggi(foglio);
+  var anno = _panAnno();
+  var memoria = _panMemoria();
+  var righe = ['COME SONO MESSI ADESSO  (anno ' + anno + ')', ''];
+  var guai = 0;
+
+  for (var i = 0; i < dati.righe.length; i++) {
+    var r = dati.righe[i];
+    var stato = '';
+    if (!r.id) {
+      stato = r.link ? 'il link non e\' quello dell\'editor' : 'manca il link del modulo';
+      guai++;
+    } else {
+      var form = null;
+      try { form = FormApp.openById(r.id); } catch (e) { form = null; }
+      if (!form) {
+        stato = 'non lo trovo: cancellato, o non e\' piu\' tuo';
+        delete memoria.scadenze[r.id];
+        guai++;
+      } else if (_panNelCestino(r.id)) {
+        stato = 'e\' nel cestino del Drive';
+        delete memoria.scadenze[r.id];
+        guai++;
+      } else {
+        var dove = _panDestinazione(form);
+        var atteso = memoria.fogli[r.id + '|' + anno];
+        if (!dove) stato = 'non collegato a nessun foglio';
+        else if (atteso && dove === atteso) stato = 'collegato al foglio di quest\'anno';
+        else stato = 'collegato a un foglio che non ho creato io';
+        var aperto = true;
+        try { aperto = form.isAcceptingResponses(); } catch (e2) { aperto = true; }
+        stato += aperto ? ', aperto' : ', chiuso';
+        var quante = 0;
+        try { quante = form.getResponses().length; } catch (e3) { quante = -1; }
+        if (quante >= 0) stato += ', ' + quante + (quante === 1 ? ' risposta' : ' risposte');
+        if (!r.attivo) stato = '(riga non attiva) ' + stato;
+      }
+    }
+    dati.valori[r.indice][_PAN_C.STATO] = stato;
+    dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+    righe.push((r.nome || '(riga ' + (r.indice + 2) + ')') + ': ' + stato);
+  }
+
+  _panScrivi(foglio, dati);
+  _panRicorda(memoria);
+  righe.push('');
+  righe.push(dati.righe.length === 0
+    ? 'Nella scheda non c\'e\' nessuna riga.'
+    : (guai === 0 ? 'Tutto a posto.' : 'Righe da guardare: ' + guai + '.'));
+  righe.push('Questo controllo legge e basta: non ha cambiato niente.');
+  return righe.join('\n');
 }
 
 function _panAnnulla() {

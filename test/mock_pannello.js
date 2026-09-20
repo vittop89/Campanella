@@ -575,6 +575,74 @@ titolo('ANNULLA');
   verifica('lo dice', t.indexOf('Non ho cancellato niente') >= 0);
 }
 
+// ---- 8b. controlla com'e' messo adesso -----------------------------------------------------
+titolo('CONTROLLA COME SONO MESSI ADESSO');
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  p.m.recuperi.rispondi(3);
+  const prima = scheda(p.m);
+  const t = p.c.PANNELLO_5_controlla();
+  const righe = scheda(p.m);
+  verifica('dice che e\' collegato, aperto, con le sue risposte',
+    righe[0][7] === 'collegato al foglio di quest\'anno, aperto, 3 risposte');
+  verifica('e conta bene anche lo zero', righe[1][7].indexOf(', 0 risposte') > 0);
+  verifica('aggiorna anche l\'ora', righe[0][9] !== '');
+  verifica('non ha cambiato niente', p.m.recuperi.risposte.length === 3 &&
+    p.m.recuperi.destinazione !== null && p.m.trigger.length === 2);
+  verifica('lo dice', t.indexOf('legge e basta') >= 0 && t.indexOf('Tutto a posto') >= 0);
+
+  // il modulo scollegato a mano fuori di qui
+  p.m.uscite.removeDestination();
+  p.c.PANNELLO_5_controlla();
+  verifica('se lo scolleghi a mano, il foglio se ne accorge', scheda(p.m)[1][7] === 'non collegato a nessun foglio, aperto, 0 risposte');
+
+  // il modulo chiuso a mano
+  p.m.recuperi.setAcceptingResponses(false);
+  p.c.PANNELLO_5_controlla();
+  verifica('e se lo chiudi a mano, pure', scheda(p.m)[0][7].indexOf(', chiuso') > 0);
+
+  // il modulo buttato nel cestino
+  const cest = mondoPronto();
+  cest.c.PANNELLO_4_preparaAnno();
+  cest.m.uscite.file.cestino = true;
+  const tc = cest.c.PANNELLO_5_controlla();
+  verifica('il cestino si vede', scheda(cest.m)[1][7] === 'e\' nel cestino del Drive');
+  verifica('e la sua scadenza sparisce', JSON.parse(cest.m.proprieta.get('CAMPANELLA_PANNELLO')).scadenze[cest.m.uscite.id] === undefined);
+  verifica('l\'altro modulo resta a posto', scheda(cest.m)[0][7].indexOf('collegato al foglio') === 0 && tc.indexOf('Righe da guardare: 1') >= 0);
+
+  // il modulo cancellato del tutto
+  const via = mondoPronto();
+  via.c.PANNELLO_4_preparaAnno();
+  via.m.moduli.delete(via.m.uscite.id);
+  via.c.PANNELLO_5_controlla();
+  verifica('un modulo cancellato viene detto', scheda(via.m)[1][7].indexOf('non lo trovo') === 0);
+
+  // la riga senza link
+  const vuota = nuovoMondo();
+  const cv = carica(vuota);
+  cv.PANNELLO_1_preparaIlFoglio();
+  const tv = cv.PANNELLO_5_controlla();
+  verifica('le righe senza link lo dicono', scheda(vuota)[0][7] === 'manca il link del modulo' && tv.indexOf('Righe da guardare: 2') >= 0);
+}
+
+// ---- 8c. un modulo cancellato quando scatta la chiusura ------------------------------------
+titolo('UN MODULO CANCELLATO PRIMA DELLA CHIUSURA');
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  p.m.moduli.delete(p.m.uscite.id);               // sparito durante l\'anno
+  p.m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  const t = p.c.PANNELLO_chiusura();
+  verifica('non blocca la chiusura', t.indexOf('non riesco ad aprirlo') >= 0);
+  verifica('e non lascia la sua scadenza in sospeso',
+    JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).scadenze[p.m.uscite.id] === undefined);
+  p.m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  p.c.PANNELLO_chiusura();
+  verifica('l\'altro si chiude normalmente', p.m.recuperi.aperto === false);
+  verifica('e alla fine non restano chiusure programmate', p.m.trigger.length === 0);
+}
+
 // ---- 9. casi storti --------------------------------------------------------------------------
 titolo('CASI STORTI');
 {
@@ -621,7 +689,7 @@ titolo('IL MENU');
   const m = nuovoMondo({ risposteUi: ['NO'] });
   const c = carica(m);
   c.onOpen();
-  verifica('menu Campanella con cinque voci', m.menu && m.menu.nome === 'Campanella' && m.menu.voci.length === 5);
+  verifica('menu Campanella con sei voci', m.menu && m.menu.nome === 'Campanella' && m.menu.voci.length === 6);
   verifica('ogni voce chiama una funzione che esiste', m.menu.voci.every(v => typeof c[v.funzione] === 'function'));
   c.PANNELLO_4_preparaAnno();
   verifica('risposta No: non fa niente', m.fogliCreati === 0);

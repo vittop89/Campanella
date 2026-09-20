@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.2 — 20 September 2026
+
+**The control sheet does not refresh by itself, and now says so.** Its Stato,
+Foglio dell'anno and Ultima esecuzione columns are a diary of what the script
+did, not a live view: unlink or close a form by hand in Google and the sheet
+stays behind. A new menu entry, "Controlla com'e' messo adesso", reads the
+real state of every listed form and rewrites the rows. It only reads.
+
+- A form deleted or trashed during the year no longer leaves anything hanging:
+  its row says so, the other rows are prepared as usual, and its pending
+  closing is dropped instead of keeping the scheduled triggers alive. The
+  response sheet stays in Drive with the answers it already collected.
+- The instructions now spell out how to add a form (a row, then "Trova i
+  moduli nel Drive") and how to retire one (untick "Attivo").
+
+**The folder field in step 2 explains itself.** Under the box there is now the
+path that comes out of it, updated as you type, instead of an example that
+looked like a value to copy. The dropdown offers RECUPERI as well as
+RECUPERI\TRIMESTRE, so the shallower choice is visible.
+
 ## 1.3.1 — 20 September 2026
 
 **"No forms found" when the forms were there.** A teacher who also has a
