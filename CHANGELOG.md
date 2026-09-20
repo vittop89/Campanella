@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.5 — 20 September 2026
+
+**The closing day turned into a date, and the script could not read it back.**
+Google Sheets reads "31/08" as a date unless the column is set to plain text,
+and the panel set that format only after writing the rows. The cell then held
+a Date, and the preview refused it: "la chiusura Mon Aug 31 2026 00:00:00
+GMT+0200 non e' nella forma giorno/mese".
+
+- The column is set to text before anything is written into it.
+- "Prepara il foglio" repairs a sheet that already has dates in that column,
+  writing them back as 31/08. It is the same menu entry as always, and it
+  leaves every other column alone.
+- The reader accepts a date anyway, so a sheet built with the older version
+  keeps working while you get around to repairing it.
+- The test bench now imitates that behaviour of Sheets, so the mistake cannot
+  come back unnoticed: removing any of the three fixes makes it fail.
+
 ## 1.3.4 — 20 September 2026
 
 Instructions only, after a teacher walked into both traps on the same day.

@@ -44,7 +44,7 @@ namespace Campanella
 
     static class Aggiornamenti
     {
-        public const string VersioneCampanella = "1.3.4";
+        public const string VersioneCampanella = "1.3.5";
         const string ApiRizzo = "https://api.github.com/repos/Rizzo-AI-Academy/rizzo-pii/releases/latest";
         public const string PaginaRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/latest";
 

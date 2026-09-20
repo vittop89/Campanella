@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE = '1.3.4';
+var _PAN_VERSIONE = '1.3.5';
 var _PAN_TRIGGER  = 'PANNELLO_chiusura';
 var _PAN_CHIAVE   = 'CAMPANELLA_PANNELLO';
 
@@ -196,6 +196,13 @@ function _panPreparaIlFoglio() {
   foglio.getRange(1, 1, 1, _PAN_COLONNE.length).setValues(intestazioni).setFontWeight('bold');
   foglio.setFrozenRows(1);
 
+  // La colonna della chiusura va messa a "testo" PRIMA di scriverci dentro: se no
+  // il foglio legge "31/08" come una data e ci mette dentro il 31 agosto di
+  // quest'anno, che poi lo script si ritrova come un data lunghissima.
+  var quante = Math.max(foglio.getMaxRows(), 2);
+  foglio.getRange(2, _PAN_C.CHIUSURA + 1, quante - 1, 1).setNumberFormat('@');
+  _panRaddrizzaChiusure(foglio);
+
   var righe = [];
   if (nuovo || foglio.getLastRow() < 2) {
     var anno = _panAnno();
@@ -222,7 +229,6 @@ function _panPreparaIlFoglio() {
   var ultima = Math.max(foglio.getMaxRows(), 2);
   foglio.getRange(2, _PAN_C.SVUOTA + 1, ultima - 1, 1).insertCheckboxes();
   foglio.getRange(2, _PAN_C.ATTIVO + 1, ultima - 1, 1).insertCheckboxes();
-  foglio.getRange(2, _PAN_C.CHIUSURA + 1, ultima - 1, 1).setNumberFormat('@');   // 31/08 resta testo, non diventa una data
 
   var note = [];
   note[_PAN_C.NOME] = 'Il nome del modulo, come lo vedi in Google Moduli. Serve anche a cercarlo nel Drive.';
@@ -603,12 +609,43 @@ function _panLeggi(foglio) {
       id:       _panIdModulo(link),
       cartella: String(v[_PAN_C.CARTELLA] || '').replace(/^\s+|\s+$/g, ''),
       foglio:   String(v[_PAN_C.FOGLIO] || '').replace(/^\s+|\s+$/g, ''),
-      chiusura: String(v[_PAN_C.CHIUSURA] || '').replace(/\s/g, ''),
+      chiusura: _panChiusura(v[_PAN_C.CHIUSURA]),
       svuota:   v[_PAN_C.SVUOTA] === true,
       attivo:   v[_PAN_C.ATTIVO] !== false
     });
   }
   return { valori: valori, righe: righe };
+}
+
+/**
+ * Il giorno di chiusura di una riga, sempre come "31/08". Il foglio, se la
+ * colonna non e' impostata come testo, si prende "31/08" e ci mette dentro una
+ * data vera: qui la riporto a giorno/mese. L'anno di quella data non serve:
+ * quello giusto lo decide l'anno scolastico.
+ */
+function _panChiusura(valore) {
+  if (valore && typeof valore.getMonth === 'function') {
+    return Utilities.formatDate(valore, _panFuso(), 'dd/MM');
+  }
+  return String(valore || '').replace(/\s/g, '');
+}
+
+/** Rimette come testo le chiusure che il foglio aveva trasformato in date. */
+function _panRaddrizzaChiusure(foglio) {
+  var ultima = foglio.getLastRow();
+  if (ultima < 2) return 0;
+  var intervallo = foglio.getRange(2, _PAN_C.CHIUSURA + 1, ultima - 1, 1);
+  var valori = intervallo.getValues();
+  var cambiate = 0;
+  for (var i = 0; i < valori.length; i++) {
+    var v = valori[i][0];
+    if (v && typeof v.getMonth === 'function') {
+      valori[i][0] = _panChiusura(v);
+      cambiate++;
+    }
+  }
+  if (cambiate > 0) intervallo.setValues(valori);
+  return cambiate;
 }
 
 function _panScrivi(foglio, dati) {

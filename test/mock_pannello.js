@@ -106,14 +106,27 @@ function nuovoMondo(opzioni) {
 
   // --- il foglio di calcolo ---------------------------------------------------
   class Scheda {
-    constructor(nome) { this.nome = nome; this.celle = []; this.note = new Map(); this.spunte = new Set(); this.congelate = 0; }
+    constructor(nome) {
+      this.nome = nome; this.celle = []; this.note = new Map();
+      this.spunte = new Set(); this.formati = new Map(); this.congelate = 0;
+    }
     getName() { return this.nome; }
     cella(r, c) {
       if (!this.celle[r]) this.celle[r] = [];
       return (this.celle[r][c] === undefined) ? '' : this.celle[r][c];
     }
+    /**
+     * Come il foglio vero: se la cella non e' impostata come testo, una stringa
+     * del tipo "31/08" viene letta come una data e dentro ci finisce una data
+     * vera, con l'anno di oggi. E' il motivo per cui la colonna della chiusura
+     * va messa a testo PRIMA di scriverci dentro.
+     */
     scrivi(r, c, v) {
       if (!this.celle[r]) this.celle[r] = [];
+      if (typeof v === 'string' && this.formati.get(r + ',' + c) !== '@') {
+        const g = /^(\d{1,2})\/(\d{1,2})$/.exec(v);
+        if (g) v = new Date(new Date(m.adesso).getFullYear(), parseInt(g[2], 10) - 1, parseInt(g[1], 10));
+      }
       this.celle[r][c] = v;
     }
     getLastRow() {
@@ -154,7 +167,10 @@ function nuovoMondo(opzioni) {
         getValue() { return scheda.cella(r - 1, c - 1); },
         setNote(t) { scheda.note.set((r - 1) + ',' + (c - 1), t); return this; },
         setFontWeight() { return this; },
-        setNumberFormat() { return this; },
+        setNumberFormat(f) {
+          for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) scheda.formati.set((r - 1 + i) + ',' + (c - 1 + k), f);
+          return this;
+        },
         insertCheckboxes() {
           for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) scheda.spunte.add((r - 1 + i) + ',' + (c - 1 + k));
           return this;
@@ -324,6 +340,7 @@ function nuovoMondo(opzioni) {
           hour: '2-digit', minute: '2-digit', hour12: false
         }).formatToParts(data).reduce((a, x) => (a[x.type] = x.value, a), {});
         if (formato === 'yyyy-MM-dd') return `${p.year}-${p.month}-${p.day}`;
+        if (formato === 'dd/MM') return `${p.day}/${p.month}`;
         if (formato === 'dd/MM/yyyy HH:mm') return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
         throw new Error('formato non previsto dal banco di prova: ' + formato);
       }
@@ -411,6 +428,37 @@ titolo('PREPARA IL FOGLIO');
   s2.getRange(2, 1).setValue('Rinominato');
   c.PANNELLO_1_preparaIlFoglio();
   verifica('e non sovrascrive quello che hai scritto', scheda(m)[0][0] === 'Rinominato');
+}
+
+// ---- 1b. la chiusura non deve diventare una data ------------------------------------------
+titolo('LA CHIUSURA RESTA GIORNO/MESE, NON DIVENTA UNA DATA');
+{
+  const m = nuovoMondo();
+  const c = carica(m);
+  c.PANNELLO_1_preparaIlFoglio();
+  const s = m.pannello.getSheetByName('Moduli');
+  verifica('la colonna e\' impostata come testo', s.formati.get('1,4') === '@');
+  verifica('e dentro c\'e\' la stringa, non una data',
+    typeof scheda(m)[0][4] === 'string' && scheda(m)[0][4] === '31/08');
+
+}
+
+// un foglio fatto con la versione vecchia: nella cella c'e' una data vera
+{
+  const v = mondoPronto();
+  const sv = v.m.pannello.getSheetByName('Moduli');
+  sv.formati.delete('1,4');
+  sv.getRange(2, 5).setValue('31/08');                 // senza il formato testo diventa una data
+  verifica('il banco di prova imita il foglio vero', typeof sv.getRange(2, 5).getValue() !== 'string');
+  const t = v.c.PANNELLO_3_anteprima();
+  verifica('l\'anteprima la capisce lo stesso',
+    t.indexOf('31/08/2027') > 0 && t.indexOf('non e\' nella forma') < 0);
+  v.c.PANNELLO_4_preparaAnno();
+  verifica('e la chiusura viene programmata davvero', v.m.trigger.length === 2);
+  v.c.PANNELLO_1_preparaIlFoglio();
+  verifica('"Prepara il foglio" la rimette come testo', scheda(v.m)[0][4] === '31/08');
+  verifica('e non tocca le altre colonne',
+    scheda(v.m)[0][0] === 'Recuperi' && scheda(v.m)[0][3] === 'Risposte Recuperi - A.S. {anno}');
 }
 
 // ---- 2. trova i moduli ----------------------------------------------------------
