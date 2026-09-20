@@ -70,10 +70,15 @@ jobs:
         run: |
           node test\mock_apps_script.js
           node test\mock_orari.js
+          node test\mock_moduli.js
 
       - name: Test the timetable reader
         shell: powershell
         run: .\test\prova_orario.ps1
+
+      - name: Test the Google Forms script generator
+        shell: powershell
+        run: .\test\prova_moduli.ps1
 
       - name: Upload the unsigned executable
         id: exe

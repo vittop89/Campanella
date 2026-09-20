@@ -132,6 +132,15 @@ namespace Campanella
         public string Classi = "";
         public string CartelleExtra = "";
 
+        // ---- moduli Google (lo script che collega il foglio dell'anno) ------
+        public string ModuloPercorso = "";       // relativo al Drive, oppure solo il nome
+        public string ModuloCartella = "";       // dentro la cartella dell'anno
+        public string ModuloFoglio = "";         // nome del foglio, puo' contenere {anno}
+        public string ModuloChiusura = "31/08";  // giorno/mese della chiusura automatica
+        public bool ModuloChiudi = true;         // falso = nessuna chiusura automatica
+        public bool ModuloSvuota = false;
+        public bool ModuloDrive = true;
+
         // ---- anonimizzazione (rizzo-pii) -------------------------------------
         public string AnonIndirizzo = "http://127.0.0.1:5005";
         public string AnonDestinazione = "";
@@ -317,6 +326,13 @@ namespace Campanella
             r["anno"] = Anno;
             r["classi"] = Classi;
             r["cartelleExtra"] = CartelleExtra;
+            r["moduloPercorso"] = ModuloPercorso;
+            r["moduloCartella"] = ModuloCartella;
+            r["moduloFoglio"] = ModuloFoglio;
+            r["moduloChiusura"] = ModuloChiusura;
+            r["moduloChiudi"] = ModuloChiudi;
+            r["moduloSvuota"] = ModuloSvuota;
+            r["moduloDrive"] = ModuloDrive;
             r["fileOrari"] = FileOrari;
             r["inviaOrariClassi"] = InviaOrariClassi;
             r["oggettoOrari"] = OggettoOrari;
@@ -418,6 +434,13 @@ namespace Campanella
                 s.Anno = Str(r, "anno", "");
                 s.Classi = Str(r, "classi", "");
                 s.CartelleExtra = Str(r, "cartelleExtra", "");
+                s.ModuloPercorso = Str(r, "moduloPercorso", "");
+                s.ModuloCartella = Str(r, "moduloCartella", "");
+                s.ModuloFoglio = Str(r, "moduloFoglio", "");
+                s.ModuloChiusura = Str(r, "moduloChiusura", "31/08");
+                s.ModuloChiudi = Bool(r, "moduloChiudi", true);
+                s.ModuloSvuota = Bool(r, "moduloSvuota", false);
+                s.ModuloDrive = Bool(r, "moduloDrive", true);
                 s.FileOrari = Str(r, "fileOrari", "");
                 s.InviaOrariClassi = Bool(r, "inviaOrariClassi", false);
                 s.OggettoOrari = Str(r, "oggettoOrari", s.OggettoOrari);

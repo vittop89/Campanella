@@ -12,6 +12,13 @@ sei sempre tu a premere Esegui. Non manda dati a nessuno, non raccoglie
 statistiche, non ha bisogno di un account. Si collega a internet solo se sei
 tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.
 
+Per i moduli Google prepara un secondo script, da incollare dentro il modulo:
+ogni anno crea il foglio delle risposte, ci collega il modulo e a fine anno
+lo chiude. È un progetto a parte, con permessi suoi, e anche quello lo fai
+partire tu. Non manda email, non condivide niente, non cancella niente: le
+risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo
+dopo aver controllato che stanno già in un foglio vecchio.
+
 Funziona su Windows con un account Google Workspace (Gmail, Drive,
 Calendar): con Microsoft 365 non fa niente. L'elenco del personale si può
 leggere dal registro ClasseViva di Spaggiari; con altri registri (Argo,
@@ -38,6 +45,11 @@ In concreto:
   - Lascia sempre fuori i dati degli studenti: certificazioni, PDP e PEI,
     relazioni cliniche, segnalazioni. Sono categorie particolari di dati
     (art. 9 GDPR) e non vanno copiate in locale.
+
+  - Le risposte ai tuoi moduli Google sono dati di studenti e famiglie.
+    Restano nel modulo e nel foglio dentro il Drive della scuola; il foglio
+    che lo script crea è tuo e non lo vede nessun altro finché non lo
+    condividi tu. Anche i fogli degli anni passati non scadono da soli.
 
   - Cancella quello che non ti serve più: un file sul disco non scade
     da solo.

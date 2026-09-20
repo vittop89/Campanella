@@ -27,8 +27,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace Campanella
 {
@@ -532,7 +532,8 @@ namespace Campanella
                            "circolari, colleghi, studenti. Una volta sola, poi va avanti da sola.",
                            "Apri Posta" },
                 { "Cartelle", "Crea nel Drive la struttura del nuovo anno scolastico: le classi, " +
-                              "le materie, i recuperi, e ci copia dentro i modelli.",
+                              "le materie, i recuperi, e ci copia dentro i modelli. Per i moduli " +
+                              "Google scrive lo script che da' a ognuno il suo foglio delle risposte.",
                               "Apri Cartelle" },
                 { "Orari", "Legge il tabellone degli orari da un file Excel, ti manda l'orario di " +
                            "ogni docente (tutto nella tua casella, per ritrovarlo in Gmail) e mette " +
@@ -598,10 +599,32 @@ namespace Campanella
             statoStrumento[0].Tag = sp.Fatto ? Ruolo.Buono : Ruolo.Tenue;
 
             bool driveOk = Directory.Exists(S.Drive);
-            statoStrumento[1].Text = driveOk
-                ? "Drive trovato in " + S.Drive
-                : "Attenzione: non trovo " + S.Drive;
-            statoStrumento[1].Tag = driveOk ? Ruolo.Tenue : Ruolo.Avviso;
+            if (!driveOk)
+            {
+                statoStrumento[1].Text = "Attenzione: non trovo " + S.Drive;
+                statoStrumento[1].Tag = Ruolo.Avviso;
+            }
+            else
+            {
+                // dal primo settembre l'anno e' quello nuovo: qui si vede subito cosa resta da fare
+                string anno = (S.Anno != "") ? S.Anno : Stato.AnnoScolastico(DateTime.Now);
+                bool cartelle = Directory.Exists(Path.Combine(S.Drive.TrimEnd('\\'), "A.S. " + anno));
+                string riga = "A.S. " + anno + ": " + (cartelle ? "le cartelle ci sono" : "cartelle da creare");
+                bool daFare = !cartelle;
+                if (S.ModuloFoglio.Trim() != "")
+                {
+                    ParametriModulo pm = new ParametriModulo();
+                    pm.CartellaFoglio = S.ModuloCartella;
+                    pm.NomeFoglio = S.ModuloFoglio;
+                    pm.UsaDrive = S.ModuloDrive;
+                    bool foglio = ScriptModuli.FoglioSulPc(S.Drive, anno, pm);
+                    riga += foglio ? "   ·   foglio del modulo: c'e'"
+                                   : "   ·   foglio del modulo: da preparare (passo 2)";
+                    if (!foglio) daFare = true;
+                }
+                statoStrumento[1].Text = riga;
+                statoStrumento[1].Tag = daFare ? Ruolo.Avviso : Ruolo.Buono;
+            }
 
             statoStrumento[2].Text = (S.Lezioni.Count > 0)
                 ? S.Lezioni.Count + " ore caricate, " + ContaDocenti() + " docenti" +

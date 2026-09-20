@@ -13,7 +13,7 @@ English for the open-source audience; the Italian one is
 | Tool | What it does |
 |------|--------------|
 | **Posta** (mail) | sorts the Gmail mailbox into labels (management, secretariat, circulars, colleagues, students…), on the mail already received and on the future one |
-| **Cartelle** (folders) | creates in Drive the folder tree of the new school year — classes, subjects, remedial courses — and copies the templates into it |
+| **Cartelle** (folders) | creates in Drive the folder tree of the new school year — classes, subjects, remedial courses — and copies the templates into it; for Google Forms, which cannot be copied from a PC, it writes the script that gives each form its response sheet for the year |
 | **Orari** (timetables) | reads the school timetable from an Excel file, sends **to yourself** one email per teacher with their timetable (to find it again by searching the surname in Gmail) and puts your own timetable on Google Calendar |
 | **Privacy** | the rules on school data and AI, the tools to remove personal data (text for an assistant, with restoration of the answer; files to clean) and the documents for the principal and the Data Protection Officer |
 
@@ -144,6 +144,7 @@ src/
   Aggiornamenti.cs    GitHub releases, download with progress
   Xlsx.cs             minimal .xlsx reader (ZIP + XML) and CSV
   Orario.cs           timetable recognition, calendar blocks, DatiOrari.gs
+  Moduli.cs           the script for Google Forms: configuration, no-Drive variant, instructions
   Dialoghi.cs         small service dialogs
   app.manifest        asInvoker, supportedOS, common controls 6
   risorse/            the .gs and .js files embedded in the executable
@@ -165,6 +166,8 @@ docs/
 test/
   mock_apps_script.js  test bench of Organizzazione_Gmail.gs
   mock_orari.js        test bench of Orari.gs (emails to oneself and calendar)
+  mock_moduli.js       test bench of Moduli.gs (fake Forms, Sheets, Drive, triggers and clock)
+  prova_moduli.ps1     generates the forms script with the real generator and runs it in the bench
   Configurazione_esempio.gs, DatiOrari_esempio.gs   invented data for the test benches
   prova_orario.ps1     reading of a timetable + cross checks
   genera_dati_prova.ps1
@@ -193,6 +196,8 @@ so, in `campanella-dati.json` in Drive.
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
 node test\mock_orari.js           # emails to oneself, quota, resume, class timetables, calendar
+node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row, no-Drive variant
+.\test\prova_moduli.ps1          # the generated forms script, with and without Drive, inside the bench
 .\test\prova_anonimizzazione.ps1  # rizzo-pii client (fake service)
 .\test\prova_installer.ps1        # installs into a temporary folder, then removes
 .\test\prova_solalettura.ps1      # folder without permissions: it must warn, not stay silent
@@ -200,8 +205,8 @@ node test\mock_orari.js           # emails to oneself, quota, resume, class time
 .\test\genera_dati_prova.ps1 ; node test\mock_orari.js test\DatiOrari_prova.gs
 ```
 
-The test benches simulate `GmailApp`, `MailApp`, `CalendarApp`,
-`PropertiesService`, `LockService` and `ScriptApp` with a fake mailbox and a
+The test benches simulate `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
+`SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` and `ScriptApp` with a fake mailbox and a
 fake calendar, including a simplified interpreter of Gmail's search syntax.
 They run on the invented data of `*_esempio.gs`; the `*_prova.gs` files,
 generated from real data, stay out of the repository.
@@ -243,8 +248,11 @@ never on disk and never on the network. rizzo-pii reads PDF, TXT and MD: a
 
 ## Safety for users
 
-- No tool deletes mail, files or events. At most it archives, and archiving
-  in Gmail is reversible.
+- No tool deletes mail, files, folders, sheets or events. At most it archives,
+  and archiving in Gmail is reversible. One exception, optional and off by
+  default: the forms script can clear last year's responses from the form,
+  and only after checking that an earlier response sheet already holds them
+  all; otherwise it touches nothing and says so.
 - The first run of the sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
 - The script writes only to itself: no email to colleagues.
@@ -252,8 +260,12 @@ never on disk and never on the network. rizzo-pii reads PDF, TXT and MD: a
 - Runs are protected by a `LockService`: automatic resume and hourly sorting
   do not overlap; a rule whose search Gmail rejects is skipped and reported,
   without blocking the others.
-- The only permissions requested are Gmail (always) and Calendar (only for
-  step 4 of Orari). No Drive, no external services.
+- The mail and timetable script asks only for Gmail (always) and Calendar
+  (only for step 4 of Orari): no Drive, no external services. The forms
+  script is a separate project, bound to the form it is pasted into, with
+  its own permissions: Forms, Sheets, triggers, and Drive only to put the
+  sheet into the year folder. A variant without Drive can be generated, and
+  an optional manifest narrows Forms access to that single form.
 
 ## Public installer, signing and languages
 
@@ -286,6 +298,15 @@ class with the class name appended (`Griglia 3A.xlsx`). The list of fixed
 folders is generic; whoever wants their own changes it from "Modifica
 struttura...", which writes `struttura.json` next to the program and from
 then on that one rules. The file is per user and is not versioned.
+
+Google Forms are the exception. On the PC a form is only a placeholder that
+cannot even be read, so copying it from Explorer does not bring its response
+sheet along. The form stays where it is, and step 2 of Cartelle writes an Apps
+Script to paste once inside the form: every year it creates the response
+sheet in the year folder, links the form to it and reopens the form; at the
+end of the year it closes the form and unlinks the sheet, which stays as it
+is. From the second year on it is one click in the form, menu Campanella.
+The school year is computed in Italian time and rolls over on 1 September.
 
 ## Code signing policy
 

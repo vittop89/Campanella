@@ -18,7 +18,7 @@ namespace Campanella
     static class Consenso
     {
         /// <summary>Cambiala quando cambia il testo: il consenso viene richiesto di nuovo.</summary>
-        public const int Versione = 2;
+        public const int Versione = 3;
 
         public const string Titolo = "Condizioni d'uso di Campanella";
 
@@ -36,6 +36,13 @@ namespace Campanella
 "sei sempre tu a premere Esegui. Non manda dati a nessuno, non raccoglie\r\n" +
 "statistiche, non ha bisogno di un account. Si collega a internet solo se sei\r\n" +
 "tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.\r\n" +
+"\r\n" +
+"Per i moduli Google prepara un secondo script, da incollare dentro il modulo:\r\n" +
+"ogni anno crea il foglio delle risposte, ci collega il modulo e a fine anno\r\n" +
+"lo chiude. E' un progetto a parte, con permessi suoi, e anche quello lo fai\r\n" +
+"partire tu. Non manda email, non condivide niente, non cancella niente: le\r\n" +
+"risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo\r\n" +
+"dopo aver controllato che stanno gia' in un foglio vecchio.\r\n" +
 "\r\n" +
 "Funziona su Windows con un account Google Workspace (Gmail, Drive,\r\n" +
 "Calendar): con Microsoft 365 non fa niente. L'elenco del personale si puo'\r\n" +
@@ -63,6 +70,11 @@ namespace Campanella
 "  - Lascia sempre fuori i dati degli studenti: certificazioni, PDP e PEI,\r\n" +
 "    relazioni cliniche, segnalazioni. Sono categorie particolari di dati\r\n" +
 "    (art. 9 GDPR) e non vanno copiate in locale.\r\n" +
+"\r\n" +
+"  - Le risposte ai tuoi moduli Google sono dati di studenti e famiglie.\r\n" +
+"    Restano nel modulo e nel foglio dentro il Drive della scuola; il foglio\r\n" +
+"    che lo script crea e' tuo e non lo vede nessun altro finche' non lo\r\n" +
+"    condividi tu. Anche i fogli degli anni passati non scadono da soli.\r\n" +
 "\r\n" +
 "  - Cancella quello che non ti serve piu': un file sul disco non scade\r\n" +
 "    da solo.\r\n" +

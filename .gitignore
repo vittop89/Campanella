@@ -32,3 +32,8 @@ desktop.ini
 ruvector.db
 *.db
 .claude/
+
+# --- scarti di altri strumenti (plugin, indici) -----------------------------
+agentdb.rvf
+agentdb.rvf.lock
+*.rvf

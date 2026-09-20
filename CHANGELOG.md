@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.3.0 — 20 September 2026
+
+**Google Forms.** A form lives in the cloud: on the PC it is only a
+placeholder that cannot even be read, so copying it from Explorer leaves its
+response sheet behind and every September the form has to be relinked by
+hand. Cartelle is now in two steps, and the second one writes an Apps Script
+to paste once inside the form. From then on, every year: it creates the
+response sheet in the year folder, links the form to it, reopens the form,
+and at the end of the year closes the form and unlinks the sheet, which stays
+as it is. From the second year it is one click inside the form, under the
+puzzle-piece icon, menu Campanella.
+
+- The school year is computed in Italian time and rolls over on 1 September;
+  the closing trigger is scheduled with an explicit time zone, so the editor's
+  own time zone cannot shift it by a day.
+- Nothing is deleted. Last year's responses stay in the form unless you ask
+  for them to be cleared, and even then only after checking that an earlier
+  sheet already holds them all.
+- Running it twice changes nothing: it remembers the sheet it made, reuses one
+  that already has the right name, and never leaves two linked tabs behind.
+- A variant without Drive can be generated for schools that block Drive for
+  scripts: that code does not mention Drive at all, so the permission is not
+  requested. An optional manifest narrows Forms access to that single form.
+- Partial consent is refused: if a permission is missing the script stops and
+  says so, instead of failing alone next August.
+- Cartelle no longer tells you to duplicate a form by hand: the note it writes
+  next to the templates now points to step 2.
+- New test benches: `test/mock_moduli.js` (fake Forms, Sheets, Drive, triggers
+  and clock; two school years in a row) and `test/prova_moduli.ps1`, which
+  generates the script with the real generator and runs it in the bench.
+
+**Posta.** Step 2 no longer repeats the label-group explanation under the
+school domain field.
+
 ## 1.2.0 — 12 September 2026
 
 First release published on GitHub.

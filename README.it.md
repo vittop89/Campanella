@@ -9,7 +9,7 @@ runtime da installare.
 | Strumento    | Cosa fa |
 |--------------|---------|
 | **Posta**    | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura |
-| **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico — classi, materie, recuperi — e ci copia i modelli |
+| **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico — classi, materie, recuperi — e ci copia i modelli; per i moduli Google, che dal PC non si possono copiare, scrive lo script che ogni anno dà al modulo il suo foglio delle risposte |
 | **Orari**    | legge il tabellone degli orari da un file Excel, manda **a te stesso** una email per ogni docente con il suo orario (per ritrovarlo cercando il cognome in Gmail) e mette il tuo orario su Google Calendar |
 | **Privacy**  | le regole su dati della scuola e IA, gli strumenti per togliere i dati personali (testo per un assistente, con ripristino della risposta; file da ripulire) e i documenti per dirigenza e DPO |
 
@@ -138,6 +138,7 @@ src/
   Aggiornamenti.cs    rilasci da GitHub, scarico con avanzamento
   Xlsx.cs             lettore minimo .xlsx (ZIP + XML) e CSV
   Orario.cs           riconoscimento del tabellone, blocchi per il calendario, DatiOrari.gs
+  Moduli.cs           lo script per i moduli Google: configurazione, versione senza Drive, istruzioni
   Dialoghi.cs         finestrelle di servizio
   app.manifest        asInvoker, supportedOS, common controls 6
   risorse/            i file .gs e .js incorporati nell'eseguibile
@@ -159,6 +160,8 @@ docs/
 test/
   mock_apps_script.js  banco di prova di Organizzazione_Gmail.gs
   mock_orari.js        banco di prova di Orari.gs (email a sé stessi e calendario)
+  mock_moduli.js       banco di prova di Moduli.gs (Moduli, Fogli, Drive, trigger e orologio finti)
+  prova_moduli.ps1     genera lo script dei moduli con il generatore vero e lo fa girare nel banco
   Configurazione_esempio.gs, DatiOrari_esempio.gs   dati inventati per i banchi di prova
   prova_orario.ps1     lettura di un tabellone vero + controlli incrociati
   genera_dati_prova.ps1
@@ -187,6 +190,8 @@ lo sceglie, in `campanella-dati.json` nel Drive.
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
 node test\mock_orari.js           # email a sé stessi, quota, ripresa, orari di classe, calendario
+node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila, senza Drive
+.\test\prova_moduli.ps1          # lo script dei moduli generato, con e senza Drive, dentro il banco
 .\test\prova_anonimizzazione.ps1  # client di rizzo-pii (finto servizio)
 .\test\prova_installer.ps1        # installa in una cartella temporanea, poi toglie
 .\test\prova_solalettura.ps1      # cartella senza permessi: deve avvisare, non tacere
@@ -194,8 +199,8 @@ node test\mock_orari.js           # email a sé stessi, quota, ripresa, orari di
 .\test\genera_dati_prova.ps1 ; node test\mock_orari.js test\DatiOrari_prova.gs
 ```
 
-I banchi di prova simulano `GmailApp`, `MailApp`, `CalendarApp`,
-`PropertiesService`, `LockService` e `ScriptApp` con una finta casella e un
+I banchi di prova simulano `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
+`SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` e `ScriptApp` con una finta casella e un
 finto calendario, compreso un interprete semplificato della sintassi di
 ricerca di Gmail. Girano con i dati inventati di `*_esempio.gs`; i file
 `*_prova.gs`, generati dai dati veri, restano fuori dal repository.
@@ -237,8 +242,11 @@ un `.docx` non si può anonimizzare e viene segnalato.
 
 ## Sicurezza per chi lo usa
 
-- Nessuno strumento cancella posta, file o eventi. Al massimo archivia, e
-  l'archiviazione in Gmail è reversibile.
+- Nessuno strumento cancella posta, file, cartelle, fogli o eventi. Al massimo
+  archivia, e l'archiviazione in Gmail è reversibile. Una sola eccezione,
+  facoltativa e spenta di partenza: lo script dei moduli può togliere dal
+  modulo le risposte dell'anno prima, e solo dopo aver controllato che un
+  foglio vecchio le contiene già tutte; altrimenti non tocca niente e lo dice.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
 - Lo script scrive solo a sé stesso: nessuna email ai colleghi.
@@ -246,8 +254,13 @@ un `.docx` non si può anonimizzare e viene segnalato.
 - Le esecuzioni sono protette da un `LockService`: la ripresa automatica e lo
   smistamento orario non si accavallano; una regola con una ricerca che Gmail
   rifiuta viene saltata e segnalata, senza bloccare le altre.
-- Gli unici permessi richiesti sono Gmail (sempre) e Calendar (solo per il
-  passo 4 degli Orari). Niente Drive, niente servizi esterni.
+- Lo script della posta e degli orari chiede solo Gmail (sempre) e Calendar
+  (solo per il passo 4 degli Orari): niente Drive, niente servizi esterni. Lo
+  script dei moduli è un progetto a parte, legato al modulo in cui viene
+  incollato, con permessi suoi: Moduli, Fogli, attività programmate, e Drive
+  solo per mettere il foglio nella cartella dell'anno. Si può generare una
+  versione senza Drive, e un manifest facoltativo restringe l'accesso ai
+  moduli a quel solo modulo.
 
 ## Installer pubblico, firma e lingue
 
@@ -280,6 +293,15 @@ ogni classe con il nome della classe in coda (`Griglia 3A.xlsx`). L'elenco
 delle cartelle fisse è generico; chi vuole il proprio lo cambia da "Modifica
 struttura...", che scrive `struttura.json` accanto al programma e da lì in
 poi comanda quello. Il file è per utente e non è versionato.
+
+I moduli Google fanno eccezione. Sul PC un modulo è solo un segnaposto che non
+si riesce nemmeno a leggere: copiarlo da Esplora file non si porta dietro il
+foglio delle risposte. Il modulo resta dov'è, e il passo 2 di Cartelle scrive
+uno script Apps Script da incollare una volta dentro il modulo: ogni anno crea
+il foglio delle risposte nella cartella dell'anno, ci collega il modulo e lo
+riapre; a fine anno chiude il modulo e scollega il foglio, che resta com'è.
+Dal secondo anno è un clic dentro il modulo, menu Campanella. L'anno
+scolastico si calcola con l'ora italiana e cambia il primo settembre.
 
 ## Code signing policy
 

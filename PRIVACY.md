@@ -71,6 +71,19 @@ consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
 non ne resta traccia. Quando non ti servono più, svuota l'elenco.
 
+**I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
+2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio
+delle risposte dell'anno, lo collega al modulo e a fine anno chiude il modulo
+e scollega il foglio. Le risposte sono dati di studenti e famiglie: restano
+nel modulo e nel foglio, dentro il Drive della scuola. Lo script ne conta il
+numero, non ne legge il contenuto e non le manda da nessuna parte. Il foglio
+che crea è tuo e non è condiviso con nessuno: farlo vedere ad altri è una tua
+decisione. Chiede il permesso per Drive solo per mettere il foglio nella
+cartella dell'anno, e ne esiste una versione che ne fa a meno. Le risposte
+degli anni scorsi le toglie dal modulo solo se lo chiedi tu, e solo dopo aver
+verificato che un foglio vecchio le contiene tutte. Vale anche qui la
+conservazione: i fogli degli anni passati non scadono da soli.
+
 **I punti che meritano attenzione.**
 
 1. **Il computer e i supporti.** Un computer non cifrato o condiviso, una

@@ -201,10 +201,8 @@ namespace Campanella
             txtDominio = Tema.Casella(0, y + 22, 340, "per esempio  liceoxyz.edu.it");
             p.Controls.Add(txtDominio);
             p.Controls.Add(Tema.Testo1(
-                "La parte dopo la chiocciola degli indirizzi della scuola. Le etichette vengono " +
-                "raggruppate sotto \"" + S.PrefissoPulito() + "\": " + S.PrefissoPulito() +
-                "/Circolari, " + S.PrefissoPulito() + "/Colleghi...",
-                356, y + 22, 500, Tema.Piccolo, Ruolo.Tenue));
+                "La parte dopo la chiocciola degli indirizzi della scuola.",
+                356, y + 26, 500, Tema.Piccolo, Ruolo.Tenue));
             y += 66;
 
             p.Controls.Add(Tema.Testo1("Indirizzi particolari  (uno per riga, oppure separati da virgola)",

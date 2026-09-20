@@ -6,7 +6,7 @@ al Responsabile della protezione dei dati (DPO).
 
 | | |
 |---|---|
-| **Nome** | Campanella, versione 1.2 |
+| **Nome** | Campanella, versione 1.3 |
 | **Chi lo usa** | un singolo docente, sul proprio account Google Workspace istituzionale |
 | **Codice sorgente** | pubblico, licenza MIT: https://github.com/vittop89/Campanella |
 | **Autore** | Vittorio Pantaleo (progetto indipendente, senza rapporti con Google, Gruppo Spaggiari Parma o altri fornitori citati) |
@@ -34,6 +34,10 @@ Quattro funzioni, tutte facoltative e indipendenti:
    messaggi già ricevuti e a quelli futuri, per riordinare la casella.
 2. **Cartelle** — crea sul Drive del docente la struttura di cartelle
    dell'anno scolastico (classi, materie, recuperi) e vi copia i suoi modelli.
+   Per i moduli Google del docente (per esempio quello delle iscrizioni ai
+   recuperi) prepara un secondo script, da incollare dentro il modulo: ogni
+   anno crea il foglio delle risposte nella cartella dell'anno, vi collega il
+   modulo e, a fine anno, chiude il modulo e scollega il foglio.
 3. **Orari** — legge il tabellone degli orari (file Excel) e, tramite lo
    script, invia **al docente stesso** una email per ogni docente con la
    relativa griglia (per ritrovare l'orario di un collega cercandone il
@@ -44,7 +48,11 @@ Quattro funzioni, tutte facoltative e indipendenti:
 
 ## 2. Che cosa non fa
 
-- **Non cancella nulla**: nessuna funzione elimina messaggi, file o eventi.
+- **Non cancella nulla**: nessuna funzione elimina messaggi, file, cartelle,
+  fogli o eventi. Unica eccezione, facoltativa e spenta di partenza: lo
+  script dei moduli può togliere dal modulo le risposte degli anni
+  precedenti, e lo fa solo dopo aver verificato che un foglio degli anni
+  scorsi le contiene già tutte; altrimenti non tocca niente e lo segnala.
   L'unica azione sulla posta oltre all'etichettatura è l'archiviazione
   (rimozione dalla Posta in arrivo, reversibile), attivata solo per le
   categorie che il docente sceglie (di partenza: newsletter e comunicati
@@ -69,6 +77,7 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Indirizzi di dirigenza e segreteria | pubblici nel sito della scuola | come sopra | solo il docente |
 | Etichette applicate ai messaggi | generate dallo script | nell'account Gmail del docente | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar | solo il docente |
+| Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne conta il numero e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
 | Testi e file dati alla funzione Privacy | scelti dal docente | elaborati sul computer, senza rete; le copie anonimizzate dove il docente le salva | solo il docente |
 
 Nessun dato di categorie particolari (art. 9 GDPR) è richiesto o estratto
@@ -79,8 +88,10 @@ si basa su mittente, oggetto e ricerca di Gmail.
 ## 4. Autorizzazioni richieste allo script
 
 Alla prima esecuzione Google mostra la schermata di autorizzazione dello
-script (con l'avviso «app non verificata», normale per gli script personali
-non pubblicati). Le autorizzazioni sono determinate dalle funzioni usate:
+script. Con un account personale compare anche l'avviso «app non
+verificata», normale per gli script non pubblicati; con un account del
+dominio dell'istituto, per uno script di proprietà dello stesso utente, la
+documentazione di Google prevede la procedura ordinaria, senza avviso. Le autorizzazioni sono determinate dalle funzioni usate:
 
 - **Gmail** (`GmailApp`): ricerca dei messaggi, creazione e applicazione di
   etichette, archiviazione, invio di email al proprio indirizzo. Apps Script
@@ -96,8 +107,30 @@ non pubblicati). Le autorizzazioni sono determinate dalle funzioni usate:
 - **Gmail API** (servizio avanzato), solo se il docente sceglie di creare i
   filtri nativi di Gmail (passo facoltativo).
 
-Non vengono richiesti: accesso al Drive, accesso a servizi esterni, accesso a
-dati di altri utenti del dominio.
+Questo script non richiede: accesso al Drive, accesso a servizi esterni,
+accesso a dati di altri utenti del dominio.
+
+Lo **script dei moduli** è un progetto Apps Script separato, legato al singolo
+modulo Google in cui viene incollato, con autorizzazioni proprie che non si
+sommano a quelle dello script della posta:
+
+- **Moduli** (`FormApp`): legge lo stato del modulo (foglio collegato, numero
+  di risposte, aperto o chiuso), lo collega al foglio dell'anno, lo riapre e,
+  a fine anno, lo chiude e scollega il foglio.
+- **Fogli** (`SpreadsheetApp`): crea il foglio delle risposte dell'anno e, per
+  la sola verifica descritta al punto 2, conta le righe di un foglio degli
+  anni precedenti.
+- **Drive** (`DriveApp`): cerca o crea la cartella dell'anno dentro «Il mio
+  Drive» del docente e vi sposta il foglio appena creato. Apps Script non
+  offre per questo un ambito più stretto di quello completo di Drive; il
+  codice usa solo le operazioni elencate. Il docente può generare una
+  versione dello script **senza questa parte**: in quel caso l'autorizzazione
+  per Drive non viene chiesta e il foglio lo sposta a mano.
+- **Trigger** (`ScriptApp`): una sola attività programmata, per la chiusura di
+  fine anno; `MODULO_ANNULLA` la rimuove.
+
+Lo script dei moduli non invia email, non contatta servizi esterni, non
+condivide file e non modifica le domande del modulo.
 
 L'esecuzione di script Apps Script è una funzione del Google Workspace che
 l'amministratore del dominio può consentire o bloccare per tutti gli utenti:

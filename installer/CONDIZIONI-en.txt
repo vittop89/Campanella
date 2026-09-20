@@ -12,6 +12,13 @@ always the one pressing Run. It sends no data to anyone, collects no
 statistics and needs no account. It connects to the internet only when you
 ask it to: to check for updates or to download rizzo-pii.
 
+For Google Forms it prepares a second script, to be pasted inside the form:
+every year it creates the response sheet, links the form to it and closes the
+form at the end of the year. It is a separate project with its own
+permissions, and you are the one who runs it. It sends no email, shares
+nothing and deletes nothing: it clears last year responses from the form only
+if you ask, and only after checking they are already in an older sheet.
+
 It runs on Windows with a Google Workspace account (Gmail, Drive, Calendar):
 with Microsoft 365 it does nothing. The staff list can be read from the
 ClasseViva register by Spaggiari; with other registers it must be pasted by
@@ -40,6 +47,11 @@ In practice:
   - Always leave students' data out: certifications, individual education
     plans, clinical reports, referrals. They are special categories of data
     (Article 9 GDPR) and must not be copied locally.
+
+  - The answers to your Google Forms are data about students and families.
+    They stay in the form and in the sheet inside the school Drive; the
+    sheet the script creates is yours and nobody else sees it until you
+    share it. Sheets from past years do not expire by themselves either.
 
   - Delete what you no longer need: a file on disk does not expire by
     itself.

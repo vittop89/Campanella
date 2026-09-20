@@ -58,6 +58,7 @@ $risorse  = @(
     'Organizzazione_Gmail.gs'
     'estrai_personale_spaggiari.js'
     'Orari.gs'
+    'Moduli.gs'
 )
 $estensione = @('manifest.json', 'popup.html', 'popup.js')
 

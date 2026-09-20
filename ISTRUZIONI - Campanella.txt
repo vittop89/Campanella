@@ -7,7 +7,9 @@ Quattro strumenti in un programma solo:
   POSTA      riordina la casella Gmail in etichette (dirigenza, segreteria,
              circolari, colleghi, studenti...), la posta vecchia e quella nuova
   CARTELLE   crea nel Drive la struttura del nuovo anno scolastico: classi,
-             materie, recuperi, e ci copia i modelli
+             materie, recuperi, e ci copia i modelli; per i moduli Google
+             scrive lo script che ogni anno da' al modulo il suo foglio
+             delle risposte
   ORARI      legge il tabellone degli orari da un file Excel, ti manda una
              email per ogni docente con il suo orario (tutte a te, per
              ritrovarle in Gmail) e mette il tuo orario su Google Calendar
@@ -108,6 +110,9 @@ POSTA - riordinare la casella
 
 
 CARTELLE - il nuovo anno scolastico
+Due passi: il primo lavora sul PC, il secondo serve per i moduli Google.
+
+Passo 1 - le cartelle.
 Anno (si aggiorna da solo il primo settembre; se lo scrivi tu resta quello),
 classi (una per riga, dopo i due punti le materie: nella casella c'e' un
 esempio), percorso del Drive (trovato da solo, se c'e' Drive per desktop),
@@ -117,6 +122,22 @@ struttura...", che scrive struttura.json accanto al programma.
 I modelli stanno in "Il mio Drive\MODELLI", una sottocartella per gruppo.
 La sottocartella "PER CLASSE" e' speciale: ogni file che contiene viene
 copiato dentro ogni classe, con il nome della classe in coda.
+
+Passo 2 - i moduli Google (.gform).
+Un modulo Google sul PC e' solo un segnaposto: copiarlo o spostarlo da
+Esplora file non si porta dietro il foglio delle risposte, e ogni anno
+andrebbe ricollegato a mano. Qui il programma scrive uno script da incollare
+UNA VOLTA dentro il modulo (in Google Moduli: i tre puntini in alto a destra
+-> Apps Script). Da allora in poi, ogni anno, crea il foglio delle risposte
+nella cartella dell'anno, ci collega il modulo, lo riapre, e a fine anno
+chiude il modulo e scollega il foglio, che resta com'e'.
+Dal secondo anno non si reincolla niente: dentro il modulo, l'icona a forma
+di pezzo di puzzle -> Campanella -> "Prepara l'anno nuovo".
+Scegli il modulo, la cartella e il nome del foglio; la voce 2 del menu in
+basso spiega tutto passo per passo, con i pulsanti che copiano al posto tuo.
+Se la scuola blocca l'accesso a Drive agli script, togli la spunta "metti il
+foglio nella cartella dell'anno": quella versione Drive non lo nomina
+nemmeno, e il foglio lo sposti tu.
 
 
 ORARI - le email a te e il calendario
@@ -169,10 +190,13 @@ pulsante: l'applicazione non controlla niente da sola.
 
 
 COSE CHE NON SUCCEDONO MAI
-- Nessuno strumento cancella posta, file o eventi. Al massimo archivia, ed e'
-  reversibile.
+- Nessuno strumento cancella posta, file, cartelle, fogli o eventi. Al massimo
+  archivia, ed e' reversibile. Unica eccezione, che devi chiedere tu: lo
+  script dei moduli puo' togliere dal modulo le risposte degli anni scorsi, e
+  solo dopo aver controllato che stanno gia' tutte in un foglio vecchio.
 - La prima esecuzione del riordino parte in modalita' prova: conta e basta.
 - Lo script non scrive a nessun altro: le email arrivano solo a te.
+- Lo script dei moduli non manda email a nessuno e non condivide niente.
 - Ogni strumento ha la sua funzione ANNULLA_...
 
 

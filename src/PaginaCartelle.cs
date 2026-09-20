@@ -7,6 +7,12 @@
 //
 //  Regola di fondo: non sovrascrive e non cancella mai niente. Se una
 //  cartella o un file esistono gia', li lascia stare.
+//
+//  Due passi. Il primo lavora sul PC, nella cartella che Google Drive tiene
+//  sincronizzata. Il secondo e' per quello che dal PC non si puo' fare: un
+//  modulo Google (.gform) e' solo un segnaposto, e il foglio delle risposte
+//  dell'anno va creato e collegato dentro l'account. Qui si prepara lo script
+//  che lo fa (Moduli.cs + risorse\Moduli.gs) e si spiega come usarlo.
 // ===========================================================================
 
 using System;
@@ -29,8 +35,26 @@ namespace Campanella
 
     class PaginaCartelle : Pagina
     {
+        static readonly string[] NomiPassi =
+        {
+            "1  Le cartelle dell'anno",
+            "2  I moduli Google"
+        };
+
+        Panel[] pagine;
+        int passo = 0;
+
+        // passo 1
         TextBox txtAnno, txtClassi, txtDrive, txtExtra, logBox;
         CheckedListBox clbModelli, clbStruttura;
+
+        // passo 2
+        ComboBox cmbModulo, cmbCartellaFoglio, cmbCosaVedereM;
+        TextBox txtNomeFoglio, txtChiusura, txtAnteprimaM;
+        CheckBox chkChiusura, chkSvuota, chkDriveM;
+        Label lblModuloRiepilogo, lblModuloTrovati;
+        bool zittoM = false;
+        string cartellaProposta = "", foglioProposto = "";
 
         // Le cartelle fisse di partenza: generiche apposta. Chi vuole le proprie
         // le cambia da "Modifica struttura...", che scrive struttura.json.
@@ -55,15 +79,45 @@ namespace Campanella
         /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
         const string CartellaPerClasse = "PER CLASSE";
 
-        public PaginaCartelle(Guscio g) : base(g) { Costruisci(); }
+        public PaginaCartelle(Guscio g) : base(g)
+        {
+            pagine = new Panel[NomiPassi.Length];
+            pagine[0] = PaginaStruttura();
+            pagine[1] = PaginaModuli();
+            foreach (Panel p in pagine)
+            {
+                p.Dock = DockStyle.Fill;
+                p.Visible = false;
+                p.AutoScroll = true;
+                Controls.Add(p);
+            }
+            pagine[0].Visible = true;
+        }
 
         public override string Nome { get { return "Cartelle"; } }
+        public override string[] Passi { get { return NomiPassi; } }
+
+        public override int Passo
+        {
+            get { return passo; }
+            set
+            {
+                if (value < 0 || value >= pagine.Length) return;
+                passo = value;
+                for (int i = 0; i < pagine.Length; i++) pagine[i].Visible = (i == passo);
+                if (passo == 1) { RiempiModuli(); AggiornaModulo(); }
+            }
+        }
 
         // ===================================================================
-        void Costruisci()
+        //  PASSO 1 - LE CARTELLE, SUL PC
+        // ===================================================================
+        Panel PaginaStruttura()
         {
+            Panel p = new Panel();
+            p.AutoScroll = true;
             int y = 6;
-            Controls.Add(Tema.Testo1("La struttura del nuovo anno", 0, y, 0, Tema.Sezione, Ruolo.Sezione));
+            p.Controls.Add(Tema.Testo1("La struttura del nuovo anno", 0, y, 0, Tema.Sezione, Ruolo.Sezione));
             y += 40;
             Label intro = Tema.Testo1(
                 "Crea nel Drive la cartella \"A.S. <anno>\" con dentro le classi, le materie, i " +
@@ -72,25 +126,25 @@ namespace Campanella
                 "il nome della classe in coda. Non sovrascrive e non cancella mai niente: " +
                 "aggiunge solo cio' che manca.",
                 0, y, 880, Tema.Normale, Ruolo.Tenue);
-            Controls.Add(intro);
+            p.Controls.Add(intro);
             y += intro.Height + 10;
 
-            Controls.Add(Tema.Testo1("Anno scolastico", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            p.Controls.Add(Tema.Testo1("Anno scolastico", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtAnno = Tema.Casella(0, y + 22, 180, Stato.AnnoScolastico(DateTime.Now));
-            Controls.Add(txtAnno);
-            Controls.Add(Tema.Testo1(
+            p.Controls.Add(txtAnno);
+            p.Controls.Add(Tema.Testo1(
                 "Si aggiorna da solo il primo settembre. Se lo cambi a mano resta quello che scrivi; " +
                 "svuotalo per tornare a quello automatico.",
                 196, y + 22, 560, Tema.Piccolo, Ruolo.Tenue));
             y += 62;
 
-            Controls.Add(Tema.Testo1("Classi  (una per riga; dopo i due punti le materie)",
+            p.Controls.Add(Tema.Testo1("Classi  (una per riga; dopo i due punti le materie)",
                                      0, y, 600, Tema.Grassetto, Ruolo.Normale));
             txtClassi = Tema.CasellaMulti(0, y + 22, 880, 96,
                 "1A: Matematica, Fisica\r\n2B-Ls: Matematica\r\n4Ar");
-            Controls.Add(txtClassi);
+            p.Controls.Add(txtClassi);
             y += 126;
-            Controls.Add(Tema.Testo1(
+            p.Controls.Add(Tema.Testo1(
                 "1A: Matematica, Fisica      crea CLASSI\\1A\\Matematica e CLASSI\\1A\\Fisica\n" +
                 "2B-Ls: Matematica           una sola materia\n" +
                 "4Ar                         senza materie: solo la cartella della classe\n" +
@@ -99,11 +153,11 @@ namespace Campanella
                 0, y, 880, Tema.Piccolo, Ruolo.Tenue));
             y += 74;
 
-            Controls.Add(Tema.Testo1("Percorso di \"Il mio Drive\"", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            p.Controls.Add(Tema.Testo1("Percorso di \"Il mio Drive\"", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtDrive = Tema.Casella(0, y + 22, 700, "per esempio  H:\\Il mio Drive");
             txtDrive.TextChanged += delegate { PopolaModelli(); };
-            Controls.Add(txtDrive);
-            Controls.Add(Tema.Bottone("Sfoglia...", 712, y + 21, 130, delegate
+            p.Controls.Add(txtDrive);
+            p.Controls.Add(Tema.Bottone("Sfoglia...", 712, y + 21, 130, delegate
             {
                 using (FolderBrowserDialog d = new FolderBrowserDialog())
                 {
@@ -117,10 +171,10 @@ namespace Campanella
             }));
             y += 58;
 
-            Controls.Add(Tema.Testo1("Modelli da includere  (le sottocartelle di MODELLI)",
+            p.Controls.Add(Tema.Testo1("Modelli da includere  (le sottocartelle di MODELLI)",
                                      0, y, 420, Tema.Grassetto, Ruolo.Normale));
-            Controls.Add(Tema.Testo1("Cartelle dell'anno", 450, y, 250, Tema.Grassetto, Ruolo.Normale));
-            Controls.Add(Tema.Bottone("Modifica struttura...", 700, y - 4, 180,
+            p.Controls.Add(Tema.Testo1("Cartelle dell'anno", 450, y, 250, Tema.Grassetto, Ruolo.Normale));
+            p.Controls.Add(Tema.Bottone("Modifica struttura...", 700, y - 4, 180,
                 delegate { ModificaStruttura(); }));
 
             clbModelli = new CheckedListBox();
@@ -128,35 +182,40 @@ namespace Campanella
             clbModelli.Size = new Size(430, 150);
             clbModelli.CheckOnClick = true;
             clbModelli.Font = Tema.Normale;
-            Controls.Add(clbModelli);
+            p.Controls.Add(clbModelli);
 
             clbStruttura = new CheckedListBox();
             clbStruttura.Location = new Point(450, y + 24);
             clbStruttura.Size = new Size(430, 150);
             clbStruttura.CheckOnClick = true;
             clbStruttura.Font = Tema.Normale;
-            Controls.Add(clbStruttura);
+            p.Controls.Add(clbStruttura);
             y += 186;
 
-            Controls.Add(Tema.Testo1("Cartelle in piu'  (facoltative, una per riga o separate da virgola)",
+            p.Controls.Add(Tema.Testo1("Cartelle in piu'  (facoltative, una per riga o separate da virgola)",
                                      0, y, 600, Tema.Grassetto, Ruolo.Normale));
             txtExtra = Tema.CasellaMulti(0, y + 22, 880, 50, "Progetti, PCTO, Consiglio di classe");
-            Controls.Add(txtExtra);
+            p.Controls.Add(txtExtra);
             y += 82;
 
-            Controls.Add(Tema.Testo1("Cosa sta succedendo", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            p.Controls.Add(Tema.Testo1("Cosa sta succedendo", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             logBox = Tema.Registro(0, y + 22, 880, 130, true);
-            Controls.Add(logBox);
+            p.Controls.Add(logBox);
             y += 146;
 
-            Controls.Add(Tema.BottonePrincipale("Genera la struttura", 0, y, 200, delegate { Genera(); }));
-            Controls.Add(Tema.Bottone("Apri la cartella dell'anno", 212, y + 2, 200, delegate
+            p.Controls.Add(Tema.BottonePrincipale("Genera la struttura", 0, y, 200, delegate { Genera(); }));
+            p.Controls.Add(Tema.Bottone("Apri la cartella dell'anno", 212, y + 2, 200, delegate
             {
                 string t = CartellaAnno();
                 if (Directory.Exists(t)) Guscio.Apri(t);
                 else MessageBox.Show(this, "La cartella non c'e' ancora:\n" + t,
                     "Niente da aprire", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }));
+            p.Controls.Add(Tema.Testo1(
+                "I moduli Google (.gform) dal PC non si possono copiare ne' collegare: per il foglio " +
+                "delle risposte dell'anno nuovo c'e' il passo 2.",
+                424, y + 2, 456, Tema.Piccolo, Ruolo.Tenue));
+            return p;
         }
 
         // ===================================================================
@@ -170,6 +229,7 @@ namespace Campanella
             txtExtra.Text = S.CartelleExtra;
             PopolaModelli();
             RicaricaStruttura();
+            CaricaModulo();
             Tema.Applica(this);
         }
 
@@ -180,6 +240,7 @@ namespace Campanella
             S.Anno = (anno == Stato.AnnoScolastico(DateTime.Now)) ? "" : anno;
             S.Classi = txtClassi.Text;
             S.CartelleExtra = txtExtra.Text;
+            RaccogliModulo();
         }
 
         string AnnoCorrente()
@@ -328,6 +389,382 @@ namespace Campanella
                 "Struttura", MessageBoxButtons.OK, MessageBoxIcon.Information);
             RicaricaStruttura();
             Tema.Applica(this);
+        }
+
+        // ===================================================================
+        //  PASSO 2 - I MODULI GOOGLE, NEL CLOUD
+        // ===================================================================
+        Panel PaginaModuli()
+        {
+            Panel p = new Panel();
+            p.AutoScroll = true;
+            p.Controls.Add(Tema.Testo1("Il foglio delle risposte dei moduli Google", 0, 6, 0,
+                                       Tema.Sezione, Ruolo.Sezione));
+            int y = 46;
+
+            Label intro = Tema.Testo1(
+                "Un modulo Google sul PC e' solo un segnaposto: copiarlo o spostarlo da Esplora file " +
+                "non si porta dietro il foglio delle risposte, che ogni anno andrebbe ricreato e " +
+                "ricollegato a mano. Qui prepari uno script da incollare dentro il modulo: crea il " +
+                "foglio dell'anno nella cartella giusta, ci collega il modulo, lo riapre, e a fine anno " +
+                "lo chiude lasciando il foglio fermo com'e'. Non cancella niente.",
+                0, y, 880, Tema.Normale, Ruolo.Tenue);
+            p.Controls.Add(intro);
+            y += intro.Height + 10;
+
+            Panel avviso = Tema.Scheda1("Da sapere prima",
+                "Lo script si incolla una volta sola per ogni modulo. Poi, ogni anno dal primo " +
+                "settembre, apri il modulo e scegli Campanella -> Prepara l'anno nuovo: un clic, senza " +
+                "reincollare niente. Lo script vive in un progetto suo, dentro il modulo, e Google gli " +
+                "chiede i suoi permessi: Moduli, Fogli, Drive e le attivita' programmate. Lo script " +
+                "della posta resta com'e': i permessi dei due progetti non si sommano.",
+                0, y, 880);
+            p.Controls.Add(avviso);
+            y += avviso.Height + 16;
+
+            p.Controls.Add(Tema.Testo1("Il modulo", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            cmbModulo = new ComboBox();
+            cmbModulo.Location = new Point(0, y + 22);
+            cmbModulo.Width = 520;
+            cmbModulo.Font = Tema.Normale;
+            cmbModulo.DropDownStyle = ComboBoxStyle.DropDown;
+            cmbModulo.TextChanged += delegate { if (!zittoM) { Proponi(); AggiornaModulo(); } };
+            p.Controls.Add(cmbModulo);
+            lblModuloTrovati = Tema.Testo1("", 532, y + 22, 348, Tema.Piccolo, Ruolo.Tenue);
+            lblModuloTrovati.Height = 40;
+            p.Controls.Add(lblModuloTrovati);
+            y += 66;
+
+            p.Controls.Add(Tema.Testo1("Cartella del foglio, dentro quella dell'anno", 0, y, 0,
+                                       Tema.Grassetto, Ruolo.Normale));
+            cmbCartellaFoglio = new ComboBox();
+            cmbCartellaFoglio.Location = new Point(0, y + 22);
+            cmbCartellaFoglio.Width = 340;
+            cmbCartellaFoglio.Font = Tema.Normale;
+            cmbCartellaFoglio.DropDownStyle = ComboBoxStyle.DropDown;
+            cmbCartellaFoglio.TextChanged += delegate { if (!zittoM) AggiornaModulo(); };
+            p.Controls.Add(cmbCartellaFoglio);
+
+            p.Controls.Add(Tema.Testo1("Nome del foglio delle risposte", 360, y, 0,
+                                       Tema.Grassetto, Ruolo.Normale));
+            txtNomeFoglio = Tema.Casella(360, y + 22, 520, "Risposte Recuperi - A.S. {anno}");
+            txtNomeFoglio.TextChanged += delegate { if (!zittoM) AggiornaModulo(); };
+            p.Controls.Add(txtNomeFoglio);
+            y += 54;
+            p.Controls.Add(Tema.Testo1(
+                "Vuota = direttamente nella cartella dell'anno. Sottocartelle con la barra: RECUPERI\\TRIMESTRE.",
+                0, y, 350, Tema.Piccolo, Ruolo.Tenue));
+            p.Controls.Add(Tema.Testo1(
+                "{anno} diventa l'anno scolastico (2026-27). Se un foglio con questo nome c'e' gia', lo " +
+                "script usa quello: niente doppioni.",
+                360, y, 520, Tema.Piccolo, Ruolo.Tenue));
+            y += 44;
+
+            chkChiusura = Tema.Spunta("A fine anno chiudi il modulo e scollega il foglio, finito il giorno",
+                                      0, y + 2, Ruolo.Normale);
+            chkChiusura.CheckedChanged += delegate
+            {
+                txtChiusura.Enabled = chkChiusura.Checked;
+                if (!zittoM) AggiornaModulo();
+            };
+            p.Controls.Add(chkChiusura);
+            txtChiusura = Tema.Casella(470, y, 70, ScriptModuli.ChiusuraDiDefault);
+            txtChiusura.TextChanged += delegate { if (!zittoM) AggiornaModulo(); };
+            p.Controls.Add(txtChiusura);
+            p.Controls.Add(Tema.Testo1("giorno/mese. Riapre con \"Prepara l'anno nuovo\".",
+                                       552, y + 4, 328, Tema.Piccolo, Ruolo.Tenue));
+            y += 34;
+
+            chkSvuota = Tema.Spunta(
+                "Togli dal modulo le risposte degli anni scorsi (solo se stanno gia' tutte in un foglio vecchio)",
+                0, y, Ruolo.Normale);
+            chkSvuota.CheckedChanged += delegate { if (!zittoM) AggiornaModulo(); };
+            p.Controls.Add(chkSvuota);
+            y += 26;
+            p.Controls.Add(Tema.Testo1(
+                "Le risposte restano dentro il modulo anche quando il foglio viene scollegato, e Google le " +
+                "ricopia in ogni foglio nuovo. Senza questa spunta il foglio dell'anno comincia con quelle " +
+                "vecchie in cima; con la spunta lo script le toglie, ma solo dopo aver controllato che un " +
+                "foglio degli anni scorsi le contiene tutte. Altrimenti non tocca niente e lo dice.",
+                20, y, 860, Tema.Piccolo, Ruolo.Tenue));
+            y += 56;
+
+            chkDriveM = Tema.Spunta(
+                "Metti il foglio nella cartella dell'anno (lo script chiede anche il permesso per Drive)",
+                0, y, Ruolo.Normale);
+            chkDriveM.CheckedChanged += delegate
+            {
+                cmbCartellaFoglio.Enabled = chkDriveM.Checked;
+                if (!zittoM) AggiornaModulo();
+            };
+            p.Controls.Add(chkDriveM);
+            y += 26;
+            p.Controls.Add(Tema.Testo1(
+                "Senza la spunta il codice non nomina Drive e Google non ne chiede il permesso: il foglio " +
+                "nasce nella radice di \"Il mio Drive\" e nella cartella dell'anno lo sposti tu (spostarlo " +
+                "non rompe il collegamento). Serve se la scuola blocca agli script l'accesso a Drive.",
+                20, y, 860, Tema.Piccolo, Ruolo.Tenue));
+            y += 46;
+
+            lblModuloRiepilogo = Tema.Testo1("", 0, y, 880, Tema.Grassetto, Ruolo.Normale);
+            lblModuloRiepilogo.Height = 62;
+            p.Controls.Add(lblModuloRiepilogo);
+            y += 68;
+
+            cmbCosaVedereM = new ComboBox();
+            cmbCosaVedereM.Location = new Point(0, y);
+            cmbCosaVedereM.Width = 340;
+            cmbCosaVedereM.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbCosaVedereM.Font = Tema.Normale;
+            cmbCosaVedereM.Items.AddRange(new object[]
+            {
+                "1. Il codice da incollare nel modulo",
+                "2. Cosa fare, passo per passo",
+                "3. (facoltativo) Il manifest, per chiedere meno permessi"
+            });
+            cmbCosaVedereM.SelectedIndex = 1;
+            cmbCosaVedereM.SelectedIndexChanged += delegate { AggiornaModulo(); };
+            p.Controls.Add(cmbCosaVedereM);
+
+            p.Controls.Add(Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
+            {
+                string problema = ProblemaModulo();
+                if (cmbCosaVedereM.SelectedIndex == 0 && problema != "")
+                {
+                    MessageBox.Show(this, problema, "Manca qualcosa",
+                                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                Guscio.Copia(TestoModulo(cmbCosaVedereM.SelectedIndex),
+                    cmbCosaVedereM.SelectedIndex == 0 ? "Codice copiato: incollalo nel modulo." : "Copiato.");
+            }));
+            p.Controls.Add(Tema.Bottone("Salva su file...", 542, y, 130, delegate { SalvaModulo(); }));
+            p.Controls.Add(Tema.Bottone("Apri Google Moduli", 682, y, 198,
+                delegate { Guscio.Apri("https://docs.google.com/forms/"); }));
+            y += 40;
+
+            txtAnteprimaM = Tema.Registro(0, y, 880, 300, false);
+            txtAnteprimaM.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            p.Controls.Add(txtAnteprimaM);
+            return p;
+        }
+
+        /// <summary>Le cartelle dell'anno fra cui scegliere: quelle spuntate al passo 1, piu' le aggiunte.</summary>
+        List<string> CartelleDellAnno()
+        {
+            List<string> fuori = new List<string>();
+            for (int i = 0; i < clbStruttura.Items.Count; i++)
+                if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
+            if (clbModelli.Enabled)
+                for (int i = 0; i < clbModelli.Items.Count; i++)
+                {
+                    string g = Convert.ToString(clbModelli.Items[i]);
+                    if (clbModelli.GetItemChecked(i) && !fuori.Contains(g)) fuori.Add(g);
+                }
+            foreach (string e in (txtExtra.Text ?? "").Split(new char[] { ',', ';', '\n', '\r' }))
+                if (e.Trim() != "" && !fuori.Contains(e.Trim())) fuori.Add(e.Trim());
+            return fuori;
+        }
+
+        void RiempiModuli()
+        {
+            zittoM = true;
+            try
+            {
+                string scelto = cmbModulo.Text;
+                List<string> trovati = ScriptModuli.TrovaModuli(PercorsoDrive());
+                cmbModulo.Items.Clear();
+                foreach (string m in trovati) cmbModulo.Items.Add(m);
+                if (scelto.Trim() == "" && trovati.Count > 0) scelto = trovati[0];
+                cmbModulo.Text = scelto;
+
+                if (!Directory.Exists(PercorsoDrive()))
+                    lblModuloTrovati.Text = "Non trovo il Drive: controlla il percorso al passo 1. Puoi comunque scrivere il nome del modulo.";
+                else if (trovati.Count == 0)
+                    lblModuloTrovati.Text = "Nessun modulo (.gform) in MODELLI ne' nella radice del Drive: scrivi tu il nome del modulo.";
+                else
+                    lblModuloTrovati.Text = (trovati.Count == 1 ? "Un modulo trovato" : trovati.Count + " moduli trovati") +
+                        " in MODELLI. Ogni modulo ha il suo script: sceglili uno alla volta.";
+
+                string cartella = cmbCartellaFoglio.Text;
+                cmbCartellaFoglio.Items.Clear();
+                foreach (string c in CartelleDellAnno()) cmbCartellaFoglio.Items.Add(c);
+                cmbCartellaFoglio.Text = cartella;
+            }
+            finally { zittoM = false; }
+            Proponi();
+        }
+
+        /// <summary>
+        /// Cartella e nome del foglio proposti per il modulo scelto. Non tocca quello
+        /// che il docente ha scritto di suo: cambia solo i campi vuoti o ancora uguali
+        /// alla proposta precedente.
+        /// </summary>
+        void Proponi()
+        {
+            string modulo = ScriptModuli.NomeModulo(cmbModulo.Text);
+            string nuovaCartella = ScriptModuli.CartellaProposta(cmbModulo.Text, CartelleDellAnno());
+            string nuovoFoglio = ScriptModuli.NomeFoglioProposto(modulo);
+            bool prima = zittoM;
+            zittoM = true;
+            try
+            {
+                if (cmbCartellaFoglio.Text.Trim() == "" || cmbCartellaFoglio.Text == cartellaProposta)
+                    cmbCartellaFoglio.Text = nuovaCartella;
+                if (txtNomeFoglio.Text.Trim() == "" || txtNomeFoglio.Text == foglioProposto)
+                    txtNomeFoglio.Text = nuovoFoglio;
+            }
+            finally { zittoM = prima; }
+            cartellaProposta = nuovaCartella;
+            foglioProposto = nuovoFoglio;
+        }
+
+        void CaricaModulo()
+        {
+            zittoM = true;
+            try
+            {
+                cmbModulo.Text = S.ModuloPercorso;
+                cmbCartellaFoglio.Text = S.ModuloCartella;
+                txtNomeFoglio.Text = S.ModuloFoglio;
+                txtChiusura.Text = (S.ModuloChiusura.Trim() == "") ? ScriptModuli.ChiusuraDiDefault : S.ModuloChiusura;
+                chkChiusura.Checked = S.ModuloChiudi;
+                txtChiusura.Enabled = S.ModuloChiudi;
+                chkSvuota.Checked = S.ModuloSvuota;
+                chkDriveM.Checked = S.ModuloDrive;
+                cmbCartellaFoglio.Enabled = S.ModuloDrive;
+                // quello che era una proposta resta una proposta anche dopo il riavvio
+                cartellaProposta = ScriptModuli.CartellaProposta(S.ModuloPercorso, CartelleDellAnno());
+                foglioProposto = ScriptModuli.NomeFoglioProposto(ScriptModuli.NomeModulo(S.ModuloPercorso));
+            }
+            finally { zittoM = false; }
+            if (passo == 1) { RiempiModuli(); AggiornaModulo(); }
+        }
+
+        void RaccogliModulo()
+        {
+            S.ModuloPercorso = cmbModulo.Text.Trim();
+            S.ModuloCartella = cmbCartellaFoglio.Text.Trim();
+            S.ModuloFoglio = txtNomeFoglio.Text.Trim();
+            S.ModuloChiusura = txtChiusura.Text.Trim();
+            S.ModuloChiudi = chkChiusura.Checked;
+            S.ModuloSvuota = chkSvuota.Checked;
+            S.ModuloDrive = chkDriveM.Checked;
+        }
+
+        /// <summary>"auto" se l'anno del passo 1 e' quello calcolato dalla data, altrimenti quello scritto.</summary>
+        string AnnoPerLoScript()
+        {
+            string a = AnnoCorrente();
+            return (a == Stato.AnnoScolastico(DateTime.Now)) ? "auto" : a;
+        }
+
+        ParametriModulo Parametri()
+        {
+            ParametriModulo p = new ParametriModulo();
+            p.Modulo = ScriptModuli.NomeModulo(cmbModulo.Text);
+            p.Anno = AnnoPerLoScript();
+            p.CartellaFoglio = chkDriveM.Checked ? cmbCartellaFoglio.Text.Trim() : "";
+            p.NomeFoglio = txtNomeFoglio.Text.Trim();
+            p.Chiusura = chkChiusura.Checked ? txtChiusura.Text.Trim() : "";
+            p.Svuota = chkSvuota.Checked;
+            p.UsaDrive = chkDriveM.Checked;
+            return p;
+        }
+
+        /// <summary>Vuoto se il codice si puo' generare, altrimenti cosa manca.</summary>
+        string ProblemaModulo()
+        {
+            string e = ScriptModuli.ControllaAnno(AnnoPerLoScript());
+            if (e != "") return e + " Correggilo al passo 1.";
+            e = ScriptModuli.ControllaNome(txtNomeFoglio.Text, "il nome del foglio delle risposte");
+            if (e != "") return e;
+            if (chkChiusura.Checked)
+            {
+                if (txtChiusura.Text.Trim() == "") return "Scrivi il giorno di chiusura (per esempio 31/08) oppure togli la spunta.";
+                e = ScriptModuli.ControllaChiusura(txtChiusura.Text);
+                if (e != "") return e;
+            }
+            return "";
+        }
+
+        /// <summary>Il foglio dell'anno c'e' gia'? Drive per desktop lo mostra come file .gsheet.</summary>
+        bool FoglioPresente(ParametriModulo p, string anno)
+        {
+            return ScriptModuli.FoglioSulPc(PercorsoDrive(), anno, p);
+        }
+
+        void AggiornaModulo()
+        {
+            if (lblModuloRiepilogo == null || txtAnteprimaM == null) return;
+            ParametriModulo p = Parametri();
+            string anno = AnnoCorrente();
+            string problema = ProblemaModulo();
+
+            if (problema != "")
+            {
+                lblModuloRiepilogo.Text = problema;
+                lblModuloRiepilogo.Tag = Ruolo.Avviso;
+            }
+            else
+            {
+                string dove = p.UsaDrive
+                    ? "Il mio Drive \\ A.S. " + anno + (p.CartellaFoglio != "" ? " \\ " + p.CartellaFoglio : "")
+                    : "la radice di Il mio Drive (lo sposti tu)";
+                DateTime? chiusura = ScriptModuli.DataChiusura(p.Chiusura, anno);
+                string riga = "Foglio \"" + p.NomeFoglio.Replace("{anno}", anno) + "\" in " + dove + ".\n" +
+                    (p.Anno == "auto"
+                        ? "Anno calcolato dallo script: adesso " + anno + ", dal primo settembre il successivo."
+                        : "Anno fisso " + anno + ": l'anno dopo lo script va rigenerato.") +
+                    (chiusura.HasValue ? "  Chiusura: finito il " + chiusura.Value.ToString("dd/MM/yyyy") + "."
+                                       : "  Nessuna chiusura automatica.");
+                bool fatto = FoglioPresente(p, anno);
+                riga += "\n" + (fatto
+                    ? "Sul PC il foglio di quest'anno c'e' gia': per quest'anno lo script ha fatto il suo lavoro."
+                    : "Sul PC il foglio di quest'anno non c'e' ancora: lo script e' da eseguire (o Drive deve ancora scaricarlo).");
+                lblModuloRiepilogo.Text = riga;
+                lblModuloRiepilogo.Tag = fatto ? Ruolo.Buono : Ruolo.Normale;
+            }
+            Tema.Applica(lblModuloRiepilogo);
+
+            string testo = (cmbCosaVedereM.SelectedIndex == 0 && problema != "")
+                ? "Il codice si puo' generare quando e' tutto a posto:\n\n" + problema
+                : TestoModulo(cmbCosaVedereM.SelectedIndex);
+            txtAnteprimaM.Text = testo.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            txtAnteprimaM.Select(0, 0);
+        }
+
+        string TestoModulo(int voce)
+        {
+            try
+            {
+                if (voce == 0) return ScriptModuli.Codice(Parametri());
+                if (voce == 2) return ScriptModuli.Manifest(Parametri());
+                return ScriptModuli.Istruzioni(Parametri(), AnnoCorrente());
+            }
+            catch (Exception ex) { return "Non riesco a preparare il testo: " + ex.Message; }
+        }
+
+        void SalvaModulo()
+        {
+            int voce = cmbCosaVedereM.SelectedIndex;
+            string problema = ProblemaModulo();
+            if (voce == 0 && problema != "")
+            {
+                MessageBox.Show(this, problema, "Manca qualcosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string modulo = ScriptModuli.NomeModulo(cmbModulo.Text);
+            foreach (char c in Path.GetInvalidFileNameChars()) modulo = modulo.Replace(c, '_');
+            using (SaveFileDialog d = new SaveFileDialog())
+            {
+                d.FileName = (voce == 0) ? "Moduli" + (modulo != "" ? " - " + modulo : "") + ".gs"
+                           : (voce == 2) ? "appsscript.json" : "moduli - cosa fare.txt";
+                d.Filter = "Tutti i file (*.*)|*.*";
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false));
+                Guscio.Stato1("Salvato: " + d.FileName);
+            }
         }
 
         // ===================================================================
@@ -563,15 +1000,38 @@ namespace Campanella
 
                     if (google.Count > 0)
                     {
+                        // i moduli non si duplicano: restano in MODELLI e ogni anno ricevono un
+                        // foglio delle risposte nuovo (passo 2). Gli altri documenti si copiano a mano.
+                        List<string> documenti = new List<string>(), moduli = new List<string>();
+                        foreach (string gf in google)
+                        {
+                            if (gf.EndsWith(".gform", StringComparison.OrdinalIgnoreCase)) moduli.Add(gf);
+                            else documenti.Add(gf);
+                        }
                         Directory.CreateDirectory(dest);
                         List<string> righe = new List<string>();
-                        righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
-                        righe.Add("(i documenti Google non si possono copiare come file normali)");
-                        righe.Add("");
-                        foreach (string gf in google) righe.Add("- " + gf);
+                        if (documenti.Count > 0)
+                        {
+                            righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
+                            righe.Add("(i documenti Google non si possono copiare come file normali)");
+                            righe.Add("");
+                            foreach (string gf in documenti) righe.Add("- " + gf);
+                        }
+                        if (moduli.Count > 0)
+                        {
+                            if (righe.Count > 0) righe.Add("");
+                            righe.Add("Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni");
+                            righe.Add("anno riceve un foglio delle risposte nuovo, con lo script che si prepara in");
+                            righe.Add("Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):");
+                            righe.Add("");
+                            foreach (string gf in moduli) righe.Add("- " + gf);
+                        }
                         File.WriteAllLines(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"),
                                            righe.ToArray(), Encoding.UTF8);
-                        log.Add("  " + google.Count + " documenti Google da duplicare a mano (nota creata)");
+                        if (documenti.Count > 0)
+                            log.Add("  " + documenti.Count + " documenti Google da duplicare a mano (nota creata)");
+                        if (moduli.Count > 0)
+                            log.Add("  " + moduli.Count + " moduli Google: per il foglio delle risposte c'e' il passo 2");
                     }
                 }
             }
