@@ -122,39 +122,39 @@ namespace Campanella
             int y = 6;
             p.Controls.Add(Tema.Testo1("La struttura del nuovo anno", 0, y, 0, Tema.Sezione, Ruolo.Sezione));
             y += 40;
-            Label intro = Tema.Testo1(
+            Label intro = Tema.RigaAiuto(p,
+                "Crea nel Drive la cartella dell'anno con le classi, le materie, i recuperi e i modelli.",
+                0, y, Tema.Normale, Ruolo.Tenue, "La struttura del nuovo anno",
                 "Crea nel Drive la cartella \"A.S. <anno>\" con dentro le classi, le materie, i " +
                 "recuperi e le cartelle fisse, e ci copia i modelli presi da MODELLI: una " +
-                "sottocartella per gruppo, e i file di MODELLI\\PER CLASSE dentro ogni classe con " +
-                "il nome della classe in coda. Non sovrascrive e non cancella mai niente: " +
-                "aggiunge solo cio' che manca.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue);
-            p.Controls.Add(intro);
-            y += intro.Height + 10;
+                "sottocartella per gruppo, e i file di MODELLI\\PER CLASSE dentro ogni classe " +
+                "con il nome della classe in coda.\r\n\r\n" +
+                "Non sovrascrive e non cancella mai niente: aggiunge solo cio' che manca, " +
+                "quindi la puoi far girare tutte le volte che vuoi.");
+            y += intro.Height + 16;
 
-            p.Controls.Add(Tema.Testo1("Anno scolastico", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            Tema.TitoloAiuto(p, "Anno scolastico", 0, y, "Anno scolastico",
+                "Si aggiorna da solo il primo settembre, quindi di solito non lo tocchi.\r\n\r\n" +
+                "Se lo scrivi a mano resta quello, anche l'anno prossimo: svuota la casella " +
+                "per tornare a quello automatico.");
             txtAnno = Tema.Casella(0, y + 22, 180, Stato.AnnoScolastico(DateTime.Now));
             p.Controls.Add(txtAnno);
-            p.Controls.Add(Tema.Testo1(
-                "Si aggiorna da solo il primo settembre. Se lo cambi a mano resta quello che scrivi; " +
-                "svuotalo per tornare a quello automatico.",
-                196, y + 22, 560, Tema.Piccolo, Ruolo.Tenue));
             y += 62;
 
-            p.Controls.Add(Tema.Testo1("Classi  (una per riga; dopo i due punti le materie)",
-                                     0, y, 600, Tema.Grassetto, Ruolo.Normale));
+            Tema.TitoloAiuto(p, "Classi  (una per riga; dopo i due punti le materie)", 0, y,
+                "Come si scrivono le classi",
+                "1A: Matematica, Fisica\r\n" +
+                "    crea CLASSI\\1A\\Matematica e CLASSI\\1A\\Fisica\r\n\r\n" +
+                "2B-Ls: Matematica\r\n" +
+                "    una sola materia\r\n\r\n" +
+                "4Ar\r\n" +
+                "    senza materie: solo la cartella della classe\r\n\r\n" +
+                "Per ogni classe crea anche RECUPERI\\TRIMESTRE e RECUPERI\\PENTAMESTRE, " +
+                "con le stesse materie dentro.");
             txtClassi = Tema.CasellaMulti(0, y + 22, 880, 96,
                 "1A: Matematica, Fisica\r\n2B-Ls: Matematica\r\n4Ar");
             p.Controls.Add(txtClassi);
             y += 126;
-            p.Controls.Add(Tema.Testo1(
-                "1A: Matematica, Fisica      crea CLASSI\\1A\\Matematica e CLASSI\\1A\\Fisica\n" +
-                "2B-Ls: Matematica           una sola materia\n" +
-                "4Ar                         senza materie: solo la cartella della classe\n" +
-                "Per ogni classe crea anche RECUPERI\\TRIMESTRE e RECUPERI\\PENTAMESTRE, " +
-                "con le stesse materie dentro.",
-                0, y, 880, Tema.Piccolo, Ruolo.Tenue));
-            y += 74;
 
             p.Controls.Add(Tema.Testo1("Percorso di \"Il mio Drive\"", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtDrive = Tema.Casella(0, y + 22, 700, "per esempio  H:\\Il mio Drive");
@@ -214,7 +214,7 @@ namespace Campanella
             p.Controls.Add(Tema.Testo1("Cosa sta succedendo", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             logBox = Tema.Registro(0, y + 22, 880, 130, true);
             p.Controls.Add(logBox);
-            y += 146;
+            y += 164;
 
             p.Controls.Add(Tema.BottonePrincipale("Genera la struttura", 0, y, 200, delegate { Genera(); }));
             p.Controls.Add(Tema.Bottone("Apri la cartella dell'anno", 212, y + 2, 200, delegate
@@ -225,9 +225,13 @@ namespace Campanella
                     "Niente da aprire", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }));
             p.Controls.Add(Tema.Testo1(
-                "I moduli Google (.gform) dal PC non si possono copiare ne' collegare: per il foglio " +
-                "delle risposte dell'anno nuovo c'e' il passo 2.",
-                424, y + 2, 456, Tema.Piccolo, Ruolo.Tenue));
+                "I moduli Google (.gform) li prepara il passo 2.",
+                430, y + 8, 300, Tema.Piccolo, Ruolo.Tenue));
+            p.Controls.Add(Tema.Aiuto(736, y + 8, "E i moduli Google?",
+                "Un file .gform sul PC e' solo un collegamento: copiarlo non crea un modulo " +
+                "nuovo, e il foglio delle risposte non si puo' collegare da qui.\r\n\r\n" +
+                "Per questo il foglio delle risposte dell'anno nuovo si prepara nel passo 2, " +
+                "che lavora dentro Google."));
             return p;
         }
 
@@ -475,23 +479,28 @@ namespace Campanella
                                        Tema.Sezione, Ruolo.Sezione));
             int y = 46;
 
-            Label intro = Tema.Testo1(
-                "Un modulo Google sul PC e' solo un segnaposto: copiarlo o spostarlo da Esplora file " +
-                "non si porta dietro il foglio delle risposte, che ogni anno andrebbe ricreato e " +
-                "ricollegato a mano. Qui prepari uno script da incollare dentro il modulo: crea il " +
-                "foglio dell'anno nella cartella giusta, ci collega il modulo, lo riapre, e a fine anno " +
-                "lo chiude lasciando il foglio fermo com'e'. Non cancella niente.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue);
-            p.Controls.Add(intro);
-            y += intro.Height + 10;
+            Label intro = Tema.RigaAiuto(p,
+                "Qui prepari uno script da incollare dentro il modulo: ogni anno crea il foglio " +
+                "delle risposte e ce lo collega.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Perche' serve uno script",
+                "Un modulo Google sul PC e' solo un segnaposto: copiarlo o spostarlo da Esplora " +
+                "file non si porta dietro il foglio delle risposte, che ogni anno andrebbe " +
+                "ricreato e ricollegato a mano.\r\n\r\n" +
+                "Lo script fa quel lavoro da dentro Google: crea il foglio dell'anno nella " +
+                "cartella giusta, ci collega il modulo, lo riapre, e a fine anno lo chiude " +
+                "lasciando il foglio fermo com'e'. Non cancella niente.");
+            y += intro.Height + 16;
 
             Panel avviso = Tema.Scheda1("Da sapere prima",
                 "Lo script si incolla una volta sola per ogni modulo. Poi, ogni anno dal primo " +
-                "settembre, apri il modulo e scegli Campanella -> Prepara l'anno nuovo: un clic, senza " +
-                "reincollare niente. Lo script vive in un progetto suo, dentro il modulo, e Google gli " +
-                "chiede i suoi permessi: Moduli, Fogli, Drive e le attivita' programmate. Lo script " +
-                "della posta resta com'e': i permessi dei due progetti non si sommano.",
-                0, y, 880);
+                "settembre, apri il modulo e scegli Campanella -> Prepara l'anno nuovo: un clic, " +
+                "senza reincollare niente.",
+                0, y, 880,
+                "I permessi dello script",
+                "Lo script vive in un progetto suo, dentro il modulo, e Google gli chiede i suoi " +
+                "permessi: Moduli, Fogli, Drive e le attivita' programmate.\r\n\r\n" +
+                "Lo script della posta resta com'e': i permessi dei due progetti non si sommano, " +
+                "e togliere uno non tocca l'altro.");
             p.Controls.Add(avviso);
             y += avviso.Height + 16;
 
@@ -527,10 +536,12 @@ namespace Campanella
             lblCartellaFoglio = Tema.Testo1("", 0, y, 350, Tema.Piccolo, Ruolo.Tenue);
             lblCartellaFoglio.Height = 46;
             p.Controls.Add(lblCartellaFoglio);
-            p.Controls.Add(Tema.Testo1(
-                "{anno} diventa l'anno scolastico (2026-27). Se un foglio con questo nome c'e' gia', lo " +
-                "script usa quello: niente doppioni.",
-                360, y, 520, Tema.Piccolo, Ruolo.Tenue));
+            Tema.RigaAiuto(p, "{anno} diventa l'anno scolastico (2026-27).",
+                           360, y, Tema.Piccolo, Ruolo.Tenue, "Il nome del foglio",
+                "Dove scrivi {anno} lo script mette l'anno scolastico: il foglio si chiamera' " +
+                "per esempio \"Risposte Recuperi - A.S. 2026-27\".\r\n\r\n" +
+                "Se un foglio con quel nome c'e' gia', lo script usa quello invece di crearne un " +
+                "altro: niente doppioni.");
             y += 44;
 
             chkChiusura = Tema.Spunta("A fine anno chiudi il modulo e scollega il foglio, finito il giorno",
@@ -548,42 +559,41 @@ namespace Campanella
                                        552, y + 4, 328, Tema.Piccolo, Ruolo.Tenue));
             y += 34;
 
-            chkSvuota = Tema.Spunta(
-                "Togli dal modulo le risposte degli anni scorsi (solo se stanno gia' tutte in un foglio vecchio)",
-                0, y, Ruolo.Normale);
+            chkSvuota = Tema.SpuntaAiuto(p,
+                "Togli dal modulo le risposte degli anni scorsi",
+                0, y, "Le risposte vecchie",
+                "Le risposte restano dentro il modulo anche quando il foglio viene scollegato, e " +
+                "Google le ricopia in ogni foglio nuovo: senza questa spunta il foglio dell'anno " +
+                "comincia con quelle vecchie in cima.\r\n\r\n" +
+                "Con la spunta lo script le toglie, ma solo dopo aver controllato che un foglio " +
+                "degli anni scorsi le contiene gia' tutte. Altrimenti non tocca niente e te lo dice.");
             chkSvuota.CheckedChanged += delegate { if (!zittoM) AggiornaModulo(); };
-            p.Controls.Add(chkSvuota);
-            y += 26;
-            p.Controls.Add(Tema.Testo1(
-                "Le risposte restano dentro il modulo anche quando il foglio viene scollegato, e Google le " +
-                "ricopia in ogni foglio nuovo. Senza questa spunta il foglio dell'anno comincia con quelle " +
-                "vecchie in cima; con la spunta lo script le toglie, ma solo dopo aver controllato che un " +
-                "foglio degli anni scorsi le contiene tutte. Altrimenti non tocca niente e lo dice.",
-                20, y, 860, Tema.Piccolo, Ruolo.Tenue));
-            y += 56;
+            y += 32;
 
-            chkDriveM = Tema.Spunta(
-                "Metti il foglio nella cartella dell'anno (lo script chiede anche il permesso per Drive)",
-                0, y, Ruolo.Normale);
+            chkDriveM = Tema.SpuntaAiuto(p,
+                "Metti il foglio nella cartella dell'anno",
+                0, y, "Il permesso per Drive",
+                "Con la spunta lo script chiede a Google anche il permesso per Drive, che gli " +
+                "serve per mettere il foglio nella cartella dell'anno.\r\n\r\n" +
+                "Senza, il codice non nomina Drive e il permesso non viene chiesto: il foglio " +
+                "nasce nella radice di \"Il mio Drive\" e nella cartella dell'anno lo sposti tu " +
+                "(spostarlo non rompe il collegamento). Serve se la scuola blocca agli script " +
+                "l'accesso a Drive.");
             chkDriveM.CheckedChanged += delegate
             {
                 cmbCartellaFoglio.Enabled = chkDriveM.Checked;
                 if (!zittoM) AggiornaModulo();
             };
-            p.Controls.Add(chkDriveM);
-            y += 26;
-            p.Controls.Add(Tema.Testo1(
-                "Senza la spunta il codice non nomina Drive e Google non ne chiede il permesso: il foglio " +
-                "nasce nella radice di \"Il mio Drive\" e nella cartella dell'anno lo sposti tu (spostarlo " +
-                "non rompe il collegamento). Serve se la scuola blocca agli script l'accesso a Drive.",
-                20, y, 860, Tema.Piccolo, Ruolo.Tenue));
-            y += 46;
+            y += 38;
 
-            p.Controls.Add(Tema.Testo1(
-                "Piu' moduli? Le voci 4 e 5 del menu qui sotto preparano un foglio Google con una riga per " +
-                "modulo, da cui si fa tutto insieme. Quello pero' chiede il permesso su tutti i tuoi moduli, " +
-                "non su uno solo: con pochi moduli conviene questa strada.",
-                0, y, 880, Tema.Piccolo, Ruolo.Tenue));
+            Tema.RigaAiuto(p,
+                "Piu' moduli? Le voci 4 e 5 qui sotto preparano un foglio di controllo.",
+                0, y, Tema.Piccolo, Ruolo.Tenue, "Il foglio di controllo",
+                "Le voci 4 e 5 del menu preparano un foglio Google con una riga per modulo: da " +
+                "li' si prepara l'anno nuovo per tutti insieme, e il foglio si aggiorna da solo " +
+                "quando aggiungi o togli un modulo.\r\n\r\n" +
+                "Quello script pero' chiede il permesso su tutti i tuoi moduli, non su uno solo: " +
+                "con pochi moduli conviene questa strada.");
             y += 36;
 
             lblModuloRiepilogo = Tema.Testo1("", 0, y, 880, Tema.Grassetto, Ruolo.Normale);

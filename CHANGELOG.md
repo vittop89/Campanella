@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.2 — 20 September 2026
+
+**Lighter pages: the long explanations moved into "?" bubbles.** Every page
+kept a paragraph of grey text next to each field. On a screen at 100% those
+paragraphs pushed into the controls beside them, and most of them went unread
+anyway. Now the page states the point in one line and a "?" in a circle opens
+the rest in a small themed bubble, which closes as soon as you click elsewhere
+or press Esc. Twenty of them, across Posta, Cartelle, Orari, Privacy and
+Impostazioni.
+
+- Fixed the overlaps that came with those paragraphs: the log box ran into the
+  buttons in Cartelle step 1, the intro ran into the file box in Orari step 1,
+  two panels in Posta stuck out past the right edge of the page, and two
+  labels that start empty (the timetable summary, the settings result) were
+  one line too short for the text they later receive.
+- New test, `test/prova_disposizione.ps1`: it builds the real window off
+  screen, walks every page and every step, and fails on overlapping controls,
+  anything past the right edge, and text that does not fit its label. It also
+  clicks every "?" and checks the bubble opens and holds its text. `-Immagini`
+  saves a picture of each page.
+
 ## 1.4.1 — 20 September 2026
 
 - No parent label by default. The labels are now created with the names you

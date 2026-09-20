@@ -160,13 +160,13 @@ namespace Campanella
             p.Controls.Add(bannerPosta);
             y += 102;
 
-            p.Controls.Add(Tema.Testo1(
-                "Scegli il file Excel del tabellone orario: quello con una riga per docente e, " +
-                "in orizzontale, i giorni divisi nelle loro ore, come l'export \"TABELLONE " +
-                "DOCENTI\" di Orario Facile. Va bene anche un CSV, o una tabella con le " +
-                "colonne Docente, Giorno, Ora, Classe. Altri formati vanno prima ridotti a questi.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue));
-            y += 52;
+            Tema.RigaAiuto(p, "Scegli il file Excel del tabellone orario.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Che file ci vuole",
+                "Il tabellone con una riga per docente e, in orizzontale, i giorni divisi nelle " +
+                "loro ore: per esempio l'export \"TABELLONE DOCENTI\" di Orario Facile.\r\n\r\n" +
+                "Va bene anche un CSV, o una tabella con le colonne Docente, Giorno, Ora, " +
+                "Classe. Altri formati vanno prima ridotti a uno di questi.");
+            y += 34;
 
             txtFile = Tema.Casella(0, y, 700, "nessun file scelto");
             txtFile.ReadOnly = true;
@@ -313,6 +313,7 @@ namespace Campanella
             p.Controls.Add(cmbChi);
 
             lblRiepilogoOrario = Tema.Testo1("", 470, y + 4, 420, Tema.Normale, Ruolo.Tenue);
+            lblRiepilogoOrario.Height = 24;   // nasce vuota: senza questo il testo poi non ci sta
             p.Controls.Add(lblRiepilogoOrario);
             y += 44;
 
@@ -394,11 +395,14 @@ namespace Campanella
 
             Panel chi = Tema.Scheda1("A chi arrivano",
                 "Tutte a te: una email per ogni docente del tabellone, con la sua griglia. " +
-                "Arrivano all'indirizzo dell'account Google in cui incolli lo script, cioe' il tuo " +
-                "account istituzionale: non c'e' niente da impostare, lo script lo legge da solo. " +
-                "Nessun messaggio parte verso i colleghi, e nei dati non c'e' nessun indirizzo. " +
                 "Poi ritrovi l'orario di chiunque cercando il cognome in Gmail.",
-                0, y, 880);
+                0, y, 880,
+                "Nessuna email ai colleghi",
+                "Le email arrivano all'indirizzo dell'account Google in cui incolli lo script, " +
+                "cioe' il tuo account istituzionale: non c'e' niente da impostare, lo script lo " +
+                "legge da solo.\r\n\r\n" +
+                "Nessun messaggio parte verso i colleghi, e nei dati dell'orario non c'e' " +
+                "nessun indirizzo: solo i nomi come stanno nel tabellone.");
             p.Controls.Add(chi);
             y += chi.Height + 14;
 
@@ -572,14 +576,15 @@ namespace Campanella
             Panel p = NuovaPagina("L'orario su Google Calendar");
             int y = 52;
 
-            p.Controls.Add(Tema.Testo1(
-                "Scegli un docente (di norma te stesso), il nome del calendario e il periodo: lo " +
-                "script mette ogni ora di lezione come evento settimanale, dal primo giorno utile " +
-                "fino alla data di fine. Se un calendario con quel nome esiste gia' lo usa, " +
-                "altrimenti lo crea. Gli eventi portano un contrassegno, cosi' si tolgono in un " +
-                "colpo solo con ORARI_ANNULLA_calendario senza toccare il resto.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue));
-            y += 66;
+            Tema.RigaAiuto(p,
+                "Scegli un docente, il nome del calendario e il periodo.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Cosa fa lo script sul calendario",
+                "Mette ogni ora di lezione come evento settimanale, dal primo giorno utile fino " +
+                "alla data di fine.\r\n\r\n" +
+                "Se un calendario con quel nome esiste gia' lo usa, altrimenti lo crea.\r\n\r\n" +
+                "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
+                "ORARI_ANNULLA_calendario, senza toccare il resto del calendario.");
+            y += 40;
 
             p.Controls.Add(Tema.Testo1("Docente  (come scritto nel tabellone)", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             cmbDocente = new ComboBox();

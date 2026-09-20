@@ -27,8 +27,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.4.1.0")]
-[assembly: AssemblyFileVersion("1.4.1.0")]
+[assembly: AssemblyVersion("1.4.2.0")]
+[assembly: AssemblyFileVersion("1.4.2.0")]
 
 namespace Campanella
 {
@@ -718,16 +718,14 @@ namespace Campanella
             y += 44;
 
             // ---- dove stanno i dati di altre persone ------------------------
-            Controls.Add(Tema.Testo1("Dove tenere i dati di altre persone", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
-            y += 26;
-            Controls.Add(Tema.Testo1(
-                "L'elenco del personale, gli indirizzi di dirigenza e segreteria e gli orari con " +
-                "i cognomi sono dati personali di colleghi. Puoi tenerli accanto al programma " +
-                "oppure in un file dentro il Drive della scuola: in quel caso restano " +
-                "nell'account istituzionale, si ritrovano su tutti i computer che sincronizzano " +
-                "quel Drive, e nel file accanto al programma non ne resta traccia.",
-                0, y, 860, Tema.Normale, Ruolo.Tenue));
-            y += 74;
+            Tema.TitoloAiuto(this, "Dove tenere i dati di altre persone", 0, y,
+                "Dove tenere i dati di altre persone",
+                "L'elenco del personale, gli indirizzi di dirigenza e segreteria e gli orari " +
+                "con i cognomi sono dati personali di colleghi.\r\n\r\n" +
+                "Tenendoli in un file dentro il Drive della scuola restano nell'account " +
+                "istituzionale, si ritrovano su tutti i computer che sincronizzano quel Drive, " +
+                "e nel file accanto al programma non ne resta traccia.");
+            y += 30;
             rbDatiLocali = new RadioButton();
             rbDatiLocali.Text = "Accanto al programma, in campanella.json";
             rbDatiLocali.Location = new Point(0, y);
@@ -764,16 +762,13 @@ namespace Campanella
             y += 52;
 
             // ---- stato del riordino -----------------------------------------
-            Controls.Add(Tema.Testo1("Il riordino della posta risulta gia' fatto?",
-                                     0, y, 0, Tema.Grassetto, Ruolo.Normale));
-            y += 26;
-            Controls.Add(Tema.Testo1(
-                "L'applicazione lo capisce da sola dalle spunte dell'installazione. " +
+            Tema.TitoloAiuto(this, "Il riordino della posta risulta gia' fatto?", 0, y,
+                "La conferma dal tuo account",
+                "Di norma l'applicazione lo capisce da sola dalle spunte dell'installazione.\r\n\r\n" +
                 "Se vuoi la conferma dal tuo account, nell'editor dello script esegui la " +
-                "funzione  EXTRA_codiceStato  e incolla qui la riga che stampa: e' un codice " +
-                "come  CMP1-20260910-9-1-2431  e non contiene nessun dato personale.",
-                0, y, 860, Tema.Normale, Ruolo.Tenue));
-            y += 76;
+                "funzione EXTRA_codiceStato e incolla qui sotto la riga che stampa: e' un " +
+                "codice come CMP1-20260910-9-1-2431 e non contiene nessun dato personale.");
+            y += 34;
 
             txtCodice = Tema.Casella(0, y, 320, "CMP1-...");
             Controls.Add(txtCodice);
@@ -788,18 +783,18 @@ namespace Campanella
             }));
             y += 40;
             lblEsito = Tema.Testo1("", 0, y, 860, Tema.Normale, Ruolo.Tenue);
+            lblEsito.Height = 24;     // nasce vuota: senza questo l'esito resta tagliato
             Controls.Add(lblEsito);
-            y += 60;
+            y += 44;
 
             // ---- componenti ---------------------------------------------------
-            Controls.Add(Tema.Testo1("rizzo-pii e aggiornamenti", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
-            y += 26;
-            Controls.Add(Tema.Testo1(
-                "rizzo-pii e' il programma che riconosce i dati personali per lo strumento Privacy. " +
-                "L'applicazione non si collega a internet da sola: il controllo parte solo " +
-                "quando premi il pulsante.",
-                0, y, 860, Tema.Piccolo, Ruolo.Tenue));
-            y += 40;
+            Tema.TitoloAiuto(this, "rizzo-pii e aggiornamenti", 0, y,
+                "rizzo-pii e aggiornamenti",
+                "rizzo-pii e' il programma che riconosce i dati personali per lo strumento " +
+                "Privacy: gira sul tuo computer, all'indirizzo qui sotto.\r\n\r\n" +
+                "L'applicazione non si collega a internet da sola: il controllo degli " +
+                "aggiornamenti parte solo quando premi il pulsante.");
+            y += 30;
 
             Controls.Add(Tema.Testo1("Indirizzo del servizio", 0, y + 5, 0, Tema.Normale, Ruolo.Tenue));
             txtAnon = Tema.Casella(150, y, 260, "http://127.0.0.1:5005");
@@ -884,7 +879,7 @@ namespace Campanella
             y += 40;
 
             lblScrittura = Tema.Testo1("", 0, y, 860, Tema.Piccolo, Ruolo.Tenue);
-            lblScrittura.Height = 34;
+            lblScrittura.Height = 48;   // l'avviso "non si puo' scrivere" e' di tre righe
             Controls.Add(lblScrittura);
         }
 

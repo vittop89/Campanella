@@ -206,13 +206,16 @@ namespace Campanella
             Panel p = NuovaPagina("Prepara un testo da dare all'intelligenza artificiale");
             int y = 46;
 
-            p.Controls.Add(Tema.Testo1(
-                "Incolla qui il testo com'e', premi \"Togli i dati personali\", copia il risultato " +
-                "e incollalo nell'assistente. Quando ti risponde, incolla la risposta in basso e " +
-                "premi \"Rimetti i nomi veri\": la corrispondenza fra segnaposto e nomi resta su " +
-                "questo computer e non viene mai spedita da nessuna parte.",
-                0, y, 880, Tema.Normale, Ruolo.Tenue));
-            y += 60;
+            Tema.RigaAiuto(p,
+                "Incolla il testo com'e', premi \"Togli i dati personali\" e usa il risultato.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Come si usa",
+                "1. Incolla qui il testo com'e' e premi \"Togli i dati personali\".\r\n\r\n" +
+                "2. Copia il risultato e incollalo nell'assistente.\r\n\r\n" +
+                "3. Quando ti risponde, incolla la risposta in basso e premi \"Rimetti i nomi " +
+                "veri\".\r\n\r\n" +
+                "La corrispondenza fra segnaposto e nomi veri resta su questo computer e non " +
+                "viene mai spedita da nessuna parte.");
+            y += 40;
 
             p.Controls.Add(Tema.Bottone("Controlla rizzo-pii", 0, y, 170, delegate
             {

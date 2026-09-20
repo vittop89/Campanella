@@ -138,19 +138,12 @@ namespace Campanella
             string pre = S.PrefissoPulito();
             if (pre != "")
             {
-                lblPrefisso.Text =
-                    "Tutte dentro \"" + pre + "\": " + pre + "/Circolari, " + pre + "/Colleghi... Serve se questa casella\r\n" +
-                    "e' personale e raccoglie anche la posta della scuola: la tiene insieme, separata\r\n" +
-                    "dal resto, e si toglie in un colpo solo. Svuota la casella per i nomi diretti.";
+                lblPrefisso.Text = "Tutte dentro \"" + pre + "\": " + pre + "/Circolari, " + pre + "/Colleghi...";
                 lblPrefisso.Tag = Ruolo.Tenue;
             }
             else
             {
-                lblPrefisso.Text =
-                    "Etichette con questi nomi esatti, senza genitore: e' quello che serve dentro l'account\r\n" +
-                    "della scuola, dove tutta la posta e' di lavoro. Quelle che hai gia' in Gmail con lo\r\n" +
-                    "stesso nome vengono riempite, non duplicate; in cambio ANNULLA_etichettatura le\r\n" +
-                    "toglierebbe anche dai messaggi a cui le avevi messe tu.";
+                lblPrefisso.Text = "Etichette dirette: Circolari, Colleghi... Le tue con lo stesso nome vengono riempite.";
                 lblPrefisso.Tag = Ruolo.Tenue;
             }
             Tema.Applica(lblPrefisso);
@@ -227,12 +220,13 @@ namespace Campanella
             Panel p = NuovaPagina("La tua scuola");
             int y = 54;
 
-            p.Controls.Add(Tema.Testo1(
-                "Serve il dominio della scuola e qualche indirizzo. Se non sai cosa mettere in un " +
-                "campo, lascialo vuoto: le regole che lo usano verranno semplicemente saltate. " +
-                "Il tuo indirizzo non serve: lo script gira dentro il tuo account e lo sa da solo.",
-                0, y, 860, Tema.Normale, Ruolo.Tenue));
-            y += 52;
+            Tema.RigaAiuto(p, "Serve il dominio della scuola e qualche indirizzo.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Se non sai cosa mettere",
+                "Lascia vuoto il campo: le regole che lo usano verranno semplicemente " +
+                "saltate, e le altre funzionano lo stesso.\r\n\r\n" +
+                "Il tuo indirizzo non serve da nessuna parte: lo script gira dentro il tuo " +
+                "account e lo sa da solo.");
+            y += 40;
 
             p.Controls.Add(Tema.Testo1("Dominio della scuola", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtDominio = Tema.Casella(0, y + 22, 340, "per esempio  liceoxyz.edu.it");
@@ -255,14 +249,15 @@ namespace Campanella
             p.Controls.Add(txtSegreteria);
             y += 98;
 
-            p.Controls.Add(Tema.Testo1("Registro elettronico", 0, y, 0, Tema.Normale, Ruolo.Tenue));
+            Tema.RigaAiuto(p, "Registro elettronico", 0, y, Tema.Normale, Ruolo.Tenue,
+                "Come si scrivono gli indirizzi",
+                "Puoi scrivere un indirizzo intero (preside@scuola.it) oppure solo un dominio " +
+                "preceduto dalla chiocciola (@spaggiari.eu).\r\n\r\n" +
+                "Con il dominio la regola vale per tutti gli indirizzi di quel dominio: comodo " +
+                "per il registro elettronico, che scrive da mittenti sempre diversi.\r\n\r\n" +
+                "Vale per tutte e tre le caselle di questa pagina.");
             txtRegistro = Tema.CasellaMulti(0, y + 20, 300, 50, "@spaggiari.eu");
             p.Controls.Add(txtRegistro);
-            p.Controls.Add(Tema.Testo1(
-                "Puoi scrivere un indirizzo intero (preside@scuola.it) oppure solo un dominio " +
-                "preceduto dalla chiocciola (@spaggiari.eu): in quel caso vale per tutti gli " +
-                "indirizzi di quel dominio.",
-                320, y + 20, 400, Tema.Piccolo, Ruolo.Tenue));
             return p;
         }
 
@@ -400,8 +395,19 @@ namespace Campanella
                 AggiornaAvvisoPrefisso();
             };
             p.Controls.Add(txtPrefisso);
-            lblPrefisso = Tema.Testo1("", 322, y, 578, Tema.Piccolo, Ruolo.Tenue);
-            lblPrefisso.Height = 56;
+            p.Controls.Add(Tema.Aiuto(320, y + 5, "Raggruppa sotto",
+                "Dentro l'account della scuola tutta la posta e' di lavoro: bastano le etichette " +
+                "con i nomi diretti (Circolari, Colleghi...). Quelle che hai gia' in Gmail con lo " +
+                "stesso nome vengono riempite, non duplicate; se un nome ti va stretto, cambialo " +
+                "con \"Modifica\" e lo script usera' la tua etichetta.\r\n\r\n" +
+                "Scrivi un nome, per esempio Scuola, se questa casella e' personale e raccoglie " +
+                "anche la posta della scuola: le etichette nascono tutte li' dentro " +
+                "(Scuola/Circolari, Scuola/Colleghi...), restano separate dal resto e si tolgono " +
+                "in un colpo solo.\r\n\r\n" +
+                "Il prezzo dei nomi diretti: ANNULLA_etichettatura toglierebbe quelle etichette " +
+                "anche dai messaggi a cui le avevi messe tu, perche' non puo' distinguerli."));
+            lblPrefisso = Tema.Testo1("", 346, y + 4, 480, Tema.Piccolo, Ruolo.Tenue);
+            lblPrefisso.Height = 20;
             p.Controls.Add(lblPrefisso);
             y += 48;
 
@@ -535,11 +541,19 @@ namespace Campanella
             pannelloPassi = new FlowLayoutPanel();
             pannelloPassi.Location = new Point(0, y);
             pannelloPassi.Size = new Size(910, 480);
-            pannelloPassi.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             pannelloPassi.FlowDirection = FlowDirection.TopDown;
             pannelloPassi.WrapContents = false;
             pannelloPassi.AutoScroll = true;
             p.Controls.Add(pannelloPassi);
+            // niente Anchor: quando il pannello nasce la pagina e' ancora larga
+            // 200 px, e i margini dell'ancoraggio verrebbero presi da li' (il
+            // pannello finiva per sporgere a destra)
+            int cimaPassi = y;
+            p.Resize += delegate
+            {
+                pannelloPassi.Width = Math.Max(300, p.ClientSize.Width);
+                pannelloPassi.Height = Math.Max(200, p.ClientSize.Height - cimaPassi);
+            };
 
             Cartellino(1, "Apri l'editor dello script",
                 "Vai su script.google.com con lo stesso account Gmail che vuoi riordinare. " +
@@ -661,9 +675,13 @@ namespace Campanella
             Panel scorrevole = new Panel();
             scorrevole.Location = new Point(0, 50);
             scorrevole.Size = new Size(910, 540);
-            scorrevole.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             scorrevole.AutoScroll = true;
             p.Controls.Add(scorrevole);
+            p.Resize += delegate
+            {
+                scorrevole.Width = Math.Max(300, p.ClientSize.Width);
+                scorrevole.Height = Math.Max(200, p.ClientSize.Height - 50);
+            };
 
             string[,] faq =
             {

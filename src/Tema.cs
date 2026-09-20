@@ -39,6 +39,7 @@ namespace Campanella
         public const string Secondario  = "secondario";   // bottone contornato
         public const string Codice      = "codice";
         public const string Numero      = "numero";       // pallino numerato
+        public const string Aiuto       = "aiuto";        // il "?" tondo che apre la spiegazione
     }
 
     static class Tema
@@ -239,6 +240,7 @@ namespace Campanella
                     c.ForeColor = AccentoTesto;
                 }
                 else if (ruolo == Ruolo.Titolo || ruolo == Ruolo.Sezione) c.ForeColor = Testo;
+                else if (ruolo == Ruolo.Aiuto) c.ForeColor = Tenue;
                 else if (ruolo == Ruolo.Sottotitolo || ruolo == Ruolo.Tenue) c.ForeColor = Tenue;
                 else if (ruolo == Ruolo.Accento) c.ForeColor = Accento;
                 else if (ruolo == Ruolo.Avviso) c.ForeColor = Ambra;
@@ -329,6 +331,56 @@ namespace Campanella
                 l.Height = AltezzaTesto(testo, f, larghezza);
             }
             else l.AutoSize = true;
+            return l;
+        }
+
+        /// <summary>
+        /// Il "?" dentro un cerchio: un clic e si apre la spiegazione, in una
+        /// bolla a tema. Serve a togliere dalle pagine i paragrafi lunghi, che
+        /// le riempiono e finiscono per non essere letti.
+        /// </summary>
+        public static Label Aiuto(int x, int y, string titolo, string testo)
+        {
+            Label l = new Label();
+            l.Text = "";
+            l.Location = new Point(x, y);
+            l.Size = new Size(17, 17);
+            l.Tag = Ruolo.Aiuto;
+            l.Cursor = Cursors.Hand;
+            l.BackColor = Color.Transparent;
+            l.Paint += delegate(object s, PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                Rectangle r = new Rectangle(0, 0, l.Width - 1, l.Height - 1);
+                using (Pen p = new Pen(l.ForeColor)) e.Graphics.DrawEllipse(p, r);
+                TextRenderer.DrawText(e.Graphics, "?", PiccoloGrassetto, r, l.ForeColor,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            };
+            l.Click += delegate { Bolla.Mostra(l, titolo, testo); };
+            return l;
+        }
+
+        /// <summary>
+        /// Un titolo in grassetto con il "?" subito dopo: il modo normale di
+        /// mettere una spiegazione lunga senza farla stare sulla pagina.
+        /// </summary>
+        public static Label TitoloAiuto(Control dove, string testo, int x, int y,
+                                        string titolo, string spiegazione)
+        {
+            return RigaAiuto(dove, testo, x, y, Grassetto, Ruolo.Normale, titolo, spiegazione);
+        }
+
+        /// <summary>
+        /// Una riga di testo con il "?" attaccato subito dopo: il "?" lontano
+        /// dalla frase a cui si riferisce non si capisce a cosa serva.
+        /// </summary>
+        public static Label RigaAiuto(Control dove, string testo, int x, int y, Font f,
+                                      string ruolo, string titolo, string spiegazione)
+        {
+            Label l = Testo1(testo, x, y, 0, f, ruolo);
+            dove.Controls.Add(l);
+            Size s = TextRenderer.MeasureText(testo, f);
+            dove.Controls.Add(Aiuto(x + s.Width + 8, y + 2, titolo, spiegazione));
             return l;
         }
 
@@ -450,6 +502,16 @@ namespace Campanella
             return c;
         }
 
+        /// <summary>Una spunta con il "?" subito dopo, al posto della riga di spiegazione.</summary>
+        public static CheckBox SpuntaAiuto(Control dove, string testo, int x, int y,
+                                           string titolo, string spiegazione)
+        {
+            CheckBox c = Spunta(testo, x, y, Ruolo.Normale);
+            dove.Controls.Add(c);
+            dove.Controls.Add(Aiuto(x + c.PreferredSize.Width + 8, y + 3, titolo, spiegazione));
+            return c;
+        }
+
         /// <summary>Riquadro con bordo: titolo + testo che va a capo.</summary>
         public static Panel Scheda1(string titolo, string testo, int x, int y, int w)
         {
@@ -464,6 +526,18 @@ namespace Campanella
             c.Controls.Add(lt);
             c.Controls.Add(lc);
             Contorna(c);
+            return c;
+        }
+
+        /// <summary>
+        /// La stessa scheda, con il "?" in cima a destra: il testo breve resta
+        /// sulla pagina, il resto sta nella bolla.
+        /// </summary>
+        public static Panel Scheda1(string titolo, string testo, int x, int y, int w,
+                                    string titoloAiuto, string spiegazione)
+        {
+            Panel c = Scheda1(titolo, testo, x, y, w);
+            c.Controls.Add(Aiuto(w - 34, 14, titoloAiuto, spiegazione));
             return c;
         }
 
@@ -623,4 +697,75 @@ namespace Campanella
             }
         }
     }
+    /// <summary>
+    /// La spiegazione che si apre dal "?" tondo: una finestrella senza bordi,
+    /// nei colori del tema, che si chiude appena clicchi altrove o premi Esc.
+    /// Una alla volta: aprendone un'altra la precedente sparisce.
+    /// </summary>
+    class Bolla : Form
+    {
+        static Bolla aperta;
+
+        public static void Mostra(Control accanto, string titolo, string testo)
+        {
+            Chiudi();
+            if (accanto == null) return;
+            Bolla b = new Bolla(titolo, testo);
+            Form padre = accanto.FindForm();
+
+            // sotto al "?", ma dentro lo schermo
+            Point p = accanto.PointToScreen(new Point(0, accanto.Height + 6));
+            Rectangle schermo = Screen.FromControl(accanto).WorkingArea;
+            if (p.X + b.Width > schermo.Right - 8) p.X = schermo.Right - 8 - b.Width;
+            if (p.X < schermo.Left + 8) p.X = schermo.Left + 8;
+            if (p.Y + b.Height > schermo.Bottom - 8)
+                p.Y = accanto.PointToScreen(Point.Empty).Y - b.Height - 6;
+            b.Location = p;
+
+            aperta = b;
+            if (padre != null) b.Show(padre); else b.Show();
+        }
+
+        public static void Chiudi()
+        {
+            if (aperta != null && !aperta.IsDisposed) aperta.Close();
+            aperta = null;
+        }
+
+        Bolla(string titolo, string testo)
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            Font = Tema.Normale;
+            BackColor = Tema.Scheda;
+
+            int larghezza = 420, margine = 16;
+            int y = margine;
+            if (!string.IsNullOrEmpty(titolo))
+            {
+                Label lt = Tema.Testo1(titolo, margine, y, larghezza - 2 * margine, Tema.Grassetto, Ruolo.Accento);
+                Controls.Add(lt);
+                y += lt.Height + 6;
+            }
+            Label lc = Tema.Testo1(testo, margine, y, larghezza - 2 * margine, Tema.Normale, Ruolo.Normale);
+            Controls.Add(lc);
+            y += lc.Height + margine;
+
+            Size = new Size(larghezza, y);
+            Paint += delegate(object s, PaintEventArgs e)
+            {
+                using (Pen p = new Pen(Tema.Accento))
+                    e.Graphics.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
+            };
+            Click += delegate { Close(); };
+            foreach (Control c in Controls) c.Click += delegate { Close(); };
+            Deactivate += delegate { Close(); };
+            KeyPreview = true;
+            KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) Close(); };
+            Tema.Applica(this);
+            BackColor = Tema.Scheda;
+        }
+    }
+
 }
