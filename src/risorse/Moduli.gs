@@ -30,6 +30,9 @@
  *    MODULO_2_prepara ..... prepara l'anno: foglio, collegamento, chiusura
  *    MODULO_ANNULLA ....... toglie la chiusura programmata e scollega il foglio
  *                           dell'anno (il foglio resta dov'e')
+ *    MODULO_PASSA_AL_FOGLIO  se questo modulo passa sotto il foglio di controllo
+ *                           di piu' moduli: toglie solo la chiusura di qui, per
+ *                           non chiudere il modulo due volte
  *    MODULO_chiusura ...... la chiama Google quando arriva il giorno
  *    Dal secondo anno basta il menu "Campanella" dentro il modulo.
  *
@@ -55,7 +58,7 @@ var MODULO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _MODULO_VERSIONE = '1.3.2';
+var _MODULO_VERSIONE = '1.3.3';
 var _MODULO_TRIGGER  = 'MODULO_chiusura';
 var _MODULO_CHIAVE   = 'CAMPANELLA_MODULO';
 
@@ -75,6 +78,31 @@ function MODULO_2_prepara() {
 
 function MODULO_ANNULLA() {
   return _moduloUnoAllaVolta(function () { return _moduloAnnulla(); });
+}
+
+/**
+ * Da usare quando questo modulo passa sotto il foglio di controllo (quello con
+ * una riga per modulo). Toglie solo la chiusura programmata da qui, cosi' non
+ * si ritrova a chiudere il modulo due volte; il foglio delle risposte resta
+ * collegato e il modulo resta com'e'.
+ */
+function MODULO_PASSA_AL_FOGLIO() {
+  return _moduloUnoAllaVolta(function () {
+    var tolti = _moduloTogliTrigger();
+    var righe = ['PASSO IL COMANDO AL FOGLIO DI CONTROLLO', ''];
+    righe.push(tolti > 0 ? 'Chiusura programmata da qui: tolta.'
+                         : 'Chiusura programmata da qui: non ce n\'era.');
+    righe.push('Il collegamento al foglio delle risposte NON e\' stato toccato: il modulo');
+    righe.push('continua a scrivere dove scriveva.');
+    righe.push('');
+    righe.push('Adesso, nel foglio di controllo, metti una riga per questo modulo con la');
+    righe.push('STESSA cartella e lo STESSO nome del foglio che vedi qui sopra: cosi\' lo');
+    righe.push('riconosce e non ne crea un altro. Poi "Prepara l\'anno nuovo" da li\'.');
+    righe.push('');
+    righe.push('Se cambi idea: "Prepara l\'anno nuovo" da questo menu riprende il comando');
+    righe.push('(e ricordati di togliere la spunta "Attivo" nella riga del foglio).');
+    return righe.join('\n');
+  });
 }
 
 /**
@@ -112,6 +140,7 @@ function onOpen() {
       .addItem('Anteprima: cosa succederebbe', 'MODULO_menu_anteprima')
       .addItem('Prepara l\'anno nuovo', 'MODULO_menu_prepara')
       .addSeparator()
+      .addItem('Passa il comando al foglio di controllo', 'MODULO_menu_passa')
       .addItem('Annulla: togli chiusura e collegamento', 'MODULO_menu_annulla')
       .addToUi();
   } catch (e) {
@@ -137,6 +166,16 @@ function MODULO_menu_prepara() {
   if (risposta !== ui.Button.YES) return;
   // prima il lavoro, poi il messaggio: una finestra lasciata aperta fermerebbe lo script a meta'
   var testo = _moduloProtetto(function () { return MODULO_2_prepara(); });
+  ui.alert('Campanella', testo, ui.ButtonSet.OK);
+}
+
+function MODULO_menu_passa() {
+  var ui = FormApp.getUi();
+  var risposta = ui.alert('Campanella',
+    'Tolgo la chiusura programmata da qui, cosi\' il comando passa al foglio di controllo.\n' +
+    'Il foglio delle risposte resta collegato e il modulo non cambia. Procedo?', ui.ButtonSet.YES_NO);
+  if (risposta !== ui.Button.YES) return;
+  var testo = _moduloProtetto(function () { return MODULO_PASSA_AL_FOGLIO(); });
   ui.alert('Campanella', testo, ui.ButtonSet.OK);
 }
 

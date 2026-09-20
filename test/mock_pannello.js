@@ -643,6 +643,39 @@ titolo('UN MODULO CANCELLATO PRIMA DELLA CHIUSURA');
   verifica('e alla fine non restano chiusure programmate', p.m.trigger.length === 0);
 }
 
+// ---- 8d. il modulo aveva gia' lo script dentro ----------------------------------------------
+titolo('UN MODULO CHE AVEVA GIA\' IL SUO SCRIPT');
+{
+  // com'e' messo un modulo preparato dall'altro script: foglio dell'anno gia'
+  // creato nella cartella giusta e gia' collegato, ma il pannello non ne sa niente
+  const p1 = mondoPronto();
+  const suo = new p1.m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', p1.m.cartella('A.S. 2026-27/RECUPERI'));
+  p1.m.recuperi.setDestination('SPREADSHEET', suo.id);
+  p1.m.recuperi.rispondi(2);
+  const t1 = p1.c.PANNELLO_4_preparaAnno();
+  verifica('non crea un secondo foglio', p1.m.fogliCreati === 1);
+  verifica('riusa quello che c\'era', p1.m.recuperi.destinazione.foglio.id === suo.id);
+  verifica('e non ricollega (niente scheda doppia)', suo.schede.length === 2);
+  verifica('le risposte restano dove sono', suo.righeDiRisposte() === 2);
+  verifica('lo dice', t1.indexOf('senza doppioni') > 0 || t1.indexOf('non ne creo un altro') > 0);
+
+  // stesso caso, ma il foglio sta in un'altra cartella: lo riconosce dal nome
+  const p2 = mondoPronto();
+  const altrove = new p2.m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', p2.m.cartella('Vecchie cose'));
+  p2.m.recuperi.setDestination('SPREADSHEET', altrove.id);
+  const t2 = p2.c.PANNELLO_4_preparaAnno();
+  verifica('adotta il foglio collegato anche se sta altrove', p2.m.recuperi.destinazione.foglio.id === altrove.id && p2.m.fogliCreati === 1);
+  verifica('e lo racconta', t2.indexOf('non ne creo un altro') > 0);
+
+  // se invece il foglio collegato si chiama in un altro modo, non lo adotta
+  const p3 = mondoPronto();
+  const diverso = new p3.m.FoglioDiCalcolo('Un foglio qualunque', p3.m.cartella('A.S. 2026-27/RECUPERI'));
+  p3.m.recuperi.setDestination('SPREADSHEET', diverso.id);
+  p3.c.PANNELLO_4_preparaAnno();
+  verifica('un foglio con un altro nome non viene adottato', p3.m.recuperi.destinazione.foglio.id !== diverso.id);
+  verifica('quello vecchio resta dov\'e\', intatto', p3.m.fogli.has(diverso.id));
+}
+
 // ---- 9. casi storti --------------------------------------------------------------------------
 titolo('CASI STORTI');
 {

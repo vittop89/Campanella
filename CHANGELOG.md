@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.3 — 20 September 2026
+
+**A form with the per-form script, also listed in the control sheet.** The two
+scripts cannot see each other: one lives in the form, the other in the sheet.
+Running both on the same form closed it twice at the end of the year and, if
+folder or sheet name differed, left two sheets for the same year.
+
+- The control sheet now adopts the sheet the form is already writing into,
+  when its name matches the one the row asks for, instead of creating a second
+  one. It works even if that sheet sits in another folder.
+- The per-form script has a new menu entry, "Passa il comando al foglio di
+  controllo", which removes only its own scheduled closing and leaves the link
+  and the form untouched.
+- Both sets of instructions explain the handover, in three steps, and say that
+  keeping the form out of the sheet is one unticked "Attivo" away.
+
 ## 1.3.2 — 20 September 2026
 
 **The control sheet does not refresh by itself, and now says so.** Its Stato,

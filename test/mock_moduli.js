@@ -643,6 +643,25 @@ titolo('CASI STORTI');
   verifica('memoria illeggibile: riparte da zero senza rompersi', Object.keys(cc._moduloMemoria(copia.form).fogli).length === 0);
 }
 
+// ---- 9b. passare il comando al foglio di controllo ------------------------------------
+titolo('PASSARE IL COMANDO AL FOGLIO DI CONTROLLO');
+{
+  const m = nuovoMondo();
+  const recuperi = m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m);
+  c.MODULO_2_prepara();
+  const foglio = m.form.destinazione.foglio;
+  const t = c.MODULO_PASSA_AL_FOGLIO();
+  verifica('toglie la chiusura programmata da qui', m.trigger.length === 0);
+  verifica('ma NON scollega il foglio', m.form.destinazione !== null && m.form.destinazione.foglio.id === foglio.id);
+  verifica('non tocca il modulo', m.form.aperto === true && m.form.risposte.length === 0);
+  verifica('non crea e non cancella fogli', m.fogliCreati === 1 && recuperi.files.length === 1);
+  verifica('spiega cosa fare nel foglio di controllo', t.indexOf('STESSA cartella') > 0 && t.indexOf('STESSO nome') > 0);
+  verifica('rieseguito non si lamenta', c.MODULO_PASSA_AL_FOGLIO().indexOf('non ce n\'era') > 0);
+  c.MODULO_2_prepara();
+  verifica('e da qui si puo\' riprendere il comando', m.trigger.length === 1 && m.fogliCreati === 1);
+}
+
 // ---- 10. il menu dentro il modulo -----------------------------------------------------------------
 titolo('IL MENU');
 {
@@ -650,7 +669,7 @@ titolo('IL MENU');
   m.cartella('A.S. 2026-27/RECUPERI');
   const c = carica(m);
   c.onOpen();
-  verifica('menu "Campanella" con tre voci', m.menu && m.menu.nome === 'Campanella' && m.menu.voci.length === 3);
+  verifica("menu Campanella con quattro voci", m.menu && m.menu.nome === "Campanella" && m.menu.voci.length === 4);
   verifica('ogni voce chiama una funzione che esiste', m.menu.voci.every(v => typeof c[v.funzione] === 'function'));
   c.MODULO_menu_prepara();
   verifica('risposta No: non fa niente', m.fogliCreati === 0 && m.avvisi.length === 1);

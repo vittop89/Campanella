@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE = '1.3.2';
+var _PAN_VERSIONE = '1.3.3';
 var _PAN_TRIGGER  = 'PANNELLO_chiusura';
 var _PAN_CHIAVE   = 'CAMPANELLA_PANNELLO';
 
@@ -363,6 +363,19 @@ function _panUnaRiga(r, anno, davvero, righe) {
   if (!idFoglio && dest.cartella) {
     idFoglio = _panFoglioPerNome(dest.cartella, nomeFoglio);
     if (idFoglio) righe.push('  foglio: "' + nomeFoglio + '" esiste gia\'. Uso quello, senza doppioni.');
+  }
+  // Il modulo puo' avere gia' dentro di se' l'altro script di Campanella, che gli
+  // ha fatto il foglio dell'anno. Se e' collegato a un foglio che si chiama come
+  // quello che vorrei io, adotto quello: creargliene un altro vorrebbe dire due
+  // fogli per lo stesso anno e le risposte spezzate in due.
+  if (!idFoglio) {
+    var giaCollegato = _panDestinazione(form);
+    if (giaCollegato && _panNomeDiUnFile(giaCollegato) === nomeFoglio) {
+      idFoglio = giaCollegato;
+      righe.push('  foglio: il modulo scrive gia\' in "' + nomeFoglio + '". Uso quello: non ne creo un altro.');
+      righe.push('  (lo ha preparato lo script dentro il modulo? vedi "se il modulo ha gia\' lo script")');
+      if (davvero) { memoria.fogli[chiave] = idFoglio; _panRicorda(memoria); }
+    }
   }
   if (!idFoglio) {
     if (!davvero) {
@@ -871,4 +884,8 @@ function _panMetti(idFoglio, cartella) {
 
 function _panNelCestino(idFoglio) {
   try { return DriveApp.getFileById(idFoglio).isTrashed(); } catch (e) { return true; }
+}
+
+function _panNomeDiUnFile(idFile) {
+  try { return DriveApp.getFileById(idFile).getName(); } catch (e) { return ''; }
 }
