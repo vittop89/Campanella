@@ -19,7 +19,7 @@
 ; ===========================================================================
 
 #define MyAppName        "Campanella"
-#define MyAppVersion     "1.4.1"
+#define MyAppVersion     "1.4.2"
 #define MyAppPublisher   "Vittorio Pantaleo"
 #define MyAppURL         "https://github.com/vittop89/Campanella"
 #define MyAppExeName     "Campanella.exe"
