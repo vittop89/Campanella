@@ -239,7 +239,8 @@ function _panPreparaIlFoglio() {
 
   for (var k = 0; k < _PAN_COLONNE.length; k++) foglio.setColumnWidth(k + 1, k === _PAN_C.LINK ? 260 : 170);
 
-  return 'Scheda "' + PANNELLO.scheda + '" pronta' + (righe.length ? ', con ' + righe.length + ' righe di partenza' : '') + '.\n\n' +
+  return 'Scheda "' + PANNELLO.scheda + '" pronta' +
+    (righe.length ? ', con ' + (righe.length === 1 ? 'una riga' : righe.length + ' righe') + ' di partenza' : '') + '.\n\n' +
     'Adesso: incolla il link di ogni modulo nella colonna "Link del modulo", oppure usa\n' +
     '"Trova i moduli nel Drive" e li cerca lui dal nome. Poi "Anteprima".';
 }
