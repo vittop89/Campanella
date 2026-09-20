@@ -27,8 +27,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.3.5.0")]
-[assembly: AssemblyFileVersion("1.3.5.0")]
+[assembly: AssemblyVersion("1.3.6.0")]
+[assembly: AssemblyFileVersion("1.3.6.0")]
 
 namespace Campanella
 {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.6 — 20 September 2026
+
+- When the control sheet finds this year's response sheet by name, instead of
+  creating it, it now remembers it as the sheet of the year. Without that,
+  "Controlla com'e' messo adesso" called it "a sheet I did not create", which
+  is exactly the case of a form handed over from the per-form script.
+
 ## 1.3.5 — 20 September 2026
 
 **The closing day turned into a date, and the script could not read it back.**

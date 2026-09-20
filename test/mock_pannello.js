@@ -724,6 +724,21 @@ titolo('UN MODULO CHE AVEVA GIA\' IL SUO SCRIPT');
   verifica('quello vecchio resta dov\'e\', intatto', p3.m.fogli.has(diverso.id));
 }
 
+// ---- 8e. il foglio trovato per nome diventa il foglio dell'anno ---------------------------
+titolo('IL FOGLIO TROVATO PER NOME VIENE RICORDATO');
+{
+  const p = mondoPronto();
+  // come dopo l'altro script: il foglio dell'anno c'e' gia', nella sua cartella
+  const suo = new p.m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', p.m.cartella('A.S. 2026-27/RECUPERI'));
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('lo usa senza crearne un altro', p.m.recuperi.destinazione.foglio.id === suo.id && p.m.fogliCreati === 1);
+  const ricordo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli;
+  verifica('e se lo segna come foglio dell\'anno', ricordo[p.m.recuperi.id + '|2026-27'] === suo.id);
+  p.c.PANNELLO_5_controlla();
+  verifica('cosi" Controlla" lo riconosce come suo',
+    scheda(p.m)[0][7].indexOf('collegato al foglio di quest') === 0);
+}
+
 // ---- 9. casi storti --------------------------------------------------------------------------
 titolo('CASI STORTI');
 {

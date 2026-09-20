@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE = '1.3.5';
+var _PAN_VERSIONE = '1.3.6';
 var _PAN_TRIGGER  = 'PANNELLO_chiusura';
 var _PAN_CHIAVE   = 'CAMPANELLA_PANNELLO';
 
@@ -369,7 +369,12 @@ function _panUnaRiga(r, anno, davvero, righe) {
   }
   if (!idFoglio && dest.cartella) {
     idFoglio = _panFoglioPerNome(dest.cartella, nomeFoglio);
-    if (idFoglio) righe.push('  foglio: "' + nomeFoglio + '" esiste gia\'. Uso quello, senza doppioni.');
+    if (idFoglio) {
+      righe.push('  foglio: "' + nomeFoglio + '" esiste gia\'. Uso quello, senza doppioni.');
+      // me lo segno: da adesso e' il foglio dell'anno anche per me, e "Controlla"
+      // deve poterlo dire senza spacciarlo per il foglio di qualcun altro
+      if (davvero) { memoria.fogli[chiave] = idFoglio; _panRicorda(memoria); }
+    }
   }
   // Il modulo puo' avere gia' dentro di se' l'altro script di Campanella, che gli
   // ha fatto il foglio dell'anno. Se e' collegato a un foglio che si chiama come
