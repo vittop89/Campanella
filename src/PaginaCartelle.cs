@@ -47,6 +47,9 @@ namespace Campanella
         // passo 1
         TextBox txtAnno, txtClassi, txtDrive, txtExtra, logBox;
         CheckedListBox clbModelli, clbStruttura;
+        Label lblDrive;
+        Button btnAltroDrive;
+        List<DriveTrovato> drivi = new List<DriveTrovato>();
 
         // passo 2
         ComboBox cmbModulo, cmbCartellaFoglio, cmbCosaVedereM;
@@ -155,7 +158,7 @@ namespace Campanella
 
             p.Controls.Add(Tema.Testo1("Percorso di \"Il mio Drive\"", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             txtDrive = Tema.Casella(0, y + 22, 700, "per esempio  H:\\Il mio Drive");
-            txtDrive.TextChanged += delegate { PopolaModelli(); };
+            txtDrive.TextChanged += delegate { PopolaModelli(); AggiornaDrive(); };
             p.Controls.Add(txtDrive);
             p.Controls.Add(Tema.Bottone("Sfoglia...", 712, y + 21, 130, delegate
             {
@@ -169,7 +172,17 @@ namespace Campanella
                     }
                 }
             }));
-            y += 58;
+            y += 52;
+
+            // chi ha anche l'account personale si ritrova due "Il mio Drive": se
+            // quello scelto non e' quello della scuola, qui lo si vede e si cambia
+            lblDrive = Tema.Testo1("", 0, y, 700, Tema.Piccolo, Ruolo.Tenue);
+            lblDrive.Height = 34;
+            p.Controls.Add(lblDrive);
+            btnAltroDrive = Tema.Bottone("Usa quello", 712, y - 2, 130, delegate { UsaIlMigliore(); });
+            btnAltroDrive.Visible = false;
+            p.Controls.Add(btnAltroDrive);
+            y += 40;
 
             p.Controls.Add(Tema.Testo1("Modelli da includere  (le sottocartelle di MODELLI)",
                                      0, y, 420, Tema.Grassetto, Ruolo.Normale));
@@ -228,6 +241,7 @@ namespace Campanella
             txtClassi.Text = S.Classi;
             txtExtra.Text = S.CartelleExtra;
             PopolaModelli();
+            AggiornaDrive();
             RicaricaStruttura();
             CaricaModulo();
             Tema.Applica(this);
@@ -264,6 +278,65 @@ namespace Campanella
             logBox.SelectionStart = logBox.TextLength;
             logBox.ScrollToCaret();
             Application.DoEvents();
+        }
+
+        // -------------------------------------------------------------------
+        /// <summary>
+        /// Dice se il Drive scelto e' quello giusto. Con due account Google sul
+        /// computer (scuola e personale) le unita' sono due, e quella buona e'
+        /// quella con dentro MODELLI o le cartelle degli anni.
+        /// </summary>
+        void AggiornaDrive()
+        {
+            if (lblDrive == null) return;
+            if (drivi.Count == 0) drivi = Stato.DriviPossibili();
+
+            string scelto = PercorsoDrive();
+            DriveTrovato questo = null, migliore = null;
+            foreach (DriveTrovato d in drivi)
+            {
+                if (string.Equals(d.Percorso, scelto, StringComparison.OrdinalIgnoreCase)) questo = d;
+                if (migliore == null && (d.ConModelli || d.ConAnni)) migliore = d;
+            }
+            bool questoBuono = (questo != null) && (questo.ConModelli || questo.ConAnni);
+            bool cambia = !questoBuono && migliore != null &&
+                          !string.Equals(migliore.Percorso, scelto, StringComparison.OrdinalIgnoreCase);
+
+            if (cambia)
+            {
+                lblDrive.Text =
+                    "Qui dentro non c'e' MODELLI e non ci sono cartelle di anni scolastici." +
+                    ((questo != null && questo.Account != "") ? " Sembra il Drive di " + questo.Account + "." : "") +
+                    "\r\nQuello della scuola sembra  " + migliore.Descrizione();
+                lblDrive.Tag = Ruolo.Avviso;
+                btnAltroDrive.Tag = migliore.Percorso;
+                btnAltroDrive.Visible = true;
+            }
+            else
+            {
+                string altri = "";
+                foreach (DriveTrovato d in drivi)
+                {
+                    if (string.Equals(d.Percorso, scelto, StringComparison.OrdinalIgnoreCase)) continue;
+                    altri += (altri == "" ? "" : "   ·   ") + d.Descrizione();
+                }
+                lblDrive.Text = (questo != null && questo.Account != "")
+                    ? "Drive di " + questo.Account + (altri == "" ? "" : ".  Sul computer c'e' anche: " + altri)
+                    : (altri == "" ? "" : "Sul computer c'e' anche: " + altri);
+                lblDrive.Tag = Ruolo.Tenue;
+                btnAltroDrive.Visible = false;
+            }
+            Tema.Applica(lblDrive);
+        }
+
+        void UsaIlMigliore()
+        {
+            string p = Convert.ToString(btnAltroDrive.Tag);
+            if (p == "") return;
+            txtDrive.Text = p;
+            PopolaModelli();
+            AggiornaDrive();
+            Guscio.Stato1("Adesso uso " + p);
         }
 
         // -------------------------------------------------------------------
@@ -577,6 +650,19 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>Un altro Drive del computer che i moduli ce li ha davvero, oppure vuoto.</summary>
+        string AltroDriveConModuli()
+        {
+            if (drivi.Count == 0) drivi = Stato.DriviPossibili();
+            string scelto = PercorsoDrive();
+            foreach (DriveTrovato d in drivi)
+            {
+                if (string.Equals(d.Percorso, scelto, StringComparison.OrdinalIgnoreCase)) continue;
+                if (ScriptModuli.TrovaModuli(d.Percorso).Count > 0) return d.Descrizione();
+            }
+            return "";
+        }
+
         void RiempiModuli()
         {
             zittoM = true;
@@ -590,9 +676,11 @@ namespace Campanella
                 cmbModulo.Text = scelto;
 
                 if (!Directory.Exists(PercorsoDrive()))
-                    lblModuloTrovati.Text = "Non trovo il Drive: controlla il percorso al passo 1. Puoi comunque scrivere il nome del modulo.";
+                    lblModuloTrovati.Text = "Non trovo il Drive (" + PercorsoDrive() + "): controlla il percorso al passo 1. Puoi comunque scrivere il nome del modulo.";
                 else if (trovati.Count == 0)
-                    lblModuloTrovati.Text = "Nessun modulo (.gform) in MODELLI ne' nella radice del Drive: scrivi tu il nome del modulo.";
+                    lblModuloTrovati.Text = "Nessun modulo (.gform) in " + PercorsoDrive() + ": ho guardato in MODELLI e nella radice. " +
+                        (AltroDriveConModuli() != "" ? "Con i moduli sembra invece " + AltroDriveConModuli() + ": cambia il percorso al passo 1."
+                                                     : "Scrivi tu il nome del modulo.");
                 else
                     lblModuloTrovati.Text = (trovati.Count == 1 ? "Un modulo trovato" : trovati.Count + " moduli trovati") +
                         " in MODELLI. Ogni modulo ha il suo script: sceglili uno alla volta.";

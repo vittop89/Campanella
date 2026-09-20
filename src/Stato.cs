@@ -63,6 +63,22 @@ namespace Campanella
         }
     }
 
+    /// <summary>Un "Il mio Drive" trovato sul computer, e di chi e'.</summary>
+    class DriveTrovato
+    {
+        public string Percorso = "";
+        public string Account = "";      // l'indirizzo, se Windows lo scrive nell'etichetta dell'unita'
+        public bool ConModelli = false;
+        public bool ConAnni = false;
+        public int Punti = 0;
+
+        /// <summary>"H:\Il mio Drive  (tizio@scuola.it)"</summary>
+        public string Descrizione()
+        {
+            return Percorso + ((Account != "") ? "  (" + Account + ")" : "");
+        }
+    }
+
     /// <summary>Una casella dell'orario: chi, quando, dove, con chi.</summary>
     class Lezione
     {
@@ -196,13 +212,24 @@ namespace Campanella
         /// monta spesso come G: o H:). Se non la trova propone quella nel
         /// profilo, che e' la sistemazione piu' comune.
         /// </summary>
-        public static string DriveDiDefault()
+        /// <summary>
+        /// I "Il mio Drive" che ci sono sul computer, il piu' probabile per primo.
+        /// Chi ha anche l'account personale si ritrova due unita' (per esempio G: e
+        /// H:): quella della scuola e' riconoscibile perche' dentro ha MODELLI o le
+        /// cartelle degli anni, e perche' l'account non e' di un servizio per
+        /// privati. Sceglierne una a caso vuol dire dire "non trovo niente" a chi
+        /// ha tutto al suo posto sull'altra.
+        /// </summary>
+        public static List<DriveTrovato> DriviPossibili()
         {
+            string[] nomi = { "Il mio Drive", "My Drive" };
+            List<DriveTrovato> fuori = new List<DriveTrovato>();
+            List<string> radici = new List<string>();
+            List<string> etichette = new List<string>();
+
             string profilo = "";
             try { profilo = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); } catch { }
-            string[] nomi = { "Il mio Drive", "My Drive" };
-            List<string> candidati = new List<string>();
-            if (profilo != "") foreach (string n in nomi) candidati.Add(Path.Combine(profilo, n));
+            if (profilo != "") { radici.Add(profilo); etichette.Add(""); }
             try
             {
                 foreach (DriveInfo d in DriveInfo.GetDrives())
@@ -210,16 +237,87 @@ namespace Campanella
                     try
                     {
                         if (!d.IsReady) continue;
-                        foreach (string n in nomi) candidati.Add(Path.Combine(d.RootDirectory.FullName, n));
+                        radici.Add(d.RootDirectory.FullName);
+                        string e = "";
+                        try { e = d.VolumeLabel ?? ""; } catch { }
+                        etichette.Add(e);
                     }
                     catch { }
                 }
             }
             catch { }
-            foreach (string c in candidati)
+
+            for (int i = 0; i < radici.Count; i++)
             {
-                try { if (Directory.Exists(c)) return c; } catch { }
+                foreach (string n in nomi)
+                {
+                    string c;
+                    try { c = Path.Combine(radici[i], n); } catch { continue; }
+                    try { if (!Directory.Exists(c)) continue; } catch { continue; }
+                    if (Contiene(fuori, c)) continue;
+
+                    fuori.Add(EsaminaDrive(c, etichette[i]));
+                }
             }
+            // ordinamento stabile: a pari punti resta l'ordine di scoperta
+            for (int i = 1; i < fuori.Count; i++)
+            {
+                DriveTrovato x = fuori[i];
+                int k = i - 1;
+                while (k >= 0 && fuori[k].Punti < x.Punti) { fuori[k + 1] = fuori[k]; k--; }
+                fuori[k + 1] = x;
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// Che aria tira in una cartella "Il mio Drive": ci sono i modelli? le
+        /// cartelle degli anni? di chi e' l'account? Piu' punti = piu' probabile
+        /// che sia quello della scuola. Sta qui, separato, per poterlo provare.
+        /// </summary>
+        public static DriveTrovato EsaminaDrive(string percorso, string etichetta)
+        {
+            DriveTrovato t = new DriveTrovato();
+            t.Percorso = percorso;
+            t.Account = Email(etichetta);
+            try { t.ConModelli = Directory.Exists(Path.Combine(percorso, "MODELLI")); } catch { }
+            try { t.ConAnni = (Directory.GetDirectories(percorso, "A.S. *").Length > 0); } catch { }
+            t.Punti = (t.ConModelli ? 4 : 0) + (t.ConAnni ? 3 : 0) + (IndirizzoPrivato(t.Account) ? -3 : 0);
+            return t;
+        }
+
+        static bool Contiene(List<DriveTrovato> elenco, string percorso)
+        {
+            foreach (DriveTrovato t in elenco)
+                if (string.Equals(t.Percorso, percorso, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        /// <summary>L'indirizzo dentro l'etichetta dell'unita': "tizio@scuola.it - Google Drive".</summary>
+        static string Email(string etichetta)
+        {
+            Match m = Regex.Match(etichetta ?? "", @"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}");
+            return m.Success ? m.Value : "";
+        }
+
+        /// <summary>Un indirizzo da servizio per privati: quel Drive non e' quello della scuola.</summary>
+        static bool IndirizzoPrivato(string email)
+        {
+            string e = (email ?? "").ToLowerInvariant();
+            if (e == "") return false;
+            string[] privati = { "gmail.com", "googlemail.com", "outlook.", "hotmail.", "live.",
+                                 "yahoo.", "libero.it", "virgilio.it", "alice.it", "tiscali.it",
+                                 "icloud.com", "me.com", "protonmail.com", "proton.me" };
+            foreach (string p in privati) if (e.EndsWith("@" + p) || e.Contains("@" + p)) return true;
+            return false;
+        }
+
+        public static string DriveDiDefault()
+        {
+            List<DriveTrovato> trovati = DriviPossibili();
+            if (trovati.Count > 0) return trovati[0].Percorso;
+            string profilo = "";
+            try { profilo = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); } catch { }
             return (profilo != "") ? Path.Combine(profilo, "Il mio Drive") : @"C:\Il mio Drive";
         }
 

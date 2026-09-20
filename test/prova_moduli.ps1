@@ -134,6 +134,32 @@ try {
     Verifica "per l'anno dopo no" (-not (Chiama 'FoglioSulPc' @($finto, '2027-28', (Parametri $true))))
     Set-Content (Join-Path $finto 'Risposte Recuperi - A.S. 2026-27.gsheet') 'x'
     Verifica "senza Drive lo cerca nella radice" (Chiama 'FoglioSulPc' @($finto, '2026-27', (Parametri $false)))
+
+    # --- quale dei due Drive e' quello della scuola ---------------------------
+    Write-Host "`nDUE DRIVE SUL COMPUTER" -ForegroundColor Cyan
+    $tSt = $asm.GetType('Campanella.Stato')
+    function Esamina($percorso, $etichetta) {
+        return $tSt.GetMethod('EsaminaDrive', $FS).Invoke($null, @([string]$percorso, [string]$etichetta))
+    }
+    $personale = Join-Path ([System.IO.Path]::GetTempPath()) ("campanella-personale-" + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force (Join-Path $personale 'Foto') | Out-Null
+    try {
+        $scuola = Esamina $finto 'vittorio.pantaleo@scuola.edu.it - Google Drive'
+        $casa   = Esamina $personale 'tizio@gmail.com - Google Drive'
+        Verifica "riconosce MODELLI e le cartelle degli anni" ($scuola.ConModelli -and $scuola.ConAnni)
+        Verifica "nell'altro non c'e' niente del genere"      (-not $casa.ConModelli -and -not $casa.ConAnni)
+        Verifica "legge l'indirizzo dall'etichetta dell'unita'" ($scuola.Account -eq 'vittorio.pantaleo@scuola.edu.it' -and $casa.Account -eq 'tizio@gmail.com')
+        Verifica "quello della scuola vince"                  ($scuola.Punti -gt $casa.Punti)
+        Verifica "un indirizzo gmail perde punti"             ($casa.Punti -lt 0)
+        $anonimo = Esamina $personale ''
+        Verifica "senza etichetta non penalizza nessuno"      ($anonimo.Punti -eq 0)
+        $soloAnni = Esamina $finto ''
+        Verifica "bastano le cartelle degli anni per vincere" ($soloAnni.Punti -gt $anonimo.Punti)
+        Verifica "una cartella che non esiste non rompe"      ((Esamina 'Z:
+on\esiste' '').Punti -eq 0)
+        Verifica "la descrizione mostra percorso e account"   ($scuola.Descrizione().Contains($finto) -and $scuola.Descrizione().Contains('vittorio.pantaleo@scuola.edu.it'))
+    }
+    finally { Remove-Item -Recurse -Force $personale -ErrorAction SilentlyContinue }
 }
 finally { Remove-Item -Recurse -Force $finto -ErrorAction SilentlyContinue }
 

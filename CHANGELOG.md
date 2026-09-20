@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.1 — 20 September 2026
+
+**"No forms found" when the forms were there.** A teacher who also has a
+personal Google account has two Drive letters mounted, and Campanella picked
+the first one it saw, which was the personal one: no MODELLI, no year folders,
+so Cartelle reported an empty Drive while everything sat on the other letter.
+It now looks at what is inside each candidate before choosing, preferring the
+Drive that holds MODELLI or `A.S. …` folders, and it reads the account from
+the volume label to rule out a consumer address.
+
+- The folders page shows which account the chosen Drive belongs to, warns when
+  it does not look like the school one, and offers a button to switch.
+- The home page says so too, instead of reporting "folders to create" forever.
+- The step 2 message now names the folder it searched, and points to the other
+  Drive when that one does have the forms.
+
 ## 1.3.0 — 20 September 2026
 
 **Google Forms.** A form lives in the cloud: on the PC it is only a

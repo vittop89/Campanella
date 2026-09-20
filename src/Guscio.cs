@@ -27,8 +27,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.1.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
 
 namespace Campanella
 {
@@ -611,6 +611,22 @@ namespace Campanella
                 bool cartelle = Directory.Exists(Path.Combine(S.Drive.TrimEnd('\\'), "A.S. " + anno));
                 string riga = "A.S. " + anno + ": " + (cartelle ? "le cartelle ci sono" : "cartelle da creare");
                 bool daFare = !cartelle;
+                // due account Google sul computer = due "Il mio Drive": se stiamo
+                // guardando quello sbagliato, tutto il resto direbbe "da fare"
+                DriveTrovato questo = Stato.EsaminaDrive(S.Drive, "");
+                if (!questo.ConModelli && !questo.ConAnni)
+                {
+                    foreach (DriveTrovato d in Stato.DriviPossibili())
+                    {
+                        if (string.Equals(d.Percorso, S.Drive, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!d.ConModelli && !d.ConAnni) continue;
+                        statoStrumento[1].Text = "Sto guardando " + S.Drive + ", dove non c'e' MODELLI.\r\n" +
+                            "Il Drive della scuola sembra " + d.Percorso + ": apri Cartelle e cambialo.";
+                        statoStrumento[1].Tag = Ruolo.Avviso;
+                        Tema.Applica(this);
+                        return;
+                    }
+                }
                 if (S.ModuloFoglio.Trim() != "")
                 {
                     ParametriModulo pm = new ParametriModulo();
