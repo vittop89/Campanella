@@ -58,7 +58,7 @@ var MODULO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _MODULO_VERSIONE = '1.3.3';
+var _MODULO_VERSIONE = '1.3.4';
 var _MODULO_TRIGGER  = 'MODULO_chiusura';
 var _MODULO_CHIAVE   = 'CAMPANELLA_MODULO';
 

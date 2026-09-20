@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.4 — 20 September 2026
+
+Instructions only, after a teacher walked into both traps on the same day.
+
+- Deleting the code from the form's Codice.gs does not delete the closing it
+  had already scheduled: the trigger belongs to the project, not to the text.
+  It fires next August, finds no function and Google sends a failure email.
+  Both guides now say so and point to the clock icon in the editor.
+- A new section lists the triggers by name and says which script owns each
+  one, because that page only shows the project you are looking at:
+  PANNELLO_chiusura, MODULO_chiusura, smistaNuoviMessaggi,
+  PASSO_3_riordinaPostaEsistente, ORARI_2_invia. For each one, what happens
+  if you remove it and how to put it back.
+
 ## 1.3.3 — 20 September 2026
 
 **A form with the per-form script, also listed in the control sheet.** The two
