@@ -454,6 +454,15 @@ namespace Campanella
             sb.AppendLine("Se invece preferisci tenere lo script dentro quel modulo, basta togliere la");
             sb.AppendLine("spunta \"Attivo\" alla sua riga qui: il foglio lo salta e non lo tocca.");
             sb.AppendLine();
+            sb.AppendLine("ATTENZIONE se hai cancellato il codice dentro il modulo. Cancellare il codice");
+            sb.AppendLine("NON toglie la chiusura che quello script aveva gia' programmato: resta li',");
+            sb.AppendLine("e quando scatta non trova piu' la funzione da chiamare. Non combina danni,");
+            sb.AppendLine("ma ti arriva una email di errore da Google. Toglila a mano: apri il modulo,");
+            sb.AppendLine("tre puntini -> Apps Script, nella colonna di sinistra l'icona dell'orologio");
+            sb.AppendLine("(Attivazioni / Triggers), e cancella la riga di MODULO_chiusura. Il foglio");
+            sb.AppendLine("delle risposte resta collegato: e' quello che serve perche' il pannello lo");
+            sb.AppendLine("riconosca.");
+            sb.AppendLine();
             sb.AppendLine("SE UN MODULO SPARISCE DURANTE L'ANNO");
             sb.AppendLine("------------------------------------");
             sb.AppendLine("Se lo butti nel cestino o lo cancelli, lo script non si blocca: la sua riga");
@@ -623,6 +632,11 @@ namespace Campanella
             sb.AppendLine("di controllo\": toglie la chiusura programmata da qui e lascia tutto il resto");
             sb.AppendLine("com'e'. Poi nella riga del foglio scrivi la stessa cartella e lo stesso nome,");
             sb.AppendLine("cosi' riconosce il foglio delle risposte gia' collegato e non ne crea un altro.");
+            sb.AppendLine("Cancellare il codice da qui NON basta: la chiusura gia' programmata resta e,");
+            sb.AppendLine("quando scatta, non trova piu' la funzione, quindi Google ti manda una email");
+            sb.AppendLine("di errore. Se l'hai gia' cancellato, togli la chiusura a mano: nell'editor,");
+            sb.AppendLine("colonna di sinistra, l'icona dell'orologio (Attivazioni), cancella la riga di");
+            sb.AppendLine("MODULO_chiusura.");
             sb.AppendLine();
             sb.AppendLine("PER CHIEDERE MENO PERMESSI  (facoltativo)");
             sb.AppendLine("-----------------------------------------");
