@@ -22,9 +22,20 @@ var CONFIG = {
 
   // ---- il personale della scuola (2 indirizzi) ----
   personale: [
-    "mario.rossi@scuola-esempio.edu.it",     // ROSSI MARIO - Docente
-    "anna.deluca@scuola-esempio.edu.it"      // DE LUCA ANNA - Docente
+    "mario.rossi@scuola-esempio.edu.it",     // ROSSI MARIO - Docente laureato
+    "anna.deluca@scuola-esempio.edu.it"      // DE LUCA ANNA - Assistente amministrativo
   ],
+
+  // ---- lo stesso personale, diviso per ruolo ----
+  //  Da qui nascono le sottoetichette Colleghi/Docenti, Colleghi/Amministrativi...
+  gruppi: {
+    "Docenti": [        // 1 indirizzo
+      "mario.rossi@scuola-esempio.edu.it"
+    ],
+    "Amministrativi": [        // 1 indirizzo
+      "anna.deluca@scuola-esempio.edu.it"
+    ]
+  },
 
   // ---- le regole, in ordine di priorita' -------------------------------
   //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio
@@ -58,6 +69,18 @@ var CONFIG = {
       etichetta: "Colleghi",
       da:        ["@PERSONALE@"],
       nota:      "Messaggi delle persone dell'elenco del personale."
+    },
+    {
+      attiva:    true,
+      etichetta: "Colleghi/Docenti",
+      da:        ["@GRUPPO:Docenti@"],
+      nota:      "Docenti: 1 indirizzo dall'elenco del personale."
+    },
+    {
+      attiva:    true,
+      etichetta: "Colleghi/Amministrativi",
+      da:        ["@GRUPPO:Amministrativi@"],
+      nota:      "Amministrativi: 1 indirizzo dall'elenco del personale."
     },
     {
       attiva:    true,

@@ -41,6 +41,10 @@ namespace Campanella
         ComboBox cmbSchema, cmbOrdine;
         bool aggiornandoRuoli = false;
 
+        CheckBox chkRuoliEtichette;
+        ComboBox cmbGruppo;
+        Label lblGruppo;
+
         CheckedListBox clbRegole;
         TextBox txtPrefisso;
         Label lblPrefisso;
@@ -113,6 +117,7 @@ namespace Campanella
             cmbSchema.Text = S.SchemaEmail;
             if (S.OrdineNominativo >= 0 && S.OrdineNominativo < cmbOrdine.Items.Count)
                 cmbOrdine.SelectedIndex = S.OrdineNominativo;
+            chkRuoliEtichette.Checked = S.EtichettaPerRuolo;
             chkProva.Checked = S.Prova;
             chkReport.Checked = S.Report;
             chkEscludiInviata.Checked = S.EscludiInviata;
@@ -368,7 +373,116 @@ namespace Campanella
             p.Controls.Add(Tema.Testo1(
                 "Gli indirizzi generati sono un'ipotesi: controllali e correggili nella tabella.",
                 266, ys + 58, 620, Tema.Piccolo, Ruolo.Avviso));
+
+            // ---- i ruoli: in Gmail come sottoetichette, e qui come rubrica ----
+            int yr = ys + 92;
+            chkRuoliEtichette = Tema.SpuntaAiuto(p,
+                "In Gmail dividi i colleghi per ruolo", 0, yr,
+                "Le sottoetichette dei ruoli",
+                "Oltre a \"Colleghi\", lo script mette una sottoetichetta per categoria: " +
+                "Colleghi/Docenti, Colleghi/Amministrativi, Colleghi/Tecnici, " +
+                "Colleghi/Collaboratori, Colleghi/Dirigenza. Cosi' in Gmail vedi a colpo " +
+                "d'occhio da che parte della scuola arriva un messaggio.\r\n\r\n" +
+                "Le categorie nascono dai ruoli della tabella: i nomi lunghi del registro " +
+                "(DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO, ASSISTENTE AMMINISTRATIVO, " +
+                "DIRETTORE SGA...) si radunano in cinque.\r\n\r\n" +
+                "Chi ha un ruolo che non riconosco resta sotto Colleghi e basta. " +
+                "Le sottoetichette compaiono nel passo 5, dentro la configurazione.");
+            chkRuoliEtichette.CheckedChanged += delegate
+            {
+                if (zitto) return;
+                S.EtichettaPerRuolo = chkRuoliEtichette.Checked;
+                AggiornaGruppi();
+            };
+
+            p.Controls.Add(Tema.Testo1("Devo scrivere a:", 340, yr + 2, 0, Tema.Normale, Ruolo.Tenue));
+            cmbGruppo = new ComboBox();
+            cmbGruppo.Location = new Point(452, yr);
+            cmbGruppo.Width = 230;
+            cmbGruppo.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbGruppo.Font = Tema.Normale;
+            cmbGruppo.SelectedIndexChanged += delegate { AggiornaNotaGruppo(); };
+            p.Controls.Add(cmbGruppo);
+            p.Controls.Add(Tema.Bottone("Copia gli indirizzi", 692, yr - 2, 140, delegate { CopiaGruppo(); }));
+            p.Controls.Add(Tema.Aiuto(840, yr + 3, "Scrivere a un gruppo",
+                "Copia negli appunti gli indirizzi della categoria scelta, pronti da incollare " +
+                "in Gmail.\r\n\r\n" +
+                "Incollali nel campo Ccn (copia nascosta), non in A: cosi' ognuno riceve il " +
+                "messaggio senza vedere gli indirizzi degli altri, che sono dati personali di " +
+                "colleghi.\r\n\r\n" +
+                "Gli indirizzi sono quelli delle righe con la spunta: se togli qualcuno dalla " +
+                "tabella, sparisce anche da qui."));
+
+            lblGruppo = Tema.Testo1("", 0, yr + 30, 880, Tema.Piccolo, Ruolo.Tenue);
+            lblGruppo.Height = 20;
+            p.Controls.Add(lblGruppo);
             return p;
+        }
+
+        // -------------------------------------------------------------------
+        //  I GRUPPI PER RUOLO
+        // -------------------------------------------------------------------
+        void AggiornaGruppi()
+        {
+            Dictionary<string, List<string>> gruppi = S.GruppiPerRuolo();
+            string scelto = Convert.ToString(cmbGruppo.SelectedItem ?? "");
+            cmbGruppo.Items.Clear();
+            foreach (string c in Stato.Categorie)
+                if (gruppi.ContainsKey(c)) cmbGruppo.Items.Add(c + "  (" + gruppi[c].Count + ")");
+            if (cmbGruppo.Items.Count > 0)
+            {
+                int i = cmbGruppo.Items.IndexOf(scelto);
+                cmbGruppo.SelectedIndex = (i >= 0) ? i : 0;
+            }
+            AggiornaNotaGruppo();
+        }
+
+        string CategoriaScelta()
+        {
+            string s = Convert.ToString(cmbGruppo.SelectedItem ?? "");
+            int p = s.IndexOf("  (");
+            return (p > 0) ? s.Substring(0, p) : s;
+        }
+
+        void AggiornaNotaGruppo()
+        {
+            Dictionary<string, List<string>> gruppi = S.GruppiPerRuolo();
+            if (gruppi.Count == 0)
+            {
+                lblGruppo.Text = "Nessun ruolo riconosciuto nell'elenco: le categorie nascono dalla " +
+                                 "colonna \"Ruolo\" della tabella.";
+                return;
+            }
+            List<string> pezzi = new List<string>();
+            foreach (string c in Stato.Categorie)
+                if (gruppi.ContainsKey(c)) pezzi.Add(c + " " + gruppi[c].Count);
+            lblGruppo.Text = "Categorie: " + string.Join("  ·  ", pezzi.ToArray()) +
+                (S.EtichettaPerRuolo ? "  ·  in Gmail diventano " + EtichettaColleghi() + "/<categoria>" : "");
+        }
+
+        void CopiaGruppo()
+        {
+            string c = CategoriaScelta();
+            Dictionary<string, List<string>> gruppi = S.GruppiPerRuolo();
+            if (c == "" || !gruppi.ContainsKey(c))
+            {
+                MessageBox.Show(this,
+                    "Non c'e' nessuna categoria da copiare: nella tabella manca la colonna " +
+                    "\"Ruolo\", oppure i ruoli non sono fra quelli che riconosco.",
+                    "Nessun gruppo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string testo = string.Join(", ", gruppi[c].ToArray());
+            try
+            {
+                Clipboard.SetText(testo);
+                Guscio.Stato1(gruppi[c].Count + " indirizzi di " + c + " copiati: incollali in Ccn.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Non riesco a copiare negli appunti: " + ex.Message,
+                    "Appunti", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         // ===================================================================
@@ -821,7 +935,7 @@ namespace Campanella
                 if (riga.Length == 0) continue;
                 if (Regex.IsMatch(riga, @"^[\-=_\.]{3,}$")) continue;
 
-                string senzaSegni = riga.TrimStart('#', '*', ' ', '\t');
+                string senzaSegni = riga.TrimStart('#', '*', ' ', '\t', '"');
                 if (senzaSegni.StartsWith("NOMINATIVO", StringComparison.OrdinalIgnoreCase) ||
                     senzaSegni.StartsWith("INDIRIZZO", StringComparison.OrdinalIgnoreCase) ||
                     senzaSegni.StartsWith("SUDDIVISIONE", StringComparison.OrdinalIgnoreCase)) continue;
@@ -830,6 +944,24 @@ namespace Campanella
                 if (mr.Success && !riga.Contains("@"))
                 {
                     ruoloCorrente = Titolizza(mr.Groups[1].Value.Trim());
+                    continue;
+                }
+
+                // il CSV scaricato dal registro, o riesportato da Campanella:
+                // "COGNOME NOME";"ASSISTENTE AMMINISTRATIVO";"a.b@scuola.it"
+                if (!riga.Contains("\t") && EccoUnCsv(riga))
+                {
+                    string[] campi = CampiCsv(riga);
+                    Persona pc = new Persona();
+                    pc.Nome = PulisciNome(campi[0]);
+                    for (int i = 1; i < campi.Length; i++)
+                    {
+                        Match me = reEmail.Match(campi[i]);
+                        if (me.Success) { pc.Email = me.Value.ToLowerInvariant(); break; }
+                    }
+                    pc.Ruolo = (campi.Length > 1 && !reEmail.IsMatch(campi[1]) && campi[1] != "")
+                               ? Titolizza(campi[1]) : ruoloCorrente;
+                    if (pc.Nome != "" || pc.Email != "") fuori.Add(pc);
                     continue;
                 }
 
@@ -907,6 +1039,41 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Una riga di CSV vera: almeno due campi separati da punto e virgola,
+        /// e il primo che non e' un indirizzo. Un elenco di indirizzi separati
+        /// da punto e virgola non deve finire qui dentro.
+        /// </summary>
+        static bool EccoUnCsv(string riga)
+        {
+            if (riga.IndexOf(';') < 0) return false;
+            string[] campi = CampiCsv(riga);
+            if (campi.Length < 2) return false;
+            if (Regex.IsMatch(campi[0], @"[A-Za-z0-9._%+\-]+@")) return false;
+            return Regex.IsMatch(campi[0], @"\p{L}");
+        }
+
+        /// <summary>Spezza una riga di CSV, togliendo le virgolette doppiate.</summary>
+        static string[] CampiCsv(string riga)
+        {
+            List<string> campi = new List<string>();
+            StringBuilder corrente = new StringBuilder();
+            bool dentro = false;
+            for (int i = 0; i < riga.Length; i++)
+            {
+                char c = riga[i];
+                if (c == '"')
+                {
+                    if (dentro && i + 1 < riga.Length && riga[i + 1] == '"') { corrente.Append('"'); i++; }
+                    else dentro = !dentro;
+                }
+                else if (c == ';' && !dentro) { campi.Add(corrente.ToString().Trim()); corrente.Length = 0; }
+                else corrente.Append(c);
+            }
+            campi.Add(corrente.ToString().Trim());
+            return campi.ToArray();
+        }
+
         static bool RuoloDaEscludere(string ruolo)
         {
             string r = ruolo.ToLowerInvariant();
@@ -930,7 +1097,7 @@ namespace Campanella
             return s;
         }
 
-        void AggiornaPersonale() { AggiornaGriglia(); AggiornaRuoli(); AggiornaConteggio(); }
+        void AggiornaPersonale() { AggiornaGriglia(); AggiornaRuoli(); AggiornaConteggio(); AggiornaGruppi(); }
 
         void AggiornaGriglia()
         {
@@ -1101,11 +1268,12 @@ namespace Campanella
                 d.FileName = "personale.csv";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 StringBuilder sb = new StringBuilder();
-                sb.AppendLine("NOMINATIVO;RUOLO;EMAIL;USATO");
+                sb.AppendLine("NOMINATIVO;RUOLO;EMAIL;CATEGORIA;USATO");
                 foreach (Persona p in S.Personale)
                     sb.AppendLine("\"" + p.Nome.Replace("\"", "\"\"") + "\";\"" +
                                   p.Ruolo.Replace("\"", "\"\"") + "\";\"" +
-                                  p.Email.Replace("\"", "\"\"") + "\";" + (p.Incluso ? "si" : "no"));
+                                  p.Email.Replace("\"", "\"\"") + "\";\"" +
+                                  Stato.CategoriaRuolo(p.Ruolo) + "\";" + (p.Incluso ? "si" : "no"));
                 File.WriteAllText(d.FileName, sb.ToString(), new UTF8Encoding(true));
                 Guscio.Stato1("Salvato: " + d.FileName);
             }
@@ -1132,6 +1300,11 @@ namespace Campanella
                 "7.  Aspetta qualche secondo: la funzione scorre la pagina, legge\n" +
                 "    tutti i nominativi e li copia negli appunti.\n" +
                 "8.  Torna qui e premi \"Incolla elenco\".\n\n" +
+                "Insieme ai nominativi prende anche il ruolo di ognuno, e lo raduna\n" +
+                "nelle cinque categorie che servono alle sottoetichette di Gmail.\n" +
+                "Nella Console restano stampati il riepilogo per categoria e il\n" +
+                "blocco CSV: se gli appunti non funzionano, seleziona quel blocco,\n" +
+                "copialo a mano e incollalo lo stesso con \"Incolla elenco\".\n\n" +
                 "Se il browser chiede di scrivere \"consentimi\" (o \"allow pasting\")\n" +
                 "prima di poter incollare nella Console, scrivilo e premi Invio:\n" +
                 "e' una protezione di Chrome, va fatto una volta sola.";
@@ -1451,11 +1624,43 @@ namespace Campanella
                 }
                 sb.AppendLine("  ],");
             }
+            // ---- lo stesso personale, diviso per ruolo ----
+            Dictionary<string, List<string>> gruppi = S.EtichettaPerRuolo
+                ? S.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            if (gruppi.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("  // ---- lo stesso personale, diviso per ruolo ---------------------------");
+                sb.AppendLine("  //  Da qui nascono le sottoetichette " + EtichettaColleghi() + "/Docenti,");
+                sb.AppendLine("  //  " + EtichettaColleghi() + "/Amministrativi e cosi' via.");
+                sb.AppendLine("  gruppi: {");
+                List<string> nomi = CategoriePresenti(gruppi);
+                for (int g = 0; g < nomi.Count; g++)
+                {
+                    List<string> dentro = gruppi[nomi[g]];
+                    sb.AppendLine("    \"" + Js(nomi[g]) + "\": [        // " + dentro.Count +
+                                  (dentro.Count == 1 ? " indirizzo" : " indirizzi"));
+                    for (int k = 0; k < dentro.Count; k += 3)
+                    {
+                        List<string> pezzo = new List<string>();
+                        for (int j = k; j < Math.Min(k + 3, dentro.Count); j++)
+                            pezzo.Add("\"" + Js(dentro[j]) + "\"");
+                        bool ultima = (k + 3 >= dentro.Count);
+                        sb.AppendLine("      " + string.Join(", ", pezzo.ToArray()) + (ultima ? "" : ","));
+                    }
+                    sb.AppendLine("    ]" + (g < nomi.Count - 1 ? "," : ""));
+                }
+                sb.AppendLine("  },");
+            }
+
             sb.AppendLine();
             sb.AppendLine("  // ---- le regole, in ordine di priorita' -------------------------------");
             sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio");
+            if (gruppi.Count > 0)
+                sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
             sb.AppendLine("  regole: [");
 
+            List<string> blocchi = new List<string>();
             for (int i = 0; i < S.Regole.Count; i++)
             {
                 Regola r = S.Regole[i];
@@ -1470,23 +1675,72 @@ namespace Campanella
                 bool attiva = r.Attiva && !inutile;
                 if (da.Count == 1 && da[0] == "@DOMINIO@" && S.DominioPulito() == "") attiva = false;
 
-                sb.AppendLine("    {");
-                sb.AppendLine("      attiva:    " + (attiva ? "true" : "false") + ",");
-                sb.AppendLine("      etichetta: \"" + Js(r.Etichetta) + "\",");
-                if (da.Count > 0) sb.AppendLine("      da:        " + ListaJs(da) + ",");
-                if (r.Oggetto.Count > 0) sb.AppendLine("      oggetto:   " + ListaJs(r.Oggetto) + ",");
-                if (r.Contiene.Count > 0) sb.AppendLine("      contiene:  " + ListaJs(r.Contiene) + ",");
-                if (r.QueryLibera != "") sb.AppendLine("      queryLibera: \"" + Js(r.QueryLibera) + "\",");
+                StringBuilder b = new StringBuilder();
+                b.AppendLine("    {");
+                b.AppendLine("      attiva:    " + (attiva ? "true" : "false") + ",");
+                b.AppendLine("      etichetta: \"" + Js(r.Etichetta) + "\",");
+                if (da.Count > 0) b.AppendLine("      da:        " + ListaJs(da) + ",");
+                if (r.Oggetto.Count > 0) b.AppendLine("      oggetto:   " + ListaJs(r.Oggetto) + ",");
+                if (r.Contiene.Count > 0) b.AppendLine("      contiene:  " + ListaJs(r.Contiene) + ",");
+                if (r.QueryLibera != "") b.AppendLine("      queryLibera: \"" + Js(r.QueryLibera) + "\",");
                 if (r.EscludiEtichette.Count > 0)
-                    sb.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
-                if (r.Archivia) sb.AppendLine("      archivia:  true,");
-                if (r.SegnaComeLette) sb.AppendLine("      segnaComeLette: true,");
-                sb.AppendLine("      nota:      \"" + Js(SoloUnaRiga(r.Descrizione)) + "\"");
-                sb.AppendLine("    }" + (i < S.Regole.Count - 1 ? "," : ""));
+                    b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
+                if (r.Archivia) b.AppendLine("      archivia:  true,");
+                if (r.SegnaComeLette) b.AppendLine("      segnaComeLette: true,");
+                b.AppendLine("      nota:      \"" + Js(SoloUnaRiga(r.Descrizione)) + "\"");
+                b.Append("    }");
+                blocchi.Add(b.ToString());
+
+                // subito sotto ai colleghi vanno le sottoetichette dei ruoli:
+                // chi ci finisce dentro e' un sottoinsieme di quella regola
+                if (gruppi.Count > 0 && EtichettaColleghi() == r.Etichetta)
+                    foreach (string nome in CategoriePresenti(gruppi))
+                        blocchi.Add(BloccoRuolo(r.Etichetta, nome, gruppi[nome].Count));
             }
+            if (gruppi.Count > 0 && !ColleghiInElenco())
+                foreach (string nome in CategoriePresenti(gruppi))
+                    blocchi.Add(BloccoRuolo(EtichettaColleghi(), nome, gruppi[nome].Count));
+
+            sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
             sb.AppendLine("  ]");
             sb.AppendLine("};");
             return sb.ToString();
+        }
+
+        /// <summary>L'etichetta sotto cui mettere i ruoli: quella dei colleghi.</summary>
+        string EtichettaColleghi()
+        {
+            foreach (Regola r in S.Regole)
+                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return r.Etichetta;
+            return "Colleghi";
+        }
+
+        bool ColleghiInElenco()
+        {
+            foreach (Regola r in S.Regole)
+                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return true;
+            return false;
+        }
+
+        static List<string> CategoriePresenti(Dictionary<string, List<string>> gruppi)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string c in Stato.Categorie) if (gruppi.ContainsKey(c)) fuori.Add(c);
+            return fuori;
+        }
+
+        static string BloccoRuolo(string baseEtichetta, string categoria, int quanti)
+        {
+            StringBuilder b = new StringBuilder();
+            b.AppendLine("    {");
+            b.AppendLine("      attiva:    true,");
+            b.AppendLine("      etichetta: \"" + Js(baseEtichetta + "/" + categoria) + "\",");
+            b.AppendLine("      da:        [\"@GRUPPO:" + Js(categoria) + "@\"],");
+            b.AppendLine("      nota:      \"" + Js(categoria + ": " + quanti +
+                         (quanti == 1 ? " indirizzo" : " indirizzi") +
+                         " dall'elenco del personale.") + "\"");
+            b.Append("    }");
+            return b.ToString();
         }
 
         string RiepilogoEtichette()
@@ -1498,6 +1752,8 @@ namespace Campanella
             sb.AppendLine("======================================");
             sb.AppendLine();
             if (prefisso != "") { sb.AppendLine(prefisso); sb.AppendLine("  |"); }
+            Dictionary<string, List<string>> gruppiEtichette = S.EtichettaPerRuolo
+                ? S.GruppiPerRuolo() : new Dictionary<string, List<string>>();
             int n = 0;
             foreach (Regola r in S.Regole)
             {
@@ -1505,6 +1761,13 @@ namespace Campanella
                 n++;
                 sb.AppendLine((prefisso != "" ? "  +-- " : "") + r.Etichetta +
                               (r.Archivia ? "      (i messaggi escono dalla Posta in arrivo)" : ""));
+                if (gruppiEtichette.Count > 0 && EtichettaColleghi() == r.Etichetta)
+                    foreach (string c in CategoriePresenti(gruppiEtichette))
+                    {
+                        n++;
+                        sb.AppendLine((prefisso != "" ? "  |     " : "  ") + "+-- " + c +
+                                      "      (" + gruppiEtichette[c].Count + " indirizzi)");
+                    }
             }
             if (n == 0) sb.AppendLine("  (nessuna regola attiva: torna al passo 4)");
             sb.AppendLine();

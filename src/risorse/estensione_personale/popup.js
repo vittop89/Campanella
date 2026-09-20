@@ -99,8 +99,22 @@ async function estraiPersonale() {
   }
   if (persone.length === 0) return { righe: 0 };
 
+  // i ruoli del registro, radunati nelle cinque categorie di Campanella
+  const categoria = (ruolo) => {
+    const r = (ruolo || '').toLowerCase();
+    if (!r) return '';
+    if (/dirigente scolastic|preside/.test(r)) return 'Dirigenza';
+    if (/direttore sga|d\.s\.g\.a|dsga|direttore dei servizi|assistente amministrativ|amministrativo|segreteri/.test(r))
+      return 'Amministrativi';
+    if (/assistente tecnic|tecnico di laboratorio|aggiunto di laboratorio/.test(r)) return 'Tecnici';
+    if (/collaboratore scolastic|ausiliari/.test(r)) return 'Collaboratori';
+    if (/docente|insegnante|professor|educator|itp/.test(r)) return 'Docenti';
+    return '';
+  };
+
   persone.sort((a, b) => a.ruolo.localeCompare(b.ruolo) || a.nome.localeCompare(b.nome));
-  const testo = 'NOMINATIVO\tRUOLO\tEMAIL\n' +
-                persone.map((p) => p.nome + '\t' + p.ruolo + '\t' + p.email).join('\n');
+  const testo = 'NOMINATIVO\tRUOLO\tEMAIL\tCATEGORIA\n' +
+                persone.map((p) => p.nome + '\t' + p.ruolo + '\t' + p.email +
+                                   '\t' + categoria(p.ruolo)).join('\n');
   return { righe: persone.length, conEmail: persone.filter((p) => p.email).length, testo };
 }

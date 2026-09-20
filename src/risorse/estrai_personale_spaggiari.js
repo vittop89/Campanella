@@ -13,9 +13,12 @@
    COSA FA
      1. scorre la pagina fino in fondo, cosi' carica tutti i nominativi;
      2. legge nominativo, ruolo e (se c'e') l'indirizzo email;
-     3. copia tutto negli appunti in formato incollabile;
-     4. scarica anche un file CSV, come copia di sicurezza;
-     5. stampa il riepilogo diviso per ruolo.
+     3. raduna i ruoli in cinque categorie (Dirigenza, Docenti,
+        Amministrativi, Tecnici, Collaboratori);
+     4. copia tutto negli appunti in formato incollabile;
+     5. scarica anche un file CSV, come copia di sicurezza;
+     6. stampa il riepilogo per categoria e il blocco CSV, da copiare a mano
+        se gli appunti non funzionano.
 
    POI
      Torna nell'applicazione "Organizzazione Gmail", passo 2 (Personale),
@@ -48,6 +51,21 @@
   // --- 2. lettura dei dati ---------------------------------------------------
   const REGEX_EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   const pulisci = t => (t || '').replace(/\s+/g, ' ').trim();
+
+  // I ruoli del registro sono tanti e lunghi ("DOCENTE LAUREATO SCUOLA
+  // SECONDARIA II GRADO"): qui diventano le stesse cinque categorie che usa
+  // Campanella per le sottoetichette di Gmail.
+  const categoria = ruolo => {
+    const r = (ruolo || '').toLowerCase();
+    if (!r) return '';
+    if (/dirigente scolastic|preside/.test(r)) return 'Dirigenza';
+    if (/direttore sga|d\.s\.g\.a|dsga|direttore dei servizi|assistente amministrativ|amministrativo|segreteri/.test(r))
+      return 'Amministrativi';
+    if (/assistente tecnic|tecnico di laboratorio|aggiunto di laboratorio/.test(r)) return 'Tecnici';
+    if (/collaboratore scolastic|ausiliari/.test(r)) return 'Collaboratori';
+    if (/docente|insegnante|professor|educator|itp/.test(r)) return 'Docenti';
+    return '';
+  };
 
   let contenitori = Array.from(document.querySelectorAll('[account_id]'));
   if (contenitori.length === 0) {
@@ -85,7 +103,7 @@
     if (visti.has(chiave)) continue;
     visti.add(chiave);
 
-    persone.push({ nome, ruolo, email: email.toLowerCase() });
+    persone.push({ nome, ruolo, email: email.toLowerCase(), categoria: categoria(ruolo) });
   }
 
   if (persone.length === 0) {
@@ -97,9 +115,14 @@
   persone.sort((a, b) => a.ruolo.localeCompare(b.ruolo) || a.nome.localeCompare(b.nome));
 
   // --- 3. testo da incollare nell'applicazione -------------------------------
-  const intestazione = 'NOMINATIVO\tRUOLO\tEMAIL';
+  const intestazione = 'NOMINATIVO\tRUOLO\tEMAIL\tCATEGORIA';
   const tsv = intestazione + '\n' +
-              persone.map(p => `${p.nome}\t${p.ruolo}\t${p.email}`).join('\n');
+              persone.map(p => `${p.nome}\t${p.ruolo}\t${p.email}\t${p.categoria}`).join('\n');
+
+  const csv = [intestazione.replace(/\t/g, ';')]
+    .concat(persone.map(p => [p.nome, p.ruolo, p.email, p.categoria]
+      .map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')))
+    .join('\r\n');
 
   let copiato = false;
   try { copy(tsv); copiato = true; } catch (e) { /* copy() esiste solo nella console */ }
@@ -118,11 +141,7 @@
 
   // --- 4. copia di sicurezza in CSV -----------------------------------------
   try {
-    const csv = '﻿' + [intestazione.replace(/\t/g, ';')]
-      .concat(persone.map(p => [p.nome, p.ruolo, p.email]
-        .map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')))
-      .join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = 'personale_spaggiari.csv';
@@ -143,18 +162,38 @@
     console.log(`${ruolo.toUpperCase()}  (${perRuolo[ruolo].length})`);
     console.log('   ' + perRuolo[ruolo].join(', '));
   });
+
+  const perCategoria = {};
+  persone.forEach(p => {
+    const c = p.categoria || 'Senza categoria';
+    (perCategoria[c] = perCategoria[c] || []).push(p);
+  });
+  console.log('%c LE CINQUE CATEGORIE (quelle che Campanella usa in Gmail) ',
+              'background:#188038;color:#fff;font-weight:bold');
+  ['Dirigenza', 'Docenti', 'Amministrativi', 'Tecnici', 'Collaboratori', 'Senza categoria']
+    .filter(c => perCategoria[c])
+    .forEach(c => {
+      const con = perCategoria[c].filter(p => p.email);
+      console.log(`${c}: ${perCategoria[c].length} persone, ${con.length} con indirizzo`);
+      if (con.length) console.log('   ' + con.map(p => p.email).join(', '));
+    });
   console.table(persone);
 
   console.log('\n' + '='.repeat(64));
   console.log(`Persone trovate: ${persone.length}   -   con email: ` +
               persone.filter(p => p.email).length);
   console.log(copiato
-    ? 'ELENCO COPIATO NEGLI APPUNTI. Torna nell\'applicazione "Organizzazione\n' +
-      'Gmail", passo 2 (Personale), e premi "Incolla elenco".'
+    ? 'ELENCO COPIATO NEGLI APPUNTI. Torna in Campanella, strumento Posta,\n' +
+      'passo 3 (Il personale), e premi "Incolla elenco".'
     : 'Copia automatica non riuscita: usa il file CSV scaricato, oppure\n' +
-      'seleziona il blocco qui sotto e copialo a mano.');
+      'seleziona il blocco CSV qui sotto e copialo a mano.');
   console.log('='.repeat(64) + '\n');
-  if (!copiato) console.log(tsv);
+
+  // Il blocco CSV resta sempre stampato: Campanella lo legge tale e quale,
+  // e si seleziona con il mouse anche quando gli appunti non collaborano.
+  console.log('%c CSV DA INCOLLARE IN CAMPANELLA ',
+              'background:#5f6368;color:#fff;font-weight:bold');
+  console.log(csv);
 
   window.PERSONALE = persone;   // resta disponibile come variabile: PERSONALE
   return `${persone.length} persone estratte`;

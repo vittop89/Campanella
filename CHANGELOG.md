@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.4.4 — 21 September 2026
+
+**The staff roles now reach Gmail.** The personnel list has always carried a
+role for each person, but it stopped at the table: in Gmail everyone was just
+"Colleghi". A school does not work that way — a message from the DSGA is not a
+message from a colleague teaching next door.
+
+- Step 3 has a new switch, "In Gmail dividi i colleghi per ruolo". With it on,
+  the script also files staff mail under Colleghi/Docenti,
+  Colleghi/Amministrativi, Colleghi/Tecnici, Colleghi/Collaboratori and
+  Colleghi/Dirigenza. The general Colleghi label stays, so nothing you had
+  before moves.
+- The long role names from the register (DOCENTE LAUREATO SCUOLA SECONDARIA II
+  GRADO, ASSISTENTE AMMINISTRATIVO, DIRETTORE SGA, COLLABORATORE SCOLASTICO...)
+  are gathered into those five categories. A role that does not match any of
+  them leaves the person under Colleghi alone.
+- "Devo scrivere a": pick a category and "Copia gli indirizzi" puts them on the
+  clipboard, ready for the Bcc field. This answers the other half of the
+  question — not only "who wrote to me" but "who do I write to".
+- The generated configuration gained a `gruppi` block and the `@GRUPPO:name@`
+  placeholder, so a rule can point at one group instead of the whole staff.
+  Both are plain text you can edit by hand, like the rest.
+- The ClasseViva extraction (console script and Chrome extension) now adds a
+  CATEGORIA column, prints a summary per category, and always leaves a CSV
+  block in the console to copy by hand if the clipboard refuses.
+- "Incolla elenco" reads semicolon CSV too, quotes included: the file the
+  register downloads, or the one Campanella exports, can go straight back in
+  without losing the roles. The export gained the CATEGORIA column.
+- New test, `test/prova_personale.ps1`: the real role names from a register,
+  the four paste formats, and the grouping that feeds Gmail.
+
 ## 1.4.3 — 21 September 2026
 
 **"Logging output too large" while listing the school addresses.**

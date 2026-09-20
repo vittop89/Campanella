@@ -612,13 +612,25 @@ function _queryDellaRegola(cfg, regola, periodoExtra) {
   return queries;
 }
 
-/** Sostituisce i segnaposto @PERSONALE@ e @DOMINIO@ con i valori veri. */
+/**
+ * Sostituisce i segnaposto con i valori veri:
+ *   @PERSONALE@        tutto l'elenco del personale
+ *   @DOMINIO@          il dominio della scuola
+ *   @GRUPPO:Docenti@   solo quel gruppo di CONFIG.gruppi
+ */
 function _espandi(cfg, elenco) {
   var out = [];
   for (var i = 0; i < elenco.length; i++) {
     var v = String(elenco[i] || '').trim();
     if (!v) continue;
-    if (v === '@PERSONALE@') {
+    if (v.indexOf('@GRUPPO:') === 0 && v.charAt(v.length - 1) === '@') {
+      var nome = v.substring(8, v.length - 1);
+      var gruppo = (cfg.gruppi || {})[nome] || [];
+      for (var g = 0; g < gruppo.length; g++) {
+        var uno = String(gruppo[g] || '').trim();
+        if (uno) out.push(uno);
+      }
+    } else if (v === '@PERSONALE@') {
       var p = cfg.personale || [];
       for (var k = 0; k < p.length; k++) {
         var indirizzo = String(p[k] || '').trim();

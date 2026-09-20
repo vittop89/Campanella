@@ -329,6 +329,8 @@ intestazione('PASSO 2 - creazione etichette');
 console.log(contesto.PASSO_2_creaEtichette());
 verifica('l\'etichetta madre "Scuola" e\' stata creata', etichette.has('Scuola'));
 verifica('esiste Scuola/Colleghi', etichette.has('Scuola/Colleghi'));
+verifica('e le sottoetichette dei ruoli, a tre livelli',
+  etichette.has('Scuola/Colleghi/Docenti') && etichette.has('Scuola/Colleghi/Amministrativi'));
 
 intestazione('PASSO 3 - riordino vero (provaSenzaModifiche = false)');
 contesto.CONFIG.provaSenzaModifiche = false;
@@ -353,6 +355,19 @@ const inviato = casella.find(t => t.inSent);
 
 verifica('un collega finisce in Colleghi', rossi.labels.has('Scuola/Colleghi'));
 verifica('un collega NON finisce in Studenti', !rossi.labels.has('Scuola/Studenti'));
+
+// i ruoli: @GRUPPO:Docenti@ deve pescare solo da quel gruppo di CONFIG.gruppi
+const deluca = casella.find(t => t.from === 'anna.deluca@' + DOM);
+verifica('il docente prende anche la sottoetichetta del suo ruolo',
+  rossi.labels.has('Scuola/Colleghi/Docenti'));
+verifica('e non quella di un altro ruolo', !rossi.labels.has('Scuola/Colleghi/Amministrativi'));
+verifica('l\'amministrativa prende la sua',
+  deluca && deluca.labels.has('Scuola/Colleghi/Amministrativi') &&
+  !deluca.labels.has('Scuola/Colleghi/Docenti'));
+verifica('il ruolo non toglie l\'etichetta generale dei colleghi',
+  deluca.labels.has('Scuola/Colleghi'));
+verifica('uno studente non prende nessun ruolo',
+  ![...esposito.labels].some(l => l.indexOf('Scuola/Colleghi/') === 0));
 verifica('uno studente finisce in Studenti', esposito.labels.has('Scuola/Studenti'));
 verifica('uno studente NON finisce in Colleghi', !esposito.labels.has('Scuola/Colleghi'));
 verifica('il preside non finisce fra gli studenti', !preside.labels.has('Scuola/Studenti'));

@@ -103,6 +103,18 @@ POSTA - riordinare la casella
       arriva per email a te stesso; nel registro dell'editor resta solo il
       conto, perche' Google accorcia le scritte lunghe.
    Serve a distinguere i colleghi dagli studenti: hanno lo stesso dominio.
+   In fondo al passo 3 ci sono due cose che vengono dalla colonna "Ruolo":
+   - "In Gmail dividi i colleghi per ruolo": oltre a Colleghi nascono le
+     sottoetichette Colleghi/Docenti, Colleghi/Amministrativi,
+     Colleghi/Tecnici, Colleghi/Collaboratori, Colleghi/Dirigenza, cosi' in
+     Gmail si vede da che parte della scuola arriva un messaggio. I ruoli
+     lunghi del registro (DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO,
+     ASSISTENTE AMMINISTRATIVO, DIRETTORE SGA...) si radunano in queste
+     cinque categorie; chi ha un ruolo che l'applicazione non riconosce
+     resta sotto Colleghi e basta.
+   - "Devo scrivere a": scegli la categoria e premi "Copia gli indirizzi".
+     Li incolli in Gmail nel campo Ccn, cosi' nessuno vede gli indirizzi
+     degli altri.
 3) Passo 4: scegli le etichette. Di norma nascono con il nome che leggi
    nell'elenco (Circolari, Colleghi...) e quelle che hai gia' in Gmail con lo
    stesso nome vengono riempite, non duplicate: e' quello che serve dentro

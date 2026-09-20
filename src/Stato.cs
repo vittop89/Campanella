@@ -122,6 +122,7 @@ namespace Campanella
         // ---- la scuola -----------------------------------------------------
         public string Dominio = "";
         public string Prefisso = "";           // gruppo delle etichette: vuoto = nomi diretti (passo 4)
+        public bool EtichettaPerRuolo = false; // sottoetichette Colleghi/Docenti, Colleghi/Amministrativi...
         public string Dirigenza = "";          // dato personale
         public string Segreteria = "";         // dato personale
         public string Registro = "@spaggiari.eu";
@@ -410,6 +411,7 @@ namespace Campanella
             r["cartellaDati"] = CartellaDati;
             r["dominio"] = Dominio;
             r["prefisso"] = Prefisso;
+            r["etichettaPerRuolo"] = EtichettaPerRuolo;
             r["registro"] = Registro;
             r["schemaEmail"] = SchemaEmail;
             r["ordineNominativo"] = OrdineNominativo;
@@ -518,6 +520,7 @@ namespace Campanella
                 s.CartellaDati = Str(r, "cartellaDati", "");
                 s.Dominio = Str(r, "dominio", s.Dominio);
                 s.Prefisso = Str(r, "prefisso", s.Prefisso);
+                s.EtichettaPerRuolo = Bool(r, "etichettaPerRuolo", false);
                 s.Registro = Str(r, "registro", s.Registro);
                 s.SchemaEmail = Str(r, "schemaEmail", s.SchemaEmail);
                 s.OrdineNominativo = Int(r, "ordineNominativo", 0);
@@ -710,6 +713,53 @@ namespace Campanella
                 string e = (p.Email ?? "").Trim().ToLowerInvariant();
                 if (e == "" || !e.Contains("@")) continue;
                 if (!fuori.Contains(e)) fuori.Add(e);
+            }
+            return fuori;
+        }
+
+        // -------------------------------------------------------------------
+        //  I RUOLI, RADUNATI IN POCHE CATEGORIE
+        //  I registri scrivono i ruoli per esteso e nel loro modo ("DOCENTE
+        //  LAUREATO SCUOLA SECONDARIA II GRADO", "ASSISTENTE AMMINISTRATIVO"):
+        //  troppi per farne un'etichetta ciascuno. Qui diventano cinque
+        //  categorie, che sono quelle con cui si ragiona a scuola.
+        // -------------------------------------------------------------------
+        public static readonly string[] Categorie =
+            { "Dirigenza", "Docenti", "Amministrativi", "Tecnici", "Collaboratori" };
+
+        /// <summary>La categoria di un ruolo, o "" se non la riconosco.</summary>
+        public static string CategoriaRuolo(string ruolo)
+        {
+            string r = (ruolo ?? "").ToLowerInvariant();
+            if (r == "") return "";
+            if (r.Contains("dirigente scolastic") || r.Contains("preside")) return "Dirigenza";
+            if (r.Contains("direttore sga") || r.Contains("d.s.g.a") || r.Contains("dsga") ||
+                r.Contains("direttore dei servizi") || r.Contains("assistente amministrativ") ||
+                r.Contains("amministrativo") || r.Contains("segreteri")) return "Amministrativi";
+            if (r.Contains("assistente tecnic") || r.Contains("tecnico di laboratorio") ||
+                r.Contains("aggiunto di laboratorio")) return "Tecnici";
+            if (r.Contains("collaboratore scolastic") || r.Contains("ausiliari")) return "Collaboratori";
+            if (r.Contains("docente") || r.Contains("insegnante") || r.Contains("professor") ||
+                r.Contains("educator") || r.Contains("itp")) return "Docenti";
+            return "";
+        }
+
+        /// <summary>
+        /// Gli indirizzi del personale incluso, divisi per categoria. Le
+        /// categorie senza nessuno non compaiono.
+        /// </summary>
+        public Dictionary<string, List<string>> GruppiPerRuolo()
+        {
+            Dictionary<string, List<string>> fuori = new Dictionary<string, List<string>>();
+            foreach (Persona p in Personale)
+            {
+                if (!p.Incluso) continue;
+                string e = (p.Email ?? "").Trim().ToLowerInvariant();
+                if (e == "" || !e.Contains("@")) continue;
+                string c = CategoriaRuolo(p.Ruolo);
+                if (c == "") continue;
+                if (!fuori.ContainsKey(c)) fuori[c] = new List<string>();
+                if (!fuori[c].Contains(e)) fuori[c].Add(e);
             }
             return fuori;
         }
