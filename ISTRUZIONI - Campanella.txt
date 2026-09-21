@@ -102,6 +102,13 @@ POSTA - riordinare la casella
       e' il modo piu' preciso, perche' legge i mittenti veri. L'elenco
       arriva per email a te stesso; nel registro dell'editor resta solo il
       conto, perche' Google accorcia le scritte lunghe.
+      Lo stesso elenco serve anche a controllare: con "Controlla gli
+      indirizzi..." Campanella confronta quelli che ha in tabella con
+      quelli veri, corregge da solo quelli che puo' attribuire senza dubbi
+      (m.rossi che in realta' e' mario.rossi) e segnala gli altri. Nella
+      tabella la colonna "Visto" dice si per quelli che nella casella ci
+      sono davvero. Il testo si incolla o si carica da file, cosi' va bene
+      anche il CSV scaricato dal registro.
    Serve a distinguere i colleghi dagli studenti: hanno lo stesso dominio.
    In fondo al passo 3 ci sono due cose che vengono dalla colonna "Ruolo":
    - "In Gmail dividi i colleghi per ruolo": oltre a Colleghi nascono le

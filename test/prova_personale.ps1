@@ -159,6 +159,90 @@ $gruppi = $tStato.GetMethod('GruppiPerRuolo', $FI).Invoke($stato, @())
 Verifica "chi togli dalla tabella sparisce anche dai gruppi" ($gruppi['Docenti'].Count -eq 1)
 
 # ---------------------------------------------------------------------------
+Intestazione 'CHI PUO'' ESSERE QUESTO INDIRIZZO'
+$mStessa = $tStato.GetMethod('StessaPersona', $FS)
+function Stessa($nome, $ind) { return $mStessa.Invoke($null, @([string]$nome, [string]$ind)) }
+Verifica "ROSSI MARIO <- mario.rossi@"      (Stessa 'ROSSI MARIO' 'mario.rossi@s.it')
+Verifica "ROSSI MARIO <- m.rossi@"          (Stessa 'ROSSI MARIO' 'm.rossi@s.it')
+Verifica "ROSSI MARIO <- rossi.mario@"      (Stessa 'ROSSI MARIO' 'rossi.mario@s.it')
+Verifica "ROSSI MARIO <- mariorossi@"       (Stessa 'ROSSI MARIO' 'mariorossi@s.it')
+Verifica "ROSSI MARIO <- rossi.m@"          (Stessa 'ROSSI MARIO' 'rossi.m@s.it')
+Verifica "ROSSI ANNA NON e' m.rossi@"  (-not (Stessa 'ROSSI ANNA' 'm.rossi@s.it'))
+Verifica "ROSSI MARIO NON e' m.rossini@" (-not (Stessa 'ROSSI MARIO' 'm.rossini@s.it'))
+Verifica "ROSSI MARIO NON e' segreteria@" (-not (Stessa 'ROSSI MARIO' 'segreteria@s.it'))
+Verifica "i cognomi composti: DE LUCA ANNA <- anna.deluca@" (Stessa 'DE LUCA ANNA' 'anna.deluca@s.it')
+Verifica "e anche DE LUCA ANNA <- a.de.luca@"              (Stessa 'DE LUCA ANNA' 'a.de.luca@s.it')
+Verifica "gli accenti non contano: NICOLO' <- nicolo.b@"   (Stessa "NICOLO' BIANCHI" 'nicolo.b@s.it')
+Verifica "le cifre in coda non contano: m.rossi2@"         (Stessa 'ROSSI MARIO' 'm.rossi2@s.it')
+
+# ---------------------------------------------------------------------------
+Intestazione 'IL CONFRONTO CON GLI INDIRIZZI VERI DELLA CASELLA'
+$stato2 = [Activator]::CreateInstance($tStato)
+$tStato.GetField('Dominio', $FI).SetValue($stato2, 'scuola.edu.it')
+$elenco = $tStato.GetField('Personale', $FI).GetValue($stato2)
+function Aggiungi($lista, $nome, $ruolo, $mail) {
+    $x = [Activator]::CreateInstance($tPersona)
+    $tPersona.GetField('Nome', $FI).SetValue($x, $nome)
+    $tPersona.GetField('Ruolo', $FI).SetValue($x, $ruolo)
+    $tPersona.GetField('Email', $FI).SetValue($x, $mail)
+    $lista.Add($x)
+    return $x
+}
+# l'elenco di ClasseViva, con gli indirizzi costruiti con lo schema sbagliato
+$pRossi   = Aggiungi $elenco 'ROSSI MARIO'   'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'm.rossi@scuola.edu.it'
+$pBianchi = Aggiungi $elenco 'BIANCHI ANNA'  'ASSISTENTE AMMINISTRATIVO'                   'a.bianchi@scuola.edu.it'
+$pVerdi   = Aggiungi $elenco 'VERDI GIUSEPPE' 'COLLABORATORE SCOLASTICO'                   'g.verdi@scuola.edu.it'
+$pNeri    = Aggiungi $elenco 'NERI LUCIA'    'DOCENTE DI RELIGIONE'                        ''
+
+# quello che la casella ha visto davvero
+$tLista = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tPersona)
+$veri = [Activator]::CreateInstance($tLista)
+Aggiungi $veri 'Mario Rossi'    '' 'mario.rossi@scuola.edu.it'    | Out-Null
+Aggiungi $veri 'Anna Bianchi'   '' 'a.bianchi@scuola.edu.it'      | Out-Null
+Aggiungi $veri 'Lucia Neri'     '' 'lucia.neri@scuola.edu.it'     | Out-Null
+Aggiungi $veri 'Segreteria'     '' 'segreteria@scuola.edu.it'     | Out-Null
+
+# @(...) srotolerebbe la lista in tanti argomenti: l'array va costruito a mano
+$arg = New-Object object[] 1
+$arg[0] = $veri
+$esito = $tStato.GetMethod('ConfrontaConLaCasella', $FI).Invoke($stato2, $arg)
+$tEsito = $esito.GetType()
+function Campo($o, $c) { return $o.GetType().GetField($c, $FI).GetValue($o) }
+
+Verifica "l'indirizzo gia' giusto viene confermato" ((Campo $esito 'Confermati') -eq 1)
+Verifica "quello sbagliato viene corretto"          ((Campo $esito 'Corretti') -eq 2)
+Verifica "m.rossi diventa mario.rossi" (
+    ($tPersona.GetField('Email', $FI).GetValue($pRossi)) -eq 'mario.rossi@scuola.edu.it')
+Verifica "chi non aveva indirizzo lo prende"  (
+    ($tPersona.GetField('Email', $FI).GetValue($pNeri)) -eq 'lucia.neri@scuola.edu.it')
+Verifica "chi e' confermato resta com'era" (
+    ($tPersona.GetField('Email', $FI).GetValue($pBianchi)) -eq 'a.bianchi@scuola.edu.it')
+Verifica "chi non si e' mai visto viene segnalato"  ((Campo $esito 'NonTrovati') -eq 1)
+Verifica "e il suo indirizzo non viene toccato" (
+    ($tPersona.GetField('Email', $FI).GetValue($pVerdi)) -eq 'g.verdi@scuola.edu.it')
+Verifica "chi e' stato visto risulta verificato" (
+    ($tPersona.GetField('Verificato', $FI).GetValue($pRossi)) -eq $true -and
+    ($tPersona.GetField('Verificato', $FI).GetValue($pVerdi)) -eq $false)
+Verifica "il resoconto elenca i cambiamenti" ((Campo $esito 'Cambiati').Count -eq 2)
+Verifica "e quelli da guardare a mano"       ((Campo $esito 'Mancanti').Count -eq 1)
+Verifica "la segreteria non viene attaccata a nessuno" (
+    @($elenco | ForEach-Object { $tPersona.GetField('Email', $FI).GetValue($_) }) -notcontains 'segreteria@scuola.edu.it')
+
+# due omonimi: meglio non scegliere a caso
+$stato3 = [Activator]::CreateInstance($tStato)
+$elenco3 = $tStato.GetField('Personale', $FI).GetValue($stato3)
+$amb = Aggiungi $elenco3 'ROSSI MARIO' 'DOCENTE' ''
+$veri3 = [Activator]::CreateInstance($tLista)
+Aggiungi $veri3 '' '' 'm.rossi@scuola.edu.it'     | Out-Null
+Aggiungi $veri3 '' '' 'mario.rossi@scuola.edu.it' | Out-Null
+$arg3 = New-Object object[] 1
+$arg3[0] = $veri3
+$esito3 = $tStato.GetMethod('ConfrontaConLaCasella', $FI).Invoke($stato3, $arg3)
+Verifica "due indirizzi possibili: non sceglie" ((Campo $esito3 'Ambigui') -eq 1)
+Verifica "e lascia la casella vuota com'era" (
+    ($tPersona.GetField('Email', $FI).GetValue($amb)) -eq '')
+
+# ---------------------------------------------------------------------------
 Write-Host ""
 if ($script:fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
 else { Write-Host "PROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

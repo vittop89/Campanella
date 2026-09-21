@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Text;
 using System.Windows.Forms;
 
 namespace Campanella
@@ -16,19 +17,24 @@ namespace Campanella
         public string Testo { get { return txt.Text; } }
 
         public FormIncolla(string dagliAppunti)
+            : this(dagliAppunti,
+                   "Incolla qui sotto (Ctrl+V) quello che hai copiato. Va bene qualunque forma: " +
+                   "un indirizzo per riga, indirizzi separati da virgola, l'elenco copiato da " +
+                   "Spaggiari, oppure l'email mandata dallo script. Le righe che non capisco le salto.",
+                   "Incolla l'elenco", "Aggiungi all'elenco")
         {
-            Text = "Incolla l'elenco";
+        }
+
+        public FormIncolla(string dagliAppunti, string spiegazione, string titolo, string testoOk)
+        {
+            Text = titolo;
             Size = new Size(700, 540);
             StartPosition = FormStartPosition.CenterParent;
             Font = Tema.Normale;
             MinimizeBox = false;
             MaximizeBox = false;
 
-            Label l = Tema.Testo1(
-                "Incolla qui sotto (Ctrl+V) quello che hai copiato. Va bene qualunque forma: " +
-                "un indirizzo per riga, indirizzi separati da virgola, l'elenco copiato da " +
-                "Spaggiari, oppure l'email mandata dallo script. Le righe che non capisco le salto.",
-                16, 12, 650, Tema.Normale, Ruolo.Tenue);
+            Label l = Tema.Testo1(spiegazione, 16, 12, 650, Tema.Normale, Ruolo.Tenue);
             Controls.Add(l);
 
             txt = new TextBox();
@@ -43,7 +49,7 @@ namespace Campanella
             txt.Text = dagliAppunti ?? "";
             Controls.Add(txt);
 
-            Button ok = Tema.BottonePrincipale("Aggiungi all'elenco", 484, 448, 184, null);
+            Button ok = Tema.BottonePrincipale(testoOk, 484, 448, 184, null);
             ok.DialogResult = DialogResult.OK;
             ok.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             Controls.Add(ok);
@@ -53,6 +59,26 @@ namespace Campanella
             ann.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             Controls.Add(ann);
             CancelButton = ann;
+
+            // il CSV scaricato dal registro, o l'email dello script salvata su
+            // disco: piu' comodo che passare dagli appunti
+            Button file = Tema.Bottone("Apri un file...", 16, 450, 140, delegate
+            {
+                using (OpenFileDialog d = new OpenFileDialog())
+                {
+                    d.Filter = "Elenchi (*.csv;*.txt;*.tsv)|*.csv;*.txt;*.tsv|Tutti i file (*.*)|*.*";
+                    d.Title = "Scegli il file con l'elenco";
+                    if (d.ShowDialog(this) != DialogResult.OK) return;
+                    try { txt.Text = System.IO.File.ReadAllText(d.FileName, Encoding.UTF8); }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, "Non riesco a leggere il file:\n\n" + ex.Message,
+                            "Errore", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            });
+            file.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            Controls.Add(file);
 
             Tema.Applica(this);
         }

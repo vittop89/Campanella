@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.5 — 21 September 2026
+
+**The guessed addresses can now be checked against your own mailbox.** When
+the staff list comes from the register it carries names and roles but rarely
+addresses, so Campanella builds them from a pattern and warns you they are a
+guess. Checking a few hundred of them by hand is not a plan.
+
+- "Controlla gli indirizzi..." (step 3, box C) takes the list of real
+  addresses — the email from `EXTRA_elencaIndirizziScuola`, pasted or loaded
+  from a file — and compares it with the table. An address that matches is
+  confirmed; one that is wrong but belongs to exactly one real address
+  (m.rossi where the school uses mario.rossi) is replaced; anything ambiguous
+  or never seen is listed and left alone. Nobody is added to the list.
+- The matching reads the local part: every piece of it must be part of the
+  person's name or its initial, so m.rossi fits ROSSI MARIO but not ROSSI
+  ANNA, and segreteria@ fits nobody. Compound surnames (anna.deluca for DE
+  LUCA ANNA), accents and trailing digits are handled.
+- The report also says which pattern the school really uses, counted from the
+  confirmed addresses, so the rest can be generated the right way.
+- New "Visto" column in the table: "si" for the addresses that were actually
+  seen in your mailbox. Editing an address by hand clears it.
+- The paste dialog gained "Apri un file...", for the CSV the register
+  downloads or a saved copy of the script's email.
+
 ## 1.4.4 — 21 September 2026
 
 **The staff roles now reach Gmail.** The personnel list has always carried a

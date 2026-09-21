@@ -296,6 +296,8 @@ namespace Campanella
             g.Controls.Add(Tema.Testo1("Lo script legge i mittenti del dominio: indirizzi certi.",
                                        500, 46, 250, Tema.Piccolo, Ruolo.Tenue));
             g.Controls.Add(Tema.Bottone("Come si fa...", 500, 76, 130, delegate { GuidaCasella(); }));
+            g.Controls.Add(Tema.Bottone("Controlla gli indirizzi...", 636, 76, 180,
+                delegate { ControllaConLaCasella(); }));
             p.Controls.Add(g);
             y += 128;
 
@@ -333,7 +335,10 @@ namespace Campanella
             c2.HeaderText = "Ruolo"; c2.FillWeight = 22;
             DataGridViewTextBoxColumn c3 = new DataGridViewTextBoxColumn();
             c3.HeaderText = "Indirizzo email"; c3.FillWeight = 40;
-            griglia.Columns.AddRange(new DataGridViewColumn[] { c0, c1, c2, c3 });
+            DataGridViewTextBoxColumn c4 = new DataGridViewTextBoxColumn();
+            c4.HeaderText = "Visto"; c4.FillWeight = 10; c4.ReadOnly = true;
+            c4.ToolTipText = "\"si\" quando quell'indirizzo si e' visto davvero nella tua casella";
+            griglia.Columns.AddRange(new DataGridViewColumn[] { c0, c1, c2, c3, c4 });
 
             griglia.CurrentCellDirtyStateChanged += delegate
             {
@@ -371,7 +376,7 @@ namespace Campanella
             p.Controls.Add(cmbOrdine);
 
             p.Controls.Add(Tema.Testo1(
-                "Gli indirizzi generati sono un'ipotesi: controllali e correggili nella tabella.",
+                "Sono un'ipotesi: con \"Controlla gli indirizzi...\" li confronto con la tua casella.",
                 266, ys + 58, 620, Tema.Piccolo, Ruolo.Avviso));
 
             // ---- i ruoli: in Gmail come sottoetichette, e qui come rubrica ----
@@ -1104,7 +1109,7 @@ namespace Campanella
             griglia.CellValueChanged -= GrigliaModificata;
             griglia.Rows.Clear();
             foreach (Persona p in S.Personale)
-                griglia.Rows.Add(p.Incluso, p.Nome, p.Ruolo, p.Email);
+                griglia.Rows.Add(p.Incluso, p.Nome, p.Ruolo, p.Email, p.Verificato ? "si" : "");
             griglia.CellValueChanged += GrigliaModificata;
         }
 
@@ -1116,7 +1121,9 @@ namespace Campanella
             p.Incluso = Convert.ToBoolean(r.Cells[0].Value ?? false);
             p.Nome = Convert.ToString(r.Cells[1].Value ?? "");
             p.Ruolo = Convert.ToString(r.Cells[2].Value ?? "");
-            p.Email = Convert.ToString(r.Cells[3].Value ?? "").Trim().ToLowerInvariant();
+            string scritto = Convert.ToString(r.Cells[3].Value ?? "").Trim().ToLowerInvariant();
+            // un indirizzo riscritto a mano non e' piu' quello visto nella casella
+            if (scritto != p.Email) { p.Email = scritto; p.Verificato = false; }
             if (e.ColumnIndex == 0 || e.ColumnIndex == 2) AggiornaRuoli();
             AggiornaConteggio();
         }
@@ -1198,7 +1205,133 @@ namespace Campanella
             AggiornaPersonale();
             Guscio.Stato1("Generati " + quanti + " indirizzi." +
                 (senzaNome > 0 ? "  " + senzaNome + " righe senza nome utilizzabile." : "") +
-                "  Controllali nella tabella.");
+                "  Adesso premi \"Controlla gli indirizzi...\": li confronto con la tua casella.");
+        }
+
+        // ===================================================================
+        //  CONTROLLO DEGLI INDIRIZZI CON LA CASELLA
+        //  Gli indirizzi costruiti dai nomi sono un'ipotesi. Qui l'ipotesi
+        //  viene confrontata con gli indirizzi che nella casella si sono visti
+        //  davvero: quelli che tornano restano, quelli sbagliati vengono
+        //  sostituiti, gli altri restano segnalati.
+        // ===================================================================
+        void ControllaConLaCasella()
+        {
+            if (S.Personale.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Prima carica l'elenco del personale (metodo A o B), poi torna qui a " +
+                    "controllare gli indirizzi.",
+                    "Elenco vuoto", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string testo = "";
+            try { if (Clipboard.ContainsText()) testo = Clipboard.GetText(); } catch { }
+
+            using (FormIncolla f = new FormIncolla(testo,
+                "Incolla qui gli indirizzi veri della tua casella: sono quelli dell'email che ti " +
+                "manda EXTRA_elencaIndirizziScuola (oggetto \"[Organizzazione Gmail] Indirizzi " +
+                "...\"), oppure un file che hai salvato. Non aggiungo nessuno all'elenco: " +
+                "guardo solo se gli indirizzi che hai in tabella esistono davvero, e correggo " +
+                "quelli che posso attribuire senza dubbi.",
+                "Controlla gli indirizzi", "Controlla"))
+            {
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+                List<Persona> reali = AnalizzaElenco(f.Testo);
+                int quantiVeri = 0;
+                foreach (Persona r in reali) if ((r.Email ?? "") != "") quantiVeri++;
+                if (quantiVeri == 0)
+                {
+                    MessageBox.Show(this,
+                        "In quel testo non ho trovato nessun indirizzo.\n\n" +
+                        "Serve l'elenco degli indirizzi veri: quello dell'email dello script, " +
+                        "con una riga per indirizzo.",
+                        "Nessun indirizzo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                EsitoConfronto esito = S.ConfrontaConLaCasella(reali);
+                CercaLoSchema(esito);
+                AggiornaPersonale();
+                MostraEsitoControllo(esito, quantiVeri);
+            }
+        }
+
+        /// <summary>
+        /// Quale schema di indirizzi usa davvero la scuola: lo deduce dalle
+        /// persone il cui indirizzo e' stato confermato.
+        /// </summary>
+        void CercaLoSchema(EsitoConfronto esito)
+        {
+            string dominio = S.DominioPulito();
+            if (dominio == "") return;
+            string[] schemi = { "{nome}.{cognome}", "{n}.{cognome}", "{cognome}.{nome}",
+                                "{nome}{cognome}", "{cognome}{nome}", "{cognome}.{n}" };
+            bool cognomePrima = (cmbOrdine.SelectedIndex != 1);
+            Dictionary<string, int> conti = new Dictionary<string, int>();
+            foreach (Persona p in S.Personale)
+            {
+                if (!p.Verificato || p.Nome == "" || p.Email == "") continue;
+                foreach (string s in schemi)
+                    if (ComponiEmail(p.Nome, s, cognomePrima, dominio) == p.Email)
+                    {
+                        conti[s] = conti.ContainsKey(s) ? conti[s] + 1 : 1;
+                        break;
+                    }
+            }
+            foreach (KeyValuePair<string, int> c in conti)
+                if (c.Value > esito.QuantiSchema) { esito.QuantiSchema = c.Value; esito.SchemaPiuUsato = c.Key; }
+        }
+
+        void MostraEsitoControllo(EsitoConfronto e, int quantiVeri)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("CONTROLLO DEGLI INDIRIZZI CON LA TUA CASELLA");
+            sb.AppendLine("============================================");
+            sb.AppendLine();
+            sb.AppendLine("Indirizzi veri letti .......... " + quantiVeri);
+            sb.AppendLine("Gia' giusti ................... " + e.Confermati);
+            sb.AppendLine("Corretti adesso ............... " + e.Corretti);
+            sb.AppendLine("Non trovati nella casella ..... " + e.NonTrovati);
+            sb.AppendLine("Lasciati stare (ambigui) ...... " + e.Ambigui);
+            sb.AppendLine();
+            if (e.SchemaPiuUsato != "")
+            {
+                sb.AppendLine("Lo schema piu' usato nella tua scuola risulta  " + e.SchemaPiuUsato +
+                              "  (" + e.QuantiSchema + " indirizzi).");
+                sb.AppendLine("Se costruisci altri indirizzi dai nomi, usa quello.");
+                sb.AppendLine();
+            }
+            if (e.Cambiati.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("CORRETTI");
+                sb.AppendLine("--------");
+                foreach (string r in e.Cambiati) sb.AppendLine("  " + r);
+                sb.AppendLine();
+            }
+            if (e.Mancanti.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("DA GUARDARE A MANO");
+                sb.AppendLine("------------------");
+                sb.AppendLine("Nella casella non c'e' (ancora) un messaggio di queste persone, oppure");
+                sb.AppendLine("gli indirizzi possibili erano piu' d'uno. Non ho cambiato niente.");
+                sb.AppendLine();
+                foreach (string r in e.Mancanti) sb.AppendLine("  " + r);
+                sb.AppendLine();
+            }
+            sb.AppendLine();
+            sb.AppendLine("Nella tabella la colonna \"Visto\" dice si per gli indirizzi che nella");
+            sb.AppendLine("casella ci sono davvero. Chi non ce l'ha non e' per forza sbagliato:");
+            sb.AppendLine("puo' semplicemente non averti mai scritto.");
+
+            using (FormTesto f = new FormTesto("Controllo degli indirizzi", sb.ToString(), null, null))
+                f.ShowDialog(this);
+
+            Guscio.Stato1("Controllo finito: " + e.Confermati + " giusti, " + e.Corretti +
+                          " corretti, " + (e.NonTrovati + e.Ambigui) + " da guardare.");
         }
 
         public static string ComponiEmail(string nominativo, string schema, bool cognomePrima, string dominio)
@@ -1402,6 +1535,12 @@ namespace Campanella
                 "Il registro dell'editor mostra solo quanti ne ha trovati: se\n" +
                 "scrive \"Logging output too large\" non e' un errore, l'elenco\n" +
                 "intero sta nell'email.\n\n" +
+                "LO STESSO ELENCO SERVE A CONTROLLARE\n" +
+                "Se l'elenco del personale lo hai gia' preso dal registro, gli\n" +
+                "indirizzi costruiti dai nomi sono solo un'ipotesi. Premi\n" +
+                "\"Controlla gli indirizzi...\": incolli questa stessa email e\n" +
+                "Campanella corregge da sola quelli che puo' attribuire senza\n" +
+                "dubbi, segnalando gli altri. Nessuno viene aggiunto all'elenco.\n\n" +
                 "Nell'elenco ci sono anche gli studenti: qui nella tabella togli\n" +
                 "la spunta a chi non e' personale, oppure usa i ruoli a sinistra.";
             using (FormTesto f = new FormTesto("Indirizzi dalla casella", guida, null, null))

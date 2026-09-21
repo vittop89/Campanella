@@ -32,6 +32,20 @@ namespace Campanella
         public string Ruolo = "";
         public string Email = "";
         public bool Incluso = true;
+        public bool Verificato = false;   // l'indirizzo e' stato visto davvero nella casella
+    }
+
+    /// <summary>Come e' andato il confronto fra l'elenco e gli indirizzi veri.</summary>
+    class EsitoConfronto
+    {
+        public int Confermati = 0;      // l'indirizzo che c'era e' quello giusto
+        public int Corretti = 0;        // l'ho sostituito con quello vero
+        public int NonTrovati = 0;      // nella casella non compare nessuno che gli somigli
+        public int Ambigui = 0;         // piu' indirizzi possibili: meglio non scegliere io
+        public List<string> Cambiati = new List<string>();
+        public List<string> Mancanti = new List<string>();
+        public string SchemaPiuUsato = "";
+        public int QuantiSchema = 0;
     }
 
     class Regola
@@ -470,6 +484,7 @@ namespace Campanella
                 Dictionary<string, object> d = new Dictionary<string, object>();
                 d["nome"] = p.Nome; d["ruolo"] = p.Ruolo;
                 d["email"] = p.Email; d["incluso"] = p.Incluso;
+                d["verificato"] = p.Verificato;
                 pers.Add(d);
             }
             r["personale"] = pers;
@@ -620,6 +635,7 @@ namespace Campanella
                     x.Ruolo = Str(d, "ruolo", "");
                     x.Email = Str(d, "email", "");
                     x.Incluso = Bool(d, "incluso", true);
+                    x.Verificato = Bool(d, "verificato", false);
                     Personale.Add(x);
                 }
             }
@@ -762,6 +778,162 @@ namespace Campanella
                 if (!fuori[c].Contains(e)) fuori[c].Add(e);
             }
             return fuori;
+        }
+
+        // -------------------------------------------------------------------
+        //  IL CONFRONTO CON GLI INDIRIZZI VERI DELLA CASELLA
+        //  Gli indirizzi costruiti dai nomi sono un'ipotesi: la scuola puo'
+        //  usare nome.cognome, n.cognome, o niente di tutto cio'. Qui
+        //  l'ipotesi viene messa davanti agli indirizzi che nella casella si
+        //  sono visti davvero (EXTRA_elencaIndirizziScuola) e, quando uno solo
+        //  puo' essere quella persona, l'ipotesi viene sostituita.
+        // -------------------------------------------------------------------
+
+        /// <summary>I pezzi di un nome o di una parte locale: minuscoli, senza accenti ne' cifre.</summary>
+        public static List<string> Pezzi(string s)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string p in Regex.Split(SenzaAccenti(s ?? "").ToLowerInvariant(), "[^a-z0-9]+"))
+            {
+                string t = Regex.Replace(p, "[0-9]", "");
+                if (t != "") fuori.Add(t);
+            }
+            return fuori;
+        }
+
+        public static string ParteLocale(string indirizzo)
+        {
+            string s = (indirizzo ?? "").Trim();
+            int c = s.IndexOf('@');
+            return (c > 0) ? s.Substring(0, c) : s;
+        }
+
+        /// <summary>Il nome, con i pezzi in ordine: "ROSSI MARIO" e "Mario Rossi" coincidono.</summary>
+        public static string ChiaveNome(string s)
+        {
+            List<string> p = Pezzi(s);
+            p.Sort(StringComparer.Ordinal);
+            return string.Join("|", p.ToArray());
+        }
+
+        /// <summary>
+        /// Questo indirizzo puo' essere di questa persona? Ogni pezzo della
+        /// parte locale deve ritrovarsi nel nome (o esserne l'iniziale), e
+        /// almeno un pezzo lungo deve corrispondere: cosi' m.rossi va bene per
+        /// ROSSI MARIO ma non per ROSSI ANNA.
+        /// </summary>
+        public static bool StessaPersona(string nome, string indirizzo)
+        {
+            List<string> np = Pezzi(nome);
+            List<string> lp = Pezzi(ParteLocale(indirizzo));
+            if (np.Count == 0 || lp.Count == 0) return false;
+
+            // anche i cognomi composti attaccati: DE LUCA ANNA -> anna.deluca
+            List<string> pezziEUnioni = new List<string>(np);
+            for (int i = 0; i < np.Count; i++)
+            {
+                string unione = np[i];
+                for (int k = i + 1; k < np.Count && k < i + 3; k++)
+                {
+                    unione += np[k];
+                    if (!pezziEUnioni.Contains(unione)) pezziEUnioni.Add(unione);
+                }
+            }
+            // e il nome tutto attaccato, nei due versi
+            if (np.Count >= 2)
+            {
+                string dritto = string.Join("", np.ToArray());
+                List<string> rovesciati = new List<string>(np);
+                rovesciati.Reverse();
+                string rovescio = string.Join("", rovesciati.ToArray());
+                if (!pezziEUnioni.Contains(dritto)) pezziEUnioni.Add(dritto);
+                if (!pezziEUnioni.Contains(rovescio)) pezziEUnioni.Add(rovescio);
+            }
+
+            bool almenoUnoLungo = false;
+            foreach (string t in lp)
+            {
+                if (t.Length >= 3)
+                {
+                    if (!pezziEUnioni.Contains(t)) return false;
+                    almenoUnoLungo = true;
+                }
+                else
+                {
+                    bool iniziale = false;
+                    foreach (string n in np) if (n.StartsWith(t)) { iniziale = true; break; }
+                    if (!iniziale) return false;
+                }
+            }
+            return almenoUnoLungo;
+        }
+
+        /// <summary>
+        /// Mette l'elenco davanti agli indirizzi veri della casella. Cambia
+        /// solo gli indirizzi che puo' attribuire senza dubbi; gli altri li
+        /// segnala e basta.
+        /// </summary>
+        public EsitoConfronto ConfrontaConLaCasella(List<Persona> reali)
+        {
+            EsitoConfronto e = new EsitoConfronto();
+            if (reali == null) return e;
+
+            List<string> indirizzi = new List<string>();
+            Dictionary<string, string> nomeDi = new Dictionary<string, string>();
+            foreach (Persona r in reali)
+            {
+                string mail = (r.Email ?? "").Trim().ToLowerInvariant();
+                if (mail == "" || mail.IndexOf('@') < 1) continue;
+                if (nomeDi.ContainsKey(mail)) continue;
+                nomeDi[mail] = r.Nome ?? "";
+                indirizzi.Add(mail);
+            }
+            if (indirizzi.Count == 0) return e;
+
+            foreach (Persona p in Personale)
+            {
+                if (!p.Incluso) continue;
+                string mia = (p.Email ?? "").Trim().ToLowerInvariant();
+                if (mia != "" && nomeDi.ContainsKey(mia)) { p.Verificato = true; e.Confermati++; continue; }
+
+                List<string> candidati = new List<string>();
+                foreach (string ind in indirizzi)
+                {
+                    bool suo = StessaPersona(p.Nome, ind);
+                    if (!suo && nomeDi[ind] != "" && p.Nome != "" &&
+                        ChiaveNome(nomeDi[ind]) == ChiaveNome(p.Nome)) suo = true;
+                    if (suo && !candidati.Contains(ind)) candidati.Add(ind);
+                }
+
+                string chiSono = (p.Nome != "") ? p.Nome : (mia != "" ? mia : "(riga senza nome)");
+                if (candidati.Count == 1)
+                {
+                    if (mia == candidati[0]) { p.Verificato = true; e.Confermati++; }
+                    else
+                    {
+                        e.Cambiati.Add(chiSono + ":   " + (mia == "" ? "(nessun indirizzo)" : mia) +
+                                       "   ->   " + candidati[0]);
+                        p.Email = candidati[0];
+                        p.Verificato = true;
+                        e.Corretti++;
+                    }
+                }
+                else if (candidati.Count > 1)
+                {
+                    p.Verificato = false;
+                    e.Ambigui++;
+                    e.Mancanti.Add(chiSono + ":   piu' indirizzi possibili (" +
+                                   string.Join(", ", candidati.ToArray()) + ")");
+                }
+                else
+                {
+                    p.Verificato = false;
+                    e.NonTrovati++;
+                    e.Mancanti.Add(chiSono + ":   " +
+                                   (mia == "" ? "nessun indirizzo" : mia + " mai visto nella casella"));
+                }
+            }
+            return e;
         }
 
         /// <summary>Indirizzo del docente il cui nominativo assomiglia a quello dato.</summary>
