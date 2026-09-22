@@ -476,8 +476,147 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     /esaminando \d+ conversazioni/.test(email[0].c));
 }
 
+intestazione('FILTRI VERI DI GMAIL');
+{
+  // il servizio avanzato "Gmail API", finto: etichette e filtri
+  const filtri = [];
+  contesto.Gmail = {
+    Users: {
+      Labels: { list: () => ({ labels: [...etichette.keys()].map(n => ({ name: n, id: 'id:' + n })) }) },
+      Settings: { Filters: {
+        list: () => ({ filter: filtri.slice() }),
+        create: (f) => { filtri.push(f); return f; }
+      } }
+    }
+  };
+  const t = contesto.EXTRA_creaFiltriGmail();
+  const etichettate = filtri.map(f => f.action.addLabelIds[0]);
+  verifica('crea i filtri delle regole semplici',
+    etichettate.indexOf('id:Scuola/Colleghi') >= 0 && etichettate.indexOf('id:Scuola/Circolari') >= 0);
+  verifica('ma non quello di Studenti: prenderebbe anche i colleghi',
+    etichettate.indexOf('id:Scuola/Studenti') < 0);
+  verifica('e lo dice, spiegando perche\'',
+    /restano allo smistamento dello script: [^\n]*Scuola\/Studenti/.test(t) && t.indexOf('colleghi compresi') >= 0);
+  verifica('e avverte che un filtro vecchio resta', t.indexOf('il filtro vecchio resta') >= 0);
+  verifica('non promette che Gmail faccia tutto da solo',
+    t.indexOf('tranne Scuola/Studenti') >= 0 && t.indexOf('PASSO_4') >= 0);
+  verifica('senza filtri vecchi, nessun allarme', t.indexOf('ATTENZIONE') < 0);
+
+  // chi li aveva creati con una versione di prima: c'e' il filtro "tutto il dominio"
+  filtri.push({ id: 'vecchio', criteria: { from: '@' + DOM }, action: { addLabelIds: ['id:Scuola/Studenti'] } });
+  const t2 = contesto.EXTRA_creaFiltriGmail();
+  verifica('il vecchio filtro di Studenti viene trovato e segnalato in cima',
+    t2.indexOf('ATTENZIONE') === 0 && t2.indexOf('Scuola/Studenti  (da: @' + DOM + ')') > 0);
+  verifica('e non viene cancellato da solo', filtri.some(f => f.id === 'vecchio'));
+
+  // un filtro tuo, stretto, per la stessa etichetta: non e' quello vecchio
+  filtri.splice(filtri.findIndex(f => f.id === 'vecchio'), 1);
+  filtri.push({ id: 'mio', criteria: { from: 'rappresentante@' + DOM }, action: { addLabelIds: ['id:Scuola/Studenti'] } });
+  const t3 = contesto.EXTRA_creaFiltriGmail();
+  verifica('un filtro tuo su un indirizzo solo non viene scambiato per quello vecchio', t3.indexOf('ATTENZIONE') < 0);
+
+  // un filtro che Gmail rifiuta: quella regola non si smista da sola
+  const crea = contesto.Gmail.Users.Settings.Filters.create;
+  filtri.length = 0;
+  contesto.Gmail.Users.Settings.Filters.create = (f) => {
+    if (f.action.addLabelIds[0] === 'id:Scuola/Colleghi') throw new Error('Filter too big');
+    return crea(f);
+  };
+  const t4 = contesto.EXTRA_creaFiltriGmail();
+  verifica('un filtro non riuscito finisce fra quelli che restano allo script',
+    /tranne [^\n]*Scuola\/Colleghi/.test(t4));
+  delete contesto.Gmail;
+}
+
+intestazione('ELENCO DEL PERSONALE VUOTO');
+{
+  // Colleghi con l'elenco vuoto: nessun mittente da cercare. Una ricerca senza
+  // "from:" prenderebbe tutta la casella.
+  const personaleVero = contesto.CONFIG.personale;
+  contesto.CONFIG.personale = [];
+  const colleghi = contesto.CONFIG.regole.find(r => r.etichetta === 'Colleghi');
+  const q = contesto._queryDellaRegola(contesto.CONFIG, colleghi);
+  verifica('Colleghi senza personale non cerca niente (non tutta la casella)', q.length === 0);
+  verifica('e non diventa un filtro di Gmail', contesto._criteriFiltro(contesto.CONFIG, colleghi).length === 0);
+  // mittenti piu' parole nell'oggetto: senza mittenti non deve restare un filtro
+  // sul solo oggetto, che prenderebbe quelle parole da chiunque
+  const mista = { attiva: true, etichetta: 'Colleghi/Verbali', da: ['@PERSONALE@'], oggetto: ['verbale'] };
+  verifica('mittenti vuoti e oggetto: nessun filtro sul solo oggetto',
+    contesto._criteriFiltro(contesto.CONFIG, mista).length === 0 &&
+    contesto._queryDellaRegola(contesto.CONFIG, mista).length === 0);
+  const circolari = contesto.CONFIG.regole.find(r => r.etichetta === 'Circolari');
+  verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola(contesto.CONFIG, circolari).length === 1);
+  contesto.CONFIG.personale = personaleVero;
+}
+
+intestazione('ANNULLA_progressoRiordino MENTRE IL RIORDINO LAVORA');
+{
+  proprieta.set('ORGGMAIL_PROGRESSO', JSON.stringify({ indice: 4, query: 0, fatti: {}, iniziato: '2026-09-01' }));
+  trigger.push({ fn: 'PASSO_3_riordinaPostaEsistente', tipo: 'dopo', valore: 60000 });
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  const t = contesto.ANNULLA_progressoRiordino();
+  LockService.getUserLock = bloccoVero;
+  verifica('senza il blocco non tocca niente, e lo dice',
+    t.indexOf('riprova fra un minuto') >= 0 && proprieta.has('ORGGMAIL_PROGRESSO') &&
+    trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente'));
+  const t2 = contesto.ANNULLA_progressoRiordino();
+  verifica('con il blocco azzera davvero', !proprieta.has('ORGGMAIL_PROGRESSO') &&
+    !trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente') && t2.indexOf('azzerato') >= 0);
+}
+
+intestazione('RIPRESA DEL RIORDINO QUANDO NON C\'E\' NIENTE DA RIPRENDERE');
+{
+  proprieta.delete('ORGGMAIL_PROGRESSO');
+  trigger.push({ fn: 'PASSO_3_riordinaPostaEsistente', tipo: 'dopo', valore: 60000 });
+  const primaDelNulla = chiamate.addToThreads;
+  const t = contesto.PASSO_3_riordinaPostaEsistente({ triggerUid: 'finto' });
+  verifica('una ripresa senza segnaposto non riparte da zero',
+    chiamate.addToThreads === primaDelNulla && !proprieta.has('ORGGMAIL_PROGRESSO'));
+  verifica('e toglie il suo trigger', !trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente'));
+
+  // il blocco e' preso (per esempio da ANNULLA_etichettatura) e non c'e' un
+  // riordino a meta': non si riprogramma
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  const t2 = contesto.PASSO_3_riordinaPostaEsistente();
+  LockService.getUserLock = bloccoVero;
+  verifica('occupato e senza riordino a meta\': non si riprogramma',
+    !trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente') && t2.indexOf('riprova tu') >= 0);
+}
+
 intestazione('ANNULLA - rimozione delle etichette');
-console.log(contesto.ANNULLA_etichettatura());
+{
+  // con tanta posta il tempo di Google finisce a meta': deve dirlo
+  const toglieVera = Label.prototype.removeFromThreads;
+  let volte = 0;
+  Label.prototype.removeFromThreads = function (threads) {
+    volte++;
+    if (volte === 2) orologio += 10 * 60 * 1000;          // alla seconda tornata il tempo e' finito
+    return toglieVera.call(this, threads);
+  };
+  // un riordino che stava ancora riprendendo da solo, a meta' strada
+  proprieta.set('ORGGMAIL_PROGRESSO', JSON.stringify({ regola: 3, inizio: 0 }));
+  trigger.push({ fn: 'PASSO_3_riordinaPostaEsistente', tipo: 'dopo', valore: 60000 });
+  const interrotto = contesto.ANNULLA_etichettatura();
+  Label.prototype.removeFromThreads = toglieVera;
+  verifica('tempo finito a meta\': lo dice in cima, in modo che si veda',
+    interrotto.indexOf('TEMPO SCADUTO A META\'') === 0);
+  verifica('e non dice che le etichette sono vuote', interrotto.indexOf('ma vuote') < 0);
+  verifica('e infatti qualche etichetta e\' rimasta',
+    casella.some(t => [...t.labels].some(l => l.startsWith('Scuola/'))));
+  verifica('il riordino in corso e\' fermato (niente ripresa, segnaposto azzerato)',
+    !trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente') && !proprieta.has('ORGGMAIL_PROGRESSO'));
+}
+// un'etichetta di una regola spenta, con dentro una conversazione
+const genitori = GmailApp.createLabel('Scuola/Genitori');
+genitori.addToThreads([casella[0]]);
+const finale = contesto.ANNULLA_etichettatura();
+console.log(finale);
+verifica('rieseguita finisce, e lo dice in cima', finale.indexOf('FATTO') === 0 && finale.indexOf('TEMPO SCADUTO') < 0);
+verifica('le etichette delle regole spente non le tocca, ma le nomina',
+  casella[0].labels.has('Scuola/Genitori') && finale.indexOf('regole spente, non toccate: Scuola/Genitori') >= 0);
+genitori.removeFromThreads([casella[0]]);
 verifica('nessuna conversazione ha piu\' le etichette dello strumento',
   casella.every(t => [...t.labels].every(l => !l.startsWith('Scuola/'))));
 console.log(contesto.ANNULLA_automazione());

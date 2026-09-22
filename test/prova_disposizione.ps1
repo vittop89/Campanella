@@ -150,6 +150,82 @@ $campoPagine = $tGuscio.GetField('pagine', [System.Reflection.BindingFlags]'NonP
 $pagine = $campoPagine.GetValue($guscio)
 $metodoVaiA = $tGuscio.GetMethod('VaiA')
 
+# --- i bottoni in basso: Avanti deve dire la verita' ------------------------
+# All'ultimo passo di uno strumento "Avanti" restava blu e non faceva niente.
+# Adesso porta allo strumento dopo (e lo scrive), oppure si spegne e si vede.
+$FIp = [System.Reflection.BindingFlags]'NonPublic,Instance'
+$btnAvanti = $tGuscio.GetField('btnAvanti', $FIp).GetValue($guscio)
+$btnIndietro = $tGuscio.GetField('btnIndietro', $FIp).GetValue($guscio)
+$tTema = $asm.GetType('Campanella.Tema')
+$accento = $tTema.GetField('Accento', [System.Reflection.BindingFlags]'Public,Static').GetValue($null)
+
+# Il contrasto fra il testo di un bottone e il suo sfondo, come lo misura il
+# WCAG. Spento, WinForms disegnava il testo quasi dello stesso colore dello
+# sfondo scuro: guardare BackColor non basta, bisogna guardare i pixel.
+function Luminanza($c) {
+    $canali = @($c.R, $c.G, $c.B) | ForEach-Object {
+        $x = $_ / 255.0
+        if ($x -le 0.03928) { $x / 12.92 } else { [Math]::Pow(($x + 0.055) / 1.055, 2.4) }
+    }
+    return 0.2126 * $canali[0] + 0.7152 * $canali[1] + 0.0722 * $canali[2]
+}
+function ContrastoTesto($bottone) {
+    $bmp = New-Object System.Drawing.Bitmap($bottone.Width, $bottone.Height)
+    $bottone.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $bottone.Width, $bottone.Height)))
+    $lf = Luminanza $bottone.BackColor
+    $massimo = 1.0
+    for ($x = 4; $x -lt $bmp.Width - 4; $x++) {
+        for ($y = 4; $y -lt $bmp.Height - 4; $y++) {
+            $lp = Luminanza $bmp.GetPixel($x, $y)
+            $k = ([Math]::Max($lp, $lf) + 0.05) / ([Math]::Min($lp, $lf) + 0.05)
+            if ($k -gt $massimo) { $massimo = $k }
+        }
+    }
+    $bmp.Dispose()
+    return $massimo
+}
+
+function Seguente($i) {
+    for ($k = $i + 1; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Passi.Count -gt 0) { return $k } }
+    return -1
+}
+
+function ControllaNavigazione($i, $p, $quanti, $dove) {
+    $errori = 0
+    $ultimo = ($p -eq $quanti - 1)
+    if (-not $ultimo) {
+        if (-not ($btnAvanti.Enabled -and $btnAvanti.Text -like 'Avanti*')) {
+            Verifica "$dove : Avanti acceso (e' '$($btnAvanti.Text)', acceso=$($btnAvanti.Enabled))" $false; $errori++
+        }
+    } else {
+        $s = Seguente $i
+        if ($s -ge 0) {
+            $dove2 = $pagine[$s].Nome
+            if (-not ($btnAvanti.Enabled -and $btnAvanti.Text -like "*$dove2*")) {
+                Verifica "$dove : all'ultimo passo Avanti porta a $dove2 (e' '$($btnAvanti.Text)')" $false; $errori++
+            }
+        } else {
+            if ($btnAvanti.Enabled) { Verifica "$dove : dopo non c'e' niente, Avanti spento" $false; $errori++ }
+            elseif ($btnAvanti.BackColor.ToArgb() -eq $accento.ToArgb()) {
+                Verifica "$dove : Avanti spento ma colorato come acceso" $false; $errori++
+            }
+            else {
+                $k = ContrastoTesto $btnAvanti
+                if ($k -lt 3.0) { Verifica "$dove : Avanti spento si legge (contrasto $([Math]::Round($k,1)), serve 3)" $false; $errori++ }
+            }
+        }
+    }
+    if ($p -eq 0 -and $btnIndietro.Enabled) { Verifica "$dove : al primo passo Indietro spento" $false; $errori++ }
+    $serve = [System.Windows.Forms.TextRenderer]::MeasureText($btnAvanti.Text, $btnAvanti.Font).Width
+    if ($serve + 10 -gt $btnAvanti.Width) {
+        Verifica "$dove : il testo di Avanti ci sta (serve $serve, largo $($btnAvanti.Width))" $false; $errori++
+    }
+    if ($btnIndietro.Right -gt $btnAvanti.Left) {
+        Verifica "$dove : Indietro e Avanti non si sovrappongono" $false; $errori++
+    }
+    return $errori
+}
+
 Write-Host "`nLE PAGINE" -ForegroundColor Cyan
 for ($i = 0; $i -lt $pagine.Count; $i++) {
     $pagina = $pagine[$i]
@@ -170,6 +246,12 @@ for ($i = 0; $i -lt $pagine.Count; $i++) {
         }
         ControllaPannello $bersaglio $nome
         ControllaAiuti $bersaglio $nome
+        if ($passi.Count -gt 0) {
+            $e = ControllaNavigazione $i $p $passi.Count $nome
+            if ($p -eq $passi.Count - 1 -and $e -eq 0) {
+                Write-Host "  OK      $($pagina.Nome) : all'ultimo passo il bottone dice '$($btnAvanti.Text.Trim())'$(if (-not $btnAvanti.Enabled) { ' (spento)' })"
+            }
+        }
 
         if ($Immagini) {
             $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
@@ -180,6 +262,45 @@ for ($i = 0; $i -lt $pagine.Count; $i++) {
         }
     }
 }
+
+# --- e il clic: dall'ultimo passo della Posta si arriva al primo delle Cartelle ---
+Write-Host "`nIL CLIC SU AVANTI" -ForegroundColor Cyan
+$iPosta = -1
+for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Posta') { $iPosta = $k } }
+$metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]($pagine[$iPosta].Passi.Count - 1))) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$tGuscio.GetMethod('Avanti', $FIp).Invoke($guscio, @()) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$ora = $tGuscio.GetField('pagina', $FIp).GetValue($guscio)
+Verifica "dall'ultimo passo della Posta si passa a $($pagine[$iPosta + 1].Nome), dal primo passo" (
+    $ora -eq $iPosta + 1 -and $pagine[$ora].Passo -eq 0)
+$metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]0)) | Out-Null
+$tGuscio.GetMethod('Avanti', $FIp).Invoke($guscio, @()) | Out-Null
+Verifica "a meta' strada Avanti resta nello stesso strumento" (
+    $tGuscio.GetField('pagina', $FIp).GetValue($guscio) -eq $iPosta -and $pagine[$iPosta].Passo -eq 1)
+
+# --- un bottone spento si legge, in tutti e due i temi -----------------------
+Write-Host "`nI BOTTONI SPENTI" -ForegroundColor Cyan
+$iPrivacy = -1
+for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Privacy') { $iPrivacy = $k } }
+$mImposta = $tTema.GetMethod('Imposta', [System.Reflection.BindingFlags]'Public,Static')
+$mApplica = $tTema.GetMethod('Applica', [System.Reflection.BindingFlags]'Public,Static')
+$scuroPrima = $tTema.GetField('Scuro', [System.Reflection.BindingFlags]'Public,Static').GetValue($null)
+foreach ($scuro in @($true, $false)) {
+    $mImposta.Invoke($null, @([bool]$scuro)) | Out-Null
+    $mApplica.Invoke($null, @($guscio)) | Out-Null
+    $metodoVaiA.Invoke($guscio, @([int]$iPrivacy, [int]($pagine[$iPrivacy].Passi.Count - 1))) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $tema = if ($scuro) { 'scuro' } else { 'chiaro' }
+    $kA = ContrastoTesto $btnAvanti
+    Verifica "tema $tema : Avanti spento si legge (contrasto $([Math]::Round($kA,1)))" (-not $btnAvanti.Enabled -and $kA -ge 3.0)
+    $metodoVaiA.Invoke($guscio, @([int]$iPrivacy, [int]0)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $kI = ContrastoTesto $btnIndietro
+    Verifica "tema $tema : Indietro spento si legge (contrasto $([Math]::Round($kI,1)))" (-not $btnIndietro.Enabled -and $kI -ge 3.0)
+}
+$mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
+$mApplica.Invoke($null, @($guscio)) | Out-Null
 
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
 $guscio.Close()

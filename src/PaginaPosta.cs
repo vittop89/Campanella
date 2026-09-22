@@ -381,6 +381,8 @@ namespace Campanella
 
             // ---- i ruoli: in Gmail come sottoetichette, e qui come rubrica ----
             int yr = ys + 92;
+            p.Controls.Add(Tema.Testo1("I ruoli", 0, yr, 0, Tema.Grassetto, Ruolo.Normale));
+            yr += 26;
             chkRuoliEtichette = Tema.SpuntaAiuto(p,
                 "In Gmail dividi i colleghi per ruolo", 0, yr,
                 "Le sottoetichette dei ruoli",
@@ -400,25 +402,37 @@ namespace Campanella
                 AggiornaGruppi();
             };
 
-            p.Controls.Add(Tema.Testo1("Devo scrivere a:", 340, yr + 2, 0, Tema.Normale, Ruolo.Tenue));
+            // la stessa divisione, all'incontrario: non chi mi ha scritto, ma a chi scrivo
+            yr += 34;
+            Label lblScrivi = Tema.Testo1("Scrivere a un gruppo:", 0, yr + 4, 0, Tema.Normale, Ruolo.Normale);
+            p.Controls.Add(lblScrivi);
+            int xg = TextRenderer.MeasureText(lblScrivi.Text, Tema.Normale).Width + 14;
             cmbGruppo = new ComboBox();
-            cmbGruppo.Location = new Point(452, yr);
-            cmbGruppo.Width = 230;
+            cmbGruppo.Location = new Point(xg, yr);
+            cmbGruppo.Width = 220;
             cmbGruppo.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbGruppo.Font = Tema.Normale;
             cmbGruppo.SelectedIndexChanged += delegate { AggiornaNotaGruppo(); };
             p.Controls.Add(cmbGruppo);
-            p.Controls.Add(Tema.Bottone("Copia gli indirizzi", 692, yr - 2, 140, delegate { CopiaGruppo(); }));
-            p.Controls.Add(Tema.Aiuto(840, yr + 3, "Scrivere a un gruppo",
-                "Copia negli appunti gli indirizzi della categoria scelta, pronti da incollare " +
-                "in Gmail.\r\n\r\n" +
-                "Incollali nel campo Ccn (copia nascosta), non in A: cosi' ognuno riceve il " +
-                "messaggio senza vedere gli indirizzi degli altri, che sono dati personali di " +
-                "colleghi.\r\n\r\n" +
+            p.Controls.Add(Tema.Bottone("Scrivi in Gmail", xg + 230, yr - 2, 140, delegate { ScriviAlGruppo(); }));
+            p.Controls.Add(Tema.Bottone("Copia gli indirizzi", xg + 378, yr - 2, 150, delegate { CopiaGruppo(); }));
+            p.Controls.Add(Tema.Aiuto(xg + 536, yr + 4, "Scrivere a un gruppo",
+                "Serve quando devi mandare un messaggio a tutta una categoria: per esempio a " +
+                "tutti gli assistenti amministrativi, senza andarli a cercare uno per uno.\r\n\r\n" +
+                "\"Scrivi in Gmail\" apre un messaggio nuovo con quegli indirizzi gia' nel campo " +
+                "Ccn (copia nascosta): scrivi e invii da Gmail, come sempre. Se sono tanti (oltre " +
+                "una cinquantina, di solito i Docenti) non entrano nel collegamento: il messaggio " +
+                "si apre vuoto e gli indirizzi finiscono negli appunti, da incollare in Ccn con " +
+                "Ctrl+V. \"Copia gli indirizzi\" li mette solo negli appunti, se preferisci incollarli " +
+                "tu.\r\n\r\n" +
+                "Prima di inviare guarda in alto a destra in Gmail che sia aperto l'account della " +
+                "scuola: con piu' account nel browser, Gmail apre il primo.\r\n\r\n" +
+                "Ccn e non A: cosi' ognuno riceve il messaggio senza vedere gli indirizzi degli " +
+                "altri, che sono dati personali di colleghi.\r\n\r\n" +
                 "Gli indirizzi sono quelli delle righe con la spunta: se togli qualcuno dalla " +
-                "tabella, sparisce anche da qui."));
+                "tabella, sparisce anche da qui. Campanella non manda niente da sola."));
 
-            lblGruppo = Tema.Testo1("", 0, yr + 30, 880, Tema.Piccolo, Ruolo.Tenue);
+            lblGruppo = Tema.Testo1("", 0, yr + 32, 880, Tema.Piccolo, Ruolo.Tenue);
             lblGruppo.Height = 20;
             p.Controls.Add(lblGruppo);
             return p;
@@ -465,29 +479,103 @@ namespace Campanella
                 (S.EtichettaPerRuolo ? "  ·  in Gmail diventano " + EtichettaColleghi() + "/<categoria>" : "");
         }
 
-        void CopiaGruppo()
+        /// <summary>Gli indirizzi della categoria scelta, o null (e l'ha gia' detto) se non ce ne sono.</summary>
+        List<string> IndirizziDelGruppo()
         {
             string c = CategoriaScelta();
             Dictionary<string, List<string>> gruppi = S.GruppiPerRuolo();
             if (c == "" || !gruppi.ContainsKey(c))
             {
                 MessageBox.Show(this,
-                    "Non c'e' nessuna categoria da copiare: nella tabella manca la colonna " +
+                    "Non c'e' nessuna categoria da usare: nella tabella manca la colonna " +
                     "\"Ruolo\", oppure i ruoli non sono fra quelli che riconosco.",
                     "Nessun gruppo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return null;
+            }
+            return gruppi[c];
+        }
+
+        void CopiaGruppo()
+        {
+            List<string> indirizzi = IndirizziDelGruppo();
+            if (indirizzi == null) return;
+            if (Appunti(string.Join(", ", indirizzi.ToArray())))
+                Guscio.Stato1(indirizzi.Count + " indirizzi di " + CategoriaScelta() +
+                              " copiati: incollali nel campo Ccn.");
+        }
+
+        /// <summary>
+        /// Apre in Gmail un messaggio nuovo con gli indirizzi del gruppo nel Ccn.
+        /// Non manda niente: il messaggio lo scrivi e lo invii tu.
+        /// </summary>
+        void ScriviAlGruppo()
+        {
+            List<string> indirizzi = IndirizziDelGruppo();
+            if (indirizzi == null) return;
+
+            string url = "https://mail.google.com/mail/?view=cm&fs=1";
+            // con piu' account nel browser, quello della scuola: Gmail lo sceglie
+            // dall'indirizzo, ma solo se e' davvero del dominio della scuola
+            string account = AccountDellaScuola();
+            if (account != "") url += "&authuser=" + Uri.EscapeDataString(account);
+
+            string conCcn = url + "&bcc=" + Uri.EscapeDataString(string.Join(",", indirizzi.ToArray()));
+            // senza l'account della scuola Gmail apre il primo account del browser,
+            // che puo' essere quello personale: meglio dirlo prima dell'invio
+            string mittente = (account != "") ? "" :
+                "\n\nPrima di inviare guarda in alto a destra in Gmail che sia aperto l'account " +
+                "della scuola" + (S.DominioPulito() != "" ? " (@" + S.DominioPulito() + ")" : "") +
+                ": con piu' account nel browser, Gmail apre il primo.";
+            // Windows accorcia i link troppo lunghi: oltre questa misura apro il
+            // messaggio vuoto e gli indirizzi li lascio negli appunti
+            if (conCcn.Length <= 2000)
+            {
+                Guscio.Apri(conCcn);
+                Guscio.Stato1(indirizzi.Count + " indirizzi di " + CategoriaScelta() +
+                              " gia' nel Ccn: scrivi il messaggio e invialo da Gmail." +
+                              (account != "" ? "" : " Controlla che sia l'account della scuola."));
                 return;
             }
-            string testo = string.Join(", ", gruppi[c].ToArray());
-            try
-            {
-                Clipboard.SetText(testo);
-                Guscio.Stato1(gruppi[c].Count + " indirizzi di " + c + " copiati: incollali in Ccn.");
-            }
+            if (!Appunti(string.Join(", ", indirizzi.ToArray()))) return;
+            // prima l'avviso, poi il browser: aperto prima, Gmail passerebbe davanti
+            // e l'avviso resterebbe nascosto dietro
+            MessageBox.Show(this,
+                "Gli indirizzi sono " + indirizzi.Count + ": troppi per metterli nel link.\n\n" +
+                "Li ho copiati negli appunti. Premi OK: si apre un messaggio nuovo in Gmail. Li' " +
+                "clicca \"Ccn\" (a destra del campo A) e incolla con Ctrl+V." + mittente,
+                "Incolla gli indirizzi nel Ccn", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Guscio.Apri(url);
+            Guscio.Stato1(indirizzi.Count + " indirizzi negli appunti: in Gmail clicca Ccn e incolla con Ctrl+V.");
+        }
+
+        bool Appunti(string testo)
+        {
+            try { Clipboard.SetText(testo); return true; }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Non riesco a copiare negli appunti: " + ex.Message,
                     "Appunti", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
             }
+        }
+
+        /// <summary>L'account del Drive scelto, se e' della scuola; altrimenti "".</summary>
+        string AccountDellaScuola()
+        {
+            string dominio = S.DominioPulito();
+            if (dominio == "") return "";
+            try
+            {
+                string drive = (S.Drive ?? "").Trim().TrimEnd('\\');
+                foreach (DriveTrovato d in Stato.DriviPossibili())
+                {
+                    if (!string.Equals(d.Percorso.TrimEnd('\\'), drive, StringComparison.OrdinalIgnoreCase)) continue;
+                    string a = (d.Account ?? "").Trim().ToLowerInvariant();
+                    if (a.EndsWith("@" + dominio)) return a;
+                }
+            }
+            catch { }
+            return "";
         }
 
         // ===================================================================
@@ -498,10 +586,19 @@ namespace Campanella
             Panel p = NuovaPagina("Regole ed etichette");
             int y = 52;
 
-            p.Controls.Add(Tema.Testo1(
-                "Ogni riga e' un'etichetta di Gmail. Togli la spunta a quelle che non ti servono. " +
-                "L'ordine conta: le regole piu' in alto hanno la precedenza.",
-                0, y, 800, Tema.Normale, Ruolo.Tenue));
+            Tema.RigaAiuto(p,
+                "Ogni riga e' un'etichetta di Gmail: togli la spunta a quelle che non ti servono.",
+                0, y, Tema.Normale, Ruolo.Tenue, "Come lavorano le regole",
+                "Ogni regola cerca i suoi messaggi e ci mette la sua etichetta. Le etichette si " +
+                "sommano: una circolare mandata dal dirigente prende sia Dirigenza sia Circolari, " +
+                "e resta una conversazione sola.\r\n\r\n" +
+                "L'ordine conta solo per le regole che escludono le altre. Studenti prende la " +
+                "posta del dominio della scuola che non e' gia' finita in Colleghi, Dirigenza o " +
+                "Segreteria: per saperlo quelle regole devono girare prima, e per questo " +
+                "Studenti sta sotto. \"Su\" e \"Giu'\" servono a questo.\r\n\r\n" +
+                "Le regole con \"Archivia\" (di partenza Sindacati e Newsletter) tolgono i " +
+                "messaggi dalla Posta in arrivo: restano sotto la loro etichetta e in Tutti i " +
+                "messaggi. Nessuna regola cancella niente.");
             y += 40;
 
             p.Controls.Add(Tema.Testo1("Raggruppa sotto", 0, y + 4, 0, Tema.Normale, Ruolo.Normale));
@@ -732,7 +829,9 @@ namespace Campanella
             Cartellino(8, "Facoltativo: i filtri veri di Gmail",
                 "Nell'editor, colonna di sinistra, alla voce \"Servizi\" premi il \"+\", scegli " +
                 "\"Gmail API\" e conferma. Poi esegui  EXTRA_creaFiltriGmail. Cosi' lo smistamento " +
-                "avviene dentro Gmail, senza aspettare lo script.",
+                "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
+                "filtro non sa escludere chi e' gia' fra i Colleghi. Se poi cambi una regola, il " +
+                "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri).",
                 new string[] { }, new EventHandler[] { });
 
             return p;
@@ -818,17 +917,29 @@ namespace Campanella
                   "arrivato e si rimette in moto da solo dopo un minuto: puoi chiudere la pagina. " +
                   "Se vuoi ripartire da zero esegui ANNULLA_progressoRiordino." },
                 { "Ho sbagliato: come torno indietro?",
-                  "Esegui ANNULLA_etichettatura: toglie dalle conversazioni tutte le etichette " +
-                  "applicate. Esegui ANNULLA_automazione per spegnere il controllo automatico. " +
-                  "Nulla viene mai cancellato, quindi non si perde posta." },
+                  "Esegui ANNULLA_etichettatura: ferma il riordino se sta ancora lavorando e toglie " +
+                  "dalle conversazioni le etichette delle regole accese (quelle delle regole spente " +
+                  "le nomina ma non le tocca). Con molta posta il tempo di Google finisce prima e lo " +
+                  "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
+                  "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
+                  "(Gmail -> Impostazioni -> Filtri). Nulla viene mai cancellato, quindi non si perde posta." },
                 { "Alcuni messaggi finiscono nell'etichetta sbagliata",
-                  "Quasi sempre e' l'ordine delle regole: quelle in alto vincono. Nel passo 4 usa " +
-                  "\"Su\" e \"Giu'\" per spostarle, rigenera la configurazione e incollala di nuovo. " +
-                  "Poi riesegui PASSO_3: le conversazioni gia' etichettate non vengono ritoccate." },
+                  "Prima una cosa normale: le etichette si sommano, e una circolare del dirigente " +
+                  "prende sia Dirigenza sia Circolari. Se invece un collega finisce fra gli Studenti, " +
+                  "manca nell'elenco del personale (passo 3). Se una regola prende troppo, nel passo 4 " +
+                  "premi \"Modifica\" e rendila piu' precisa, poi rigenera la configurazione e " +
+                  "incollala di nuovo. PASSO_3 aggiunge etichette ma non ne toglie: per rifare " +
+                  "da capo esegui prima ANNULLA_etichettatura (con molta posta, finche' in cima non " +
+                  "compare FATTO): ferma anche il riordino in corso, che poi riparte dall'inizio. " +
+                  "Se hai creato i filtri veri di Gmail, cancella anche il filtro vecchio " +
+                  "di quella regola: altrimenti continua a etichettare come prima." },
                 { "Colleghi e studenti finiscono insieme",
-                  "Vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello stesso " +
-                  "dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del passo 3 " +
-                  "(EXTRA_elencaIndirizziScuola): legge i mittenti veri dalla tua casella." },
+                  "Di solito vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello " +
+                  "stesso dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del " +
+                  "passo 3 (EXTRA_elencaIndirizziScuola): legge i mittenti veri dalla tua casella. " +
+                  "Se hai creato i filtri veri di Gmail con una versione di Campanella precedente " +
+                  "alla 1.4.6, c'e' anche un filtro \"Studenti\" su tutto il dominio: cancellalo in " +
+                  "Gmail -> Impostazioni -> Filtri." },
                 { "Il registro dice \"Logging output too large. Truncating output.\"",
                   "Non e' un errore: e' Google che accorcia quello che lo script scrive nel " +
                   "registro. Succede con EXTRA_elencaIndirizziScuola, che di indirizzi ne trova " +
@@ -1793,7 +1904,10 @@ namespace Campanella
             }
 
             sb.AppendLine();
-            sb.AppendLine("  // ---- le regole, in ordine di priorita' -------------------------------");
+            sb.AppendLine("  // ---- le regole --------------------------------------------------------");
+            sb.AppendLine("  //  Le etichette si sommano: un messaggio puo' prenderne piu' d'una.");
+            sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti va sotto le regole");
+            sb.AppendLine("  //  che esclude (Colleghi, Dirigenza, Segreteria).");
             sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio");
             if (gruppi.Count > 0)
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
@@ -1813,6 +1927,8 @@ namespace Campanella
                                r.Contiene.Count == 0 && r.QueryLibera == "";
                 bool attiva = r.Attiva && !inutile;
                 if (da.Count == 1 && da[0] == "@DOMINIO@" && S.DominioPulito() == "") attiva = false;
+                // senza elenco del personale, Colleghi non ha nessuno da riconoscere
+                if (da.Count == 1 && da[0] == "@PERSONALE@" && indirizzi.Count == 0) attiva = false;
 
                 StringBuilder b = new StringBuilder();
                 b.AppendLine("    {");

@@ -119,10 +119,19 @@ POSTA - riordinare la casella
      ASSISTENTE AMMINISTRATIVO, DIRETTORE SGA...) si radunano in queste
      cinque categorie; chi ha un ruolo che l'applicazione non riconosce
      resta sotto Colleghi e basta.
-   - "Devo scrivere a": scegli la categoria e premi "Copia gli indirizzi".
-     Li incolli in Gmail nel campo Ccn, cosi' nessuno vede gli indirizzi
-     degli altri.
-3) Passo 4: scegli le etichette. Di norma nascono con il nome che leggi
+   - "Scrivere a un gruppo": scegli la categoria (per esempio
+     Amministrativi) e premi "Scrivi in Gmail": si apre un messaggio nuovo
+     con quegli indirizzi gia' nel campo Ccn, cosi' nessuno vede gli
+     indirizzi degli altri. Scrivi e invii da Gmail, come sempre: Campanella
+     non manda niente. Se gli indirizzi sono tanti (oltre una cinquantina,
+     di solito i Docenti) il messaggio si apre vuoto e loro finiscono negli
+     appunti: in Gmail clicca Ccn e incollali con Ctrl+V. Prima di inviare
+     controlla in alto a destra che sia l'account della scuola.
+     "Copia gli indirizzi" li mette solo negli appunti.
+3) Passo 4: scegli le etichette. Ogni riga e' un'etichetta; le etichette si
+   sommano (una circolare del dirigente prende Dirigenza e Circolari), e
+   l'ordine conta solo per Studenti, che prende la posta del dominio non
+   gia' finita in Colleghi, Dirigenza o Segreteria. Di norma nascono con il nome che leggi
    nell'elenco (Circolari, Colleghi...) e quelle che hai gia' in Gmail con lo
    stesso nome vengono riempite, non duplicate: e' quello che serve dentro
    l'account della scuola, dove tutta la posta e' di lavoro. Se invece questa
@@ -171,6 +180,11 @@ foglio Google di controllo: una riga per modulo, e da li' si prepara l'anno
 per tutti insieme. E' piu' comodo ma chiede il permesso su TUTTI i tuoi
 moduli, non su uno solo: con uno o due moduli conviene lo script dentro il
 modulo.
+Nel foglio di controllo "Prepara il foglio" crea la scheda "Moduli" e la
+scheda "Istruzioni", con il promemoria di come si usa (la riscrive ogni
+volta, quindi non scriverci dentro), e toglie la scheda vuota "Foglio1" che
+Google mette nei fogli nuovi. Chi ha gia' il foglio lo sistema rieseguendo
+"Prepara il foglio" con il codice nuovo: le righe dei moduli restano.
 
 
 ORARI - le email a te e il calendario

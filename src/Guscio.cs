@@ -27,8 +27,8 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("Campanella")]
 [assembly: AssemblyCompany("Vittorio Pantaleo")]
 [assembly: AssemblyCopyright("Licenza MIT")]
-[assembly: AssemblyVersion("1.4.5.0")]
-[assembly: AssemblyFileVersion("1.4.5.0")]
+[assembly: AssemblyVersion("1.4.6.0")]
+[assembly: AssemblyFileVersion("1.4.6.0")]
 
 namespace Campanella
 {
@@ -219,17 +219,12 @@ namespace Campanella
             piede.Tag = Ruolo.Barra;
             Tema.LineaSopra(piede);
 
-            btnAvanti = Tema.BottonePrincipale("Avanti  >", 0, 12, 130,
-                delegate { VaiA(pagina, PaginaCorrente.Passo + 1); });
+            btnAvanti = Tema.BottonePrincipale("Avanti  >", 0, 12, 130, delegate { Avanti(); });
             btnAvanti.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnIndietro = Tema.Bottone("<  Indietro", 0, 14, 120,
                 delegate { VaiA(pagina, PaginaCorrente.Passo - 1); });
             btnIndietro.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            piede.Resize += delegate
-            {
-                btnAvanti.Location = new Point(piede.Width - 156, 12);
-                btnIndietro.Location = new Point(piede.Width - 294, 14);
-            };
+            piede.Resize += delegate { DisponiPiede(); };
 
             lblStato = Tema.Testo1("", 26, 20, 0, Tema.Piccolo, Ruolo.Buono);
             piede.Controls.Add(lblStato);
@@ -374,12 +369,48 @@ namespace Campanella
             DisponiMenu();
             AggiornaMenu();
 
+            // All'ultimo passo "Avanti" porta allo strumento dopo, e lo dice; se
+            // dopo non ce n'e' uno con dei passi (dopo Privacy vengono solo le
+            // Impostazioni) si spegne. Prima restava identico e non faceva niente.
             bool conPassi = p.Passi.Length > 0;
+            bool ultimo = conPassi && p.Passo >= p.Passi.Length - 1;
+            int seguente = ultimo ? PaginaSeguente() : -1;
             btnIndietro.Visible = conPassi;
             btnAvanti.Visible = conPassi;
             btnIndietro.Enabled = conPassi && p.Passo > 0;
-            btnAvanti.Enabled = conPassi && p.Passo < p.Passi.Length - 1;
+            btnAvanti.Text = (seguente >= 0) ? "Vai a " + pagine[seguente].Nome + "  >" : "Avanti  >";
+            btnAvanti.Enabled = conPassi && (!ultimo || seguente >= 0);
+            DisponiPiede();
             Stato1("");
+        }
+
+        /// <summary>Il primo strumento dopo questo che ha dei passi, oppure -1.</summary>
+        int PaginaSeguente()
+        {
+            for (int i = pagina + 1; i < pagine.Count; i++)
+                if (pagine[i].Passi.Length > 0) return i;
+            return -1;
+        }
+
+        void Avanti()
+        {
+            Pagina p = PaginaCorrente;
+            if (p.Passi.Length > 0 && p.Passo >= p.Passi.Length - 1)
+            {
+                int s = PaginaSeguente();
+                if (s >= 0) VaiA(s, 0);
+                return;
+            }
+            VaiA(pagina, p.Passo + 1);
+        }
+
+        /// <summary>I bottoni in basso a destra: "Avanti" si allarga quando dice dove porta.</summary>
+        void DisponiPiede()
+        {
+            int largo = TextRenderer.MeasureText(btnAvanti.Text, btnAvanti.Font).Width + 40;
+            btnAvanti.Width = Math.Max(130, largo);
+            btnAvanti.Location = new Point(piede.Width - 26 - btnAvanti.Width, 12);
+            btnIndietro.Location = new Point(btnAvanti.Left - 18 - btnIndietro.Width, 14);
         }
 
         public void VaiAStrumento(string nome)

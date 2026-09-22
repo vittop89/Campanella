@@ -1,5 +1,118 @@
 # Changelog
 
+## 1.4.6 — 22 September 2026
+
+**The control sheet tidies itself up and keeps its own instructions.** A new
+Google spreadsheet comes with an empty "Foglio1"; "Prepara il foglio" added
+"Moduli" next to it and left the empty one there.
+
+- "Prepara il foglio" now removes the empty default sheet (Foglio1, or Sheet1
+  and friends in other languages) — only while it still has its original name
+  and nothing in it. A renamed sheet, or one with anything inside, stays.
+- It also writes an "Istruzioni" sheet: the first-time steps, what to do every
+  September and during the year, what each column means, how to undo, and the
+  settings in use. It is rewritten on every run so it never drifts from the
+  script, and it is protected with a warning only.
+- Moduli comes first, Istruzioni second, and the script leaves you on Moduli.
+  "Prepara l'anno nuovo" does the same tidying and rewrites Istruzioni, so a
+  file set up with an older version gets it on the next yearly run too.
+
+**Fixes found while reviewing this release** (the control sheet engine):
+
+- The Attivo and Svuota checkboxes were added with `insertCheckboxes()`,
+  which Google documents as setting every cell to false: re-running "Prepara
+  il foglio" could untick every row, and a row typed by hand started unticked
+  and was skipped in silence. The boxes now go only on rows with a form, via
+  data validation (which leaves values alone); a new row starts active; the
+  old unticked boxes below the last row are removed; and every run lists the
+  rows it skipped because Attivo is off.
+- Re-running "Prepara l'anno nuovo" during the year (to add a form, say)
+  relinked forms that had already reached their closing day — Google then
+  copies all their responses into a second tab — and reopened them for good.
+  It also reopened forms closed by hand. Now:
+  - the script remembers when a form's closing has fired, and for the rest of
+    that school year leaves it closed and unlinked, even if the day in
+    "Chiusura" is moved or cleared afterwards;
+  - a form whose year's sheet already holds its responses tab, but which no
+    longer writes there, was unlinked by someone: it is not relinked
+    ("scollegato a mano" in its row). "Annulla" followed by "Prepara l'anno
+    nuovo" still relinks, because that is what was asked;
+  - a form closed after its row was prepared stays closed ("chiuso a mano");
+  - a row whose preparation broke halfway — a reopen that failed, a form not
+    yet published, a sheet created but never linked, also by an older version
+    — is not taken as done, and is redone in full the next time.
+  A row with a closing day that cannot be read now stops before anything is
+  created or linked, instead of halfway through.
+- The closing's own run no longer stops at the first form it cannot close:
+  it writes the problem in that row, keeps the date and tries again an hour
+  later, and saves what it did for the others. It also checks that the form
+  really stopped accepting responses before unlinking it; if Google did not
+  close it, the row says so and the form stays linked until the retry.
+- A sheet found by name is remembered only once the form actually writes to
+  it, so a first link that fails is simply retried the next time.
+- The new "prepared"/"closed" marks are kept only for the current school
+  year, so they do not pile up toward Google's 9 KB limit per script property.
+- A sheet of yours already called "Istruzioni" is left alone: the
+  instructions go to "Istruzioni Campanella" instead, and the output says so.
+- A form deleted during the year is now written into its own row on closing
+  day ("non si apre piu'"), not only in a log nobody reads.
+- The empty-sheet check also looks at drawings, slicers and notes.
+
+**Posta fixes found in the same review:**
+
+- With an empty staff list, the Colleghi rule had no senders left and its
+  search lost the "from:" part: it matched the whole mailbox, and every
+  conversation would have been labelled Colleghi. A rule whose senders expand
+  to nothing now matches nothing (and makes no Gmail filter), and the
+  generated configuration switches Colleghi off when the list is empty.
+- ANNULLA_progressoRiordino, like ANNULLA_etichettatura, waits for a running
+  PASSO_3 and says so if it cannot, instead of claiming a reset that the
+  running block would undo.
+- The real Gmail filters no longer include Studenti: a filter cannot exclude
+  what other filters labelled, so it took the whole domain, colleagues
+  included. It stays with the hourly sorting, and the output says so instead
+  of promising that Gmail does everything alone. If a Studenti filter from an
+  earlier version is still there, the output flags it at the top.
+- ANNULLA_etichettatura first stops a PASSO_3 run that is still resuming (it
+  would put labels back) and resets its progress; a resume that fires with
+  nothing left to resume now does nothing instead of starting over. It says
+  "FATTO" when done and "TEMPO SCADUTO A META'" when Google's time limit stops
+  it, and it names the labels of switched-off rules it did not touch.
+- If a filter cannot be created, its rule is listed with the ones that still
+  need the hourly sorting. Only a filter covering the whole school domain is
+  flagged as the old Studenti one; your own narrower filters are left out.
+- "Scrivi in Gmail": the help says what happens with large groups (the
+  message opens empty and the addresses go to the clipboard), and when the
+  school account is not known it reminds you to check the sender.
+- The generated configuration no longer calls the rules "in ordine di
+  priorita'".
+
+Disabled buttons are drawn by Campanella itself: WinForms ignored their text
+colour and painted near-black on the dark theme (contrast 1.2:1, now 6.3:1),
+and the layout test measures it in both themes.
+
+**"Avanti" at the end of a section.** On the last step the button was already
+disabled, but the theme painted a disabled primary button exactly like an
+active one: it looked alive and did nothing. Now it reads "Vai a Cartelle",
+"Vai a Orari", "Vai a Privacy" and takes you to the first step of the next
+tool; after Privacy there is nothing left and it greys out. Every disabled
+button in the app now looks disabled, in both themes.
+
+**Posta, step 3 — writing to a group, explained by the page itself.** The row
+is now titled and worded for what it does: "Scrivere a un gruppo", pick the
+category, then "Scrivi in Gmail" opens a new message with those addresses
+already in Bcc (on the school account when the Drive tells which one it is;
+beyond about fifty addresses they go to the clipboard, to paste in Bcc).
+"Copia gli indirizzi" remains for pasting by hand. Nothing is sent by
+Campanella.
+
+**Posta, step 4 — the text about rule order was wrong.** It said that rules
+higher up take precedence. The engine does not work that way: labels add up
+(a circular from the head teacher gets both Dirigenza and Circolari), and the
+order only matters for rules that exclude others, like Studenti, which skips
+whatever Colleghi, Dirigenza or Segreteria already took. The page, its "?"
+bubble and the matching FAQ entry now say so.
+
 ## 1.4.5 — 21 September 2026
 
 **The guessed addresses can now be checked against your own mailbox.** When

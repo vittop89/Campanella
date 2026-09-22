@@ -218,6 +218,16 @@ namespace Campanella
                     b.FlatAppearance.BorderColor = CampoBordo;
                     b.FlatAppearance.MouseOverBackColor = Mescola(Scheda, Accento, 0.16);
                 }
+                // Un bottone spento: WinForms ne ingrigisce il testo ma lascia lo
+                // sfondo, e quello principale restava pieno di colore, uguale a
+                // quando funziona. Spento deve sembrare spento.
+                if (!b.Enabled && ruolo != Ruolo.Barra)
+                {
+                    b.BackColor = Pannello;
+                    b.ForeColor = Tenue;
+                    b.FlatAppearance.BorderSize = 1;
+                    b.FlatAppearance.BorderColor = Bordo;
+                }
             }
             else if (c is CheckBox || c is RadioButton)
             {
@@ -403,6 +413,21 @@ namespace Campanella
             b.Tag = Ruolo.Secondario;
             b.Cursor = Cursors.Hand;
             if (click != null) b.Click += click;
+            // acceso o spento cambia i colori: vanno rifatti ogni volta
+            b.EnabledChanged += delegate { Colora(b); b.Invalidate(); };
+            // Spento, WinForms il testo lo disegna da se', ignorando ForeColor: con
+            // lo sfondo scuro diventava nero su quasi nero. Lo ridisegno io, nel
+            // grigio del tema. Paint arriva dopo il disegno di WinForms, quindi sopra.
+            b.Paint += delegate(object s, PaintEventArgs e)
+            {
+                if (b.Enabled || (b.Tag as string) == Ruolo.Barra) return;
+                int bordo = b.FlatAppearance.BorderSize;
+                Rectangle r = new Rectangle(bordo, bordo, b.Width - 2 * bordo, b.Height - 2 * bordo);
+                using (SolidBrush fondo = new SolidBrush(b.BackColor)) e.Graphics.FillRectangle(fondo, r);
+                TextRenderer.DrawText(e.Graphics, b.Text, b.Font, r, Tenue,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            };
             return b;
         }
 

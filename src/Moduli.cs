@@ -314,7 +314,7 @@ namespace Campanella
             Riga(sb, "anno", Testo(anno),
                  anno == "auto" ? "dal primo settembre passa da solo all'anno nuovo" : "anno fisso");
             Riga(sb, "cartellaAnno", Testo(primo.CartellaAnno), "nella radice di \"Il mio Drive\"");
-            Riga(sb, "chiusura", Testo((primo.Chiusura ?? "").Replace(" ", "")), "giorno/mese di partenza per le righe nuove");
+            Riga(sb, "chiusura", Testo((primo.Chiusura ?? "").Replace(" ", "")), "giorno/mese proposto alle righe di partenza; quelle che aggiungi tu solo se lo scrivi in Chiusura");
             Riga(sb, "fusoOrario", Testo(fuso), "");
             Riga(sb, "scheda", Testo("Moduli"), "la scheda di questo foglio con l'elenco");
             sb.AppendLine("  moduli: [                                      // le righe di partenza: poi comanda la scheda");
@@ -394,6 +394,10 @@ namespace Campanella
             sb.AppendLine("    Torna al foglio: c'e' una scheda \"Moduli\" con le colonne pronte" +
                           (quanti > 0 ? " e " + (quanti == 1 ? "una riga" : quanti + " righe") + "." : "."));
             sb.AppendLine("    Ogni intestazione ha una nota che spiega la colonna (il triangolino).");
+            sb.AppendLine("    Accanto c'e' la scheda \"Istruzioni\": i passi principali, cosa fare ogni");
+            sb.AppendLine("    anno e durante l'anno, e cosa vuol dire ogni colonna. Resta nel foglio,");
+            sb.AppendLine("    cosi' fra un anno non devi tornare qui. La scheda vuota \"Foglio1\" che");
+            sb.AppendLine("    Google mette nei fogli nuovi la toglie lo script.");
             sb.AppendLine();
             sb.AppendLine("4.  Il link di ogni modulo. Due modi:");
             sb.AppendLine("      - dal menu Campanella -> \"Trova i moduli nel Drive\": li cerca dal nome");
@@ -415,16 +419,30 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("OGNI ANNO, DAL PRIMO SETTEMBRE");
             sb.AppendLine("------------------------------");
-            sb.AppendLine("Apri questo foglio e fai \"Prepara l'anno nuovo\". L'anno lo calcola da solo");
-            sb.AppendLine("(adesso " + annoAdesso + "). Non serve reincollare il codice.");
+            string annoFisso = (quanti > 0) ? (moduli[0].Anno ?? "").Replace(" ", "") : "";
+            if (annoFisso.Equals("auto", StringComparison.OrdinalIgnoreCase)) annoFisso = "";
+            if (annoFisso == "")
+            {
+                sb.AppendLine("Apri questo foglio e fai \"Prepara l'anno nuovo\". L'anno lo calcola da solo");
+                sb.AppendLine("(adesso " + annoAdesso + "). Non serve reincollare il codice.");
+            }
+            else
+            {
+                sb.AppendLine("Attenzione: questo codice ha l'anno FISSO, " + annoFisso + ", perche' in Cartelle");
+                sb.AppendLine("hai scritto un anno diverso da quello in corso. L'anno dopo NON cambia da");
+                sb.AppendLine("solo: rigenera il codice da qui e incollalo di nuovo (oppure nel codice");
+                sb.AppendLine("scrivi  anno: 'auto'), poi \"Prepara l'anno nuovo\".");
+            }
             sb.AppendLine();
             sb.AppendLine("IL FOGLIO NON SI AGGIORNA DA SOLO");
             sb.AppendLine("---------------------------------");
             sb.AppendLine("Le righe le comandi tu, e solo quelle che ci sono vengono guardate.");
-            sb.AppendLine("  - Un modulo nuovo: aggiungi una riga in fondo con il nome, poi \"Trova i");
-            sb.AppendLine("    moduli nel Drive\" (o incolla il link), controlla cartella e nome del");
-            sb.AppendLine("    foglio, lascia la spunta \"Attivo\" e rifai \"Prepara l'anno nuovo\". I");
-            sb.AppendLine("    moduli gia' a posto non vengono rifatti: se trova il loro foglio lo lascia.");
+            sb.AppendLine("  - Un modulo nuovo: aggiungi una riga in fondo con il nome (e il giorno in");
+            sb.AppendLine("    \"Chiusura\", se deve chiudersi da solo), poi \"Trova i moduli nel Drive\" (o");
+            sb.AppendLine("    incolla il link), controlla cartella e nome del foglio e rifai \"Prepara");
+            sb.AppendLine("    l'anno nuovo\". La spunta \"Attivo\" la mette lo script: una riga nuova");
+            sb.AppendLine("    parte accesa. Le righe gia' pronte quest'anno non vengono ricollegate, e");
+            sb.AppendLine("    un modulo gia' chiuso (dalla sua chiusura o a mano) resta chiuso.");
             sb.AppendLine("  - Un modulo che non ti serve piu': togli la spunta \"Attivo\". La riga resta");
             sb.AppendLine("    li' con la sua storia e viene saltata. Cancellare la riga si puo', ma");
             sb.AppendLine("    cosi' perdi il link al foglio delle risposte di quell'anno.");

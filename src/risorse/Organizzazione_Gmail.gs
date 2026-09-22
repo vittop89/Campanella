@@ -18,7 +18,8 @@
  *       se il tempo massimo di esecuzione finisce;
  *    3. resta attiva e smista i messaggi nuovi ogni ora;
  *    4. (facoltativo) crea i veri filtri di Gmail, cosi' lo smistamento
- *       avviene anche senza lo script.
+ *       avviene anche senza lo script (tranne le regole che escludono le
+ *       altre, come Studenti: quelle restano allo smistamento del punto 3).
  *
  *  COSA NON FA
  *    Non cancella niente. Non svuota il cestino. Non segnala come spam.
@@ -136,17 +137,30 @@ function PASSO_2_creaEtichette() {
 //  PASSO 3 - RIORDINA LA POSTA GIA' RICEVUTA
 //  Lavora a blocchi e, se finisce il tempo, riprende da sola dopo un minuto.
 // ===========================================================================
-function PASSO_3_riordinaPostaEsistente() {
+function PASSO_3_riordinaPostaEsistente(e) {
+  // Chiamata dalla ripresa automatica, ma non c'e' niente da riprendere: il
+  // riordino e' finito, o ANNULLA_etichettatura l'ha fermato. Ripartire da zero
+  // rimetterebbe tutte le etichette appena tolte.
+  var daRipresa = !!(e && e.triggerUid);
+  if (daRipresa && !_leggiProgresso().iniziato) { _rimuoviTrigger(_TRIGGER_RIPRESA); return ''; }
+
   // un blocco per volta: se la ripresa automatica parte mentre un'altra
   // esecuzione e' ancora in corso, la seconda aspetta o lascia perdere
   var lock = LockService.getUserLock();
   if (!lock.tryLock(10000)) {
-    var occupato = 'Un\'altra esecuzione del riordino e\' in corso: riprovo piu\' tardi.';
+    // riprogrammo solo se c'e' un riordino a meta': se il blocco e' di
+    // ANNULLA_etichettatura, il segnaposto l'ha appena azzerato
+    var aMeta = !!_leggiProgresso().iniziato;
+    if (aMeta) _programmaRipresa();
+    var occupato = 'Un\'altra esecuzione e\' in corso: ' +
+      (aMeta ? 'riprovo fra un minuto.' : 'riprova tu fra qualche minuto.');
     Logger.log(occupato);
-    _programmaRipresa();
     return occupato;
   }
-  try { return _riordina(); }
+  try {
+    if (daRipresa && !_leggiProgresso().iniziato) { _rimuoviTrigger(_TRIGGER_RIPRESA); return ''; }
+    return _riordina();
+  }
   finally { lock.releaseLock(); }
 }
 
@@ -424,7 +438,7 @@ function EXTRA_creaFiltriGmail() {
   for (var i = 0; i < lista.length; i++) idEtichette[lista[i].name] = lista[i].id;
 
   var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
-  var creati = [], saltati = [], falliti = [];
+  var creati = [], saltati = [], falliti = [], alloScript = [], vecchi = [];
   var regole = _regoleAttive(cfg);
 
   for (var r = 0; r < regole.length; r++) {
@@ -432,6 +446,27 @@ function EXTRA_creaFiltriGmail() {
     var nome = _etichettaCompleta(cfg, regola);
     var id = idEtichette[nome];
     if (!id) continue;
+    // Un filtro di Gmail lavora sul messaggio che arriva e non puo' sapere
+    // quali etichette gli metteranno gli altri filtri: "Studenti, tranne chi e'
+    // gia' Colleghi" diventerebbe "tutto il dominio", colleghi compresi. Queste
+    // regole restano allo smistamento automatico dello script.
+    if (regola.escludiEtichette && regola.escludiEtichette.length) {
+      alloScript.push(nome);
+      // chi aveva creato i filtri con una versione di prima ce l'ha gia', quel
+      // filtro "tutto il dominio": lo cerco e lo segnalo. Solo quello: un filtro
+      // tuo su qualche indirizzo per la stessa etichetta non c'entra
+      var dominio = '@' + String(cfg.dominioScuola || '').replace(/^@/, '').toLowerCase();
+      for (var v = 0; v < esistenti.length; v++) {
+        var az = esistenti[v].action || {};
+        if (!az.addLabelIds || az.addLabelIds.indexOf(id) < 0) continue;
+        var cr = esistenti[v].criteria || {};
+        var termini = String(cr.from || '').toLowerCase().split(/\s+or\s+|[\s(){}]+/);
+        if (dominio.length > 1 && termini.indexOf(dominio) >= 0) {
+          vecchi.push(nome + '  (da: ' + cr.from + ')');
+        }
+      }
+      continue;
+    }
 
     var criteri = _criteriFiltro(cfg, regola);
     for (var c = 0; c < criteri.length; c++) {
@@ -450,12 +485,36 @@ function EXTRA_creaFiltriGmail() {
     }
   }
 
-  var testo = 'Filtri creati: ' + creati.length +
+  // le regole che Gmail non smistera' da solo: quelle lasciate allo script e
+  // quelle il cui filtro non si e' riusciti a creare
+  var tranne = alloScript.slice();
+  for (var f = 0; f < falliti.length; f++) {
+    var chi = falliti[f].split(': ')[0];
+    if (tranne.indexOf(chi) < 0) tranne.push(chi);
+  }
+  var testo = (vecchi.length
+                ? 'ATTENZIONE: c\'e\' ancora un filtro di una versione di prima che mette questa ' +
+                  'etichetta a tutto il dominio, colleghi compresi:\n  - ' + vecchi.join('\n  - ') +
+                  '\nCancellalo in Gmail -> Impostazioni -> Vedi tutte le impostazioni -> Filtri e ' +
+                  'indirizzi bloccati.\n\n'
+                : '') +
+              'Filtri creati: ' + creati.length +
               '\nFiltri gia\' presenti (saltati): ' + saltati.length +
               (falliti.length ? '\nNon riusciti:\n  - ' + falliti.join('\n  - ') : '') +
-              '\n\nDa adesso Gmail smista da solo la posta in arrivo, anche ' +
-              'senza lo script.\nLi trovi in Gmail: Impostazioni -> Vedi tutte ' +
-              'le impostazioni -> Filtri e indirizzi bloccati.';
+              (alloScript.length
+                ? '\nSenza filtro, restano allo smistamento dello script: ' + alloScript.join(', ') +
+                  '\n  (escludono le etichette delle altre regole, e un filtro di Gmail non lo sa fare:' +
+                  '\n  li prenderebbe tutti, colleghi compresi)'
+                : '') +
+              (tranne.length
+                ? '\n\nDa adesso Gmail smista da solo la posta in arrivo, tranne ' + tranne.join(', ') +
+                  (tranne.length === 1 ? ': per questa' : ': per queste') +
+                  ' lo smistamento automatico (PASSO_4) deve restare acceso.'
+                : '\n\nDa adesso Gmail smista da solo la posta in arrivo, anche senza lo script.') +
+              '\nLi trovi in Gmail: Impostazioni -> Vedi tutte le impostazioni -> Filtri e ' +
+              'indirizzi bloccati.' +
+              '\nSe poi cambi una regola, il filtro vecchio resta: cancellalo da li\' e riesegui ' +
+              'questa funzione.';
   Logger.log(testo);
   return testo;
 }
@@ -514,24 +573,70 @@ function ANNULLA_automazione() {
 function ANNULLA_etichettatura() {
   var cfg = _config();
   var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
-  var regole = _regoleAttive(cfg);
-  var tolte = {};
 
-  for (var i = 0; i < regole.length && Date.now() < scadenza; i++) {
-    var nome = _etichettaCompleta(cfg, regole[i]);
-    var etichetta = GmailApp.getUserLabelByName(nome);
-    if (!etichetta) continue;
-    while (Date.now() < scadenza) {
-      var threads = etichetta.getThreads(0, _THREAD_PER_BLOCCO);
-      if (!threads.length) break;
-      etichetta.removeFromThreads(threads);
-      _somma(tolte, nome, threads.length);
+  // Prima fermo il riordino: se PASSO_3 sta ancora riprendendo da solo, fra un
+  // giro e l'altro rimetterebbe le etichette che tolgo, e il segnaposto lo
+  // farebbe ripartire da meta', saltando le regole gia' fatte.
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Il riordino (PASSO_3) sta lavorando proprio adesso: riprova fra un minuto.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var regole, tolte = {}, finito = true;
+  try {
+    _rimuoviTrigger(_TRIGGER_RIPRESA);
+    _azzeraProgresso();
+    regole = _regoleAttive(cfg);
+
+    for (var i = 0; i < regole.length; i++) {
+      if (Date.now() >= scadenza) { finito = false; break; }
+      var nome = _etichettaCompleta(cfg, regole[i]);
+      var etichetta = GmailApp.getUserLabelByName(nome);
+      if (!etichetta) continue;
+      while (true) {
+        if (Date.now() >= scadenza) { finito = false; break; }
+        var threads = etichetta.getThreads(0, _THREAD_PER_BLOCCO);
+        if (!threads.length) break;
+        etichetta.removeFromThreads(threads);
+        _somma(tolte, nome, threads.length);
+      }
+      if (!finito) break;
     }
+  } finally {
+    // una ripresa partita mentre lavoravo si sarebbe riprogrammata: la tolgo
+    _rimuoviTrigger(_TRIGGER_RIPRESA);
+    lock.releaseLock();
   }
 
-  var testo = 'Etichette rimosse dalle conversazioni:\n' + _riepilogo(tolte) +
-    '\n\nLe etichette restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
-    'cancellarle da Gmail -> Impostazioni -> Etichette.\n' +
+  // le regole spente non le tocco: l'etichetta con quel nome potrebbe essere
+  // tua. Ma se hanno ancora conversazioni lo dico.
+  var spente = [];
+  var tutte = cfg.regole || [];
+  for (var s = 0; s < tutte.length; s++) {
+    if (tutte[s].attiva !== false || !tutte[s].etichetta) continue;
+    var nomeSpenta = _etichettaCompleta(cfg, tutte[s]);
+    var e = GmailApp.getUserLabelByName(nomeSpenta);
+    if (e && e.getThreads(0, 1).length) spente.push(nomeSpenta);
+  }
+
+  // con tanta posta il tempo di Google finisce prima: va detto, altrimenti
+  // sembra tutto a posto e le etichette rimaste non le toglie piu' nessuno
+  var testo = (finito
+      ? 'FATTO: tolte tutte le etichette delle regole attive.\n\n'
+      : 'TEMPO SCADUTO A META\'. Esegui di nuovo ANNULLA_etichettatura, e ancora, ' +
+        'finche\' non compare "FATTO" in cima.\n\n') +
+    'Etichette tolte dalle conversazioni in questo giro:\n' + _riepilogo(tolte) +
+    (finito
+      ? '\n\nLe etichette restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
+        'cancellarle da Gmail -> Impostazioni -> Etichette.'
+      : '') +
+    (spente.length
+      ? '\n\nEtichette di regole spente, non toccate: ' + spente.join(', ') + '.\n' +
+        'Se le aveva messe lo script, riaccendi la regola, rigenera la configurazione ' +
+        'e riesegui; oppure cancellale tu da Gmail -> Impostazioni -> Etichette.'
+      : '') +
+    '\n\nIl riordino e\' fermo e ripartira\' dall\'inizio. ' +
     'Nota: i messaggi archiviati non tornano nella Posta in arrivo, ' +
     'ma li trovi in "Tutti i messaggi".';
   Logger.log(testo);
@@ -539,8 +644,22 @@ function ANNULLA_etichettatura() {
 }
 
 function ANNULLA_progressoRiordino() {
-  _azzeraProgresso();
-  _rimuoviTrigger(_TRIGGER_RIPRESA);
+  // come ANNULLA_etichettatura: aspetto che un blocco in corso finisca, se no
+  // quello risalverebbe il segnaposto subito dopo
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    // senza il blocco non tocco niente: il riordino in corso rimetterebbe
+    // segnaposto e ripresa subito dopo, e il messaggio qui sotto mentirebbe
+    var occupato = 'Il riordino (PASSO_3) sta lavorando proprio adesso: riprova fra un minuto.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  try {
+    _rimuoviTrigger(_TRIGGER_RIPRESA);
+    _azzeraProgresso();
+  } finally {
+    lock.releaseLock();
+  }
   var testo = 'Segnaposto azzerato: il prossimo PASSO_3 ricomincia dall\'inizio.';
   Logger.log(testo);
   return testo;
@@ -551,7 +670,11 @@ function ANNULLA_progressoRiordino() {
 //  COSTRUZIONE DELLE RICERCHE
 // ===========================================================================
 
-/** Regole attive, nell'ordine di priorita' scritto in Configurazione.gs. */
+/**
+ * Regole attive, nell'ordine scritto in Configurazione.gs. Le etichette si
+ * sommano: l'ordine conta solo per chi ha escludiEtichette (Studenti sotto
+ * Colleghi, Dirigenza e Segreteria).
+ */
 function _regoleAttive(cfg) {
   var out = [];
   var regole = cfg.regole || [];
@@ -603,7 +726,10 @@ function _queryDellaRegola(cfg, regola, periodoExtra) {
 
   // i mittenti sono l'unica parte che puo' diventare lunghissima
   var mittenti = _espandi(cfg, regola.da || []);
-  if (!mittenti.length) return [base];
+  // Una regola che ha dei mittenti, ma nessuno dopo l'espansione (Colleghi con
+  // l'elenco del personale vuoto), non deve diventare una ricerca senza "from:":
+  // prenderebbe tutta la casella. Non cerca niente, e basta.
+  if (!mittenti.length) return (regola.da && regola.da.length) ? [] : [base];
 
   var queries = [];
   for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
@@ -665,6 +791,9 @@ function _criteriFiltro(cfg, regola) {
   if (regola.contiene && regola.contiene.length) libera.push('(' + _orDiTesti(regola.contiene) + ')');
   if (regola.queryLibera) libera.push('(' + regola.queryLibera + ')');
   var soggetto = (regola.oggetto && regola.oggetto.length) ? _orDiTesti(regola.oggetto) : '';
+
+  // come in _queryDellaRegola: mittenti previsti ma nessuno rimasto = niente filtro
+  if (!mittenti.length && regola.da && regola.da.length) return [];
 
   if (mittenti.length) {
     for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {

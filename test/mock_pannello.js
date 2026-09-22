@@ -109,8 +109,51 @@ function nuovoMondo(opzioni) {
     constructor(nome) {
       this.nome = nome; this.celle = []; this.note = new Map();
       this.spunte = new Set(); this.formati = new Map(); this.congelate = 0;
+      this.grassetti = new Set(); this.protezioni = []; this.grafici = []; this.immagini = [];
+      this.disegni = []; this.scrittoComeTesto = new Set();
+      this.cancellata = false;
     }
-    getName() { return this.nome; }
+    getDrawings() { return this.disegni; }
+    getSlicers() { return []; }
+    getMaxColumns() { return 26; }
+    getName() {
+      // come il foglio vero: una scheda cancellata non risponde piu'
+      if (this.cancellata) throw new Error('Questa scheda e\' stata eliminata.');
+      return this.nome;
+    }
+    getLastColumn() {
+      let ultima = 0;
+      for (const riga of this.celle) {
+        if (!riga) continue;
+        for (let c = 0; c < riga.length; c++) {
+          if (riga[c] !== '' && riga[c] !== undefined && riga[c] !== null) ultima = Math.max(ultima, c + 1);
+        }
+      }
+      return ultima;
+    }
+    clear() {
+      this.celle = []; this.formati = new Map(); this.grassetti = new Set(); this.spunte = new Set();
+      this.scrittoComeTesto = new Set();
+      return this;
+    }
+    getCharts() { return this.grafici; }
+    getImages() { return this.immagini; }
+    setHiddenGridlines() { return this; }
+    getProtections(tipo) { return this.protezioni.filter(p => p.tipo === tipo); }
+    protect() {
+      const p = { tipo: 'SHEET', soloAvviso: false, descrizione: '',
+                  setDescription(d) { this.descrizione = d; return this; },
+                  getDescription() { return this.descrizione; },
+                  setWarningOnly(v) { this.soloAvviso = v; return this; } };
+      this.protezioni.push(p);
+      return p;
+    }
+    /** il testo della colonna A, riga per riga: per le prove sulla scheda Istruzioni */
+    testo() {
+      const fuori = [];
+      for (let r = 0; r < this.getLastRow(); r++) fuori.push(String(this.cella(r, 0)));
+      return fuori;
+    }
     cella(r, c) {
       if (!this.celle[r]) this.celle[r] = [];
       return (this.celle[r][c] === undefined) ? '' : this.celle[r][c];
@@ -123,9 +166,13 @@ function nuovoMondo(opzioni) {
      */
     scrivi(r, c, v) {
       if (!this.celle[r]) this.celle[r] = [];
+      // per le prove: quali celle hanno ricevuto testo quando erano GIA' a testo
+      if (typeof v === 'string' && this.formati.get(r + ',' + c) === '@') this.scrittoComeTesto.add(r + ',' + c);
       if (typeof v === 'string' && this.formati.get(r + ',' + c) !== '@') {
         const g = /^(\d{1,2})\/(\d{1,2})$/.exec(v);
         if (g) v = new Date(new Date(m.adesso).getFullYear(), parseInt(g[2], 10) - 1, parseInt(g[1], 10));
+        // e una stringa che comincia con = + - il foglio la legge come formula
+        else if (/^[=+\-]/.test(v)) v = '#ERROR!';
       }
       this.celle[r][c] = v;
     }
@@ -166,14 +213,53 @@ function nuovoMondo(opzioni) {
         setValue(v) { scheda.scrivi(r - 1, c - 1, v); return this; },
         getValue() { return scheda.cella(r - 1, c - 1); },
         setNote(t) { scheda.note.set((r - 1) + ',' + (c - 1), t); return this; },
-        setFontWeight() { return this; },
+        setFontWeight(w) {
+          for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) {
+            const chiave = (r - 1 + i) + ',' + (c - 1 + k);
+            if (w === 'bold') scheda.grassetti.add(chiave); else scheda.grassetti.delete(chiave);
+          }
+          return this;
+        },
+        setFontSize() { return this; },
+        setWrap() { return this; },
+        setVerticalAlignment() { return this; },
         setNumberFormat(f) {
           for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) scheda.formati.set((r - 1 + i) + ',' + (c - 1 + k), f);
           return this;
         },
+        // come dice la documentazione di Google: "Sets the value of all cells in
+        // the range to false". E' il motivo per cui il motore non la usa piu'
         insertCheckboxes() {
+          for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) {
+            scheda.spunte.add((r - 1 + i) + ',' + (c - 1 + k));
+            scheda.scrivi(r - 1 + i, c - 1 + k, false);
+          }
+          return this;
+        },
+        // la convalida a casella non tocca i valori
+        setDataValidation(regola) {
+          if (!regola || regola.tipo !== 'casella') throw new Error('convalida sconosciuta al banco di prova');
           for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) scheda.spunte.add((r - 1 + i) + ',' + (c - 1 + k));
           return this;
+        },
+        clearDataValidations() {
+          for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) scheda.spunte.delete((r - 1 + i) + ',' + (c - 1 + k));
+          return this;
+        },
+        clearContent() {
+          for (let i = 0; i < righe; i++) for (let k = 0; k < colonne; k++) {
+            if (scheda.celle[r - 1 + i]) scheda.celle[r - 1 + i][c - 1 + k] = '';
+          }
+          return this;
+        },
+        getNotes() {
+          const fuori = [];
+          for (let i = 0; i < righe; i++) {
+            const riga = [];
+            for (let k = 0; k < colonne; k++) riga.push(scheda.note.get((r - 1 + i) + ',' + (c - 1 + k)) || '');
+            fuori.push(riga);
+          }
+          return fuori;
         }
       };
     }
@@ -187,9 +273,30 @@ function nuovoMondo(opzioni) {
     }
     getId() { return this.id; }
     getUrl() { return 'https://docs.example/spreadsheets/d/' + this.id + '/edit'; }
-    getSheets() { return this.schede; }
+    getSheets() { return this.schede.slice(); }
     getSheetByName(n) { return this.schede.find(s => s.nome === n) || null; }
-    insertSheet(n) { const s = new Scheda(n); this.schede.push(s); return s; }
+    insertSheet(n) {
+      if (this.getSheetByName(n)) throw new Error('Esiste gia\' una scheda di nome "' + n + '".');
+      const s = new Scheda(n); this.schede.push(s); return s;
+    }
+    deleteSheet(s) {
+      if (this.schede.length <= 1) throw new Error('Non puoi eliminare l\'unica scheda del foglio.');
+      const i = this.schede.indexOf(s);
+      if (i < 0) throw new Error('La scheda non e\' in questo foglio.');
+      this.schede.splice(i, 1);
+      s.cancellata = true;
+      if (this.attiva === s) this.attiva = this.schede[0];
+    }
+    getActiveSheet() { return this.attiva || this.schede[0]; }
+    setActiveSheet(s) { this.attiva = s; return s; }
+    /** come il foglio vero: la posizione parte da 1 */
+    moveActiveSheet(posizione) {
+      const s = this.getActiveSheet();
+      this.schede.splice(this.schede.indexOf(s), 1);
+      this.schede.splice(Math.max(0, Math.min(posizione - 1, this.schede.length)), 0, s);
+    }
+    /** i nomi delle schede, nell'ordine in cui le vedi in basso */
+    nomiSchede() { return this.schede.map(s => s.nome); }
     /** le righe di risposte: la scheda piu' lunga, senza intestazione */
     righeDiRisposte() { return Math.max(0, ...this.schede.map(s => s.getLastRow() - 1)); }
   }
@@ -293,6 +400,13 @@ function nuovoMondo(opzioni) {
       getActiveForm: () => { throw new Error('questo script non sta dentro un modulo'); }
     },
     SpreadsheetApp: {
+      ProtectionType: { SHEET: 'SHEET', RANGE: 'RANGE' },
+      newDataValidation() {
+        const costruttore = { tipo: '',
+          requireCheckbox() { this.tipo = 'casella'; return this; },
+          build() { return { tipo: this.tipo }; } };
+        return costruttore;
+      },
       getActive: () => m.pannello,
       getUi: () => { if (m.senzaInterfaccia) throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); return ui; },
       create(nome) { m.fogliCreati++; return new FoglioDiCalcolo(nome); },
@@ -317,6 +431,7 @@ function nuovoMondo(opzioni) {
         const o = {
           at() { throw new Error('at(data) dipende dal fuso del progetto: serve atDate + inTimezone'); },
           atDate(a, me, g) { t.anno = a; t.mese = me; t.giorno = g; return o; },
+          after(ms) { t.dopo = ms; return o; },
           inTimezone(f) { t.fuso = f; return o; },
           create() { m.trigger.push(t); return t; }
         };
@@ -428,6 +543,452 @@ titolo('PREPARA IL FOGLIO');
   s2.getRange(2, 1).setValue('Rinominato');
   c.PANNELLO_1_preparaIlFoglio();
   verifica('e non sovrascrive quello che hai scritto', scheda(m)[0][0] === 'Rinominato');
+}
+
+// ---- 1a. le schede del foglio: via Foglio1, dentro Istruzioni ----------------------------
+titolo('LE SCHEDE: VIA FOGLIO1, DENTRO LE ISTRUZIONI');
+{
+  const m = nuovoMondo();
+  const c = carica(m);
+  verifica('il foglio nuovo nasce con Foglio1, come quello vero',
+    JSON.stringify(m.pannello.nomiSchede()) === '["Foglio1"]');
+  const t = c.PANNELLO_1_preparaIlFoglio();
+  verifica('dopo: Moduli e Istruzioni, in quest\'ordine, e basta',
+    JSON.stringify(m.pannello.nomiSchede()) === '["Moduli","Istruzioni"]');
+  verifica('lo dice all\'utente', t.indexOf('Tolta la scheda vuota Foglio1') >= 0 && t.indexOf('Istruzioni') >= 0);
+  verifica('si resta sulla scheda Moduli', m.pannello.getActiveSheet().getName() === 'Moduli');
+
+  const ist = m.pannello.getSheetByName('Istruzioni');
+  const testo = ist.testo();
+  const tutto = testo.join('\n');
+  const passi = testo.filter(r => /^\d\.\s/.test(r)).join('\n');
+  verifica('le istruzioni hanno i passi del menu, nell\'ordine',
+    passi.indexOf('Prepara il foglio') >= 0 &&
+    passi.indexOf('Prepara il foglio') < passi.indexOf('Trova i moduli nel Drive') &&
+    passi.indexOf('Trova i moduli nel Drive') < passi.indexOf('Anteprima') &&
+    passi.indexOf('Anteprima') < passi.indexOf('Prepara l\'anno nuovo'));
+  verifica('spiegano ogni colonna', ['Modulo:', 'Link del modulo:', 'Chiusura:', 'Svuota:', 'Attivo:', 'Ultima esecuzione:']
+    .every(x => testo.some(r => r.indexOf(x) === 0)));
+  verifica('dicono cosa fare ogni anno e durante l\'anno',
+    tutto.indexOf('OGNI ANNO') >= 0 && tutto.indexOf('DURANTE L\'ANNO') >= 0 && tutto.indexOf('Annulla') >= 0);
+  // niente valori calcolati oggi: invecchierebbero fra una riscrittura e l'altra
+  verifica('dicono la regola dell\'anno e della cartella, non i valori di oggi',
+    tutto.indexOf('automatico') >= 0 && tutto.indexOf('"A.S. {anno}"') >= 0 && tutto.indexOf('A.S. 2026-27') < 0);
+  verifica('con l\'anno automatico dicono che cambia da solo', tutto.indexOf('cambia da solo il primo settembre') >= 0);
+  verifica('dicono che una riga nuova parte accesa', tutto.indexOf('una riga nuova parte accesa') >= 0);
+  verifica('ogni riga scritta a testo, a colonna gia\' impostata',
+    testo.every((r, i) => r === '' || ist.scrittoComeTesto.has(i + ',0')));
+  verifica('i titoli in grassetto, il resto no', ist.grassetti.has('0,0') &&
+    ist.grassetti.has(testo.indexOf('LA PRIMA VOLTA') + ',0') && !ist.grassetti.has('1,0'));
+  verifica('protetta con il solo avviso', ist.protezioni.length === 1 && ist.protezioni[0].soloAvviso === true);
+
+  const quante = testo.length;
+  // sotto il testo, dove la riscrittura non arriva: resta solo se manca clear()
+  ist.getRange(quante + 2, 1).setValue('una nota mia');
+  ist.getRange(quante + 3, 1).setFontWeight('bold');
+  c.PANNELLO_1_preparaIlFoglio();
+  verifica('rieseguito: sempre due schede', JSON.stringify(m.pannello.nomiSchede()) === '["Moduli","Istruzioni"]');
+  verifica('le istruzioni vengono riscritte da capo, non accodate',
+    m.pannello.getSheetByName('Istruzioni').testo().length === quante);
+  verifica('e quello scritto a mano sparisce (lo dice la scheda stessa)',
+    m.pannello.getSheetByName('Istruzioni').testo().indexOf('una nota mia') < 0 && tutto.indexOf('non scriverci dentro') >= 0);
+  verifica('e anche la sua formattazione', !m.pannello.getSheetByName('Istruzioni').grassetti.has((quante + 2) + ',0'));
+  verifica('la protezione non si moltiplica', m.pannello.getSheetByName('Istruzioni').protezioni.length === 1);
+  verifica('le righe dei moduli restano', scheda(m).length === 2);
+}
+
+// le schede di chi ci ha gia' lavorato non si toccano
+{
+  const m = nuovoMondo();
+  const c = carica(m);
+  m.pannello.getSheetByName('Foglio1').getRange(1, 1).setValue('appunti miei');
+  m.pannello.insertSheet('Foglio2');                           // vuota, col nome di partenza
+  m.pannello.insertSheet('Da fare');                           // vuota, ma rinominata da te
+  m.pannello.insertSheet('Foglio3').grafici.push({});          // vuota di celle, ma con un grafico
+  m.pannello.insertSheet('Foglio4').disegni.push({});          // con un disegno (un bottone con uno script)
+  m.pannello.insertSheet('Foglio5').note.set('4,2', 'appunto'); // con una nota in C5
+  const t = c.PANNELLO_1_preparaIlFoglio();
+  const nomi = m.pannello.nomiSchede();
+  verifica('Foglio1 con dentro qualcosa resta', nomi.indexOf('Foglio1') >= 0);
+  verifica('Foglio2 vuota se ne va', nomi.indexOf('Foglio2') < 0 && t.indexOf('Foglio2') >= 0);
+  verifica('una scheda rinominata resta, anche vuota', nomi.indexOf('Da fare') >= 0);
+  verifica('una scheda con un grafico resta', nomi.indexOf('Foglio3') >= 0);
+  verifica('una scheda con un disegno resta', nomi.indexOf('Foglio4') >= 0);
+  verifica('una scheda con una nota resta', nomi.indexOf('Foglio5') >= 0);
+  verifica('Moduli e Istruzioni comunque in testa', nomi[0] === 'Moduli' && nomi[1] === 'Istruzioni');
+}
+
+// con l'anno scritto a mano le istruzioni non promettono che cambi da solo
+{
+  const m = nuovoMondo();
+  const c = carica(m, { config: { anno: '2026-27' } });
+  c.PANNELLO_1_preparaIlFoglio();
+  const tutto = m.pannello.getSheetByName('Istruzioni').testo().join('\n');
+  verifica('anno fisso: lo dice, e dice come passare all\'anno dopo',
+    tutto.indexOf('fisso, 2026-27') >= 0 && tutto.indexOf('NON cambia da solo') >= 0);
+  verifica('e non dice che cambia da solo', tutto.indexOf('cambia da solo il primo settembre') < 0);
+}
+
+// chi ha gia' il foglio e usa solo "Prepara l'anno nuovo" ha lo stesso le istruzioni
+{
+  const p = mondoPronto();
+  p.m.pannello.deleteSheet(p.m.pannello.getSheetByName('Istruzioni'));
+  p.m.pannello.insertSheet('Foglio1');
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('"Prepara l\'anno nuovo" rifa\' anche le Istruzioni e toglie Foglio1',
+    JSON.stringify(p.m.pannello.nomiSchede()) === '["Moduli","Istruzioni"]');
+}
+
+// ---- 1a-bis. le caselle Attivo e Svuota ---------------------------------------------------
+titolo('LE CASELLE "ATTIVO" E "SVUOTA" NON SI AZZERANO');
+{
+  const p = mondoPronto();
+  const s = p.m.pannello.getSheetByName('Moduli');
+  s.getRange(2, 6).setValue(true);                   // Recuperi: svuota
+  s.getRange(3, 7).setValue(false);                  // Uscite: spenta
+  p.c.PANNELLO_1_preparaIlFoglio();
+  verifica('rieseguire "Prepara il foglio" lascia le spunte come erano',
+    scheda(p.m)[0][5] === true && scheda(p.m)[0][6] === true && scheda(p.m)[1][6] === false);
+  verifica('le righe dei moduli hanno le caselle', s.spunte.has('1,5') && s.spunte.has('1,6') && s.spunte.has('2,6'));
+  verifica('sotto l\'ultima riga niente caselle', !s.spunte.has('3,6') && !s.spunte.has('50,6'));
+
+  // un foglio fatto con la versione vecchia: caselle spente fino in fondo
+  const v = mondoPronto();
+  const sv = v.m.pannello.getSheetByName('Moduli');
+  sv.getRange(4, 7, 100, 1).insertCheckboxes();
+  sv.getRange(4, 1).setValue('Nuovo');               // una riga aggiunta a mano, sopra una casella spenta
+  v.c.PANNELLO_1_preparaIlFoglio();
+  // la casella spenta della versione vecchia non si distingue da una spenta
+  // apposta: resta spenta, ma adesso si vede e "Trova"/"Anteprima" lo dicono
+  verifica('una riga scritta sopra una casella vecchia resta spenta, con la casella in vista',
+    scheda(v.m)[2][6] === false && sv.spunte.has('3,6'));
+  verifica('ma sotto le righe le caselle vecchie spariscono', !sv.spunte.has('10,6') && sv.getRange(11, 7).getValue() === '');
+
+  // una riga aggiunta a mano, senza toccare la casella
+  const n = mondoPronto();
+  new n.m.Modulo('Gite', n.m.cartella('MODELLI'));
+  const sn = n.m.pannello.getSheetByName('Moduli');
+  sn.getRange(4, 1).setValue('Gite');
+  const t = n.c.PANNELLO_2_trovaIModuli();
+  verifica('una riga nuova parte accesa: "Trova i moduli" la trova', t.indexOf('Gite: trovato') >= 0);
+  verifica('e le mette le caselle, Attivo spuntato', sn.spunte.has('3,6') && scheda(n.m)[2][6] === true);
+
+  sn.getRange(4, 7).setValue(false);
+  const t2 = n.c.PANNELLO_2_trovaIModuli();
+  const t3 = n.c.PANNELLO_3_anteprima();
+  verifica('una riga spenta non sparisce in silenzio', t2.indexOf('Gite: saltata') >= 0 && t3.indexOf('saltate: Gite') >= 0);
+}
+
+// ---- 1a-ter. "Prepara l'anno nuovo" rieseguito a meta' anno ---------------------------------
+titolo('PREPARA L\'ANNO NUOVO RIESEGUITO A META\' ANNO');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const fogliUscite = m.uscite.destinazione.foglio;
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();                                           // Uscite si chiude il 30/06
+  verifica('(Uscite chiuso e scollegato dalla sua chiusura)', m.uscite.aperto === false && m.uscite.destinazione === null);
+
+  // a luglio arriva un modulo nuovo: la riga, poi Trova e Prepara, come dicono le istruzioni
+  new m.Modulo('Gite', m.cartella('MODELLI'));
+  m.pannello.getSheetByName('Moduli').getRange(4, 1).setValue('Gite');
+  c.PANNELLO_2_trovaIModuli();
+  const schedePrima = fogliUscite.schede.length;
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('il modulo gia\' chiuso resta chiuso', m.uscite.aperto === false);
+  verifica('e non viene ricollegato (niente seconda scheda di risposte)',
+    m.uscite.destinazione === null && fogliUscite.schede.length === schedePrima);
+  verifica('lo dice', t.indexOf('non lo ricollego e non lo riapro') >= 0);
+  verifica('la sua riga resta "chiuso il ..."', scheda(m)[1][7].indexOf('chiuso il 30/06/2027') === 0);
+  verifica('il modulo nuovo invece viene preparato', scheda(m)[2][7] === 'pronto per 2026-27');
+  verifica('Recuperi, ancora aperto, non viene toccato', m.recuperi.aperto === true);
+
+  // un modulo chiuso a mano prima della sua chiusura
+  m.recuperi.aperto = false;
+  const t2 = c.PANNELLO_4_preparaAnno();
+  verifica('un modulo chiuso a mano non viene riaperto', m.recuperi.aperto === false);
+  verifica('e lo dice, nella riga e nel resoconto',
+    t2.indexOf('non lo riapro') >= 0 && scheda(m)[0][7].indexOf('chiuso a mano') >= 0);
+
+  // l'anno dopo invece si riapre tutto, come sempre
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('l\'anno dopo i moduli riaprono', m.recuperi.aperto === true && m.uscite.aperto === true);
+}
+
+// una preparazione rotta a meta': la volta dopo la riga si rifa' tutta
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const ricordo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO'));
+  delete ricordo.pronti[p.m.recuperi.id + '|2026-27'];              // come se si fosse fermata prima della fine
+  p.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(ricordo));
+  p.m.recuperi.aperto = false;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('riga non finita: la volta dopo il modulo viene riaperto', p.m.recuperi.aperto === true);
+}
+
+// chi viene da una versione di prima: la memoria non sa cosa sia "pronti"
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const ricordo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO'));
+  delete ricordo.pronti;
+  p.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(ricordo));
+  p.m.recuperi.aperto = false;                                      // chiuso a mano
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('memoria vecchia: le righe con il foglio dell\'anno contano come pronte', p.m.recuperi.aperto === false);
+}
+
+// dopo "Annulla" la riga non e' piu' pronta
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  p.c.PANNELLO_ANNULLA();
+  p.m.recuperi.aperto = false;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('dopo Annulla si prepara da capo, riapertura compresa',
+    p.m.recuperi.aperto === true && p.m.recuperi.destinazione !== null);
+}
+
+// la chiusura e' scattata, poi qualcuno sposta o svuota il giorno in "Chiusura"
+for (const nuovo of ['31/07', '']) {
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const suo = m.uscite.destinazione.foglio;
+  m.uscite.rispondi(2);
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();                                        // Uscite, 30/06
+  m.pannello.getSheetByName('Moduli').getRange(3, 5).setValue(nuovo);
+  m.adesso = new Date('2027-07-05T09:00:00+02:00').getTime();
+  const schede = suo.schede.length;
+  const t = c.PANNELLO_4_preparaAnno();
+  const come = nuovo ? 'spostata al ' + nuovo : 'svuotata';
+  verifica('chiusura ' + come + ' dopo che e\' scattata: non ricollega (niente risposte doppie)',
+    m.uscite.destinazione === null && suo.schede.length === schede);
+  verifica('chiusura ' + come + ': resta chiuso, e la riga dice chi l\'ha chiuso',
+    m.uscite.aperto === false && scheda(m)[1][7].indexOf('chiuso il 30/06/2027') === 0);
+  if (nuovo) verifica('e spiega che per quest\'anno la chiusura e\' gia\' scattata', t.indexOf('e\' gia\' scattata') >= 0);
+}
+
+// un modulo scollegato a mano, ancora aperto, prima della sua chiusura
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const suo = p.m.recuperi.destinazione.foglio;
+  p.m.recuperi.rispondi(3);
+  p.m.recuperi.removeDestination();
+  const schede = suo.schede.length;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('scollegato a mano: non lo ricollego (Google ricopierebbe le risposte)',
+    p.m.recuperi.destinazione === null && suo.schede.length === schede);
+  verifica('e la riga lo dice', scheda(p.m)[0][7].indexOf('scollegato a mano') > 0);
+}
+
+// un modulo non pubblicato non diventa "pronto": pubblicato, la volta dopo si riapre
+{
+  const p = mondoPronto();
+  p.m.recuperi.aperto = false;
+  p.m.recuperi.pubblicato = false;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('non pubblicato: la riga lo dice', scheda(p.m)[0][7].indexOf('non e\' pubblicato') > 0);
+  p.m.recuperi.pubblicato = true;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('pubblicato dopo: la volta dopo viene riaperto', p.m.recuperi.aperto === true);
+}
+
+// la riapertura che non riesce non segna la riga come pronta
+{
+  const p = mondoPronto();
+  p.m.recuperi.aperto = false;
+  const vera = p.m.recuperi.setAcceptingResponses;
+  p.m.recuperi.setAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('riapertura fallita: la riga dice "problema", non "pronto"',
+    scheda(p.m)[0][7].indexOf('problema') === 0);
+  p.m.recuperi.setAcceptingResponses = vera;
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('e la volta dopo lo riapre davvero', p.m.recuperi.aperto === true &&
+    scheda(p.m)[0][7] === 'pronto per 2026-27');
+}
+
+// la memoria tiene solo l'anno in corso (le proprieta' hanno un tetto di 9 KB)
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const r = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO'));
+  r.pronti['vecchio|2019-20'] = true;
+  r.chiusi['vecchio|2019-20'] = '2020-08-31';
+  p.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));
+  p.c.PANNELLO_4_preparaAnno();
+  const dopo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('"pronti" e "chiusi" degli anni passati non si accumulano',
+    dopo.pronti['vecchio|2019-20'] === undefined && dopo.chiusi['vecchio|2019-20'] === undefined &&
+    dopo.pronti[p.m.recuperi.id + '|2026-27'] === true);
+}
+
+// una scheda "Istruzioni" che c'era gia' ed e' tua
+{
+  const m = nuovoMondo();
+  const c = carica(m);
+  const mia = m.pannello.insertSheet('Istruzioni');
+  mia.getRange(1, 1).setValue('Turni di sorveglianza');
+  const t = c.PANNELLO_1_preparaIlFoglio();
+  verifica('una scheda "Istruzioni" tua non viene toccata',
+    m.pannello.getSheetByName('Istruzioni').getRange(1, 1).getValue() === 'Turni di sorveglianza');
+  verifica('le istruzioni vanno in "Istruzioni Campanella"',
+    m.pannello.getSheetByName('Istruzioni Campanella') !== null &&
+    m.pannello.getSheetByName('Istruzioni Campanella').testo()[0].indexOf('CAMPANELLA - COME SI USA') === 0);
+  verifica('e lo dice', t.indexOf('e\' tua: non l\'ho toccata') >= 0);
+  c.PANNELLO_1_preparaIlFoglio();
+  verifica('rieseguito: niente terza scheda di istruzioni',
+    m.pannello.nomiSchede().filter(n => n.indexOf('Istruzioni') === 0).length === 2);
+}
+
+// un modulo non ancora pubblicato a settembre: poi lo pubblichi, arriva la sua
+// chiusura, e a luglio riesegui "Prepara l'anno nuovo" per un modulo nuovo
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.uscite.aperto = false; m.uscite.pubblicato = false;
+  c.PANNELLO_4_preparaAnno();
+  const suo = m.uscite.destinazione.foglio;
+  m.uscite.pubblicato = true; m.uscite.aperto = true;          // pubblicato e aperto da Google Moduli
+  m.uscite.rispondi(3);
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  const schede = suo.schede.length;
+  m.adesso = new Date('2027-07-05T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('non pubblicato a settembre, chiuso a giugno: a luglio non viene ricollegato ne\' riaperto',
+    m.uscite.destinazione === null && m.uscite.aperto === false && suo.schede.length === schede);
+}
+
+// memoria di una versione di prima, con una preparazione che si era fermata
+// prima del collegamento: il foglio c'e', ma e' ancora intatto
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.recuperi.aperto = false;                                    // chiuso dalla chiusura dell'anno prima
+  const intatto = new m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', m.cartella('A.S. 2026-27/RECUPERI'));
+  const vecchia = { fogli: {}, scadenze: {} };                  // com'era scritta prima della 1.4.6
+  vecchia.fogli[m.recuperi.id + '|2026-27'] = intatto.id;
+  m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(vecchia));
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('memoria vecchia, foglio mai collegato: lo collega e riapre il modulo',
+    m.recuperi.destinazione !== null && m.recuperi.destinazione.foglio.id === intatto.id && m.recuperi.aperto === true);
+  verifica('e non dice che qualcuno l\'ha chiuso o scollegato',
+    t.indexOf('l\'ha chiuso qualcuno') < 0 && scheda(m)[0][7] === 'pronto per 2026-27');
+
+  // memoria vecchia, foglio gia' collegato e poi scollegato: non lo ricollega,
+  // e non riapre (non si sa chi l'ha chiuso), ma senza dare la colpa a nessuno
+  const q = mondoPronto();
+  q.c.PANNELLO_4_preparaAnno();
+  const r = JSON.parse(q.m.proprieta.get('CAMPANELLA_PANNELLO'));
+  delete r.pronti; delete r.chiusi;
+  q.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));
+  q.m.recuperi.aperto = false;
+  q.m.recuperi.removeDestination();
+  const t2 = q.c.PANNELLO_4_preparaAnno();
+  verifica('memoria vecchia, foglio gia\' usato: non lo ricollega e non lo riapre',
+    q.m.recuperi.destinazione === null && q.m.recuperi.aperto === false);
+  verifica('e lo dice senza inventare chi l\'ha chiuso',
+    t2.indexOf('versione di prima') >= 0 && t2.indexOf('l\'ha chiuso qualcuno') < 0);
+}
+
+// anno fisso: il codice dell'anno dopo incollato prima che scatti la chiusura
+{
+  const m = nuovoMondo();
+  m.recuperi = new m.Modulo('Recuperi', m.cartella('MODELLI'));
+  m.uscite = new m.Modulo('Uscite', m.cartella('MODELLI'));
+  const c1 = carica(m, { config: { anno: '2026-27' } });
+  c1.PANNELLO_1_preparaIlFoglio(); c1.PANNELLO_2_trovaIModuli(); c1.PANNELLO_4_preparaAnno();
+  m.adesso = new Date('2027-08-25T09:00:00+02:00').getTime();
+  const c2 = carica(m, { config: { anno: '2027-28' } });       // reincollato a fine agosto
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c2.PANNELLO_chiusura();                                       // Recuperi, 31/08/2027
+  const ricordo = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('anno fisso: la chiusura del 31/08/2027 e\' segnata per il 2026-27, non per il 2027-28',
+    ricordo.chiusi[m.recuperi.id + '|2027-28'] === undefined);
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c2.PANNELLO_4_preparaAnno();
+  m.adesso = new Date('2027-09-06T09:00:00+02:00').getTime();
+  c2.PANNELLO_4_preparaAnno();                                  // la seconda volta nel 2027-28
+  verifica('e il 2027-28 resta aperto, con le sue chiusure programmate',
+    m.recuperi.aperto === true && scheda(m)[0][7] === 'pronto per 2027-28' && m.trigger.some(x => x.anno === 2028));
+}
+
+// Google non chiude il modulo: la riga non deve dirlo chiuso
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const vera = m.uscite.setAcceptingResponses;
+  let rifiuti = 0;
+  m.uscite.setAcceptingResponses = function (si) {
+    if (!si && rifiuti < 2) { rifiuti++; throw new Error('Service error: Forms'); }   // anche al secondo tentativo
+    return vera.call(this, si);
+  };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  const r1 = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('modulo che non si chiude: la riga dice "chiusura non riuscita", non "chiuso"',
+    scheda(m)[1][7].indexOf('chiusura non riuscita') === 0);
+  verifica('resta collegato (le risposte tardive arrivano al foglio) e ci si riprova fra un\'ora',
+    m.uscite.destinazione !== null && r1.scadenze[m.uscite.id] !== undefined &&
+    r1.chiusi[m.uscite.id + '|2026-27'] === undefined && m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  m.adesso = new Date('2027-07-01T01:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  verifica('al tentativo dopo si chiude davvero', m.uscite.aperto === false && m.uscite.destinazione === null &&
+    scheda(m)[1][7].indexOf('chiuso il 30/06/2027') === 0);
+}
+
+// un foglio trovato per nome, gia' usato: se il primo collegamento fallisce,
+// la volta dopo va collegato, non preso per "scollegato a mano"
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  const suo = new m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', m.cartella('A.S. 2026-27/RECUPERI'));
+  m.recuperi.setDestination('SPREADSHEET', suo.id);           // collegato dallo script dentro il modulo...
+  m.recuperi.removeDestination();                             // ...e poi scollegato
+  const vera = m.recuperi.setDestination;
+  m.recuperi.setDestination = function () { throw new Error('Service error: Forms'); };
+  c.PANNELLO_4_preparaAnno();
+  verifica('(primo collegamento fallito: la riga dice problema)', scheda(m)[0][7].indexOf('problema') === 0);
+  m.recuperi.setDestination = vera;
+  c.PANNELLO_4_preparaAnno();
+  verifica('la volta dopo il foglio trovato per nome viene collegato',
+    m.recuperi.destinazione !== null && m.recuperi.destinazione.foglio.id === suo.id &&
+    scheda(m)[0][7] === 'pronto per 2026-27');
+}
+
+// una chiusura che non riesce non ferma le altre e ci riprova
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 5).setValue('30/06');   // anche Recuperi il 30/06
+  c.PANNELLO_4_preparaAnno();
+  m.recuperi.removeDestination = function () { throw new Error('Service error: Forms'); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  const t = c.PANNELLO_chiusura();
+  const ricordo = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('chiusura non riuscita: lo scrive nella riga', scheda(m)[0][7].indexOf('chiusura non riuscita') === 0);
+  verifica('e la sua scadenza resta, con un nuovo tentativo programmato',
+    ricordo.scadenze[m.recuperi.id] !== undefined && m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  verifica('l\'altra riga si chiude e la memoria lo ricorda',
+    m.uscite.aperto === false && ricordo.chiusi[m.uscite.id + '|2026-27'] === '2027-06-30' && t.indexOf('Riprovo') >= 0);
+}
+
+// un foglio creato con Google in inglese
+{
+  const m = nuovoMondo();
+  m.pannello.schede[0].nome = 'Sheet1';
+  const c = carica(m);
+  c.PANNELLO_1_preparaIlFoglio();
+  verifica('anche Sheet1 (Google in inglese) se ne va',
+    JSON.stringify(m.pannello.nomiSchede()) === '["Moduli","Istruzioni"]');
 }
 
 // ---- 1b. la chiusura non deve diventare una data ------------------------------------------
@@ -566,7 +1127,7 @@ titolo('LE RISPOSTE');
   const t = p.c.PANNELLO_4_preparaAnno();
   verifica('le risposte restano nel modulo', p.m.recuperi.risposte.length === 4);
   verifica('e Google le ricopia nel foglio nuovo', p.m.recuperi.destinazione.foglio.righeDiRisposte() === 4);
-  verifica('lo spiega', t.indexOf('Google le ricopia nel foglio nuovo') >= 0);
+  verifica('lo spiega', t.indexOf('Google le ricopia nel foglio dell') >= 0);
 
   const sv = mondoPronto();
   sv.m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);     // svuota
@@ -683,6 +1244,8 @@ titolo('UN MODULO CANCELLATO PRIMA DELLA CHIUSURA');
   p.m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
   const t = p.c.PANNELLO_chiusura();
   verifica('non blocca la chiusura', t.indexOf('non riesco ad aprirlo') >= 0);
+  verifica('e lo scrive nella sua riga, non solo nel registro',
+    scheda(p.m)[1][7].indexOf('non si apre piu\'') === 0);
   verifica('e non lascia la sua scadenza in sospeso',
     JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).scadenze[p.m.uscite.id] === undefined);
   p.m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
@@ -776,7 +1339,10 @@ titolo('CASI STORTI');
   const brutto = mondoPronto();
   brutto.m.pannello.getSheetByName('Moduli').getRange(2, 5).setValue('fine agosto');
   const tb = brutto.c.PANNELLO_4_preparaAnno();
-  verifica('chiusura scritta a parole: problema solo su quella riga', tb.indexOf('giorno/mese') >= 0 && brutto.m.fogliCreati === 2);
+  // la chiusura illeggibile ferma la riga prima di creare o collegare qualcosa:
+  // meglio una riga ferma e da correggere che una fatta a meta'
+  verifica('chiusura scritta a parole: problema solo su quella riga, prima di toccare niente',
+    tb.indexOf('giorno/mese') >= 0 && brutto.m.fogliCreati === 1 && scheda(brutto.m)[1][7] === 'pronto per 2026-27');
 }
 
 // ---- 10. il menu ------------------------------------------------------------------------------

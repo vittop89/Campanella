@@ -37,7 +37,7 @@ var CONFIG = {
     ]
   },
 
-  // ---- le regole, in ordine di priorita' -------------------------------
+  // ---- le regole: le etichette si sommano, l'ordine conta solo per escludiEtichette
   //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio
   regole: [
     {
