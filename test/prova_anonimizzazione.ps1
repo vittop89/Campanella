@@ -1,7 +1,13 @@
 <#
     prova_anonimizzazione.ps1 - verifica il client di rizzo-pii dentro
     Campanella (JSON, multipart, intestazioni, ripristino) contro il finto
-    servizio di test\finto_rizzo.py.
+    servizio di test\finto_rizzo.py. Verifica anche che:
+      - un indirizzo fuori dal computer venga rifiutato subito;
+      - una risposta senza il testo anonimizzato sia un errore, non un file vuoto;
+      - una copia pulita non finisca mai sopra l'originale;
+      - uno scarico troncato o con l'impronta sbagliata non lasci file;
+      - il confronto delle versioni di "Cerca aggiornamenti" sia giusto.
+    Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
 #>
@@ -13,21 +19,31 @@ $exe = Join-Path $radice 'dist\Campanella.exe'
 $temp = Join-Path $env:TEMP 'campanella_anon'
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $temp | Out-Null
+$tmpPrima = $env:TMP
+$PortaSenzaTesto = $Porta + 1
 
-Write-Host "Avvio il finto rizzo-pii sulla porta $Porta..." -ForegroundColor Cyan
+Write-Host "Avvio il finto rizzo-pii sulle porte $Porta e $PortaSenzaTesto..." -ForegroundColor Cyan
 $server = Start-Process -FilePath 'python' `
     -ArgumentList @((Join-Path $radice 'test\finto_rizzo.py'), $Porta) `
     -PassThru -WindowStyle Hidden
+# lo stesso servizio, ma con le risposte di /analyze senza "anonymized_text"
+$serverSenzaTesto = Start-Process -FilePath 'python' `
+    -ArgumentList @((Join-Path $radice 'test\finto_rizzo.py'), $PortaSenzaTesto, '--senza-testo') `
+    -PassThru -WindowStyle Hidden
 
-try {
-    $pronto = $false
-    for ($i = 0; $i -lt 40 -and -not $pronto; $i++) {
+function Aspetta($porta) {
+    for ($i = 0; $i -lt 40; $i++) {
         try {
-            $r = Invoke-WebRequest "http://127.0.0.1:$Porta/health" -UseBasicParsing -TimeoutSec 2
-            $pronto = ($r.StatusCode -eq 200)
+            $r = Invoke-WebRequest "http://127.0.0.1:$porta/health" -UseBasicParsing -TimeoutSec 2
+            if ($r.StatusCode -eq 200) { return $true }
         } catch { Start-Sleep -Milliseconds 250 }
     }
-    if (-not $pronto) { throw "il finto servizio non e' partito" }
+    return $false
+}
+
+try {
+    if (-not (Aspetta $Porta)) { throw "il finto servizio non e' partito" }
+    if (-not (Aspetta $PortaSenzaTesto)) { throw "il finto servizio senza testo non e' partito" }
 
     Add-Type -AssemblyName System.Windows.Forms
     $asm = [System.Reflection.Assembly]::LoadFrom($exe)
@@ -116,8 +132,178 @@ Cordiali saluti, Anna Verdi
     Verifica 'il PDF torna con le redazioni contate' ($e2.Entita -ge 2)
     Verifica 'il docx viene saltato, non rovinato' ($e3.Saltato -and -not (Test-Path (Join-Path $uscita 'modulo.docx')))
     Verifica 'il motivo del salto e'' spiegato'    ($e3.Nota -like '*docx*')
+    Verifica 'il salto elenca i formati veri'      ($e3.Nota -like '*PDF, TXT, MD, CSV, HTM, HTML*')
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
+
+    Write-Host "`n=== ORIGINALI AL SICURO ===" -ForegroundColor Cyan
+    function Impronta($f) { (Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash }
+    $primaTxt = Impronta $txt
+    $primaPdf = Impronta $pdf
+    $e4 = $a.Anonimizza($txt, $txt)
+    $e5 = $a.Anonimizza($pdf, (Join-Path $temp '.\CIRCOLARE.PDF'))
+    Verifica 'origine uguale a destinazione: saltato'  ($e4.Saltato -and -not $e4.Fatto)
+    Verifica "l'impronta del TXT non cambia"           ((Impronta $txt) -eq $primaTxt)
+    Verifica 'lo stesso file scritto in un altro modo' ($e5.Saltato -and ((Impronta $pdf) -eq $primaPdf))
+    Verifica 'il motivo e'' detto'                     ($e4.Nota -like '*sopra l''originale*')
+
+    $lista = [System.Collections.Generic.List[string]]::new()
+    $lista.Add($txt); $lista.Add((Join-Path $temp 'sotto\altro.md'))
+    $vietata = $t.GetMethod('CartellaDiOrigine')
+    Verifica 'riconosce la cartella di un originale' `
+        ($vietata.Invoke($null, [object[]]@($lista, "$temp\")) -eq $temp)
+    Verifica 'e anche quella di un file in una sottocartella' `
+        ($vietata.Invoke($null, [object[]]@($lista, [string](Join-Path $temp 'SOTTO'))) -ne $null)
+    Verifica 'una cartella diversa va bene' `
+        ($vietata.Invoke($null, [object[]]@($lista, [string]$uscita)) -eq $null)
+
+    $omonimi = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in @('a\verbale.pdf', 'b\verbale.pdf', 'c\verbale (2).pdf', 'd\VERBALE.PDF', 'e\nota.txt')) {
+        $omonimi.Add((Join-Path $temp $f))
+    }
+    $nomi = $t.GetMethod('NomiDiUscita').Invoke($null, [object[]]@(, $omonimi))
+    Write-Host "  nomi delle copie: $($nomi -join ' | ')"
+    $diversi = @($nomi | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object -Unique)
+    Verifica 'omonimi di cartelle diverse: nomi tutti diversi' ($diversi.Count -eq 5)
+    Verifica 'il primo tiene il suo nome'                     ($nomi[0] -eq 'verbale.pdf')
+    Verifica 'un "(2)" vero non viene coperto da un doppione' ($nomi[2] -eq 'verbale (2).pdf')
+    Verifica 'un nome senza doppioni resta com''e'''          ($nomi[4] -eq 'nota.txt')
+
+    Write-Host "`n=== RISPOSTA SENZA TESTO ANONIMIZZATO ===" -ForegroundColor Cyan
+    $c = [Activator]::CreateInstance($t)
+    $c.Indirizzo = "http://127.0.0.1:$PortaSenzaTesto"
+    $uscita2 = Join-Path $temp 'puliti2'
+    $e6 = $c.Anonimizza($txt, (Join-Path $uscita2 'nota.txt'))
+    Write-Host "  $($e6.Nota)"
+    Verifica 'il file non risulta ripulito'        (-not $e6.Fatto -and $e6.Saltato)
+    Verifica 'nessuna copia vuota scritta'         (-not (Test-Path (Join-Path $uscita2 'nota.txt')))
+    $lanciata = $false
+    try {
+        $argTesto = New-Object 'object[]' 2
+        $argTesto[0] = 'Colloquio con Anna Verdi.'
+        [void]$t.GetMethod('TestoAnonimo', [type[]]@([string], [int].MakeByRefType())).Invoke($c, $argTesto)
+    } catch { $lanciata = $true }
+    Verifica 'il testo senza risposta e'' un errore' $lanciata
+
+    Write-Host "`n=== SOLO SU QUESTO COMPUTER ===" -ForegroundColor Cyan
+    $locale = $t.GetMethod('IndirizzoLocale')
+    $casi = [ordered]@{
+        'http://127.0.0.1:5005'            = $true
+        'http://localhost:5005'            = $true
+        'https://LOCALHOST:5005'           = $true
+        'http://127.8.9.10:5005'           = $true
+        'http://[::1]:5005'                = $true
+        'http://192.0.2.1:5005'            = $false
+        'http://localhost.example.org:5005'= $false
+        'http://127.0.0.1.example.org'     = $false
+        'http://127.0.0.1:5005@192.0.2.1'  = $false
+        'ftp://127.0.0.1:5005'             = $false
+        '127.0.0.1:5005'                   = $false
+        ''                                 = $false
+    }
+    foreach ($k in $casi.Keys) {
+        $ok = ($locale.Invoke($null, [object[]]@($k)) -eq $casi[$k])
+        Verifica ("{0,-36} {1}" -f "'$k'", $(if ($casi[$k]) { 'accettato' } else { 'rifiutato' })) $ok
+    }
+
+    # un indirizzo riservato alla documentazione: nessuno risponde, e con il
+    # vecchio codice la salute aspettava fino al timeout
+    $d = [Activator]::CreateInstance($t)
+    $d.Indirizzo = 'http://192.0.2.1:5005'
+    $d.TimeoutMs = 2000        # col vecchio codice qui partiva davvero una connessione
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    $s3 = $d.Salute()
+    $cronometro.Stop()
+    Write-Host "  risposta in $($cronometro.ElapsedMilliseconds) ms: $($s3.Messaggio -replace "`n", ' ')"
+    Verifica 'non e'' pronto'                        (-not $s3.Pronto)
+    Verifica 'lo dice in meno di un secondo'         ($cronometro.ElapsedMilliseconds -lt 1000)
+    Verifica 'spiega che deve stare sul computer'    ($s3.Messaggio -like '*questo computer*')
+    $lanciata = $false
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $argTesto = New-Object 'object[]' 2
+        $argTesto[0] = 'Colloquio con Anna Verdi.'
+        [void]$t.GetMethod('TestoAnonimo', [type[]]@([string], [int].MakeByRefType())).Invoke($d, $argTesto)
+    } catch { $lanciata = $true }
+    $cronometro.Stop()
+    Verifica 'il testo non parte verso fuori'        ($lanciata -and $cronometro.ElapsedMilliseconds -lt 1000)
+    $uscita3 = Join-Path $temp 'puliti3'
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    $e7 = $d.Anonimizza($pdf, (Join-Path $uscita3 'circolare.pdf'))
+    $cronometro.Stop()
+    Verifica 'il file non parte verso fuori' `
+        ($e7.Saltato -and $cronometro.ElapsedMilliseconds -lt 1000 -and
+         -not (Test-Path (Join-Path $uscita3 'circolare.pdf')))
+
+    Write-Host "`n=== SCARICO DELL'INSTALLER ===" -ForegroundColor Cyan
+    # Scarica scrive nella cartella temporanea di Windows: qui la faccio
+    # puntare a una sottocartella della prova
+    $scarichi = Join-Path $temp 'scarichi'
+    New-Item -ItemType Directory -Path $scarichi | Out-Null
+    $env:TMP = $scarichi
+    $ag = $asm.GetType('Campanella.Aggiornamenti')
+    $scarica = $ag.GetMethod('Scarica')
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $giusta = (($sha.ComputeHash((New-Object byte[] 1000000)) | ForEach-Object { $_.ToString('x2') }) -join '')
+    $sbagliata = ('0' * 64)
+
+    function Scarico($percorso, $nome, [long]$attesi, $impronta, $avanzamento) {
+        $argScarico = [object[]]@("http://127.0.0.1:$Porta$percorso", $nome, $attesi, $impronta, $avanzamento)
+        try { return @{ File = $scarica.Invoke($null, $argScarico); Errore = $null } }
+        catch {
+            $interna = $_.Exception
+            while ($interna.InnerException) { $interna = $interna.InnerException }
+            return @{ File = $null; Errore = $interna.Message }
+        }
+    }
+    function Rimasti() { @(Get-ChildItem -LiteralPath $scarichi -File).Count }
+
+    $r1 = Scarico '/scarico/intero' 'intero.exe' 1000000 $giusta $null
+    Verifica 'un file intero e giusto arriva'      ($r1.Errore -eq $null -and $r1.File -and (Test-Path $r1.File))
+    Verifica '... con tutti i suoi byte'           ($r1.File -and (Get-Item $r1.File).Length -eq 1000000)
+    if ($r1.File) { Remove-Item $r1.File -Force }
+
+    $r2 = Scarico '/scarico/troncato' 'troncato.exe' 1000000 $giusta $null
+    Write-Host "  troncato: $($r2.Errore)"
+    Verifica 'uno scarico troncato e'' un errore'  ($r2.Errore -ne $null -and $r2.File -eq $null)
+    Verifica '... e non lascia file'               ((Rimasti) -eq 0)
+
+    $r3 = Scarico '/scarico/troncato' 'troncato2.exe' 0 '' $null
+    Verifica 'troncato anche senza dimensione e impronta da GitHub' ($r3.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $r4 = Scarico '/scarico/intero' 'impronta.exe' 1000000 $sbagliata $null
+    Write-Host "  impronta sbagliata: $($r4.Errore)"
+    Verifica "l'impronta sbagliata e' un errore"   ($r4.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $r5 = Scarico '/scarico/intero' 'dimensione.exe' 999999 '' $null
+    Verifica 'la dimensione sbagliata e'' un errore' ($r5.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $ferma = [Func[int,long,long,bool]]{ param($pc, $fatti, $tot) $false }
+    $r6 = Scarico '/scarico/intero' 'fermato.exe' 1000000 $giusta $ferma
+    Verifica 'fermato: nessun file e nessun errore' ($r6.Errore -eq $null -and $r6.File -eq $null -and (Rimasti) -eq 0)
+    $env:TMP = $tmpPrima
+
+    Write-Host "`n=== VERSIONI (Cerca aggiornamenti) ===" -ForegroundColor Cyan
+    $piuRecente = $ag.GetMethod('PiuRecente')
+    $versioni = @(
+        @('1.4.7',   '1.4.6', $true),
+        @('v1.4.7',  '1.4.6', $true),
+        @('1.4.10',  '1.4.9', $true),
+        @('1.5',     '1.4.6', $true),
+        @('2.0.0',   '1.4.6', $true),
+        @('1.4.6',   '1.4.6', $false),
+        @('v1.4.6',  '1.4.6', $false),
+        @('1.4.6.0', '1.4.6', $false),
+        @('1.4.5',   '1.4.6', $false),
+        @('1.4.9',   '1.4.10', $false),
+        @('',        '1.4.6', $false),
+        @('ultima',  '1.4.6', $false)
+    )
+    foreach ($v in $versioni) {
+        $esito = $piuRecente.Invoke($null, [object[]]@($v[0], $v[1]))
+        Verifica ("{0,-9} rispetto a {1,-7} -> {2}" -f "'$($v[0])'", $v[1], $(if ($v[2]) { 'piu'' recente' } else { 'no' })) `
+            ($esito -eq $v[2])
+    }
 
     Write-Host "`n=== SERVIZIO SPENTO ===" -ForegroundColor Cyan
     # una porta dove non c'e' davvero nessuno: se ne cerco una fissa, basta un
@@ -137,5 +323,8 @@ Cordiali saluti, Anna Verdi
     else { Write-Host "PROVE FALLITE: $fallimenti" -ForegroundColor Red; exit 1 }
 }
 finally {
+    $env:TMP = $tmpPrima
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+    if ($serverSenzaTesto -and -not $serverSenzaTesto.HasExited) { Stop-Process -Id $serverSenzaTesto.Id -Force }
+    Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

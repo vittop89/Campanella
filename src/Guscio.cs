@@ -728,9 +728,17 @@ namespace Campanella
         Rilascio ultimoRilascio;
         System.Threading.Thread lavoro;
         volatile bool interrompi = false;
+        volatile bool scaricando = false;
+        int giroSalute = 0;                  // l'ultimo controllo di rizzo-pii chiesto
+        Label lblCampanella;                 // c'e' una Campanella piu' nuova?
+        Button btnRilasci;
         bool zitto = false;
 
         public PaginaImpostazioni(Guscio g) : base(g) { Costruisci(); }
+
+        /// <summary>Vero mentre si scarica rizzo-pii: chiudendo la finestra lo
+        /// scarico si interromperebbe a meta'.</summary>
+        public bool LavoroInCorso { get { return scaricando; } }
 
         public override string Nome { get { return "Impostazioni"; } }
 
@@ -832,16 +840,20 @@ namespace Campanella
             Tema.TitoloAiuto(this, "rizzo-pii e aggiornamenti", 0, y,
                 "rizzo-pii e aggiornamenti",
                 "rizzo-pii e' il programma che riconosce i dati personali per lo strumento " +
-                "Privacy: gira sul tuo computer, all'indirizzo qui sotto.\r\n\r\n" +
+                "Privacy: gira sul tuo computer, all'indirizzo qui sotto. Un indirizzo che " +
+                "porta fuori dal computer viene rifiutato.\r\n\r\n" +
                 "L'applicazione non si collega a internet da sola: il controllo degli " +
-                "aggiornamenti parte solo quando premi il pulsante.");
+                "aggiornamenti parte solo quando premi il pulsante, e chiede a GitHub " +
+                "l'ultima versione di Campanella e di rizzo-pii. Campanella nuova non viene " +
+                "scaricata: ti dice solo dove prenderla.");
             y += 30;
 
             Controls.Add(Tema.Testo1("Indirizzo del servizio", 0, y + 5, 0, Tema.Normale, Ruolo.Tenue));
-            txtAnon = Tema.Casella(150, y, 260, "http://127.0.0.1:5005");
+            txtAnon = Tema.Casella(150, y, 260, Stato.AnonIndirizzoDiDefault);
             txtAnon.TextChanged += delegate { S.AnonIndirizzo = txtAnon.Text.Trim(); };
             Controls.Add(txtAnon);
-            Controls.Add(Tema.Testo1("Cambialo solo se hai messo rizzo-pii su un'altra porta.",
+            Controls.Add(Tema.Testo1("Cambialo solo se hai messo rizzo-pii su un'altra porta: " +
+                                     "deve restare su questo computer.",
                                      422, y + 5, 420, Tema.Piccolo, Ruolo.Tenue));
             y += 40;
 
@@ -871,7 +883,17 @@ namespace Campanella
             lblAggiornamenti = Tema.Testo1("", 0, y + 22, 860, Tema.Piccolo, Ruolo.Tenue);
             lblAggiornamenti.Height = 40;
             Controls.Add(lblAggiornamenti);
-            y += 74;
+            y += 66;
+
+            // l'avviso di una Campanella nuova: solo dopo "Cerca aggiornamenti"
+            lblCampanella = Tema.Testo1("", 0, y + 4, 650, Tema.Piccolo, Ruolo.Tenue);
+            lblCampanella.Height = 36;
+            Controls.Add(lblCampanella);
+            btnRilasci = Tema.Bottone("Pagina dei rilasci", 666, y, 160,
+                delegate { Guscio.Apri(Aggiornamenti.PaginaCampanella); });
+            btnRilasci.Visible = false;
+            Controls.Add(btnRilasci);
+            y += 48;
 
             // ---- documenti ----------------------------------------------------
             Controls.Add(Tema.Testo1("Documenti per la dirigenza e il DPO", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
@@ -1135,25 +1157,56 @@ namespace Campanella
         Anonimizzatore Servizio()
         {
             Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : "http://127.0.0.1:5005")
+            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
                           .Trim().TrimEnd('/');
             return a;
         }
 
+        /// <summary>Esegue sul thread dell'interfaccia, se la pagina c'e' ancora.</summary>
+        void SulThread(MethodInvoker m)
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(m); }
+            catch (InvalidOperationException) { }     // finestra chiusa nel frattempo
+        }
+
+        static string RigaCampanella()
+        {
+            return "Campanella " + Aggiornamenti.VersioneCampanella +
+                   "  (provata con rizzo-pii " + Anonimizzatore.VersioneRizzoProvata + ")\r\n";
+        }
+
+        /// <summary>Chiede a rizzo-pii se c'e'. La domanda gira fuori dal thread
+        /// dell'interfaccia: con rizzo-pii spento la risposta arriva dopo un paio
+        /// di secondi, e le Impostazioni non devono bloccarsi.</summary>
         void ControllaComponenti()
         {
             Anonimizzatore a = Servizio();
-            SaluteAnonimizzatore s = a.Salute();
-
-            string riga = "Campanella " + Aggiornamenti.VersioneCampanella + "\r\n";
-            riga += s.Pronto
-                ? "rizzo-pii " + (s.Versione != "" ? s.Versione : "(versione non dichiarata)") +
-                  " - in ascolto su " + a.Indirizzo + ", modello " + s.Modello + " su " + s.Dispositivo
-                : "rizzo-pii non risponde su " + a.Indirizzo +
-                  ". Senza di lui l'anonimizzazione non funziona: installalo o avvialo.";
-            lblComponenti.Text = riga;
-            lblComponenti.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+            int giro = ++giroSalute;
+            lblComponenti.Text = RigaCampanella() + "Controllo rizzo-pii su " + a.Indirizzo + "...";
+            lblComponenti.Tag = Ruolo.Tenue;
             Tema.Applica(lblComponenti);
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                SaluteAnonimizzatore s = a.Salute();
+                SulThread(delegate
+                {
+                    if (giro != giroSalute) return;     // nel frattempo ne e' partito un altro
+                    string riga = RigaCampanella();
+                    if (s.Pronto)
+                        riga += "rizzo-pii " + (s.Versione != "" ? s.Versione : "(versione non dichiarata)") +
+                                " - in ascolto su " + a.Indirizzo + ", modello " + s.Modello + " su " + s.Dispositivo;
+                    else if (!Anonimizzatore.IndirizzoLocale(a.Indirizzo))
+                        riga += "\"" + a.Indirizzo + "\" non e' su questo computer: non lo uso. " +
+                                "rizzo-pii deve girare qui (localhost o 127.0.0.1): correggilo qui sopra.";
+                    else
+                        riga += "rizzo-pii non risponde su " + a.Indirizzo +
+                                ". Senza di lui l'anonimizzazione non funziona: installalo o avvialo.";
+                    lblComponenti.Text = riga;
+                    lblComponenti.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+                    Tema.Applica(lblComponenti);
+                });
+            });
         }
 
         void Messaggio(string testo, string ruolo)
@@ -1173,29 +1226,39 @@ namespace Campanella
             if (lavoro != null && lavoro.IsAlive) return;
             Messaggio("Chiedo a GitHub...", Ruolo.Tenue);
             btnCerca.Enabled = false;
+            Anonimizzatore a = Servizio();
 
+            // tutta la rete qui dentro, anche la domanda a rizzo-pii
             lavoro = new System.Threading.Thread(delegate ()
             {
+                Rilascio c = Aggiornamenti.UltimoCampanella();
                 Rilascio r = Aggiornamenti.UltimoRizzoPii();
-                BeginInvoke((MethodInvoker)delegate
+                SaluteAnonimizzatore s = r.Trovato ? a.Salute() : null;
+                SulThread(delegate
                 {
                     btnCerca.Enabled = true;
+                    MostraCampanella(c);
                     ultimoRilascio = r;
                     if (!r.Trovato) { Messaggio(r.Messaggio, Ruolo.Avviso); return; }
 
-                    SaluteAnonimizzatore s = Servizio().Salute();
+                    // una versione di rizzo-pii piu' nuova di quella provata si puo'
+                    // installare, ma e' giusto dirlo prima
+                    string provata = Aggiornamenti.PiuRecente(r.Versione, Anonimizzatore.VersioneRizzoProvata)
+                        ? "  Campanella e' provata con la " + Anonimizzatore.VersioneRizzoProvata +
+                          ": con la " + r.Versione + " qualcosa potrebbe non andare."
+                        : "";
 
                     if (!s.Pronto)
                     {
                         Messaggio("rizzo-pii non risulta installato o avviato. " + r.Messaggio +
-                                  "  Puoi scaricarlo da qui.", Ruolo.Avviso);
+                                  "  Puoi scaricarlo da qui." + provata, Ruolo.Avviso);
                         btnInstalla.Visible = (r.FileWindows != "");
                         btnInstalla.Text = "Scarica e installa rizzo-pii  (" + r.PesoLeggibile + ")";
                     }
                     else if (Aggiornamenti.Confronta(r.Versione, s.Versione) > 0)
                     {
                         Messaggio("C'e' una versione piu' recente di rizzo-pii: hai la " +
-                                  s.Versione + ", l'ultima e' la " + r.Versione + ".", Ruolo.Avviso);
+                                  s.Versione + ", l'ultima e' la " + r.Versione + "." + provata, Ruolo.Avviso);
                         btnInstalla.Visible = (r.FileWindows != "");
                         btnInstalla.Text = "Aggiorna rizzo-pii  (" + r.PesoLeggibile + ")";
                     }
@@ -1212,8 +1275,37 @@ namespace Campanella
             lavoro.Start();
         }
 
+        /// <summary>Dice se c'e' una Campanella piu' nuova. Non scarica niente:
+        /// rimanda alla pagina dei rilasci.</summary>
+        void MostraCampanella(Rilascio c)
+        {
+            string mia = Aggiornamenti.VersioneCampanella;
+            bool nuova = c.Trovato && Aggiornamenti.PiuRecente(c.Versione, mia);
+            if (!c.Trovato)
+                lblCampanella.Text = "Non sono riuscito a controllare la versione di Campanella. " +
+                                     c.Messaggio;
+            else if (nuova)
+                lblCampanella.Text = "E' uscita Campanella " + c.Versione + ": tu hai la " + mia + ". " +
+                                     "Scaricala dalla pagina dei rilasci, dove trovi anche le novita'.";
+            else
+                lblCampanella.Text = "Campanella e' aggiornata: hai la " + mia +
+                                     ", l'ultima pubblicata e' la " + c.Versione + ".";
+            lblCampanella.Tag = (c.Trovato && !nuova) ? Ruolo.Buono : Ruolo.Avviso;
+            btnRilasci.Visible = nuova || !c.Trovato;
+            Tema.Applica(lblCampanella);
+            Tema.Applica(btnRilasci);
+        }
+
         void InstallaRizzo()
         {
+            // durante lo scarico lo stesso pulsante lo ferma
+            if (scaricando)
+            {
+                interrompi = true;
+                btnInstalla.Enabled = false;
+                Messaggio("Fermo lo scarico...", Ruolo.Tenue);
+                return;
+            }
             if (ultimoRilascio == null || ultimoRilascio.FileWindows == "") return;
             if (lavoro != null && lavoro.IsAlive) return;
 
@@ -1228,12 +1320,16 @@ namespace Campanella
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             interrompi = false;
-            btnInstalla.Enabled = false;
+            scaricando = true;
+            string testoBottone = btnInstalla.Text;
+            btnInstalla.Text = "Ferma lo scarico";
             btnCerca.Enabled = false;
             barra.Visible = true;
             barra.Value = 0;
 
             string url = ultimoRilascio.FileWindows;
+            long attesi = ultimoRilascio.ByteWindows;
+            string sha256 = ultimoRilascio.Sha256Windows;
             string nome = "Rizzo-PII-Setup.exe";
             try { nome = Path.GetFileName(new Uri(url).LocalPath); } catch { }
 
@@ -1243,9 +1339,11 @@ namespace Campanella
                 string errore = null;
                 try
                 {
-                    file = Aggiornamenti.Scarica(url, nome, delegate (int pc, long fatti, long tot)
+                    // dimensione e impronta controllate: un file a meta' viene
+                    // cancellato e non parte
+                    file = Aggiornamenti.Scarica(url, nome, attesi, sha256, delegate (int pc, long fatti, long tot)
                     {
-                        BeginInvoke((MethodInvoker)delegate
+                        SulThread(delegate
                         {
                             barra.Value = Math.Max(0, Math.Min(100, pc));
                             Messaggio("Scaricato " + Math.Round(fatti / 1024.0 / 1024.0) + " MB su " +
@@ -1257,9 +1355,11 @@ namespace Campanella
                 }
                 catch (Exception ex) { errore = ex.Message; }
 
-                BeginInvoke((MethodInvoker)delegate
+                SulThread(delegate
                 {
+                    scaricando = false;
                     barra.Visible = false;
+                    btnInstalla.Text = testoBottone;
                     btnInstalla.Enabled = true;
                     btnCerca.Enabled = true;
 

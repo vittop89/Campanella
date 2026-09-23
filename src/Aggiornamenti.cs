@@ -3,8 +3,10 @@
 //
 //  L'applicazione non si collega a internet da sola: queste funzioni partono
 //  solo quando l'utente preme un pulsante. Chiedono a GitHub qual e' l'ultima
-//  versione pubblicata e, se serve, scaricano l'installer di rizzo-pii
-//  (circa 1,2 GB) e lo avviano.
+//  versione pubblicata di Campanella e di rizzo-pii e, se serve, scaricano
+//  l'installer di rizzo-pii (circa 1,2 GB), ne controllano dimensione e
+//  impronta, e lo avviano. Di Campanella non scaricano niente: dicono solo
+//  che c'e' una versione nuova e dove prenderla.
 //
 //  Perche' non e' dentro Campanella: rizzo-pii porta con se' PyTorch e un
 //  modello da 1,2 GB. Metterlo nell'installer significherebbe un file da
@@ -16,6 +18,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
@@ -30,6 +33,7 @@ namespace Campanella
         public string Indirizzo = "";       // pagina del rilascio
         public string FileWindows = "";     // link diretto all'installer
         public long ByteWindows = 0;
+        public string Sha256Windows = "";   // impronta dell'installer, se GitHub la dichiara
         public string Messaggio = "";
 
         public string PesoLeggibile
@@ -47,6 +51,79 @@ namespace Campanella
         public const string VersioneCampanella = "1.4.6";
         const string ApiRizzo = "https://api.github.com/repos/Rizzo-AI-Academy/rizzo-pii/releases/latest";
         public const string PaginaRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/latest";
+        // si scarica solo un file pubblicato fra i rilasci di rizzo-pii, in https
+        const string ScaricoRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/download/";
+        const string ApiCampanella = "https://api.github.com/repos/vittop89/Campanella/releases/latest";
+        public const string PaginaCampanella = "https://github.com/vittop89/Campanella/releases";
+
+        /// <summary>Solo TLS 1.2, assegnato e non aggiunto con |=, che
+        /// lascerebbe acceso anche SSL 3. Va detto a mano perche' l'exe non
+        /// dichiara un framework di destinazione; GitHub non accetta di meno.</summary>
+        static void ProtocolliSicuri()
+        {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+        }
+
+        /// <summary>Una domanda all'API di GitHub. Null se la risposta non e' un oggetto JSON.</summary>
+        static Dictionary<string, object> ChiediAGitHub(string api)
+        {
+            ProtocolliSicuri();
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(api);
+            req.Method = "GET";
+            req.UserAgent = "Campanella/" + VersioneCampanella;
+            req.Accept = "application/vnd.github+json";
+            req.Timeout = 15000;
+            req.ReadWriteTimeout = 15000;
+
+            string corpo;
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                corpo = sr.ReadToEnd();
+
+            JavaScriptSerializer ser = new JavaScriptSerializer();
+            ser.MaxJsonLength = 40 * 1024 * 1024;
+            return ser.DeserializeObject(corpo) as Dictionary<string, object>;
+        }
+
+        /// <summary>
+        /// Chiede a GitHub l'ultimo rilascio di Campanella. Parte solo quando
+        /// l'utente preme "Cerca aggiornamenti" e non scarica niente: chi lo
+        /// chiama confronta la versione con PiuRecente e, se serve, rimanda
+        /// alla pagina dei rilasci.
+        /// </summary>
+        public static Rilascio UltimoCampanella()
+        {
+            Rilascio r = new Rilascio();
+            try
+            {
+                Dictionary<string, object> d = ChiediAGitHub(ApiCampanella);
+                if (d == null) { r.Messaggio = "Risposta di GitHub non comprensibile."; return r; }
+
+                r.Versione = Stato.Str(d, "tag_name", "").TrimStart('v', 'V');
+                r.Nome = Stato.Str(d, "name", "");
+                r.Indirizzo = PaginaCampanella;
+                r.Trovato = (Numeri(r.Versione).Length > 0);
+                r.Messaggio = r.Trovato
+                    ? "Ultima versione pubblicata di Campanella: " + r.Versione
+                    : "Non sono riuscito a leggere il numero di versione di Campanella.";
+            }
+            catch (Exception ex)
+            {
+                r.Messaggio = "Non riesco a chiedere a GitHub: " + ex.Message;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Vero se la versione pubblicata e' piu' recente di quella in uso.
+        /// Accetta anche il nome del tag ("v1.4.7"); una versione vuota o
+        /// senza numeri non e' mai piu' recente.
+        /// </summary>
+        public static bool PiuRecente(string pubblicata, string inUso)
+        {
+            if (Numeri(pubblicata).Length == 0) return false;
+            return Confronta(pubblicata, inUso) > 0;
+        }
 
         /// <summary>Chiede a GitHub l'ultimo rilascio di rizzo-pii.</summary>
         public static Rilascio UltimoRizzoPii()
@@ -54,24 +131,7 @@ namespace Campanella
             Rilascio r = new Rilascio();
             try
             {
-                ServicePointManager.SecurityProtocol =
-                    SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
-
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(ApiRizzo);
-                req.Method = "GET";
-                req.UserAgent = "Campanella/" + VersioneCampanella;
-                req.Accept = "application/vnd.github+json";
-                req.Timeout = 15000;
-                req.ReadWriteTimeout = 15000;
-
-                string corpo;
-                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
-                    corpo = sr.ReadToEnd();
-
-                JavaScriptSerializer ser = new JavaScriptSerializer();
-                ser.MaxJsonLength = 40 * 1024 * 1024;
-                Dictionary<string, object> d = ser.DeserializeObject(corpo) as Dictionary<string, object>;
+                Dictionary<string, object> d = ChiediAGitHub(ApiRizzo);
                 if (d == null) { r.Messaggio = "Risposta di GitHub non comprensibile."; return r; }
 
                 r.Versione = Stato.Str(d, "tag_name", "").TrimStart('v', 'V');
@@ -88,8 +148,14 @@ namespace Campanella
                         string nome = Stato.Str(a, "name", "");
                         if (nome.IndexOf("Windows", StringComparison.OrdinalIgnoreCase) < 0) continue;
                         if (!nome.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-                        r.FileWindows = Stato.Str(a, "browser_download_url", "");
+                        string url = Stato.Str(a, "browser_download_url", "");
+                        if (!url.StartsWith(ScaricoRizzo, StringComparison.Ordinal)) continue;
+                        r.FileWindows = url;
                         try { r.ByteWindows = Convert.ToInt64(a["size"]); } catch { }
+                        // "sha256:<64 cifre esadecimali>", da quando GitHub lo pubblica
+                        string digest = Stato.Str(a, "digest", "").Trim();
+                        if (digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                            r.Sha256Windows = digest.Substring(7).Trim().ToLowerInvariant();
                         break;
                     }
                 }
@@ -135,49 +201,90 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Scarica l'installer nella cartella temporanea. Chiama avanzamento
-        /// con la percentuale; se torna false lo scarico si ferma.
+        /// Scarica l'installer nella cartella temporanea e controlla che sia
+        /// intero prima di consegnarlo: i byte devono essere quanti ne
+        /// dichiara il server e quanti ne annuncia GitHub (attesi, se maggiore
+        /// di zero), e l'impronta SHA-256 deve essere quella pubblicata
+        /// (sha256, se non e' vuota). Se qualcosa non torna, o lo scarico
+        /// fallisce, il file a meta' viene cancellato e parte un'eccezione:
+        /// un installer incompleto non si avvia. Chiama avanzamento con la
+        /// percentuale; se torna false lo scarico si ferma, il file viene
+        /// cancellato e torna null.
         /// </summary>
-        public static string Scarica(string indirizzo, string nomeFile,
+        public static string Scarica(string indirizzo, string nomeFile, long attesi, string sha256,
                                      Func<int, long, long, bool> avanzamento)
         {
-            string destinazione = Path.Combine(Path.GetTempPath(), nomeFile);
-            ServicePointManager.SecurityProtocol =
-                SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+            string destinazione = Path.Combine(Path.GetTempPath(), Path.GetFileName(nomeFile));
+            ProtocolliSicuri();
 
             HttpWebRequest req = (HttpWebRequest)WebRequest.Create(indirizzo);
             req.UserAgent = "Campanella/" + VersioneCampanella;
             req.Timeout = 30000;
             req.ReadWriteTimeout = 120000;
 
-            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-            using (Stream sorgente = resp.GetResponseStream())
-            using (FileStream fs = new FileStream(destinazione, FileMode.Create, FileAccess.Write))
+            bool creato = false, consegnato = false;
+            try
             {
-                long totale = resp.ContentLength;
-                long fatti = 0;
-                byte[] buffer = new byte[128 * 1024];
-                int letti;
-                int ultimaPercentuale = -1;
-
-                while ((letti = sorgente.Read(buffer, 0, buffer.Length)) > 0)
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (Stream sorgente = resp.GetResponseStream())
                 {
-                    fs.Write(buffer, 0, letti);
-                    fatti += letti;
-                    int percentuale = (totale > 0) ? (int)(fatti * 100 / totale) : 0;
-                    if (avanzamento != null && percentuale != ultimaPercentuale)
+                    creato = true;      // da qui in poi un file a meta' va tolto
+                    using (FileStream fs = new FileStream(destinazione, FileMode.Create, FileAccess.Write))
+                    using (SHA256 impronta = SHA256.Create())
                     {
-                        ultimaPercentuale = percentuale;
-                        if (!avanzamento(percentuale, fatti, totale))
+                        long dichiarati = resp.ContentLength;      // -1 se il server non lo dice
+                        long totale = (attesi > 0) ? attesi : dichiarati;
+                        long fatti = 0;
+                        byte[] buffer = new byte[128 * 1024];
+                        int letti;
+                        int ultimaPercentuale = -1;
+
+                        while ((letti = sorgente.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            fs.Close();
-                            try { File.Delete(destinazione); } catch { }
-                            return null;      // fermato dall'utente
+                            fs.Write(buffer, 0, letti);
+                            impronta.TransformBlock(buffer, 0, letti, null, 0);
+                            fatti += letti;
+                            if (totale > 0 && fatti > totale)
+                                throw new IOException("Il server manda piu' byte dei " + totale +
+                                                      " annunciati: ho cancellato il file.");
+                            int percentuale = (totale > 0) ? (int)(fatti * 100 / totale) : 0;
+                            if (avanzamento != null && percentuale != ultimaPercentuale)
+                            {
+                                ultimaPercentuale = percentuale;
+                                if (!avanzamento(percentuale, fatti, totale))
+                                    return null;      // fermato dall'utente: il file lo toglie finally
+                            }
                         }
+                        impronta.TransformFinalBlock(new byte[0], 0, 0);
+
+                        if (dichiarati >= 0 && fatti != dichiarati)
+                            throw new IOException("Lo scarico si e' interrotto a meta' (" + fatti +
+                                                  " byte su " + dichiarati + "): ho cancellato il file.");
+                        if (attesi > 0 && fatti != attesi)
+                            throw new IOException("Il file scaricato non ha la dimensione annunciata da " +
+                                                  "GitHub (" + fatti + " byte invece di " + attesi +
+                                                  "): ho cancellato il file.");
+                        string calcolata = Esadecimale(impronta.Hash);
+                        if (!string.IsNullOrEmpty(sha256) &&
+                            !string.Equals(calcolata, sha256.Trim(), StringComparison.OrdinalIgnoreCase))
+                            throw new IOException("L'impronta SHA-256 del file scaricato non e' quella " +
+                                                  "pubblicata su GitHub: ho cancellato il file senza avviarlo.");
                     }
                 }
+                consegnato = true;
+                return destinazione;
             }
-            return destinazione;
+            finally
+            {
+                if (creato && !consegnato) { try { File.Delete(destinazione); } catch { } }
+            }
+        }
+
+        static string Esadecimale(byte[] dati)
+        {
+            StringBuilder sb = new StringBuilder(dati.Length * 2);
+            foreach (byte b in dati) sb.Append(b.ToString("x2"));
+            return sb.ToString();
         }
 
         /// <summary>Avvia l'installer scaricato e torna subito: e' lui a parlare con l'utente.</summary>

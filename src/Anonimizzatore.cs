@@ -13,8 +13,10 @@
 //      POST /pdf       file=@x.pdf  -> il PDF anonimizzato, in binario
 //
 //  Niente esce dal computer: il servizio e' in ascolto solo su localhost e
-//  il modello sta su disco. Se rizzo-pii non e' avviato, qui non succede
-//  niente: l'applicazione lo dice e si ferma.
+//  il modello sta su disco. Qui lo si fa anche rispettare: un indirizzo che
+//  non punta a questo computer viene rifiutato prima di mandare qualcosa
+//  (vedi Url). Se rizzo-pii non e' avviato, qui non succede niente:
+//  l'applicazione lo dice e si ferma.
 // ===========================================================================
 
 using System;
@@ -48,7 +50,11 @@ namespace Campanella
 
     class Anonimizzatore
     {
-        public string Indirizzo = "http://127.0.0.1:5005";
+        /// <summary>La versione di rizzo-pii con cui e' stato controllato il
+        /// protocollo qui sotto (campi di /health e /analyze, intestazioni di /pdf).</summary>
+        public const string VersioneRizzoProvata = "2.0.0";
+
+        public string Indirizzo = Stato.AnonIndirizzoDiDefault;
         public bool ConDizionario = false;     // false = anonimizzazione definitiva
         public int TimeoutMs = 300000;         // la CPU su un PDF lungo se la prende comoda
 
@@ -58,12 +64,12 @@ namespace Campanella
         public SaluteAnonimizzatore Salute()
         {
             SaluteAnonimizzatore s = new SaluteAnonimizzatore();
+            // un indirizzo fuori dal computer non si prova nemmeno: risposta subito
+            if (UriLocale(Indirizzo + "/health") == null) { s.Messaggio = NonLocale(); return s; }
             try
             {
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Indirizzo + "/health");
+                HttpWebRequest req = Richiesta("/health", 4000);
                 req.Method = "GET";
-                req.Timeout = 4000;
-                req.ReadWriteTimeout = 4000;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
@@ -117,6 +123,79 @@ namespace Campanella
                    est == ".download" || est == ".driveupload" || est == ".drivedownload";
         }
 
+        /// <summary>I formati che si possono ripulire, per i messaggi:
+        /// "PDF, TXT, MD, ...". Viene dallo stesso elenco di Trattabile.</summary>
+        public static string Formati()
+        {
+            List<string> f = new List<string>();
+            f.Add("PDF");
+            foreach (string e in EstensioniTesto) f.Add(e.TrimStart('.').ToUpperInvariant());
+            return string.Join(", ", f.ToArray());
+        }
+
+        /// <summary>Il filtro per la finestra "Apri": gli stessi formati di Trattabile.</summary>
+        public static string FiltroFile()
+        {
+            string modelli = "*.pdf";
+            foreach (string e in EstensioniTesto) modelli += ";*" + e;
+            return "Documenti (" + modelli + ")|" + modelli + "|Tutti i file (*.*)|*.*";
+        }
+
+        // ===================================================================
+        //  ORIGINALI AL SICURO
+        // ===================================================================
+        /// <summary>Vero se i due percorsi indicano lo stesso file.</summary>
+        public static bool StessoFile(string a, string b)
+        {
+            try
+            {
+                return string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'),
+                                     Path.GetFullPath(b).TrimEnd('\\', '/'),
+                                     StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }     // un percorso non valido non si scrive comunque
+        }
+
+        /// <summary>Se la cartella delle copie pulite e' quella di uno dei file,
+        /// torna quella cartella; altrimenti null. Le copie finirebbero sopra
+        /// gli originali.</summary>
+        public static string CartellaDiOrigine(IList<string> file, string destinazione)
+        {
+            foreach (string f in file)
+            {
+                string cartella;
+                try { cartella = Path.GetDirectoryName(Path.GetFullPath(f)); }
+                catch { continue; }
+                if (!string.IsNullOrEmpty(cartella) && StessoFile(cartella, destinazione)) return cartella;
+            }
+            return null;
+        }
+
+        /// <summary>Il nome della copia pulita di ogni file, tutti diversi fra
+        /// loro: due "verbale.pdf" di sottocartelle diverse diventano
+        /// "verbale.pdf" e "verbale (2).pdf", e nessuno finisce sopra l'altro.
+        /// Un nome che compare una volta sola resta com'e'.</summary>
+        public static string[] NomiDiUscita(IList<string> file)
+        {
+            string[] nomi = new string[file.Count];
+            // prima tutti i nomi veri, cosi' un numero aggiunto non ne copre uno
+            Dictionary<string, bool> presi = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (string f in file) presi[Path.GetFileName(f)] = false;
+            for (int i = 0; i < file.Count; i++)
+            {
+                string nome = Path.GetFileName(file[i]);
+                if (presi[nome])
+                {
+                    string radice = Path.GetFileNameWithoutExtension(nome), est = Path.GetExtension(nome);
+                    int n = 2;
+                    do nome = radice + " (" + n++ + ")" + est; while (presi.ContainsKey(nome));
+                }
+                presi[nome] = true;
+                nomi[i] = nome;
+            }
+            return nomi;
+        }
+
         // ===================================================================
         /// <summary>Anonimizza un file e scrive il risultato. Torna cosa e' successo.</summary>
         public EsitoFile Anonimizza(string origine, string destinazione)
@@ -125,6 +204,13 @@ namespace Campanella
             e.Origine = origine;
             e.Destinazione = destinazione;
             string est = Path.GetExtension(origine).ToLowerInvariant();
+
+            if (StessoFile(origine, destinazione))
+            {
+                e.Saltato = true;
+                e.Nota = "la copia pulita finirebbe sopra l'originale: scegli un'altra cartella";
+                return e;
+            }
 
             try
             {
@@ -156,7 +242,8 @@ namespace Campanella
                 }
 
                 e.Saltato = true;
-                e.Nota = "formato " + est + ": rizzo-pii legge solo PDF, TXT e MD";
+                e.Nota = "formato " + (est != "" ? est : "senza estensione") +
+                         " non gestito: si possono ripulire solo " + Formati();
                 return e;
             }
             catch (Exception ex)
@@ -171,7 +258,7 @@ namespace Campanella
         public byte[] PdfAnonimo(string percorso, out int redazioni, out int residui)
         {
             redazioni = 0; residui = 0;
-            HttpWebRequest req = Multipart(Indirizzo + "/pdf", percorso);
+            HttpWebRequest req = Multipart("/pdf", percorso);
             using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
             {
                 redazioni = Intero(resp.Headers["X-PII-Redactions"]);
@@ -180,6 +267,9 @@ namespace Campanella
                 using (MemoryStream m = new MemoryStream())
                 {
                     resp.GetResponseStream().CopyTo(m);
+                    if (m.Length == 0)
+                        throw new InvalidDataException(
+                            "rizzo-pii ha risposto con un PDF vuoto: non scrivo niente.");
                     return m.ToArray();
                 }
             }
@@ -211,11 +301,9 @@ namespace Campanella
             corpo["include_mapping"] = ConDizionario ? "true" : "false";
             byte[] dati = Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(corpo));
 
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Indirizzo + "/analyze");
+            HttpWebRequest req = Richiesta("/analyze", TimeoutMs);
             req.Method = "POST";
             req.ContentType = "application/json; charset=utf-8";
-            req.Timeout = TimeoutMs;
-            req.ReadWriteTimeout = TimeoutMs;
             req.ContentLength = dati.Length;
             using (Stream s = req.GetRequestStream()) s.Write(dati, 0, dati.Length);
 
@@ -239,7 +327,15 @@ namespace Campanella
                         try { perTipo[kv.Key] = Convert.ToInt32(kv.Value); } catch { }
                     }
 
-                return Stato.Str(d, "anonymized_text", "");
+                // senza il testo pulito non c'e' niente da scrivere: meglio un errore
+                // che una copia "ripulita" e vuota
+                object pulito;
+                if (!d.TryGetValue("anonymized_text", out pulito) || !(pulito is string))
+                    throw new InvalidDataException(
+                        "rizzo-pii ha risposto senza il testo anonimizzato: forse la sua versione " +
+                        "parla un protocollo diverso da quello della " + VersioneRizzoProvata +
+                        ", con cui Campanella e' provata. Non scrivo niente.");
+                return (string)pulito;
             }
         }
 
@@ -263,15 +359,66 @@ namespace Campanella
             return testo;
         }
 
+        // ===================================================================
+        //  SOLO SU QUESTO COMPUTER
+        //  Testi, file e dizionario vanno soltanto a un servizio che gira qui:
+        //  http o https verso localhost, 127.0.0.0/8 o ::1. Qualunque altro
+        //  indirizzo (un refuso, o un server di altri) viene rifiutato prima
+        //  di aprire una connessione.
+        // ===================================================================
+        /// <summary>Vero se l'indirizzo punta a questo computer.</summary>
+        public static bool IndirizzoLocale(string indirizzo)
+        {
+            return UriLocale(indirizzo) != null;
+        }
+
+        static Uri UriLocale(string indirizzo)
+        {
+            Uri u;
+            if (!Uri.TryCreate((indirizzo ?? "").Trim(), UriKind.Absolute, out u)) return null;
+            if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return null;
+            if (u.UserInfo != "") return null;      // "http://127.0.0.1@altrove" non inganna
+            string host = u.DnsSafeHost;            // senza le parentesi di [::1]
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return u;
+            IPAddress ip;
+            if (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)) return u;
+            return null;
+        }
+
+        string NonLocale()
+        {
+            return "L'indirizzo di rizzo-pii deve essere su questo computer (localhost, 127.0.0.1 " +
+                   "o [::1]), per esempio " + Stato.AnonIndirizzoDiDefault + ".\n\n" +
+                   "\"" + Indirizzo + "\" non lo e': i testi da ripulire non devono uscire dal " +
+                   "computer, quindi non lo uso. Correggilo in Impostazioni.";
+        }
+
+        /// <summary>L'indirizzo di una funzione del servizio. Se non e' su
+        /// questo computer lancia un'eccezione: niente parte.</summary>
+        Uri Url(string funzione)
+        {
+            Uri u = UriLocale(Indirizzo + funzione);
+            if (u == null) throw new InvalidOperationException(NonLocale());
+            return u;
+        }
+
+        HttpWebRequest Richiesta(string funzione, int timeout)
+        {
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Url(funzione));
+            req.Proxy = null;                   // il servizio e' qui: nessun proxy in mezzo
+            req.AllowAutoRedirect = false;      // e nessun rinvio verso un altro indirizzo
+            req.Timeout = timeout;
+            req.ReadWriteTimeout = timeout;
+            return req;
+        }
+
         // -------------------------------------------------------------------
-        HttpWebRequest Multipart(string url, string percorso)
+        HttpWebRequest Multipart(string funzione, string percorso)
         {
             string confine = "----campanella" + DateTime.Now.Ticks.ToString("x");
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            HttpWebRequest req = Richiesta(funzione, TimeoutMs);
             req.Method = "POST";
             req.ContentType = "multipart/form-data; boundary=" + confine;
-            req.Timeout = TimeoutMs;
-            req.ReadWriteTimeout = TimeoutMs;
             byte[] contenuto = File.ReadAllBytes(percorso);
             StringBuilder testa = new StringBuilder();
             testa.Append("--").Append(confine).Append("\r\n");

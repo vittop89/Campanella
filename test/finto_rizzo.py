@@ -2,11 +2,18 @@
 finto_rizzo.py - un rizzo-pii finto, per provare il client di Campanella
 senza scaricare il modello vero.
 
-    python test/finto_rizzo.py [porta]
+    python test/finto_rizzo.py [porta] [--senza-testo]
 
 Risponde come il servizio vero su /health, /analyze e /pdf, con un
 riconoscitore fatto di quattro espressioni regolari: basta a verificare che
 Campanella parli il protocollo giusto (JSON, multipart, intestazioni X-PII-*).
+
+--senza-testo: /analyze risponde senza "anonymized_text", come farebbe una
+versione di rizzo-pii che ha cambiato il protocollo.
+
+Per le prove dello scarico dell'installer ci sono anche due file finti:
+    /scarico/intero     un milione di byte a zero, lunghezza dichiarata giusta
+    /scarico/troncato   dichiara un milione di byte, ne manda 400.000 e chiude
 """
 
 import json
@@ -14,7 +21,11 @@ import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-PORTA = int(sys.argv[1]) if len(sys.argv) > 1 else 5005
+ARGOMENTI = [a for a in sys.argv[1:] if not a.startswith("--")]
+PORTA = int(ARGOMENTI[0]) if ARGOMENTI else 5005
+SENZA_TESTO = "--senza-testo" in sys.argv[1:]
+
+SCARICO = b"\0" * 1000000
 
 RICONOSCITORI = [
     ("EMAIL", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
@@ -108,6 +119,18 @@ class Gestore(BaseHTTPRequestHandler):
                 "app_version": "finto", "device": "cpu", "tags": 22,
                 "excluded_tags": [], "mapping_enabled": True,
             })
+        elif self.path in ("/scarico/intero", "/scarico/troncato"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(SCARICO)))
+            self.end_headers()
+            if self.path == "/scarico/intero":
+                self.wfile.write(SCARICO)
+                return
+            # una chiusura pulita a meta': nessun errore di rete, solo meno byte
+            self.wfile.write(SCARICO[:400000])
+            self.wfile.flush()
+            self.close_connection = True
         else:
             self._json({"error": "non previsto"}, 404)
 
@@ -133,6 +156,8 @@ class Gestore(BaseHTTPRequestHandler):
             con_diz = str(richiesta.get("include_mapping", "true")).lower() != "false"
             fuori = analizza(richiesta.get("text", ""), con_diz)
             fuori["source_text"] = richiesta.get("text", "")
+            if SENZA_TESTO:
+                del fuori["anonymized_text"]
             return self._json(fuori)
 
         if self.path in ("/analyze", "/pdf") and "multipart/form-data" in tipo:
@@ -146,6 +171,8 @@ class Gestore(BaseHTTPRequestHandler):
             fuori = analizza(testo, con_diz)
 
             if self.path == "/analyze":
+                if SENZA_TESTO:
+                    del fuori["anonymized_text"]
                 return self._json(fuori)
 
             # /pdf: torno un finto PDF con dentro il testo anonimizzato

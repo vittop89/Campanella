@@ -39,6 +39,8 @@ namespace Campanella
         TextBox txtOriginale, txtAnonimo, txtRisposta, txtRipristinato;
         Label lblTrovati, lblSalute2;
         CheckBox chkReversibile;
+        Button btnPulisci;
+        bool pulendo = false;
         Dictionary<string, string> dizionario = new Dictionary<string, string>();
 
         // passo 3
@@ -68,6 +70,10 @@ namespace Campanella
 
         public override string Nome { get { return "Privacy"; } }
         public override string[] Passi { get { return NomiPassi; } }
+
+        /// <summary>Vero mentre un elenco di file e' in lavorazione (passo 3):
+        /// chiudendo la finestra si interromperebbe a meta'.</summary>
+        public bool LavoroInCorso { get { return lavoro != null && lavoro.IsAlive; } }
 
         public override int Passo
         {
@@ -220,10 +226,20 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Controlla rizzo-pii", 0, y, 170, delegate
             {
                 Anonimizzatore a = Servizio();
-                SaluteAnonimizzatore s = a.Salute();
-                lblSalute2.Text = s.Messaggio;
-                lblSalute2.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+                lblSalute2.Text = "Controllo rizzo-pii su " + a.Indirizzo + "...";
+                lblSalute2.Tag = Ruolo.Tenue;
                 Tema.Applica(lblSalute2);
+                // la rete fuori dal thread dell'interfaccia: la pagina non si blocca
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    SaluteAnonimizzatore s = a.Salute();
+                    SulThread(delegate
+                    {
+                        lblSalute2.Text = s.Messaggio;
+                        lblSalute2.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+                        Tema.Applica(lblSalute2);
+                    });
+                });
             }));
             chkReversibile = Tema.Spunta("Tieni il dizionario, cosi' posso ripristinare la risposta",
                                          186, y + 6, Ruolo.Normale);
@@ -251,8 +267,9 @@ namespace Campanella
             p.Controls.Add(txtAnonimo);
             y += 240;
 
-            p.Controls.Add(Tema.BottonePrincipale("Togli i dati personali", 0, y, 200,
-                delegate { Pulisci(); }));
+            btnPulisci = Tema.BottonePrincipale("Togli i dati personali", 0, y, 200,
+                delegate { Pulisci(); });
+            p.Controls.Add(btnPulisci);
             p.Controls.Add(Tema.Bottone("Incolla dagli appunti", 210, y + 2, 170, delegate
             {
                 try { if (Clipboard.ContainsText()) txtOriginale.Text = Clipboard.GetText(); }
@@ -313,13 +330,27 @@ namespace Campanella
         Anonimizzatore Servizio()
         {
             Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : "http://127.0.0.1:5005")
+            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
                           .Trim().TrimEnd('/');
             return a;
         }
 
+        /// <summary>Esegue sul thread dell'interfaccia, se la pagina c'e' ancora.</summary>
+        void SulThread(MethodInvoker m)
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(m); }
+            catch (InvalidOperationException) { }     // finestra chiusa nel frattempo
+        }
+
+        /// <summary>
+        /// Toglie i dati personali dal testo. Controllo e anonimizzazione
+        /// girano fuori dal thread dell'interfaccia (su un testo lungo la CPU
+        /// ci mette anche minuti): la finestra resta viva, e il pulsante resta
+        /// spento finche' non torna la risposta.
+        /// </summary>
         void Pulisci()
         {
+            if (pulendo) return;
             string testo = txtOriginale.Text;
             if (testo.Trim() == "")
             {
@@ -330,46 +361,73 @@ namespace Campanella
 
             Anonimizzatore a = Servizio();
             a.ConDizionario = chkReversibile.Checked;
-            SaluteAnonimizzatore s = a.Salute();
-            if (!s.Pronto)
-            {
-                lblSalute2.Text = s.Messaggio;
-                lblSalute2.Tag = Ruolo.Avviso;
-                Tema.Applica(lblSalute2);
-                MessageBox.Show(this, s.Messaggio, "rizzo-pii non e' pronto",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            bool reversibile = a.ConDizionario;
 
+            pulendo = true;
+            btnPulisci.Enabled = false;
             Cursor = Cursors.WaitCursor;
-            try
-            {
-                int entita;
-                Dictionary<string, int> perTipo;
-                txtAnonimo.Text = a.TestoAnonimo(testo, out entita, out dizionario, out perTipo);
+            lblTrovati.Text = "Sto ripulendo il testo con rizzo-pii...";
+            lblTrovati.Tag = Ruolo.Tenue;
+            Tema.Applica(lblTrovati);
 
-                List<string> pezzi = new List<string>();
-                foreach (KeyValuePair<string, int> kv in perTipo)
-                    pezzi.Add(kv.Value + " " + kv.Key.ToLowerInvariant());
-
-                lblTrovati.Text = (entita == 0)
-                    ? "Non ho trovato dati personali. Rileggi comunque: potrebbe esserci qualcosa " +
-                      "che identifica una persona senza essere un nome."
-                    : "Tolti " + entita + " dati personali" +
-                      (pezzi.Count > 0 ? ":  " + string.Join(",  ", pezzi.ToArray()) : "") +
-                      (chkReversibile.Checked
-                        ? ".   Dizionario tenuto in memoria: " + dizionario.Count + " voci."
-                        : ".   Nessun dizionario: l'operazione non e' reversibile.");
-                lblTrovati.Tag = (entita == 0) ? Ruolo.Avviso : Ruolo.Buono;
-                Tema.Applica(lblTrovati);
-                Guscio.Stato1("Testo ripulito: " + entita + " dati personali tolti.");
-            }
-            catch (Exception ex)
+            ThreadPool.QueueUserWorkItem(delegate
             {
-                MessageBox.Show(this, Anonimizzatore.Spiega(ex), "Non ci sono riuscito",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-            finally { Cursor = Cursors.Default; }
+                SaluteAnonimizzatore s = a.Salute();
+                string pulito = null, errore = null;
+                int entita = 0;
+                Dictionary<string, string> diz = null;
+                Dictionary<string, int> perTipo = null;
+                if (s.Pronto)
+                {
+                    try { pulito = a.TestoAnonimo(testo, out entita, out diz, out perTipo); }
+                    catch (Exception ex) { errore = Anonimizzatore.Spiega(ex); }
+                }
+
+                SulThread(delegate
+                {
+                    pulendo = false;
+                    btnPulisci.Enabled = true;
+                    Cursor = Cursors.Default;
+                    lblTrovati.Text = "";
+                    lblTrovati.Tag = Ruolo.Normale;
+                    Tema.Applica(lblTrovati);
+
+                    if (!s.Pronto)
+                    {
+                        lblSalute2.Text = s.Messaggio;
+                        lblSalute2.Tag = Ruolo.Avviso;
+                        Tema.Applica(lblSalute2);
+                        MessageBox.Show(this, s.Messaggio, "rizzo-pii non e' pronto",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    if (errore != null)
+                    {
+                        MessageBox.Show(this, errore, "Non ci sono riuscito",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    dizionario = diz;
+                    txtAnonimo.Text = pulito;
+
+                    List<string> pezzi = new List<string>();
+                    foreach (KeyValuePair<string, int> kv in perTipo)
+                        pezzi.Add(kv.Value + " " + kv.Key.ToLowerInvariant());
+
+                    lblTrovati.Text = (entita == 0)
+                        ? "Non ho trovato dati personali. Rileggi comunque: potrebbe esserci qualcosa " +
+                          "che identifica una persona senza essere un nome."
+                        : "Tolti " + entita + " dati personali" +
+                          (pezzi.Count > 0 ? ":  " + string.Join(",  ", pezzi.ToArray()) : "") +
+                          (reversibile
+                            ? ".   Dizionario tenuto in memoria: " + dizionario.Count + " voci."
+                            : ".   Nessun dizionario: l'operazione non e' reversibile.");
+                    lblTrovati.Tag = (entita == 0) ? Ruolo.Avviso : Ruolo.Buono;
+                    Tema.Applica(lblTrovati);
+                    Guscio.Stato1("Testo ripulito: " + entita + " dati personali tolti.");
+                });
+            });
         }
 
         void Rimetti()
@@ -409,7 +467,7 @@ namespace Campanella
             zonaTrascina.Tag = Ruolo.Scheda;
             zonaTrascina.AllowDrop = true;
             Tema.Contorna(zonaTrascina);
-            lblZona = Tema.Testo1("Trascina qui i file  (PDF, TXT, MD, CSV, HTML)",
+            lblZona = Tema.Testo1("Trascina qui i file  (" + Anonimizzatore.Formati() + ")",
                                   0, 34, 880, Tema.Sottosezione, Ruolo.Accento);
             lblZona.TextAlign = ContentAlignment.MiddleCenter;
             lblZona.Height = 24;
@@ -443,8 +501,7 @@ namespace Campanella
                 using (OpenFileDialog d = new OpenFileDialog())
                 {
                     d.Multiselect = true;
-                    d.Filter = "Documenti (*.pdf;*.txt;*.md;*.csv;*.htm;*.html)|" +
-                               "*.pdf;*.txt;*.md;*.csv;*.htm;*.html|Tutti i file (*.*)|*.*";
+                    d.Filter = Anonimizzatore.FiltroFile();
                     if (d.ShowDialog(this) == DialogResult.OK) AggiungiFile(d.FileNames);
                 }
             }));
@@ -454,7 +511,7 @@ namespace Campanella
                 {
                     d.Description = "Scegli la cartella: prendo tutti i file, anche nelle sottocartelle";
                     if (d.ShowDialog(this) != DialogResult.OK) return;
-                    AggiungiFile(Directory.GetFiles(d.SelectedPath, "*", SearchOption.AllDirectories));
+                    AggiungiFile(FileDellaCartella(d.SelectedPath));
                 }
             }));
             p.Controls.Add(Tema.Bottone("Togli i selezionati", 350, y, 170, delegate
@@ -522,7 +579,7 @@ namespace Campanella
             {
                 if (Directory.Exists(f))
                 {
-                    AggiungiFile(Directory.GetFiles(f, "*", SearchOption.AllDirectories));
+                    AggiungiFile(FileDellaCartella(f));
                     continue;
                 }
                 if (!File.Exists(f)) continue;
@@ -534,15 +591,21 @@ namespace Campanella
             if (aggiunti > 0) Guscio.Stato1("Aggiunti " + aggiunti + " file.");
         }
 
+        /// <summary>I file di una cartella e delle sottocartelle, senza quelli di
+        /// lavoro: a mezza sincronizzazione, aperti da Word, nascosti.</summary>
+        static string[] FileDellaCartella(string cartella)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string f in Directory.GetFiles(cartella, "*", SearchOption.AllDirectories))
+                if (!Anonimizzatore.Temporaneo(f)) fuori.Add(f);
+            return fuori.ToArray();
+        }
+
         void AggiornaConteggio3()
         {
             int trattabili = 0;
             foreach (object o in elencoFile.Items)
-            {
-                string est = Path.GetExtension(Convert.ToString(o)).ToLowerInvariant();
-                if (est == ".pdf" || est == ".txt" || est == ".md" || est == ".csv" ||
-                    est == ".htm" || est == ".html") trattabili++;
-            }
+                if (Anonimizzatore.Trattabile(Convert.ToString(o))) trattabili++;
             int totale = elencoFile.Items.Count;
             lblRiepilogo3.Text = (totale == 0)
                 ? ""
@@ -590,18 +653,24 @@ namespace Campanella
                 return;
             }
 
-            Anonimizzatore a = Servizio();
-            a.ConDizionario = false;      // sui file l'anonimizzazione e' definitiva
-            SaluteAnonimizzatore s = a.Salute();
-            if (!s.Pronto)
+            List<string> file = new List<string>();
+            foreach (object o in elencoFile.Items) file.Add(Convert.ToString(o));
+
+            // le copie pulite nella cartella degli originali finirebbero sopra di loro
+            string stessa = Anonimizzatore.CartellaDiOrigine(file, destinazione);
+            if (stessa != null)
             {
-                MessageBox.Show(this, s.Messaggio, "rizzo-pii non e' pronto",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this,
+                    "La cartella per le copie pulite e' la stessa in cui sta uno dei file da " +
+                    "ripulire:\n\n" + stessa + "\n\n" +
+                    "Le copie finirebbero sopra gli originali. Scegli un'altra cartella, per " +
+                    "esempio una sottocartella \"Anonimizzati\".",
+                    "Cartella da cambiare", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            List<string> file = new List<string>();
-            foreach (object o in elencoFile.Items) file.Add(Convert.ToString(o));
+            Anonimizzatore a = Servizio();
+            a.ConDizionario = false;      // sui file l'anonimizzazione e' definitiva
 
             log3.Clear();
             interrompi = false;
@@ -618,24 +687,32 @@ namespace Campanella
             int fatti = 0, saltati = 0, entita = 0;
             try
             {
+                // il controllo di rizzo-pii sta qui, fuori dal thread dell'interfaccia
+                Scrivi3("Controllo rizzo-pii su " + a.Indirizzo + "...");
+                SaluteAnonimizzatore s = a.Salute();
+                if (!s.Pronto)
+                {
+                    Scrivi3("rizzo-pii non e' pronto: non ho toccato nessun file.");
+                    SulThread(delegate
+                    {
+                        MessageBox.Show(this, s.Messaggio, "rizzo-pii non e' pronto",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    });
+                    return;
+                }
+
                 Directory.CreateDirectory(destinazione);
                 Scrivi3("File da trattare: " + file.Count);
                 Scrivi3("");
 
-                Dictionary<string, int> usati = new Dictionary<string, int>();
-                foreach (string f in file)
+                // nomi tutti diversi: due file omonimi di cartelle diverse non
+                // finiscono uno sull'altro
+                string[] nomi = Anonimizzatore.NomiDiUscita(file);
+                for (int i = 0; i < file.Count; i++)
                 {
                     if (interrompi) { Scrivi3(""); Scrivi3("Fermato da te."); break; }
 
-                    // nomi diversi che finiscono nella stessa cartella: numero i doppioni
-                    string nome = Path.GetFileName(f);
-                    if (usati.ContainsKey(nome.ToLowerInvariant()))
-                    {
-                        int n = ++usati[nome.ToLowerInvariant()];
-                        nome = Path.GetFileNameWithoutExtension(f) + " (" + n + ")" + Path.GetExtension(f);
-                    }
-                    else usati[nome.ToLowerInvariant()] = 1;
-
+                    string f = file[i], nome = nomi[i];
                     EsitoFile e = a.Anonimizza(f, Path.Combine(destinazione, nome));
                     if (e.Fatto)
                     {

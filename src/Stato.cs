@@ -169,7 +169,8 @@ namespace Campanella
         public bool ModuloDrive = true;
 
         // ---- anonimizzazione (rizzo-pii) -------------------------------------
-        public string AnonIndirizzo = "http://127.0.0.1:5005";
+        public const string AnonIndirizzoDiDefault = "http://127.0.0.1:5005";   // l'unico posto dove sta scritto
+        public string AnonIndirizzo = AnonIndirizzoDiDefault;
         public string AnonDestinazione = "";
         public bool AnonReversibileTesto = true;
         public bool PrivacyLetta = false;
