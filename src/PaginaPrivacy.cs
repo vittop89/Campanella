@@ -42,6 +42,9 @@ namespace Campanella
         Button btnPulisci;
         bool pulendo = false;
         Dictionary<string, string> dizionario = new Dictionary<string, string>();
+        // le risposte di rizzo-pii arrivano dopo: una che non e' dell'ultima
+        // richiesta (o arriva dopo "Svuota tutto") non si mostra
+        int giroTesto = 0, giroSalute = 0;
 
         // passo 3
         ListBox elencoFile;
@@ -226,24 +229,7 @@ namespace Campanella
                 "viene mai spedita da nessuna parte.");
             y += 40;
 
-            p.Controls.Add(Tema.Bottone("Controlla rizzo-pii", 0, y, 170, delegate
-            {
-                Anonimizzatore a = Servizio();
-                lblSalute2.Text = "Controllo rizzo-pii su " + a.Indirizzo + "...";
-                lblSalute2.Tag = Ruolo.Tenue;
-                Tema.Applica(lblSalute2);
-                // la rete fuori dal thread dell'interfaccia: la pagina non si blocca
-                ThreadPool.QueueUserWorkItem(delegate
-                {
-                    SaluteAnonimizzatore s = a.Salute();
-                    SulThread(delegate
-                    {
-                        lblSalute2.Text = s.Messaggio;
-                        lblSalute2.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
-                        Tema.Applica(lblSalute2);
-                    });
-                });
-            }));
+            p.Controls.Add(Tema.Bottone("Controlla rizzo-pii", 0, y, 170, delegate { ControllaRizzo(); }));
             chkReversibile = Tema.Spunta("Tieni il dizionario, cosi' posso ripristinare la risposta",
                                          186, y + 6, Ruolo.Normale);
             chkReversibile.Checked = true;
@@ -283,14 +269,7 @@ namespace Campanella
                 if (txtAnonimo.Text.Trim() == "") { Guscio.Stato1("Non c'e' ancora niente da copiare.", Tema.Ambra); return; }
                 Guscio.Copia(txtAnonimo.Text, "Testo pulito copiato: adesso puoi incollarlo nell'IA.");
             }));
-            p.Controls.Add(Tema.Bottone("Svuota tutto", 660, y + 2, 130, delegate
-            {
-                txtOriginale.Clear(); txtAnonimo.Clear();
-                txtRisposta.Clear(); txtRipristinato.Clear();
-                dizionario.Clear();
-                lblTrovati.Text = "";
-                Tema.Applica(lblTrovati);
-            }));
+            p.Controls.Add(Tema.Bottone("Svuota tutto", 660, y + 2, 130, delegate { Svuota(); }));
             y += 42;
 
             lblTrovati = Tema.Testo1("", 0, y, 880, Tema.Normale, Ruolo.Normale);
@@ -345,6 +324,42 @@ namespace Campanella
             catch (InvalidOperationException) { }     // finestra chiusa nel frattempo
         }
 
+        /// <summary>Chiede a rizzo-pii se c'e'. Se nel frattempo lo si chiede di
+        /// nuovo (magari dopo averlo avviato), vale solo l'ultima risposta.</summary>
+        void ControllaRizzo()
+        {
+            Anonimizzatore a = Servizio();
+            int giro = ++giroSalute;
+            lblSalute2.Text = "Controllo rizzo-pii su " + a.Indirizzo + "...";
+            lblSalute2.Tag = Ruolo.Tenue;
+            Tema.Applica(lblSalute2);
+            // la rete fuori dal thread dell'interfaccia: la pagina non si blocca
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                SaluteAnonimizzatore s = a.Salute();
+                SulThread(delegate
+                {
+                    if (giro != giroSalute) return;     // nel frattempo ne e' partito un altro
+                    lblSalute2.Text = s.Messaggio;
+                    lblSalute2.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+                    Tema.Applica(lblSalute2);
+                });
+            });
+        }
+
+        /// <summary>Svuota il passo 2, dizionario compreso. Un testo che rizzo-pii
+        /// sta ancora ripulendo non torna piu' sulla pagina: il suo dizionario
+        /// dei nomi veri non deve tornare in memoria.</summary>
+        void Svuota()
+        {
+            giroTesto++;
+            txtOriginale.Clear(); txtAnonimo.Clear();
+            txtRisposta.Clear(); txtRipristinato.Clear();
+            dizionario.Clear();
+            lblTrovati.Text = "";
+            Tema.Applica(lblTrovati);
+        }
+
         /// <summary>
         /// Toglie i dati personali dal testo. Controllo e anonimizzazione
         /// girano fuori dal thread dell'interfaccia (su un testo lungo la CPU
@@ -365,6 +380,7 @@ namespace Campanella
             Anonimizzatore a = Servizio();
             a.ConDizionario = chkReversibile.Checked;
             bool reversibile = a.ConDizionario;
+            int giro = ++giroTesto;
 
             pulendo = true;
             btnPulisci.Enabled = false;
@@ -391,6 +407,9 @@ namespace Campanella
                     pulendo = false;
                     btnPulisci.Enabled = true;
                     Cursor = Cursors.Default;
+                    // "Svuota tutto" premuto mentre rizzo-pii lavorava: il testo
+                    // e i nomi veri di prima non tornano
+                    if (giro != giroTesto) return;
                     lblTrovati.Text = "";
                     lblTrovati.Tag = Ruolo.Normale;
                     Tema.Applica(lblTrovati);

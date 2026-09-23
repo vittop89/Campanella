@@ -11,12 +11,20 @@ Campanella parli il protocollo giusto (JSON, multipart, intestazioni X-PII-*).
 --senza-testo: /analyze risponde senza "anonymized_text", come farebbe una
 versione di rizzo-pii che ha cambiato il protocollo.
 
-Per le prove dello scarico dell'installer ci sono anche tre file finti:
+Per le prove dello scarico dell'installer ci sono anche quattro file finti:
     /scarico/intero     un milione di byte a zero, lunghezza dichiarata giusta
     /scarico/troncato   dichiara un milione di byte, ne manda 400.000 e chiude
     /scarico/lento      dichiara cento milioni di byte e ne manda 16 KB ogni
                         decimo di secondo, finche' il client non chiude: un
                         punto percentuale arriva ogni sei secondi e mezzo
+    /scarico/fermo      dichiara cento milioni di byte, ne manda 64 KB e poi
+                        tace per dieci secondi prima di chiudere: una rete
+                        ferma, su cui la lettura del client resta bloccata
+
+E un controllo lento, per le risposte che arrivano fuori ordine:
+    /lento/health       risponde dopo un secondo e mezzo che il modello sta
+                        ancora caricando (503); il client lo chiama con
+                        l'indirizzo http://127.0.0.1:porta/lento
 """
 
 import json
@@ -149,6 +157,24 @@ class Gestore(BaseHTTPRequestHandler):
                 except OSError:
                     return          # il client ha chiuso: e' quello che si voleva
                 time.sleep(0.1)
+        elif self.path == "/scarico/fermo":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", "100000000")
+            self.end_headers()
+            self.close_connection = True
+            try:
+                self.wfile.write(b"\0" * 65536)
+                self.wfile.flush()
+            except OSError:
+                return
+            # poi niente. Dopo dieci secondi chiudo io: un client che non sa
+            # fermarsi non aspetta i due minuti del suo timeout, e la prova
+            # fallisce in fretta
+            time.sleep(10)
+        elif self.path == "/lento/health":
+            time.sleep(1.5)
+            self._json({"status": "loading", "model_loaded": False}, 503)
         else:
             self._json({"error": "non previsto"}, 404)
 

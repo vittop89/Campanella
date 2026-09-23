@@ -46,6 +46,44 @@ namespace Campanella
         }
     }
 
+    /// <summary>
+    /// Per fermare uno scarico da un altro thread. Ferma non aspetta il
+    /// prossimo blocco di dati: chiude la connessione, cosi' anche una
+    /// lettura ferma su una rete che non manda piu' niente finisce subito,
+    /// invece di aspettare i due minuti del timeout, e Scarica toglie il file
+    /// a meta'.
+    /// </summary>
+    class FermoScarico
+    {
+        readonly object chiave = new object();
+        bool fermo = false;
+        HttpWebRequest richiesta;
+
+        public bool Fermo { get { lock (chiave) return fermo; } }
+
+        public void Ferma()
+        {
+            HttpWebRequest r;
+            lock (chiave) { fermo = true; r = richiesta; }
+            Chiudi(r);
+        }
+
+        /// <summary>Scarica gli affida la sua richiesta: se e' gia' stato
+        /// fermato, la chiude subito.</summary>
+        public void Collega(HttpWebRequest r)
+        {
+            bool chiudi;
+            lock (chiave) { richiesta = r; chiudi = fermo; }
+            if (chiudi) Chiudi(r);
+        }
+
+        static void Chiudi(HttpWebRequest r)
+        {
+            if (r == null) return;
+            try { r.Abort(); } catch (Exception) { }
+        }
+    }
+
     static class Aggiornamenti
     {
         public const string VersioneCampanella = "1.4.6";
@@ -215,6 +253,17 @@ namespace Campanella
         public static string Scarica(string indirizzo, string nomeFile, long attesi, string sha256,
                                      Func<int, long, long, bool> avanzamento)
         {
+            return Scarica(indirizzo, nomeFile, attesi, sha256, avanzamento, null);
+        }
+
+        /// <summary>
+        /// Come sopra, ma si ferma anche con fermo.Ferma() da un altro thread,
+        /// subito, anche mentre la rete non manda niente: il file a meta'
+        /// viene cancellato e torna null.
+        /// </summary>
+        public static string Scarica(string indirizzo, string nomeFile, long attesi, string sha256,
+                                     Func<int, long, long, bool> avanzamento, FermoScarico fermo)
+        {
             string destinazione = Path.Combine(Path.GetTempPath(), Path.GetFileName(nomeFile));
             ProtocolliSicuri();
 
@@ -222,6 +271,7 @@ namespace Campanella
             req.UserAgent = "Campanella/" + VersioneCampanella;
             req.Timeout = 30000;
             req.ReadWriteTimeout = 120000;
+            if (fermo != null) fermo.Collega(req);
 
             bool creato = false, consegnato = false;
             try
@@ -243,6 +293,7 @@ namespace Campanella
 
                         while ((letti = sorgente.Read(buffer, 0, buffer.Length)) > 0)
                         {
+                            if (fermo != null && fermo.Fermo) return null;
                             fs.Write(buffer, 0, letti);
                             impronta.TransformBlock(buffer, 0, letti, null, 0);
                             fatti += letti;
@@ -280,6 +331,13 @@ namespace Campanella
                 }
                 consegnato = true;
                 return destinazione;
+            }
+            catch (Exception)
+            {
+                // la connessione chiusa da Ferma arriva qui come errore di rete:
+                // e' l'utente che ha fermato, non uno scarico andato male
+                if (fermo != null && fermo.Fermo) return null;
+                throw;
             }
             finally
             {

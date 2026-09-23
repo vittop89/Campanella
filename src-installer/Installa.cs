@@ -118,6 +118,7 @@ namespace Campanella
         Button btnAvanti, btnIndietro, btnEsci;
         Thread lavoro;
         volatile bool interrompi = false;
+        FermoScarico fermo = new FermoScarico();   // chiude lo scarico anche su una rete ferma
         string cartellaInstallata = "";
 
         public FormInstalla()
@@ -188,7 +189,10 @@ namespace Campanella
                             "Interrompere?", MessageBoxButtons.YesNo,
                             MessageBoxIcon.Question) != DialogResult.Yes)
                     { e.Cancel = true; return; }
-                    interrompi = true;
+                    // il thread e' in background: senza aspettarlo moriva con la
+                    // finestra, e l'installer di rizzo-pii a meta' restava in %TEMP%
+                    Interrompi();
+                    lavoro.Join(3000);
                 }
             };
         }
@@ -396,8 +400,16 @@ namespace Campanella
 
         void Chiudi()
         {
-            if (lavoro != null && lavoro.IsAlive) { interrompi = true; return; }
+            if (lavoro != null && lavoro.IsAlive) { Interrompi(); return; }
             Close();
+        }
+
+        /// <summary>Niente rizzo-pii se non e' ancora partito; se si sta
+        /// scaricando, chiude la connessione e il file a meta' viene tolto.</summary>
+        void Interrompi()
+        {
+            interrompi = true;
+            fermo.Ferma();
         }
 
         void Avanti()
@@ -453,6 +465,7 @@ namespace Campanella
 
             VaiA(2);
             interrompi = false;
+            fermo = new FermoScarico();
             AggiornaBottoni();
 
             bool menu = chkMenu.Checked, scrivania = chkScrivania.Checked, rizzo = chkRizzo.Checked;
@@ -575,7 +588,7 @@ namespace Campanella
                                                Math.Round(tot / 1048576.0) + " MB  (" + pc + "%)");
                                     }
                                     return !interrompi;
-                                });
+                                }, fermo);
                         }
                         catch (Exception ex) { errore = ex.Message; }
                         if (errore != null)
@@ -781,12 +794,31 @@ namespace Campanella
         const string ChiaveInno =
             @"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6B2C0F4E-3A1D-4C8B-9E57-2D1F7A0C5B31}_is1";
 
+        const string NomeDisinstallatore = "Disinstalla Campanella.exe";
+
         public static void Chiedi()
         {
+            // la cartella e' quella del disinstallatore stesso: basta che ci sia
+            // lui. Campanella.exe puo' mancare (tolto dall'installazione Inno
+            // nella stessa cartella, messo in quarantena, cancellato a mano), e
+            // rifiutare qui lasciava la voce fra le app installate per sempre
             string cartella = Path.GetDirectoryName(Application.ExecutablePath);
-            if (!CartellaDiCampanella(cartella)) { NonTocco(cartella); return; }
+            if (!CartellaDelDisinstallatore(cartella))
+            {
+                NonTocco(cartella, TogliChiave(ProgrammaInstallazione.ChiaveRegistro, cartella));
+                return;
+            }
 
-            DialogResult r = MessageBox.Show(
+            // con l'installazione Inno nella stessa cartella i file sono di
+            // tutte e due: si toglie solo questa voce, e le impostazioni restano
+            bool innoQui = InnoQui(CartelleInno(ChiaveInno), cartella);
+            DialogResult r = MessageBox.Show(innoQui
+                ? "In questa cartella Campanella e' installata anche con Installa-Campanella.exe, " +
+                  "e le due installazioni usano gli stessi file.\n\n" +
+                  "Cartella: " + cartella + "\n\n" +
+                  "Tolgo solo questa voce fra le app installate e \"" + NomeDisinstallatore + "\": " +
+                  "Campanella, le istruzioni, i documenti e le impostazioni restano. Per " +
+                  "togliere del tutto Campanella usa poi l'altra voce.\n\nProcedo?" :
                 "Vuoi togliere Campanella da questo computer?\n\n" +
                 "Cartella: " + cartella + "\n\n" +
                 "Gli script che hai gia' incollato dentro il tuo account Google restano dove " +
@@ -795,7 +827,7 @@ namespace Campanella
                 "Disinstalla Campanella", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (r != DialogResult.Yes) return;
 
-            DialogResult impostazioni = MessageBox.Show(
+            DialogResult impostazioni = innoQui ? DialogResult.No : MessageBox.Show(
                 "Vuoi cancellare anche le tue impostazioni?\n\n" +
                 "Sono l'elenco del personale, le regole delle etichette, gli orari caricati " +
                 "e la struttura delle cartelle: i file campanella.json e struttura.json.\n\n" +
@@ -822,8 +854,14 @@ namespace Campanella
             Thread.Sleep(1200);
 
             // la cartella arriva dalla riga di comando: mai lavorare in una
-            // cartella qualunque, solo dove c'e' Campanella
-            if (!CartellaDiCampanella(cartella)) { NonTocco(cartella); return; }
+            // cartella qualunque. Deve avere Campanella, o il suo disinstallatore
+            // ed essere quella che l'installazione ha scritto nel registro
+            string chiave = ProgrammaInstallazione.ChiaveRegistro;
+            if (!CartellaDaTogliere(cartella, CartellaRegistrata(chiave)))
+            {
+                NonTocco(cartella, TogliChiave(chiave, cartella));
+                return;
+            }
 
             List<string> problemi = new List<string>();
 
@@ -831,7 +869,12 @@ namespace Campanella
             // tolgo solo i miei, e solo se puntano dentro questa cartella. Se
             // c'e' anche l'installazione Inno, menu Start e scrivania sono
             // anche suoi (stessi nomi): li lascio stare.
-            bool inno = InstallazioneInno();
+            List<string> cartelleInno = CartelleInno(ChiaveInno);
+            bool inno = cartelleInno.Count > 0;
+            // e se sta proprio in questa cartella, programma, istruzioni,
+            // documenti e impostazioni sono anche suoi: tolgo solo il mio
+            // disinstallatore e la mia voce, e Campanella resta installata
+            bool innoQui = InnoQui(cartelleInno, cartella);
             if (!inno)
             {
                 string menu = Path.Combine(
@@ -855,7 +898,7 @@ namespace Campanella
                 Registry.CurrentUser.DeleteSubKeyTree(ProgrammaInstallazione.ChiaveRegistro, false);
             }, problemi, "registro");
 
-            TogliFile(cartella, ancheImpostazioni, problemi);
+            TogliFile(cartella, ancheImpostazioni, innoQui, problemi);
 
             string messaggio = (problemi.Count == 0)
                 ? "Campanella e' stata tolta dal computer."
@@ -870,6 +913,13 @@ namespace Campanella
             if (inno)
                 messaggio += "\n\nIl gruppo nel menu Start e il collegamento sulla scrivania restano: " +
                              "li usa anche la Campanella installata con Installa-Campanella.exe.";
+            if (innoQui)
+                messaggio = ((problemi.Count == 0)
+                        ? "Ho tolto questa voce e \"" + NomeDisinstallatore + "\"."
+                        : "Ho tolto questa voce, ma qualcosa non si e' lasciato cancellare:\n\n  " +
+                          string.Join("\n  ", problemi.ToArray())) +
+                    "\n\nCampanella resta installata in " + cartella + " con Installa-Campanella.exe, " +
+                    "con le sue impostazioni: se vuoi toglierla, usa la sua voce fra le app installate.";
 
             MessageBox.Show(messaggio, "Disinstallazione", MessageBoxButtons.OK,
                             problemi.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
@@ -879,12 +929,17 @@ namespace Campanella
         /// Toglie dalla cartella solo i file messi dall'installazione, piu' le
         /// impostazioni se richiesto, poi la cartella se e' rimasta vuota. A
         /// parte da Rimuovi, che tocca anche menu Start e registro, per poterla
-        /// provare su una cartella temporanea.
+        /// provare su una cartella temporanea. Con soloDisinstallatore (c'e'
+        /// l'installazione Inno nella stessa cartella) toglie solo
+        /// "Disinstalla Campanella.exe": il resto e' anche suo.
         /// </summary>
-        static void TogliFile(string cartella, bool ancheImpostazioni, List<string> problemi)
+        static void TogliFile(string cartella, bool ancheImpostazioni, bool soloDisinstallatore,
+                              List<string> problemi)
         {
-            List<string> daTogliere = new List<string>(FileInstallati);
-            if (ancheImpostazioni) daTogliere.AddRange(FileImpostazioni);
+            List<string> daTogliere = soloDisinstallatore
+                ? new List<string>(new string[] { NomeDisinstallatore })
+                : new List<string>(FileInstallati);
+            if (ancheImpostazioni && !soloDisinstallatore) daTogliere.AddRange(FileImpostazioni);
             foreach (string nome in daTogliere)
             {
                 string f = Path.Combine(cartella, nome);
@@ -896,6 +951,7 @@ namespace Campanella
             string doc = Path.Combine(cartella, "documenti");
             List<string> documenti = new List<string>(ProgrammaInstallazione.Documenti);
             documenti.Add("PRIVACY.txt");
+            if (soloDisinstallatore) documenti.Clear();
             foreach (string nome in documenti)
             {
                 string f = Path.Combine(doc, nome);
@@ -905,37 +961,101 @@ namespace Campanella
             Prova(delegate { CancellaSeVuota(cartella); }, problemi, "cartella");
         }
 
-        static bool CartellaDiCampanella(string cartella)
+        /// <summary>C'e' Campanella, o almeno il suo disinstallatore?</summary>
+        static bool CartellaDelDisinstallatore(string cartella)
         {
             return !string.IsNullOrEmpty(cartella) && Directory.Exists(cartella) &&
-                   File.Exists(Path.Combine(cartella, "Campanella.exe"));
+                   (File.Exists(Path.Combine(cartella, "Campanella.exe")) ||
+                    File.Exists(Path.Combine(cartella, NomeDisinstallatore)));
         }
 
-        static void NonTocco(string cartella)
+        /// <summary>
+        /// La cartella passata a /rimuovi arriva dalla riga di comando. Con
+        /// Campanella.exe si tocca come prima, anche se la voce nel registro
+        /// e' gia' stata tolta; con il solo disinstallatore, solo se e' la
+        /// cartella che l'installazione ha scritto nel registro (registrata).
+        /// </summary>
+        static bool CartellaDaTogliere(string cartella, string registrata)
+        {
+            if (!CartellaDelDisinstallatore(cartella)) return false;
+            return File.Exists(Path.Combine(cartella, "Campanella.exe")) ||
+                   Stato.StessoPercorso(cartella, registrata);
+        }
+
+        /// <summary>La cartella che l'installazione ha scritto nella sua chiave
+        /// (InstallLocation, sotto HKEY_CURRENT_USER); "" se non c'e'.</summary>
+        static string CartellaRegistrata(string chiave)
+        {
+            try
+            {
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(chiave))
+                    return (k == null) ? "" : ((k.GetValue("InstallLocation") as string) ?? "");
+            }
+            catch { return ""; }
+        }
+
+        /// <summary>
+        /// Toglie la chiave di disinstallazione se punta a questa cartella:
+        /// quando la cartella non si tocca, la voce fra le app installate
+        /// restava li' per sempre. Vero se l'ha tolta.
+        /// </summary>
+        static bool TogliChiave(string chiave, string cartella)
+        {
+            try
+            {
+                if (!Stato.StessoPercorso(CartellaRegistrata(chiave), cartella)) return false;
+                Registry.CurrentUser.DeleteSubKeyTree(chiave, false);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        static void NonTocco(string cartella, bool chiaveTolta)
         {
             MessageBox.Show(
-                "In questa cartella non c'e' Campanella.exe:\n\n" + cartella + "\n\n" +
+                "Non trovo Campanella installata in questa cartella:\n\n" + cartella + "\n\n" +
                 "Per sicurezza non cancello niente. Se hai gia' tolto o spostato Campanella " +
-                "a mano, togli a mano anche quello che resta.",
+                "a mano, togli a mano anche quello che resta." +
+                (chiaveTolta ? "\n\nHo tolto solo la sua voce fra le app installate, che non serviva piu'." : ""),
                 "Disinstalla Campanella", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         /// <summary>
-        /// C'e' anche un'installazione fatta con l'installer Inno? Nel dubbio
-        /// (registro illeggibile) rispondo di si': cosi' non tocco i suoi collegamenti.
+        /// Le cartelle delle installazioni fatte con l'installer Inno, per
+        /// l'utente e (le 1.4.x installate per tutti) per il computer: la
+        /// lista e' vuota se non ce ne sono. Una chiave che non dice dove, o
+        /// un registro illeggibile, da' "": nel dubbio conta come questa
+        /// cartella, cosi' non tocco ne' i suoi collegamenti ne' i suoi file.
         /// </summary>
-        static bool InstallazioneInno()
+        static List<string> CartelleInno(string chiave)
         {
+            List<string> cartelle = new List<string>();
             try
             {
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(ChiaveInno))
-                    if (k != null) return true;
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(chiave))
+                    if (k != null) cartelle.Add(DoveDice(k));
                 using (RegistryKey hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32))
-                using (RegistryKey k = hklm.OpenSubKey(ChiaveInno))
-                    if (k != null) return true;
-                return false;
+                using (RegistryKey k = hklm.OpenSubKey(chiave))
+                    if (k != null) cartelle.Add(DoveDice(k));
             }
-            catch { return true; }
+            catch { cartelle.Add(""); }
+            return cartelle;
+        }
+
+        /// <summary>La cartella scritta da Inno nella sua chiave: "" se non c'e'.</summary>
+        static string DoveDice(RegistryKey k)
+        {
+            string c = (k.GetValue("Inno Setup: App Path") as string) ?? "";
+            if (c == "") c = (k.GetValue("InstallLocation") as string) ?? "";
+            return c.Trim();
+        }
+
+        /// <summary>Una delle installazioni Inno sta in questa cartella (o non si sa dove sta)?</summary>
+        static bool InnoQui(List<string> cartelleInno, string cartella)
+        {
+            foreach (string c in cartelleInno)
+                if (c == "" || Stato.StessoPercorso(c, cartella)) return true;
+            return false;
         }
 
         /// <summary>Il collegamento punta a un file dentro la cartella che sto togliendo?</summary>
