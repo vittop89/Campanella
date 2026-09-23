@@ -39,7 +39,9 @@ namespace Campanella
         static readonly string[] RigaVuota = new string[0];
 
         // Le celle che le righe tengono in memoria, anche vuote: una riga con
-        // una sola cella nella colonna XFD ne tiene 16384. Oltre il tetto il
+        // una sola cella nella colonna XFD ne tiene 16384. Anche ogni riga,
+        // saltata o no, e' un posto in memoria e conta come una cella: una
+        // sola cella in A1048576 ne tiene un milione. Oltre il tetto il
         // foglio si rifiuta (Xlsx.Leggi lo abbassa per i fogli dopo il primo).
         public long CelleAllocate = 0;
         public long CelleConsentite = Xlsx.MaxCelle;
@@ -47,17 +49,12 @@ namespace Campanella
         public void Metti(int riga, int colonna, string valore)
         {
             // le righe saltate restano vuote, tutte con lo stesso array
+            if (Righe.Count <= riga) Conta(riga + 1 - Righe.Count);
             while (Righe.Count <= riga) Righe.Add(RigaVuota);
             string[] r = Righe[riga];
             if (r.Length <= colonna)
             {
-                CelleAllocate += colonna + 1 - r.Length;
-                if (CelleAllocate > CelleConsentite)
-                    throw new InvalidDataException(
-                        "Il foglio e' troppo grande: ha celle scritte fino a colonne molto lontane, " +
-                        "su tante righe, e per leggerlo servirebbero centinaia di MB.\n\n" +
-                        "Se e' l'orario, copia solo la tabella in un foglio nuovo, salvalo e " +
-                        "riprova (oppure salvalo in CSV).");
+                Conta(colonna + 1 - r.Length);
                 string[] nuovo = new string[colonna + 1];
                 Array.Copy(r, nuovo, r.Length);
                 r = nuovo;
@@ -65,6 +62,18 @@ namespace Campanella
             }
             r[colonna] = valore;
             if (colonna + 1 > Colonne) Colonne = colonna + 1;
+        }
+
+        /// <summary>Aggiunge al conto i posti nuovi (righe o celle); oltre il tetto il foglio si rifiuta.</summary>
+        void Conta(long nuove)
+        {
+            CelleAllocate += nuove;
+            if (CelleAllocate > CelleConsentite)
+                throw new InvalidDataException(
+                    "Il foglio e' troppo grande: ha celle scritte in righe o colonne molto lontane, " +
+                    "e per leggerlo servirebbero centinaia di MB.\n\n" +
+                    "Se e' l'orario, copia solo la tabella in un foglio nuovo, salvalo e " +
+                    "riprova (oppure salvalo in CSV).");
         }
 
         /// <summary>Toglie le righe completamente vuote in fondo.</summary>
@@ -86,9 +95,10 @@ namespace Campanella
         // I limiti di un foglio di Excel (fino alla riga 1048576 e alla colonna
         // XFD): oltre, il riferimento non e' valido e la cella si salta. Da
         // soli non bastano: ogni riga con una cella in XFD tiene 16384 celle,
-        // e mille righe cosi' (pochi KB di file) chiedevano 125 MB. Per questo
-        // c'e' anche un tetto alle celle di tutto il file: 5 milioni, circa
-        // 40 MB, mille volte un orario vero.
+        // e mille righe cosi' (pochi KB di file) chiedevano 125 MB; quaranta
+        // fogli con una cella in A1048576 tenevano 40 milioni di righe vuote.
+        // Per questo c'e' anche un tetto alle celle di tutto il file, righe
+        // comprese: 5 milioni, circa 40 MB, mille volte un orario vero.
         public const int MaxRighe = 1048576;
         public const int MaxColonne = 16384;
         public const long MaxCelle = 5000000;
