@@ -91,6 +91,20 @@ Verifica "il nome del foglio arriva identico"            ($letta.nomeFoglio -eq 
 Verifica "la sottocartella usa la barra dritta"          ($letta.cartellaFoglio -eq 'RECUPERI/TRIMESTRE')
 Verifica "l'anno automatico resta 'auto'"                ($letta.anno -eq 'auto')
 
+# il nome del modulo finisce in un commento // : Windows ammette U+2028 e U+2029 nei nomi dei
+# file, e per JavaScript chiudono la riga come un a capo. Il resto del nome diventerebbe codice
+$p5 = Parametri $true
+$p5.Modulo = 'Recuperi' + [char]0x2028 + 'iniettato = 1;' + [char]0x2029 + 'altro = 2;' + "`r`n" + 'ancora = 3; //'
+$f5 = Join-Path $uscita 'Moduli_acapo_prova.gs'
+$codice5 = Chiama 'Codice' @($p5) @($tP)
+Scrivi $f5 $codice5
+$js5 = "const vm=require('vm'),fs=require('fs');const s={};vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'),s);" +
+       "process.stdout.write(String(s.iniettato===undefined&&s.altro===undefined&&s.ancora===undefined&&!!s.MODULO));"
+$esito5 = (& node -e $js5 $f5)
+Verifica "a capo nel nome del modulo (anche U+2028 e U+2029): lo script si carica e il nome non diventa codice" ($LASTEXITCODE -eq 0 -and $esito5 -eq 'true')
+$rigaNome = @($codice5 -split "`r`n" | Where-Object { $_.Contains('per il modulo') })
+Verifica "e il nome resta su una riga sola, nel commento" ($rigaNome.Count -eq 1 -and $rigaNome[0].StartsWith('// >>> CONFIGURAZIONE >>>') -and $rigaNome[0].Contains('"Recuperi iniettato = 1; altro = 2; ancora = 3; //"') -and $codice5.IndexOfAny([char[]]@([char]0x2028, [char]0x2029)) -lt 0)
+
 # --- 3. proposte e controlli --------------------------------------------------------
 Write-Host "`nPROPOSTE E CONTROLLI" -ForegroundColor Cyan
 $cartelle = New-Object 'System.Collections.Generic.List[string]'

@@ -420,6 +420,7 @@ function nuovoMondo(opzioni) {
     alert(titolo, testo, bottoni) {
       m.avvisi.push({ titolo, testo, bottoni });
       if (bottoni !== 'YES_NO') return 'OK';
+      m.adesso += m.costoConferma || 0;             // per le prove sul tempo: la conferma resta aperta un po'
       return m.risposteUi.length ? m.risposteUi.shift() : 'YES';   // di norma si conferma
     },
     createMenu(nome) {
@@ -1063,6 +1064,36 @@ for (const nuovo of ['31/07', '']) {
     m.trigger.some(x => x.mese === 9 && x.giorno === 1));
 }
 
+// Google non risponde ne' alla chiusura ne' alla domanda "accetti risposte?": nel dubbio il
+// modulo e' aperto, resta collegato e fra un'ora si riprova
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const suo = m.uscite.destinazione.foglio;
+  m.uscite.rispondi(5);
+  const veraChiudi = m.uscite.setAcceptingResponses, veroStato = m.uscite.isAcceptingResponses;
+  m.uscite.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return veraChiudi.call(this, si); };
+  m.uscite.isAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 7).uid });
+  const r1 = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('chiusura e controllo falliti tutti e due: la riga dice "chiusura non riuscita", non "chiuso"',
+    String(scheda(m)[1][7]).indexOf('chiusura non riuscita') === 0);
+  verifica('e il modulo resta collegato, con la sua scadenza e un tentativo fra un\'ora',
+    m.uscite.destinazione !== null && m.uscite.destinazione.foglio.id === suo.id &&
+    r1.scadenze[m.uscite.id] !== undefined && r1.chiusi[m.uscite.id + '|2026-27'] === undefined &&
+    m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  m.uscite.rispondi(3);
+  verifica('le risposte arrivate intanto finiscono nel foglio dell\'anno', suo.righeDiRisposte() === 8);
+  m.uscite.setAcceptingResponses = veraChiudi;
+  m.uscite.isAcceptingResponses = veroStato;
+  m.adesso = new Date('2027-07-01T01:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: (m.trigger.find(x => x.dopo) || {}).uid });
+  verifica('al tentativo dopo si chiude davvero', m.uscite.aperto === false && m.uscite.destinazione === null &&
+    String(scheda(m)[1][7]).indexOf('chiuso il 30/06/2027') === 0);
+}
+
 // la chiusura scatta mentre "Prepara l'anno nuovo" sta lavorando
 {
   const p = mondoPronto();
@@ -1652,6 +1683,46 @@ titolo('30 RIGHE LENTE: MI FERMO PRIMA DEI 6 MINUTI DI GOOGLE');
   verifica('rieseguito: riparte dalle righe mancanti e le finisce tutte',
     scheda(m).every(r => r[7] === 'pronto per 2026-27') && t2.indexOf('FATTO') >= 0 && m.fogliCreati === 30);
   verifica('e dice quali righe gia\' pronte non ha ricontrollato', t2.indexOf('non ricontrollate adesso') >= 0);
+}
+{
+  // le stesse 30 righe lente, con il foglio preparato e i link trovati
+  const trentaRighe = () => {
+    const moduli = [];
+    for (let i = 1; i <= 30; i++) {
+      const n = ('0' + i).slice(-2);
+      moduli.push({ modulo: 'Modulo ' + n, cartella: '', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+    }
+    const m = nuovoMondo();
+    for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+    const c = carica(m, { config: { moduli } });
+    c.PANNELLO_1_preparaIlFoglio();
+    c.PANNELLO_2_trovaIModuli();
+    m.costoApertura = 15 * 1000;
+    return { m, c };
+  };
+
+  // i 6 minuti di Google contano dal clic sul menu: anche la conferma lasciata aperta li consuma
+  const lenta = trentaRighe();
+  lenta.m.costoConferma = 120 * 1000;                         // la conferma resta aperta due minuti
+  const inizio = lenta.m.adesso;
+  const t = lenta.c.PANNELLO_4_preparaAnno();
+  const pronte = scheda(lenta.m).filter(r => r[7] === 'pronto per 2026-27').length;
+  verifica('con la conferma aperta due minuti si ferma lo stesso prima dei 6 minuti, contati dal clic (' +
+    Math.round((lenta.m.adesso - inizio) / 1000) + ' s)', lenta.m.adesso - inizio <= 280 * 1000);
+  verifica('e le righe fatte sono salvate, con la loro chiusura', t.indexOf('NON HO FINITO') >= 0 && pronte > 0 &&
+    lenta.m.trigger.length === 1);
+
+  // l'anteprima non segna niente: rieseguita guarda di nuovo le stesse righe
+  const vista = trentaRighe();
+  const a1 = vista.c.PANNELLO_3_anteprima();
+  const a2 = vista.c.PANNELLO_3_anteprima();
+  const nonGuardate = x => (/Non guardate: ([^\n]*)/.exec(x) || [])[1];
+  verifica('(l\'anteprima a tempo finito elenca le righe non guardate, e rieseguita sono le stesse)',
+    !!nonGuardate(a1) && nonGuardate(a1) === nonGuardate(a2) && vista.m.fogliCreati === 0);
+  verifica('e quindi non promette che rieseguendola riparte da quelle',
+    a1.indexOf('riparte da queste') < 0 && a1.indexOf('Riesegui "Anteprima"') < 0);
+  verifica('dice invece che "Prepara l\'anno nuovo" le prepara lo stesso',
+    a1.indexOf('le prepara lo stesso') >= 0);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------

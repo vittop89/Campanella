@@ -140,11 +140,20 @@ function _moduloChiudi_(e) {
   }
   var finito = memoria.scadenza ||
     Utilities.formatDate(new Date(new Date().getTime() - 12 * 60 * 60 * 1000), _moduloFuso_(), 'yyyy-MM-dd');
+  if (!memoria.scadenza) {
+    // lo segno al primo tentativo: se il modulo non si chiude, quelli fra un'ora devono chiudere
+    // lo stesso anno. Ricalcolato dopo mezza giornata sarebbe gia' l'anno nuovo
+    memoria.modulo = form.getId();
+    memoria.scadenza = finito;
+    _moduloRicorda_(memoria);
+  }
   var guasto = '';
   try { _moduloRiprova_(function () { form.setAcceptingResponses(false); }); }
   catch (e1) { guasto = String(e1.message || e1); }  // lo guardo qui sotto
   var ancoraAperto = false;
-  try { ancoraAperto = form.isAcceptingResponses(); } catch (e2) { ancoraAperto = false; }
+  // se Google non risponde nemmeno a questo, conta la chiusura: non riuscita, il modulo e'
+  // da trattare come aperto (resta collegato e si riprova), non da scollegare
+  try { ancoraAperto = form.isAcceptingResponses(); } catch (e2) { ancoraAperto = (guasto !== ''); }
   if (ancoraAperto) {
     // un modulo non pubblicato non raccoglie risposte comunque: quello non lo riprovo per sempre
     var pubblicato = true;

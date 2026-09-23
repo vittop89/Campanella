@@ -117,13 +117,16 @@ function PANNELLO_3_anteprima() {
 }
 
 function PANNELLO_4_preparaAnno() {
+  // i 6 minuti di Google contano da qui, dal clic sul menu: anche la conferma lasciata aperta
+  // li consuma. Il limite di "Prepara l'anno nuovo" parte adesso, non dopo la risposta
+  var inizio = new Date().getTime();
   if (!_panConferma_('Preparo l\'anno scolastico ' + _panAnno_() + ' per tutte le righe attive.\n\n' +
                     (_panQualcunaDaSvuotare_()
                       ? 'Nelle righe con "Svuota" tolgo dal modulo le risposte degli anni scorsi, ma solo se le ' +
                         'ritrovo tutte, una per una, in un foglio vecchio: toglierle non si puo\' annullare. ' +
                         'Fogli e cartelle non li cancello. Procedo?'
                       : 'Non cancello niente. Procedo?'))) return '';
-  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(true); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(true, inizio); }));
 }
 
 /** C'e' una riga attiva con "Svuota"? Allora la conferma non puo' dire che non cancello niente. */
@@ -215,9 +218,12 @@ function _panChiudiScaduti_(e) {
       // risponde, il modulo resta collegato al foglio (le risposte tardive ci
       // arrivano lo stesso) e fra un'ora si riprova. Un modulo non pubblicato
       // non raccoglie risposte comunque: quello non lo riprovo per sempre.
-      try { _panRiprova_(function () { form.setAcceptingResponses(false); }); } catch (e3) { /* lo guardo qui sotto */ }
+      var chiusuraFallita = false;
+      try { _panRiprova_(function () { form.setAcceptingResponses(false); }); } catch (e3) { chiusuraFallita = true; }
       var ancoraAperto = false;
-      try { ancoraAperto = form.isAcceptingResponses(); } catch (e6) { ancoraAperto = false; }
+      // se Google non risponde nemmeno a questo, conta la chiusura: non riuscita, il modulo e'
+      // da trattare come aperto (resta collegato e si riprova), non da scollegare
+      try { ancoraAperto = form.isAcceptingResponses(); } catch (e6) { ancoraAperto = chiusuraFallita; }
       if (ancoraAperto) {
         var pubblicato = true;
         try {
@@ -592,8 +598,9 @@ function _panTrovaIModuli_() {
 // ===========================================================================
 //  IL LAVORO
 // ===========================================================================
-function _panEsegui_(davvero) {
-  var inizio = new Date().getTime();
+/** inizioEsecuzione: quando e' cominciata l'esecuzione (il clic sul menu); se manca, adesso. */
+function _panEsegui_(davvero, inizioEsecuzione) {
+  var inizio = inizioEsecuzione || new Date().getTime();
   var foglio = _panScheda_(true);
   var dati = _panLeggi_(foglio);
   var anno = _panAnno_();
@@ -661,9 +668,14 @@ function _panEsegui_(davvero) {
   }
   if (daFare.length || giaPronte.length) {
     righe.push('--- TEMPO FINITO: Google ferma gli script dopo 6 minuti, e mi sono fermato prima.');
-    if (daFare.length) {
-      righe.push('    ' + (davvero ? 'Da preparare ancora: ' : 'Non guardate: ') + daFare.join(', ') + '.');
-      righe.push('    Riesegui "' + (davvero ? 'Prepara l\'anno nuovo' : 'Anteprima') + '": riparte da queste.');
+    if (daFare.length && davvero) {
+      righe.push('    Da preparare ancora: ' + daFare.join(', ') + '.');
+      righe.push('    Riesegui "Prepara l\'anno nuovo": riparte da queste.');
+    } else if (daFare.length) {
+      // l'anteprima non segna niente: rieseguita guarda di nuovo le stesse righe, nello stesso ordine
+      righe.push('    Non guardate: ' + daFare.join(', ') + '.');
+      righe.push('    L\'anteprima guarda ogni volta le stesse righe, e a queste non arriva. "Prepara');
+      righe.push('    l\'anno nuovo" le prepara lo stesso: se non finisce, riparte da quelle mancanti.');
     }
     if (giaPronte.length) {
       righe.push('    Gia\' pronte per quest\'anno, non ricontrollate adesso: ' + giaPronte.join(', ') + '.');
