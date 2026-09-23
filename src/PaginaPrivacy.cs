@@ -514,7 +514,7 @@ namespace Campanella
                 {
                     d.Description = "Scegli la cartella: prendo tutti i file, anche nelle sottocartelle";
                     if (d.ShowDialog(this) != DialogResult.OK) return;
-                    AggiungiFile(FileDellaCartella(d.SelectedPath));
+                    AggiungiFile(new string[] { d.SelectedPath });
                 }
             }));
             p.Controls.Add(Tema.Bottone("Togli i selezionati", 350, y, 170, delegate
@@ -575,32 +575,59 @@ namespace Campanella
             return p;
         }
 
+        /// <summary>File e cartelle (trascinati o scelti): delle cartelle, tutti i file dentro.</summary>
         void AggiungiFile(string[] percorsi)
         {
             int aggiunti = 0;
-            foreach (string f in percorsi)
+            List<string> saltate = new List<string>();
+            foreach (string p in percorsi)
             {
-                if (Directory.Exists(f))
+                string[] file = Directory.Exists(p) ? FileDellaCartella(p, saltate) : new string[] { p };
+                foreach (string f in file)
                 {
-                    AggiungiFile(FileDellaCartella(f));
-                    continue;
+                    if (!File.Exists(f)) continue;
+                    if (elencoFile.Items.Contains(f)) continue;
+                    elencoFile.Items.Add(f);
+                    aggiunti++;
                 }
-                if (!File.Exists(f)) continue;
-                if (elencoFile.Items.Contains(f)) continue;
-                elencoFile.Items.Add(f);
-                aggiunti++;
             }
             AggiornaConteggio3();
-            if (aggiunti > 0) Guscio.Stato1("Aggiunti " + aggiunti + " file.");
+            if (saltate.Count > 0)
+                Guscio.Stato1("Aggiunti " + aggiunti + " file. " +
+                    (saltate.Count == 1 ? "Una cartella non si legge (permessi?)"
+                                        : saltate.Count + " cartelle non si leggono (permessi?)") +
+                    ": le ho saltate.", Tema.Ambra);
+            else if (aggiunti > 0) Guscio.Stato1("Aggiunti " + aggiunti + " file.");
         }
 
-        /// <summary>I file di una cartella e delle sottocartelle, senza quelli di
-        /// lavoro: a mezza sincronizzazione, aperti da Word, nascosti.</summary>
-        static string[] FileDellaCartella(string cartella)
+        /// <summary>
+        /// I file di una cartella e delle sottocartelle, senza quelli di lavoro:
+        /// a mezza sincronizzazione, aperti da Word, nascosti. Una sottocartella
+        /// che non si legge (permessi, percorso troppo lungo) finisce in saltate
+        /// e il resto si prende lo stesso: prima una sola fermava tutto con la
+        /// finestra d'errore di .NET.
+        /// </summary>
+        static string[] FileDellaCartella(string cartella, List<string> saltate)
         {
             List<string> fuori = new List<string>();
-            foreach (string f in Directory.GetFiles(cartella, "*", SearchOption.AllDirectories))
-                if (!Anonimizzatore.Temporaneo(f)) fuori.Add(f);
+            Stack<string> daGuardare = new Stack<string>();
+            daGuardare.Push(cartella);
+            while (daGuardare.Count > 0)
+            {
+                string c = daGuardare.Pop();
+                string[] file, sotto;
+                try
+                {
+                    file = Directory.GetFiles(c);
+                    sotto = Directory.GetDirectories(c);
+                }
+                catch (UnauthorizedAccessException) { saltate.Add(c); continue; }
+                catch (IOException) { saltate.Add(c); continue; }
+                foreach (string f in file)
+                    if (!Anonimizzatore.Temporaneo(f)) fuori.Add(f);
+                // al contrario sulla pila: si guardano nell'ordine in cui vengono
+                for (int i = sotto.Length - 1; i >= 0; i--) daGuardare.Push(sotto[i]);
+            }
             return fuori.ToArray();
         }
 

@@ -1534,8 +1534,8 @@ namespace Campanella
                                   p.Ruolo.Replace("\"", "\"\"") + "\";\"" +
                                   p.Email.Replace("\"", "\"\"") + "\";\"" +
                                   Stato.CategoriaRuolo(p.Ruolo) + "\";" + (p.Incluso ? "si" : "no"));
-                File.WriteAllText(d.FileName, sb.ToString(), new UTF8Encoding(true));
-                Guscio.Stato1("Salvato: " + d.FileName);
+                if (Guscio.SalvaFile(this, d.FileName, sb.ToString(), new UTF8Encoding(true)))
+                    Guscio.Stato1("Salvato: " + d.FileName);
             }
         }
 
@@ -1931,8 +1931,8 @@ namespace Campanella
                 d.FileName = nomeFile;
                 d.Filter = filtro + "|Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
-                File.WriteAllText(d.FileName, TestoCorrente(), new UTF8Encoding(false));
-                Guscio.Stato1("Salvato: " + d.FileName);
+                if (Guscio.SalvaFile(this, d.FileName, TestoCorrente(), new UTF8Encoding(false)))
+                    Guscio.Stato1("Salvato: " + d.FileName);
             }
         }
 
@@ -1979,7 +1979,7 @@ namespace Campanella
                     if (progetti.Length == 1) { Guscio.Apri(progetti[0]); return; }
                 }
             }
-            catch { }
+            catch (Exception) { }     // Drive che non si legge: si apre Drive nel browser
             Guscio.Apri("https://drive.google.com/");
         }
     }

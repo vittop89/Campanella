@@ -566,8 +566,8 @@ namespace Campanella
                 d.Filter = "Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 string testo = (voce == 3) ? IstruzioniCalendario() : TestoCorrente(voce);
-                File.WriteAllText(d.FileName, testo, new UTF8Encoding(false));
-                Guscio.Stato1("Salvato: " + d.FileName);
+                if (Guscio.SalvaFile(this, d.FileName, testo, new UTF8Encoding(false)))
+                    Guscio.Stato1("Salvato: " + d.FileName);
             }
         }
 

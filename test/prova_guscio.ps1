@@ -22,7 +22,11 @@
         subito, una volta sola;
       - chiudere mentre un lavoro va avanti: il guscio sa quali lavori
         vanno (e chiede prima di chiudere), e lo scarico di rizzo-pii viene
-        fermato con un'attesa breve e limitata.
+        fermato con un'attesa breve e limitata;
+      - i bottoni che portano alla Posta ci arrivano anche con il menu in
+        un altro ordine;
+      - un file che non si scrive e una sottocartella che non si legge non
+        aprono la finestra d'errore di .NET.
 
     Uno Stato si crea senza costruttore, oppure con Carica dopo aver messo
     Stato.CartellaDiProva su una cartella temporanea: cosi' non guarda il
@@ -489,6 +493,73 @@ finally {
     if ($g -ne $null) { $g.Dispose() }
     $campoProva.SetValue($null, '')
     Remove-Item -Recurse -Force -LiteralPath $cartellaMenu -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+Intestazione "FILE CHE NON SI SCRIVONO E CARTELLE CHE NON SI LEGGONO"
+# "Salva su file..." di Posta e Orari e "Aggiungi una cartella..." della
+# Privacy: un file aperto in Excel o una sottocartella protetta aprivano la
+# finestra d'errore di .NET. Adesso il file non salvato si dice con un
+# messaggio breve, e la cartella che non si legge si salta.
+$cartellaFile = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-file-' + (Get-Random))
+New-Item -ItemType Directory -Force $cartellaFile | Out-Null
+$chiusa = Join-Path $cartellaFile 'elenco\chiusa'
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$divieto = New-Object System.Security.AccessControl.FileSystemAccessRule($sid,
+    [System.Security.AccessControl.FileSystemRights]::ListDirectory,
+    [System.Security.AccessControl.AccessControlType]::Deny)
+$divietoMesso = $false
+try {
+    $mScrivi = $tGuscio.GetMethod('ScriviFile', $FS)
+    Verifica "c'e' una scrittura dei file che non fa cadere il programma" ($mScrivi -ne $null)
+    if ($mScrivi -ne $null) {
+        $utf8 = [System.Text.Encoding]::UTF8
+        $buono = Join-Path $cartellaFile 'orari - cosa fare.txt'
+        $e = $mScrivi.Invoke($null, @([string]$buono, 'prova', $utf8))
+        Verifica "un file che si puo' scrivere: scritto, nessun errore" ($e -eq '' -and [System.IO.File]::ReadAllText($buono) -eq 'prova')
+        $e = $mScrivi.Invoke($null, @([string](Join-Path $cartellaFile 'non c''e''\x.txt'), 'prova', $utf8))
+        Verifica "in una cartella che non c'e': il motivo, senza eccezione" ($e -ne '')
+        Set-ItemProperty -LiteralPath $buono -Name IsReadOnly -Value $true
+        $e = $mScrivi.Invoke($null, @([string]$buono, 'altro', $utf8))
+        Set-ItemProperty -LiteralPath $buono -Name IsReadOnly -Value $false
+        Verifica "un file in sola lettura: il motivo, e il file resta com'era" ($e -ne '' -and [System.IO.File]::ReadAllText($buono) -eq 'prova')
+    }
+
+    $tPrivacy = $asm.GetType('Campanella.PaginaPrivacy')
+    $mCartella = $tPrivacy.GetMethod('FileDellaCartella', $FS, $null,
+        [Type[]]@([string], [System.Collections.Generic.List[string]]), $null)
+    Verifica "la Privacy prende i file di una cartella dicendo quali sottocartelle salta" ($mCartella -ne $null)
+    if ($mCartella -ne $null) {
+        New-Item -ItemType Directory -Force (Join-Path $cartellaFile 'elenco\aperta') | Out-Null
+        New-Item -ItemType Directory -Force $chiusa | Out-Null
+        Set-Content -LiteralPath (Join-Path $cartellaFile 'elenco\verbale.txt') -Value 'prova'
+        Set-Content -LiteralPath (Join-Path $cartellaFile 'elenco\aperta\nota.txt') -Value 'prova'
+        Set-Content -LiteralPath (Join-Path $chiusa 'segreto.txt') -Value 'prova'
+        $acl = [System.IO.Directory]::GetAccessControl($chiusa)
+        $acl.AddAccessRule($divieto)
+        [System.IO.Directory]::SetAccessControl($chiusa, $acl)
+        $divietoMesso = $true
+        $letta = $true
+        try { [System.IO.Directory]::GetFiles($chiusa) | Out-Null } catch { $letta = $false }
+        Verifica "(la sottocartella di prova davvero non si legge)" (-not $letta)
+
+        $saltate = New-Object 'System.Collections.Generic.List[string]'
+        $trovati = @($mCartella.Invoke($null, [object[]]@([string](Join-Path $cartellaFile 'elenco'), $saltate.PSObject.BaseObject)))
+        $nomi = @($trovati | ForEach-Object { [System.IO.Path]::GetFileName($_) } | Sort-Object)
+        Verifica "i file delle cartelle che si leggono ci sono tutti ($($nomi -join ', '))" (($nomi -join '|') -eq 'nota.txt|verbale.txt')
+        Verifica "la sottocartella che non si legge e' saltata, e detta" ($saltate.Count -eq 1 -and $saltate[0] -eq $chiusa)
+    }
+}
+catch {
+    Verifica "file e cartelle si provano senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($divietoMesso) {
+        $acl = [System.IO.Directory]::GetAccessControl($chiusa)
+        [void]$acl.RemoveAccessRule($divieto)
+        [System.IO.Directory]::SetAccessControl($chiusa, $acl)
+    }
+    Remove-Item -Recurse -Force -LiteralPath $cartellaFile -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

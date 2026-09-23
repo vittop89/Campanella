@@ -672,12 +672,38 @@ namespace Campanella
             for (int tentativo = 0; tentativo < 3; tentativo++)
             {
                 try { MettiNegliAppunti(testo); Stato1(messaggio); return; }
-                catch { System.Threading.Thread.Sleep(120); }
+                // gli appunti occupati da un altro programma: si riprova fra un attimo
+                catch (System.Runtime.InteropServices.ExternalException) { System.Threading.Thread.Sleep(120); }
             }
             MessageBox.Show(this,
                 "Windows non mi ha lasciato usare gli appunti: di solito e' un altro " +
                 "programma che li tiene occupati per un istante.\n\nRiprova.",
                 "Appunti occupati", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Scrive il file scelto con "Salva su file...". Se non ci riesce (file
+        /// aperto in Excel, cartella protetta, disco pieno) lo dice con un
+        /// messaggio breve, invece della finestra d'errore di .NET, e torna false.
+        /// </summary>
+        public static bool SalvaFile(IWin32Window padre, string percorso, string testo, Encoding codifica)
+        {
+            string errore = ScriviFile(percorso, testo, codifica);
+            if (errore == "") return true;
+            MessageBox.Show(padre, "Non sono riuscito a salvare il file\n\n" + percorso + "\n\n" + errore,
+                "File non salvato", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        /// <summary>Scrive il file: vuoto se ci e' riuscito, altrimenti il motivo.</summary>
+        public static string ScriviFile(string percorso, string testo, Encoding codifica)
+        {
+            try
+            {
+                File.WriteAllText(percorso, testo ?? "", codifica);
+                return "";
+            }
+            catch (Exception ex) { return ex.Message; }
         }
 
         public static void Apri(string cosa)
@@ -701,7 +727,7 @@ namespace Campanella
                     using (StreamReader r = new StreamReader(s, Encoding.UTF8)) return r.ReadToEnd();
                 }
             }
-            catch { return ""; }
+            catch (Exception) { return ""; }     // illeggibile vale come mancante: chi chiama lo dice
         }
 
         // -------------------------------------------------------------------
@@ -725,8 +751,10 @@ namespace Campanella
                 string prova;
                 if (!Stato.Scrivibile(cartella, out prova)) throw new Exception(prova);
             }
-            catch
+            catch (Exception)
             {
+                // accanto al programma non si scrive (cartella protetta, chiavetta
+                // in sola lettura): si ripiega sulla cartella temporanea
                 cartella = Path.Combine(Path.GetTempPath(), "Campanella", "documenti");
                 Directory.CreateDirectory(cartella);
             }
@@ -1244,7 +1272,8 @@ namespace Campanella
             {
                 if (cartella == "") cartella = S.CartellaDatiDiDefault();
                 string radice = "";
-                try { radice = Path.GetDirectoryName(cartella.TrimEnd('\\')); } catch { }
+                // un percorso non valido lascia la radice vuota: qui sotto si dice che non c'e'
+                try { radice = Path.GetDirectoryName(cartella.TrimEnd('\\')); } catch (Exception) { }
                 if (string.IsNullOrEmpty(radice) || !Directory.Exists(radice))
                 {
                     MessageBox.Show(this,
@@ -1254,7 +1283,8 @@ namespace Campanella
                     return;
                 }
                 string perche;
-                try { Directory.CreateDirectory(cartella); } catch { }
+                // se non si crea, Scrivibile qui sotto lo dice con il motivo
+                try { Directory.CreateDirectory(cartella); } catch (Exception) { }
                 if (!Stato.Scrivibile(cartella, out perche))
                 {
                     MessageBox.Show(this, "In quella cartella non riesco a scrivere: " + perche,
@@ -1582,7 +1612,8 @@ namespace Campanella
             long attesi = ultimoRilascio.ByteWindows;
             string sha256 = ultimoRilascio.Sha256Windows;
             string nome = "Rizzo-PII-Setup.exe";
-            try { nome = Path.GetFileName(new Uri(url).LocalPath); } catch { }
+            // un indirizzo che non si scompone lascia il nome di partenza
+            try { nome = Path.GetFileName(new Uri(url).LocalPath); } catch (Exception) { }
 
             lavoro = new System.Threading.Thread(delegate ()
             {
