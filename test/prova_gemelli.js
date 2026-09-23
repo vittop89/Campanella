@@ -13,7 +13,8 @@
  *      o fra le gemelle o fra quelle diverse apposta, con il perche';
  *   2. le regole che le coppie diverse devono condividere si provano girando
  *      il codice: il giorno di chiusura (29/02 compreso) e l'anno scolastico;
- *   3. ogni funzione interna chiamata o nominata esiste;
+ *   3. ogni funzione interna chiamata o nominata esiste, e le funzioni interne
+ *      finiscono con "_", cosi' Apps Script non le mostra nel menu Esegui;
  *   4. i nomi che il menu, i trigger e Campanella (src/Moduli.cs) citano come
  *      testo esistono davvero negli script.
  */
@@ -224,7 +225,7 @@ titolo('LE REGOLE CONDIVISE: GIORNO DI CHIUSURA E ANNO SCOLASTICO');
 }
 
 // ---- 3. i nomi interni ------------------------------------------------------------------
-titolo('LE FUNZIONI INTERNE ESISTONO');
+titolo('LE FUNZIONI INTERNE: ESISTONO, E SONO PRIVATE PER APPS SCRIPT');
 for (const [nome, testo, definite] of [['Moduli.gs', MODULI, FM], ['Pannello.gs', PANNELLO, FP]]) {
   const codice = soloCodice(testo);
   const nominate = new Set();
@@ -237,6 +238,15 @@ for (const [nome, testo, definite] of [['Moduli.gs', MODULI, FM], ['Pannello.gs'
   const mancano = [...nominate].filter(n => !definite[n] && !variabili.has(n));
   verifica(nome + ': ogni funzione interna nominata esiste' + (mancano.length ? ' (mancano: ' + mancano.join(', ') + ')' : ''),
     mancano.length === 0);
+  // per Apps Script e' privata solo una funzione che finisce con "_": le altre compaiono
+  // nel menu Esegui, e lanciata a mano una funzione interna salta il lock
+  const pubbliche = Object.keys(definite).filter(n => n[0] === '_' && !/_$/.test(n));
+  verifica(nome + ': le funzioni interne finiscono con "_", fuori dal menu Esegui' +
+    (pubbliche.length ? ' (' + pubbliche.length + ' no: ' + pubbliche.slice(0, 4).join(', ') + '...)' : ''),
+    pubbliche.length === 0);
+  const esposte = Object.keys(definite).filter(n => /^(MODULO|PANNELLO)_/.test(n) && /_$/.test(n));
+  verifica(nome + ': le funzioni da eseguire restano visibili (nessun MODULO_/PANNELLO_ finisce con "_")',
+    esposte.length === 0);
 }
 
 // ---- 4. i nomi citati come testo -------------------------------------------------------

@@ -1195,11 +1195,11 @@ titolo('IL LINK DEL MODULO');
 {
   const m = nuovoMondo();
   const c = carica(m);
-  verifica('link dell\'editor', c._panIdModulo('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
-  verifica('id incollato da solo', c._panIdModulo('1AbCdEfGhIjKlMnOpQrStUvWxYz012345') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
-  verifica('link per chi risponde: rifiutato', c._panIdModulo('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform') === '');
-  verifica('link corto di condivisione: rifiutato', c._panIdModulo('https://forms.gle/abc123') === '');
-  verifica('vuoto', c._panIdModulo('') === '' && c._panIdModulo('   ') === '');
+  verifica('link dell\'editor', c._panIdModulo_('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  verifica('id incollato da solo', c._panIdModulo_('1AbCdEfGhIjKlMnOpQrStUvWxYz012345') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  verifica('link per chi risponde: rifiutato', c._panIdModulo_('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform') === '');
+  verifica('link corto di condivisione: rifiutato', c._panIdModulo_('https://forms.gle/abc123') === '');
+  verifica('vuoto', c._panIdModulo_('') === '' && c._panIdModulo_('   ') === '');
 
   const p = mondoPronto();
   p.m.pannello.getSheetByName('Moduli').getRange(3, 2).setValue('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform');

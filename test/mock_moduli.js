@@ -723,13 +723,13 @@ titolo('ANNO E GIORNO DI CHIUSURA');
 {
   const m = nuovoMondo();
   const c = carica(m);
-  verifica('31 agosto -> ancora l\'anno vecchio', c._moduloAnno('2026-08-31') === '2025-26');
-  verifica('1 settembre -> anno nuovo', c._moduloAnno('2026-09-01') === '2026-27');
-  verifica('gennaio -> stesso anno scolastico', c._moduloAnno('2027-01-10') === '2026-27');
-  verifica('cambio di secolo: 2099-00', c._moduloAnno('2099-10-01') === '2099-00');
+  verifica('31 agosto -> ancora l\'anno vecchio', c._moduloAnno_('2026-08-31') === '2025-26');
+  verifica('1 settembre -> anno nuovo', c._moduloAnno_('2026-09-01') === '2026-27');
+  verifica('gennaio -> stesso anno scolastico', c._moduloAnno_('2027-01-10') === '2026-27');
+  verifica('cambio di secolo: 2099-00', c._moduloAnno_('2099-10-01') === '2099-00');
 
   const notte = nuovoMondo({ adesso: '2026-08-31T22:30:00Z' });     // in Italia e' gia' il primo settembre
-  verifica('l\'anno si calcola con l\'ora italiana, non con quella dell\'editor', carica(notte)._moduloAnno() === '2026-27');
+  verifica('l\'anno si calcola con l\'ora italiana, non con quella dell\'editor', carica(notte)._moduloAnno_() === '2026-27');
 
   const sbagliato = nuovoMondo();
   const e1 = lancia(() => carica(sbagliato, { config: { anno: '2026-28' } }).MODULO_1_anteprima());
@@ -810,9 +810,9 @@ titolo('CASI STORTI');
   const copia = nuovoMondo();
   copia.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: 'modulo-originale', fogli: { '2026-27': 'foglio-di-un-altro' } }));
   const cc = carica(copia);
-  verifica('copia di un modulo: non eredita i fogli dell\'originale', Object.keys(cc._moduloMemoria(copia.form).fogli).length === 0);
+  verifica('copia di un modulo: non eredita i fogli dell\'originale', Object.keys(cc._moduloMemoria_(copia.form).fogli).length === 0);
   copia.proprieta.set('CAMPANELLA_MODULO', '{rotto');
-  verifica('memoria illeggibile: riparte da zero senza rompersi', Object.keys(cc._moduloMemoria(copia.form).fogli).length === 0);
+  verifica('memoria illeggibile: riparte da zero senza rompersi', Object.keys(cc._moduloMemoria_(copia.form).fogli).length === 0);
 }
 
 // ---- 9b. passare il comando al foglio di controllo ------------------------------------
