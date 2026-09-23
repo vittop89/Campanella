@@ -204,6 +204,112 @@ console.log(JSON.stringify({
         Verifica "caso $n`: nel contesto nasce soltanto ORARI ($(@($r.nomi) -join ', '))" ((@($r.nomi) -join ',') -eq 'ORARI')
         Verifica "caso $n`: il periodo resta intatto nei dati" ($r.periodo -eq $true)
     }
+
+    # --- le lezioni sotto il giorno giusto, anche dopo un riavvio (A-59, A-64)
+    Write-Host "`nGIORNI E PERIODO, ANCHE DOPO UN RIAVVIO" -ForegroundColor Cyan
+    $tStato = $asm.GetType('Campanella.Stato')
+    $tRis   = $asm.GetType('Campanella.RisultatoOrario')
+    $IS     = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+    Add-Type -AssemblyName System.Web.Extensions
+    $ser = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+
+    # come alla chiusura e alla riapertura: l'orario va nello stato, i dati
+    # diventano JSON e tornano indietro, e la pagina ricostruisce l'orario
+    function JsonDati($o) {
+        $s = NuovoStato
+        $o.SalvaIn($s.PSObject.BaseObject)
+        $ser.Serialize($tStato.GetMethod('Dati', $IS).Invoke($s.PSObject.BaseObject, $null))
+    }
+    function DaJson($json) {
+        $s = NuovoStato
+        $a = New-Object 'object[]' 1
+        $a[0] = $ser.DeserializeObject($json)
+        [void]$tStato.GetMethod('LeggiDati', $IS).Invoke($s.PSObject.BaseObject, $a)
+        $b = New-Object 'object[]' 1
+        $b[0] = $s.PSObject.BaseObject
+        $tRis.GetMethod('Ripristina', $FS).Invoke($null, $b)
+    }
+    function SenzaDataETitolo($gs) {
+        ($gs -split "`n" | Where-Object { $_ -notmatch 'generati il|^\s*titolo:' }) -join "`n"
+    }
+    function Cella($o, $docente, $ora, $giorno) {
+        $c = $o.Colonna($giorno)
+        if ($c -lt 0) { return '(manca la colonna)' }
+        $g = $o.GrigliaDocente($docente)
+        [string]$g[($ora - 1), $c]
+    }
+
+    $casi = @(
+        @{ Nome = 'tabellone senza lunedi'; Righe = @(
+            'Orario dal 15/09;;;;;;;;;;',
+            ';MAR;;MER;;GIO;;VEN;;SAB;',
+            ';1;2;1;2;1;2;1;2;1;2',
+            'ROSSI;1A;;;2B;;;;;;5E',
+            'VERDI;;1A;3C;;;;2B;;4D;') ;
+           Giorni = '1,2,3,4,5'; Attese = @(@('ROSSI', 1, 1, '1A'), @('ROSSI', 2, 2, '2B'), @('ROSSI', 2, 5, '5E'), @('VERDI', 1, 5, '4D')) },
+        @{ Nome = 'tabellone senza mercoledi'; Righe = @(
+            'Orario dal 15/09;;;;;;;;',
+            ';LUN;;MAR;;GIO;;VEN;',
+            ';1;2;1;2;1;2;1;2',
+            'ROSSI;1A;;;2B;3C;;;4D',
+            'VERDI;;1A;;;;3C;2B;') ;
+           Giorni = '0,1,3,4'; Attese = @(@('ROSSI', 1, 3, '3C'), @('ROSSI', 2, 4, '4D'), @('VERDI', 2, 3, '3C'), @('VERDI', 1, 4, '2B')) },
+        # il sabato e la terza ora ci sono ma sono vuoti: tornano solo se salvati
+        @{ Nome = 'tabellone con sabato e terza ora vuoti'; Righe = @(
+            'Orario dal 15/09;;;;;;;;;;;;',
+            ';LUN;;;MAR;;;MER;;;SAB;;',
+            ';1;2;3;1;2;3;1;2;3;1;2;3',
+            'ROSSI;1A;2B;;;1A;;3C;;;;;',
+            'VERDI;;;;2B;;;;3C;;;;') ;
+           Giorni = '0,1,2,5'; Attese = @(@('ROSSI', 2, 0, '2B'), @('ROSSI', 1, 2, '3C'), @('VERDI', 1, 1, '2B'), @('VERDI', 2, 2, '3C')) },
+        @{ Nome = 'tabella Docente/Giorno/Ora senza lunedi'; Righe = @(
+            'Docente;Giorno;Ora;Classe;Materia;Aula',
+            'ROSSI;Martedi;1;1A;Matematica;Aula 12',
+            'ROSSI;Giovedi;2;2B;Matematica;Aula 12',
+            'VERDI;Mercoledi;1;3C;Storia;Laboratorio',
+            'VERDI;Venerdi;3;1A;Storia;Aula 7') ;
+           Giorni = '1,2,3,4'; Attese = @(@('ROSSI', 1, 1, '1A'), @('ROSSI', 2, 3, '2B'), @('VERDI', 1, 2, '3C'), @('VERDI', 3, 4, '1A')) }
+    )
+    $k = 0
+    foreach ($caso in $casi) {
+        $k++
+        $o = AnalizzaFile (ScriviCsv "giorni$k.csv" $caso.Righe)
+        Verifica "$($caso.Nome): colonne $(@($o.IndiciGiorni) -join ',')" ((@($o.IndiciGiorni) -join ',') -eq $caso.Giorni)
+        $json = JsonDati $o
+        $dopo = DaJson $json
+        foreach ($a in $caso.Attese) {
+            $nome = $o.Giorni[$o.Colonna($a[2])]
+            Verifica "$($caso.Nome): $($a[0]) ha $($a[3]) $nome alla $($a[1])a ora" ((Cella $o $a[0] $a[1] $a[2]) -eq $a[3])
+            Verifica "  ...e anche dopo un riavvio" ((Cella $dopo $a[0] $a[1] $a[2]) -eq $a[3])
+        }
+        Verifica "$($caso.Nome): dopo un riavvio stessi giorni" ((@($dopo.Giorni) -join ',') -eq (@($o.Giorni) -join ','))
+        $s = NuovoStato
+        $s.CalDocente = 'ROSSI'
+        Verifica "$($caso.Nome): dopo un riavvio DatiOrari.gs e' lo stesso" `
+            ((SenzaDataETitolo (GeneraDati $o $s $true)) -eq (SenzaDataETitolo (GeneraDati $dopo $s $true)))
+        if ($caso.Righe[0] -like 'Docente*') {
+            $lezioni = $ser.Serialize($ser.DeserializeObject($json)['lezioni'])
+            Verifica "$($caso.Nome): materia e aula non finiscono nei dati salvati" `
+                ($lezioni -cnotmatch 'Matematica|Storia|Aula 12|Laboratorio|"m":|"a":')
+        }
+    }
+
+    # il tabellone scelto (di partenza quello d'esempio): periodo e dati uguali dopo un riavvio
+    $o = AnalizzaFile $File
+    $dopo = DaJson (JsonDati $o)
+    Verifica "il periodo resta dopo un riavvio ($($dopo.Periodo))" (($dopo.Periodo -eq $o.Periodo) -and ($o.Periodo -ne ''))
+    $s = NuovoStato
+    $s.CalDocente = $o.Docenti()[0]
+    Verifica "il tabellone scelto da' lo stesso DatiOrari.gs dopo un riavvio" `
+        ((SenzaDataETitolo (GeneraDati $o $s $true)) -eq (SenzaDataETitolo (GeneraDati $dopo $s $true)))
+
+    # un file dei dati di una versione precedente: niente colonne, materia e aula
+    $vecchio = '{"lezioni":[{"d":"ROSSI","g":1,"o":1,"c":"1A","m":"Matematica","a":"Aula 12"},' +
+               '{"d":"ROSSI","g":3,"o":2,"c":"2B","m":"","a":""}]}'
+    $dopo = DaJson $vecchio
+    Verifica "i dati di una versione precedente si leggono ($($dopo.Lezioni.Count) lezioni)" ($dopo.Lezioni.Count -eq 2)
+    Verifica "  ...con le colonne ricavate dai giorni ($(@($dopo.Giorni) -join ' '))" ((@($dopo.IndiciGiorni) -join ',') -eq '1,3')
+    Verifica "  ...e ogni lezione sotto il suo giorno" (((Cella $dopo 'ROSSI' 1 1) -eq '1A') -and ((Cella $dopo 'ROSSI' 2 3) -eq '2B'))
 }
 finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 

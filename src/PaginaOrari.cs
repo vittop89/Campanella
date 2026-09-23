@@ -120,23 +120,15 @@ namespace Campanella
             S.OggettoOrariClasse = txtOggettoClasse.Text;
             S.NotaOrari = txtNota.Text;
             S.InviaOrariClassi = chkClassi.Checked;
-            S.Lezioni = new List<Lezione>(orario.Lezioni);
+            orario.SalvaIn(S);
             RaccogliCalendario();
         }
 
         void RipristinaDaStato()
         {
-            orario = new RisultatoOrario();
-            orario.Lezioni = new List<Lezione>(S.Lezioni);
-            int maxOra = 0, maxGiorno = 0;
-            foreach (Lezione l in S.Lezioni)
-            {
-                if (l.Ora > maxOra) maxOra = l.Ora;
-                if (l.Giorno > maxGiorno) maxGiorno = l.Giorno;
-            }
-            orario.OrePerGiorno = Math.Max(1, maxOra);
-            for (int i = 0; i <= maxGiorno; i++) orario.Giorni.Add(Lezione.Giorni[i]);
-            orario.Formato = "ripreso dalle impostazioni salvate";
+            // le colonne e il periodo sono salvati con le lezioni: dopo un
+            // riavvio l'orario torna con gli stessi giorni del tabellone
+            orario = RisultatoOrario.Ripristina(S);
         }
 
         // ===================================================================
