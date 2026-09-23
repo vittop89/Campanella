@@ -40,10 +40,14 @@ again).
   the labels it creates (PASSO_2, PASSO_3 and the hourly sorting) are born
   with their colour; without it they are created as before and PASSO_2 says
   how to add the service. Two new functions colour the labels that already
-  exist: EXTRA_coloraEtichette colours the labels with no colour and those
-  the script created, and leaves alone a colour you gave by hand to a label
-  you already had; EXTRA_coloraTutteLeEtichette recolours those too, and says
-  so. Both use the same lock as the sorting (if a run is still working they
+  exist: EXTRA_coloraEtichette colours the labels with no colour, those the
+  script created and those that still have the colour the script gave them
+  (so a colour changed in Campanella reaches them too), and leaves alone a
+  colour you gave by hand to a label you already had, or to one you deleted
+  and made again with the same name; EXTRA_coloraTutteLeEtichette recolours
+  those too, and says so. For a label still missing it points to PASSO_2
+  (in test mode: it will be born coloured once test mode is off). Both use
+  the same lock as the sorting (if a run is still working they
   ask you to retry in a minute), change nothing in test mode (they list what
   would change), skip and report a colour Gmail does not accept, never touch
   the label of a rule without a colour and never delete a label; without the

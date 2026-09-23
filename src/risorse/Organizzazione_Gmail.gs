@@ -41,8 +41,9 @@
  *                                    l'elenco del personale nell'applicazione
  *    EXTRA_creaFiltriGmail ......... crea i filtri veri di Gmail (facoltativo)
  *    EXTRA_coloraEtichette ......... da' alle etichette i colori scelti in
- *                                    Campanella: solo a quelle senza colore o
- *                                    create dallo script (facoltativo)
+ *                                    Campanella: solo a quelle senza colore e
+ *                                    a quelle create o colorate dallo script
+ *                                    (facoltativo)
  *    EXTRA_coloraTutteLeEtichette .. come la precedente, ma ricolora anche le
  *                                    etichette che c'erano gia', comprese
  *                                    quelle a cui avevi dato un colore tu
@@ -87,6 +88,8 @@ var _LARGHEZZA_RIGA         = 96;    // le note dell'anteprima vanno a capo qui
 var _LARGHEZZA_TABELLA      = 100;   // e le righe della sua tabella non vanno oltre
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
+var _CHIAVE_CREATE_ID       = 'ORGGMAIL_ETICHETTE_CREATE_ID';  // e il loro id (servizio Gmail API)
+var _CHIAVE_COLORI          = 'ORGGMAIL_COLORI_DATI';  // i colori dati dallo script, per id
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
 var _TRIGGER_ORARI          = 'ORARI_2_invia';  // le due riprese di Orari.gs, nello stesso progetto
@@ -960,8 +963,9 @@ function EXTRA_creaFiltriGmail() {
 
 /**
  * Da' alle etichette delle regole accese il colore scelto in Campanella, ma
- * solo a quelle senza colore e a quelle create dallo script: un colore che
- * avevi dato tu a un'etichetta che c'era gia' resta com'e'.
+ * solo a quelle senza colore, a quelle create dallo script e a quelle che
+ * hanno ancora il colore che lo script aveva dato: un colore che avevi dato
+ * tu a un'etichetta che c'era gia' resta com'e'.
  */
 function EXTRA_coloraEtichette() {
   return _coloraEtichette_(false);
@@ -997,7 +1001,7 @@ function _coloraEtichette_(tutte) {
   }
   var fatte = [], uguali = [], tue = [], mancano = [], sbagliati = [], fallite = [];
   try {
-    var create = _etichetteCreate_();
+    var memoria = _memoriaEtichette_();
     var inGmail = _etichetteGmail_();
     var regole = _regoleAttive_(cfg);
     var viste = {};
@@ -1014,8 +1018,11 @@ function _coloraEtichette_(tutte) {
         if (_stessoColore_(adesso, colore)) { uguali.push(nome); continue; }
         // un colore che non ha dato lo script si cambia solo se lo chiedi
         var senzaColore = !adesso || !adesso.backgroundColor;
-        if (!tutte && !senzaColore && create.indexOf(nome) < 0) { tue.push(nome); continue; }
-        if (!prova) _applicaColore_(inGmail[nome].id, colore);
+        if (!tutte && !senzaColore && !_coloreDelloScript_(memoria, nome, inGmail[nome].id, adesso)) {
+          tue.push(nome);
+          continue;
+        }
+        if (!prova) _applicaColore_(inGmail[nome].id, colore, inGmail);
         fatte.push(nome);
       } catch (errore) {
         fallite.push(nome + ': ' + errore.message);
@@ -1036,13 +1043,16 @@ function _coloraEtichette_(tutte) {
     (fatte.length ? '\n  - ' + fatte.join('\n  - ') : '') +
     '\nGia\' del colore scelto: ' + uguali.length +
     (tue.length
-      ? '\n\nNon toccate, perche\' hanno gia\' un colore e non le ha create lo script (il colore gliel\'hai ' +
-        'dato tu): ' + tue.join(', ') + '.\nPer dare anche a queste i colori di Campanella esegui ' +
+      ? '\n\nNon toccate, perche\' hanno un colore che non ha dato lo script (gliel\'hai dato tu): ' +
+        tue.join(', ') + '.\nPer dare anche a queste i colori di Campanella esegui ' +
         'EXTRA_coloraTutteLeEtichette.'
       : '') +
     (mancano.length
-      ? '\n\nNon ci sono ancora in Gmail: ' + mancano.join(', ') + '.\nLe crea ' +
-        'PASSO_3_riordinaPostaEsistente, gia\' colorate.'
+      ? '\n\nNon ci sono ancora in Gmail: ' + mancano.join(', ') + '.\n' +
+        (prova
+          ? 'Nasceranno gia\' colorate quando togli la modalita\' prova (le crea PASSO_2_creaEtichette, ' +
+            'o il riordino).'
+          : 'Le crea PASSO_2_creaEtichette, gia\' colorate.')
       : '') +
     (sbagliati.length
       ? '\n\nSaltate, perche\' Gmail non accetta il loro colore: ' + sbagliati.join(', ') + '.\n' +
@@ -1615,21 +1625,90 @@ function _creaEtichetta_(nome, colori) {
  * servizio Gmail API resta del colore di Gmail; un colore che Gmail non
  * accetta si salta. Un errore qui non ferma il riordino: finisce nel
  * registro. Dice com'e' andata ('' se la regola non ha un colore).
+ * Con il servizio si segna anche l'id dell'etichetta nata qui: se poi la
+ * cancelli e ne fai un'altra con lo stesso nome, quella e' tua.
  */
 function _coloraNuova_(nome) {
   var colore = _coloreDellEtichetta_(_config_(), nome);
-  if (!colore) return '';
-  if (!_coloreAmmesso_(colore)) return 'sbagliati';
-  if (!_servizioGmail_()) return 'senzaServizio';
+  var ammesso = _coloreAmmesso_(colore);
+  if (!_servizioGmail_()) return !colore ? '' : (ammesso ? 'senzaServizio' : 'sbagliati');
   try {
-    var inGmail = _etichetteGmail_()[nome];
+    var tutte = _etichetteGmail_();
+    var inGmail = tutte[nome];
     if (!inGmail) throw new Error('il servizio Gmail API non la trova');
-    _applicaColore_(inGmail.id, colore);
+    _segnaIdCreata_(nome, inGmail.id);
+    if (!colore) return '';
+    if (!ammesso) return 'sbagliati';
+    _applicaColore_(inGmail.id, colore, tutte);
     return 'messi';
   } catch (errore) {
+    if (!colore) return '';
+    if (!ammesso) return 'sbagliati';
     Logger.log('Etichetta "' + nome + '": colore non applicato (' + errore.message + ').');
     return 'falliti';
   }
+}
+
+/** L'id di ogni etichetta nata qui, se il servizio Gmail API c'era: nome -> id. */
+function _idCreate_() {
+  return _leggiMappa_(_CHIAVE_CREATE_ID);
+}
+
+function _segnaIdCreata_(nome, id) {
+  try {
+    var mappa = _idCreate_();
+    if (mappa[nome] === id) return;
+    mappa[nome] = id;
+    _salvaMappa_(_CHIAVE_CREATE_ID, mappa);
+  } catch (errore) {
+    // l'etichetta c'e' lo stesso: vale ancora il nome, come fino alla 1.5.2
+    Logger.log('Etichetta "' + nome + '": id non ricordato (' + errore.message + ').');
+  }
+}
+
+/**
+ * Il colore che lo script ha dato a ogni etichetta, per id: 'sfondo/testo'.
+ * Cosi' un colore che ha dato lui si puo' cambiare quando cambi quello
+ * della regola, e uno che poi gli hai cambiato tu resta tuo.
+ */
+function _coloriDati_() {
+  return _leggiMappa_(_CHIAVE_COLORI);
+}
+
+function _leggiMappa_(chiave) {
+  var raw = PropertiesService.getUserProperties().getProperty(chiave);
+  if (!raw) return {};
+  try {
+    var mappa = JSON.parse(raw);
+    return (mappa && typeof mappa === 'object' && typeof mappa.length !== 'number') ? mappa : {};
+  } catch (e) { return {}; }
+}
+
+function _salvaMappa_(chiave, mappa) {
+  PropertiesService.getUserProperties().setProperty(chiave, JSON.stringify(mappa));
+}
+
+/** Quello che lo script si e' segnato delle etichette, letto una volta sola. */
+function _memoriaEtichette_() {
+  return { create: _etichetteCreate_(), ids: _idCreate_(), colori: _coloriDati_() };
+}
+
+/**
+ * Il colore che ha adesso l'etichetta l'ha dato lo script? Vero se l'ha
+ * creata lui (la stessa etichetta: se ne ricorda l'id, deve essere quello;
+ * le versioni fino alla 1.5.2 si segnavano solo il nome) o se ha ancora il
+ * colore che lui le aveva dato. "memoria" viene da _memoriaEtichette_.
+ */
+function _coloreDelloScript_(memoria, nome, id, adesso) {
+  var suoId = memoria.ids[nome];
+  if (memoria.create.indexOf(nome) >= 0 && (!suoId || suoId === id)) return true;
+  var dato = memoria.colori[id];
+  return !!dato && !!adesso && dato === _scriviColore_(adesso.backgroundColor, adesso.textColor);
+}
+
+/** Un colore come lo ricorda lo script: 'sfondo/testo', in minuscolo. */
+function _scriviColore_(sfondo, testo) {
+  return (String(sfondo || '') + '/' + String(testo || '')).toLowerCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -1684,12 +1763,27 @@ function _etichetteGmail_() {
   return mappa;
 }
 
-/** Cambia il colore di un'etichetta: sfondo e testo insieme, come vuole Gmail. */
-function _applicaColore_(id, colore) {
-  Gmail.Users.Labels.patch({ color: {
-    backgroundColor: String(colore.sfondo).toLowerCase(),
-    textColor: String(colore.testo).toLowerCase()
-  } }, 'me', id);
+/**
+ * Cambia il colore di un'etichetta: sfondo e testo insieme, come vuole Gmail.
+ * Poi se lo segna (vedi _coloriDati_), e dimentica le etichette che in
+ * "esistenti" (nome -> { id }) non ci sono piu'. Mai in modalita' prova:
+ * chi la chiama la salta.
+ */
+function _applicaColore_(id, colore, esistenti) {
+  var sfondo = String(colore.sfondo).toLowerCase(), testo = String(colore.testo).toLowerCase();
+  Gmail.Users.Labels.patch({ color: { backgroundColor: sfondo, textColor: testo } }, 'me', id);
+  try {
+    var dati = _coloriDati_(), restano = {};
+    for (var nome in esistenti) {
+      var altro = esistenti[nome].id;
+      if (dati[altro]) restano[altro] = dati[altro];
+    }
+    restano[id] = _scriviColore_(sfondo, testo);
+    _salvaMappa_(_CHIAVE_COLORI, restano);
+  } catch (errore) {
+    // il colore c'e': se non riesco a segnarmelo, al prossimo cambio sembrera' tuo
+    Logger.log('Colore di "' + id + '" applicato ma non ricordato (' + errore.message + ').');
+  }
 }
 
 /** Dimentica le etichette create qui che nel frattempo hai cancellato da Gmail. */
@@ -1700,6 +1794,13 @@ function _potaCreate_() {
     if (GmailApp.getUserLabelByName(create[i])) restano.push(create[i]);
   }
   if (restano.length !== create.length) _salvaCreate_(restano);
+  // e il loro id: una che rifai tu con lo stesso nome non e' nata qui
+  var ids = _idCreate_(), idRestano = {}, tolti = false;
+  for (var nome in ids) {
+    if (restano.indexOf(nome) >= 0) idRestano[nome] = ids[nome];
+    else tolti = true;
+  }
+  if (tolti) _salvaMappa_(_CHIAVE_CREATE_ID, idRestano);
 }
 
 /**

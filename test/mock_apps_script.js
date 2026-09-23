@@ -169,8 +169,12 @@ const chiamate = { search: 0, addToThreads: 0, archivia: 0 };
 let orologio = 0;                 // millisecondi finti aggiunti a Date.now()
 let sogliaInterruzione = Infinity; // dopo quante addToThreads far "scadere" il tempo
 
+// ogni etichetta ha il suo id, come in Gmail: una cancellata e rifatta con
+// lo stesso nome e' un'altra etichetta, con un altro id
+let prossimaEtichetta = 1;
+
 class Label {
-  constructor(nome) { this.nome = nome; }
+  constructor(nome) { this.nome = nome; this.id = 'Label_' + (prossimaEtichetta++); }
   getName() { return this.nome; }
   addToThreads(threads) {
     chiamate.addToThreads++;
@@ -1324,11 +1328,11 @@ intestazione('I COLORI DELLE ETICHETTE');
   const api = { get: 0, patch: [] };
   let patchRotto = false;
   function gmailFinto() {
-    const perId = id => [...etichette.values()].find(l => 'id:' + l.nome === id);
+    const perId = id => [...etichette.values()].find(l => l.id === id);
     return { Users: {
       Labels: {
         list: () => ({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }].concat(
-          [...etichette.values()].map(l => ({ id: 'id:' + l.nome, name: l.nome, type: 'user' }))) }),
+          [...etichette.values()].map(l => ({ id: l.id, name: l.nome, type: 'user' }))) }),
         get: (utente, id) => {
           api.get++;
           const l = perId(id);
@@ -1478,7 +1482,8 @@ intestazione('I COLORI DELLE ETICHETTE');
   const prima = fotografia();
   t = contesto.EXTRA_coloraEtichette();
   console.log(t);
-  verifica('in prova EXTRA_coloraEtichette non cambia nessun colore', fotografia() === prima && api.patch.length === 0);
+  verifica('in prova EXTRA_coloraEtichette non cambia nessun colore, e non si segna niente',
+    fotografia() === prima && api.patch.length === 0 && !proprieta.has('ORGGMAIL_COLORI_DATI'));
   verifica('e dice che cosa cambierebbe: Colleghi e Colleghi/Docenti',
     t.indexOf('MODALITA\' PROVA') === 0 && /Etichette da colorare: 2\n  - Scuola\/Colleghi\n  - Scuola\/Colleghi\/Docenti\n/.test(t));
   const tutteInProva = contesto.EXTRA_coloraTutteLeEtichette();
@@ -1527,6 +1532,76 @@ intestazione('I COLORI DELLE ETICHETTE');
   t = contesto.EXTRA_coloraEtichette();
   verifica('un\'etichetta che non c\'e\' ancora non la crea, lo dice',
     !etichette.has('Scuola/Dirigenza') && /Non ci sono ancora in Gmail: Scuola\/Dirigenza/.test(t));
+  // PASSO_3 rifarebbe tutto il riordino (e manderebbe di nuovo il riepilogo):
+  // per creare le etichette basta PASSO_2
+  verifica('e dice che la crea PASSO_2, non il riordino da capo',
+    t.indexOf('Le crea PASSO_2_creaEtichette, gia\' colorate.') > 0 && t.indexOf('PASSO_3') < 0);
+  contesto.CONFIG.provaSenzaModifiche = true;
+  t = contesto.EXTRA_coloraEtichette();
+  verifica('in prova non dice che le crea PASSO_2 adesso: nasceranno quando togli la prova',
+    /Non ci sono ancora in Gmail: Scuola\/Dirigenza/.test(t) && t.indexOf('Le crea PASSO_2') < 0 &&
+    t.indexOf('Nasceranno gia\' colorate quando togli la modalita\' prova') > 0);
+
+  // --- un colore dato dallo script segue la configurazione; uno tuo no ---------
+  // un account riordinato con la 1.4.x: le etichette ci sono, senza colore,
+  // e lo script non se ne ricorda nessuna
+  const regola = n => contesto.CONFIG.regole.find(r => r.etichetta === n);
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  GmailApp.createLabel('Scuola');
+  GmailApp.createLabel('Scuola/Colleghi');
+  GmailApp.createLabel('Scuola/Colleghi/Docenti');
+  contesto.EXTRA_coloraEtichette();
+  verifica('le etichette di prima, senza colore, prendono il loro',
+    colore('Scuola/Colleghi') === '#4a86e8/#000000' && colore('Scuola/Colleghi/Docenti') === '#a4c2f4/#000000');
+  // in Campanella Colleghi diventa verde, e Docenti lo segue con la sua sfumatura
+  regola('Colleghi').colore = { sfondo: '#16a766', testo: '#000000' };
+  regola('Colleghi/Docenti').colore = { sfondo: '#89d3b2', testo: '#000000' };
+  t = contesto.EXTRA_coloraEtichette();
+  console.log(t);
+  verifica('cambiato il colore in Campanella, le etichette colorate dallo script prendono quello nuovo',
+    colore('Scuola/Colleghi') === '#16a766/#000000' && colore('Scuola/Colleghi/Docenti') === '#89d3b2/#000000' &&
+    /Etichette colorate adesso: 2\n/.test(t) && t.indexOf('Non toccate') < 0);
+  // poi in Gmail cambi tu il colore di Colleghi, e in Campanella torna blu
+  etichette.get('Scuola/Colleghi').colore = { backgroundColor: '#fb4c2f', textColor: '#ffffff' };
+  regola('Colleghi').colore = { sfondo: '#4a86e8', testo: '#000000' };
+  regola('Colleghi/Docenti').colore = { sfondo: '#a4c2f4', testo: '#000000' };
+  t = contesto.EXTRA_coloraEtichette();
+  verifica('ma il colore che le hai dato tu dopo resta tuo, e lo dice',
+    colore('Scuola/Colleghi') === '#fb4c2f/#ffffff' && colore('Scuola/Colleghi/Docenti') === '#a4c2f4/#000000' &&
+    /Non toccate, perche' hanno un colore che non ha dato lo script[^\n]*: Scuola\/Colleghi\./.test(t));
+
+  // --- un'etichetta nata dallo script, cancellata e rifatta da te ------------
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  contesto.PASSO_2_creaEtichette();
+  const idCreate = () => JSON.parse(proprieta.get('ORGGMAIL_ETICHETTE_CREATE_ID') || '{}');
+  verifica('lo script si segna anche l\'id delle etichette che crea',
+    idCreate()['Scuola/Dirigenza'] === etichette.get('Scuola/Dirigenza').id &&
+    idCreate()['Scuola/Circolari'] === etichette.get('Scuola/Circolari').id);
+  // la cancelli da Gmail e ne fai una tua con lo stesso nome, verde
+  etichette.delete('Scuola/Dirigenza');
+  GmailApp.createLabel('Scuola/Dirigenza').colore = { backgroundColor: '#16a766', textColor: '#ffffff' };
+  let cambiPrima = api.patch.length;
+  t = contesto.EXTRA_coloraEtichette();
+  verifica('un\'etichetta rifatta da te con lo stesso nome e\' tua: il suo verde resta',
+    colore('Scuola/Dirigenza') === '#16a766/#ffffff' && api.patch.length === cambiPrima &&
+    /Non toccate[^\n]*: Scuola\/Dirigenza\./.test(t));
+  // e quando lo script dimentica quelle sparite, dimentica anche il loro id
+  etichette.delete('Scuola/Circolari');
+  contesto._potaCreate_();
+  verifica('dimenticata un\'etichetta sparita, se ne dimentica anche l\'id',
+    !('Scuola/Circolari' in idCreate()) && 'Scuola/Dirigenza' in idCreate());
+  // se invece la ricrea lo script (qui lo smistamento), e' di nuovo sua
+  etichette.delete('Scuola/Dirigenza');
+  aggiungi('preside@' + S, 'Convocazione', '', { giorniFa: 1 });
+  contesto.smistaNuoviMessaggi();
+  regola('Dirigenza').colore = { sfondo: '#fb4c2f', testo: '#ffffff' };
+  cambiPrima = api.patch.length;
+  contesto.EXTRA_coloraEtichette();
+  verifica('una rifatta dallo script invece e\' sua: segue il colore nuovo',
+    idCreate()['Scuola/Dirigenza'] === etichette.get('Scuola/Dirigenza').id &&
+    colore('Scuola/Dirigenza') === '#fb4c2f/#ffffff' && api.patch.length === cambiPrima + 1);
 
   // la configurazione di prima della 1.5.3 non ha colori
   daCapo(false);

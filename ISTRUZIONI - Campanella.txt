@@ -199,11 +199,12 @@ POSTA - riordinare la casella
    I colori li mette il servizio Gmail API, da aggiungere nell'editor dello
    script (l'ottavo passo dell'installazione guidata): con il servizio le
    etichette nascono gia' colorate. Per quelle che ci sono gia' esegui
-   EXTRA_coloraEtichette: colora quelle senza colore e quelle create dallo
-   script, e lascia com'e' il colore che avevi dato tu a un'etichetta che
-   c'era gia'. EXTRA_coloraTutteLeEtichette ricolora anche quelle. In
-   modalita' prova le due funzioni dicono soltanto che cosa cambierebbero;
-   le etichette delle regole senza colore non le toccano mai.
+   EXTRA_coloraEtichette: colora quelle senza colore, quelle create dallo
+   script e quelle a cui il colore l'aveva dato lui (cosi' un colore cambiato
+   qui arriva anche a loro), e lascia com'e' il colore che avevi dato tu a
+   un'etichetta che c'era gia'. EXTRA_coloraTutteLeEtichette ricolora anche
+   quelle. In modalita' prova le due funzioni dicono soltanto che cosa
+   cambierebbero; le etichette delle regole senza colore non le toccano mai.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
