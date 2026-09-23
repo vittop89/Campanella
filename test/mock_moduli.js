@@ -49,6 +49,7 @@ function nuovoMondo(opzioni) {
     spostamentoRotto: false,
     collegamentoRottoPerVolte: 0,
     pause: 0,
+    tutte: [],                                        // ogni risposta mai data, per contare quelle perse
     fogli: new Map(),
     file: new Map()
   };
@@ -98,16 +99,50 @@ function nuovoMondo(opzioni) {
     }
   }
 
+  /**
+   * Una scheda del foglio: la prima colonna delle risposte e' il momento in cui
+   * sono arrivate. Google lo scrive al secondo (qui arrotondato, il caso piu'
+   * scomodo: una risposta delle 10:00:00,700 diventa 10:00:01).
+   */
+  class Scheda {
+    constructor(nome) { this.nome = nome; this.intestazione = false; this.tempi = []; this.modulo = null; }
+    get righe() { return (this.intestazione ? 1 : 0) + this.tempi.length; }
+    aggiungi(risposta) { this.tempi.push(Math.round(risposta.tempo / 1000) * 1000); }
+  }
+
   class Foglio {
     constructor(nome, cartella) {
       this.id = id('foglio'); this.nome = nome;
-      this.schede = [{ nome: 'Foglio1', righe: 0, modulo: null }];      // quella vuota che Google crea sempre
+      this.schede = [new Scheda('Foglio1')];                            // quella vuota che Google crea sempre
       m.fogli.set(this.id, this);
       new File(nome, FOGLI_GOOGLE, cartella || m.radice, this.id);
     }
     getId() { return this.id; }
     getUrl() { return 'https://docs.example/spreadsheets/d/' + this.id; }
-    getSheets() { return this.schede.map(s => ({ getLastRow: () => s.righe, getName: () => s.nome })); }
+    getSheets() {
+      return this.schede.map(s => ({
+        getLastRow: () => s.righe,
+        getName: () => s.nome,
+        getRange(r, c, nr, nc) {
+          return {
+            getValues() {
+              const fuori = [];
+              for (let i = 0; i < nr; i++) {
+                const riga = [];
+                for (let k = 0; k < nc; k++) {
+                  const n = r + i - (s.intestazione ? 2 : 1);      // l'indice nei tempi
+                  if (c + k !== 1) riga.push('');
+                  else if (s.intestazione && r + i === 1) riga.push('Informazioni cronologiche');
+                  else riga.push(n >= 0 && n < s.tempi.length ? new Date(s.tempi[n]) : '');
+                }
+                fuori.push(riga);
+              }
+              return fuori;
+            }
+          };
+        }
+      }));
+    }
     righeDiRisposte() { return Math.max(0, ...this.schede.map(s => s.righe - 1)); }
   }
 
@@ -122,8 +157,12 @@ function nuovoMondo(opzioni) {
     rispondi(n) {
       if (!this.aperto) throw new Error('il modulo e\' chiuso');
       for (let i = 0; i < n; i++) {
-        this.risposte.push({});
-        if (this.destinazione) this.destinazione.scheda.righe++;
+        // ogni risposta ha il suo momento, con i millesimi (Google Moduli li tiene)
+        m.risposteDate = (m.risposteDate || 0) + 1;
+        const tempo = m.adesso + m.risposteDate * 1000 + (m.risposteDate * 337) % 1000;
+        const risposta = { tempo, getTimestamp: () => new Date(tempo) };
+        this.risposte.push(risposta); m.tutte.push(risposta);
+        if (this.destinazione) this.destinazione.scheda.aggiungi(risposta);
       }
     }
     getDestinationType() {
@@ -142,7 +181,9 @@ function nuovoMondo(opzioni) {
       m.collegamenti++;
       if (this.destinazione) this.destinazione.scheda.modulo = null;
       // Google aggiunge una scheda nuova e ci ricopia tutte le risposte che il modulo ha gia'
-      const scheda = { nome: 'Risposte del modulo ' + foglio.schede.length, righe: 1 + this.risposte.length, modulo: this.id };
+      const scheda = new Scheda('Risposte del modulo ' + foglio.schede.length);
+      scheda.intestazione = true; scheda.modulo = this.id;
+      for (const risposta of this.risposte) scheda.aggiungi(risposta);
       foglio.schede.push(scheda);
       this.destinazione = { foglio, scheda };
     }
@@ -163,6 +204,29 @@ function nuovoMondo(opzioni) {
   m.radice = new Cartella('Il mio Drive', null);
   m.form = new Modulo(opzioni.titolo || 'Recuperi');
   m.Cartella = Cartella; m.File = File; m.Foglio = Foglio; m.Modulo = Modulo;
+
+  /** Un foglio di un anno passato con n righe di risposte, arrivate piu' di un anno fa. */
+  m.foglioVecchio = function (nome, percorso, n) {
+    const f = new Foglio(nome, m.cartella(percorso));
+    const s = new Scheda('Risposte del modulo 1');
+    s.intestazione = true;
+    for (let i = 0; i < n; i++) s.tempi.push(m.adesso - 400 * 24 * 3600 * 1000 + i * 60000);
+    f.schede.push(s);
+    return f;
+  };
+
+  /** Le risposte date che non stanno piu' da nessuna parte: ne' nel modulo, ne' in un foglio. */
+  m.perse = function () {
+    const righe = new Map();
+    for (const f of m.fogli.values()) for (const s of f.schede) for (const t of s.tempi) righe.set(t, (righe.get(t) || 0) + 1);
+    let n = 0;
+    for (const r of m.tutte) {
+      if (m.form.risposte.indexOf(r) >= 0) continue;
+      const t = Math.round(r.tempo / 1000) * 1000;
+      if (righe.get(t) > 0) righe.set(t, righe.get(t) - 1); else n++;
+    }
+    return n;
+  };
 
   /** Le cartelle che il PC ha gia' caricato: 'A.S. 2026-27/RECUPERI'. */
   m.cartella = function (percorso) {
@@ -232,16 +296,17 @@ function nuovoMondo(opzioni) {
         getAuthorizationStatus: () => (m.permessiMancanti ? 'REQUIRED' : 'NOT_REQUIRED')
       }),
       newTrigger(funzione) {
-        const t = { funzione };
+        const t = { funzione, uid: 'trigger-' + (m.prossimoId++) };
         const orologio = {
           at() { throw new Error('at(data) dipende dal fuso dell\'editor: serve atDate + inTimezone'); },
           atDate(anno, mese, giorno) { t.anno = anno; t.mese = mese; t.giorno = giorno; return orologio; },
+          after(ms) { t.dopo = ms; return orologio; },
           inTimezone(fuso) { t.fuso = fuso; return orologio; },
           create() { m.trigger.push(t); return t; }
         };
         return { timeBased: () => orologio };
       },
-      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, _rif: t })),
+      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, getUniqueId: () => t.uid, _rif: t })),
       deleteTrigger(t) { const i = m.trigger.indexOf(t._rif); if (i >= 0) m.trigger.splice(i, 1); }
     },
     PropertiesService: {
@@ -491,6 +556,81 @@ titolo('DUE ANNI DI FILA: prepara, risposte, chiusura, anno nuovo con la spunta'
   verifica('anno 2: chiusura programmata per la fine del 31/08/2028',
     m.trigger.length === 1 && m.trigger[0].anno === 2028 && m.trigger[0].mese === 9 && m.trigger[0].giorno === 1);
   verifica('ricorda tutti e due gli anni', Object.keys(memoria(m).fogli).length === 2);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(200);
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  c.MODULO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.MODULO_2_prepara();
+  verifica('(anno 2: le 200 dell\'anno prima tolte dal modulo, stanno nel loro foglio)',
+    m.form.risposte.length === 0 && primo.righeDiRisposte() === 200);
+  const secondo = m.form.destinazione.foglio;
+  m.form.rispondi(50);
+  c.MODULO_ANNULLA();
+  m.form.rispondi(10);                                         // aperto, ma non scrive in nessun foglio
+  const t = c.MODULO_2_prepara();
+  verifica('60 risposte, 10 in nessun foglio: NON le toglie, anche se il foglio vecchio ha 200 righe',
+    m.form.risposte.length === 60 && t.indexOf('NON le tolgo') >= 0);
+  verifica('e il foglio dell\'anno, ricollegato, le riceve tutte',
+    m.form.destinazione.foglio.id === secondo.id && secondo.righeDiRisposte() === 60);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: LA CHIUSURA DI FINE ANNO NON RIESCE');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  // l'anno prima il modulo scriveva in un foglio con 200 righe
+  const vecchio = m.foglioVecchio('Risposte Recuperi - A.S. 2025-26', 'A.S. 2025-26/RECUPERI', 200);
+  m.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: m.form.id, fogli: { '2025-26': vecchio.id } }));
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(40);
+  const vera = m.form.setAcceptingResponses;
+  m.form.setAcceptingResponses = function (si) {
+    if (!si) throw new Error('Service error: Forms');              // anche al secondo tentativo
+    return vera.call(this, si);
+  };
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  const scattato = m.trigger[0];
+  const tc = c.MODULO_chiusura({ triggerUid: scattato.uid });
+  verifica('chiusura non riuscita: il modulo resta collegato al foglio dell\'anno',
+    m.form.destinazione !== null && m.form.destinazione.foglio.id === primo.id && tc.indexOf('Riprovo fra un\'ora') >= 0);
+  verifica('il trigger scattato se ne va, e al suo posto c\'e\' un tentativo fra un\'ora',
+    m.trigger.length === 1 && m.trigger[0] !== scattato && m.trigger[0].dopo === 60 * 60 * 1000);
+  m.form.rispondi(7);
+  verifica('le risposte arrivate dopo finiscono nel foglio', primo.righeDiRisposte() === 47);
+  m.form.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.MODULO_2_prepara();
+  verifica('anno 2: nessuna risposta persa (stanno tutte nel foglio del primo anno)',
+    m.perse() === 0 && primo.righeDiRisposte() === 47);
+
+  // com'erano lasciate le cose dallo script di prima: chiusura fallita, foglio scollegato lo stesso
+  const v = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  v.cartella('A.S. 2026-27/RECUPERI');
+  const vv = v.foglioVecchio('Risposte Recuperi - A.S. 2025-26', 'A.S. 2025-26/RECUPERI', 200);
+  v.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: v.form.id, fogli: { '2025-26': vv.id } }));
+  const cv = carica(v, { config: { svuotaRisposte: true } });
+  cv.MODULO_2_prepara();
+  v.form.rispondi(40);
+  v.form.removeDestination();                                     // scollegato, ma ancora aperto
+  v.form.rispondi(7);                                             // queste stanno solo nel modulo
+  v.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const tv = cv.MODULO_2_prepara();
+  verifica('47 risposte, 7 solo nel modulo: NON le toglie, anche se il foglio di due anni fa ha 200 righe',
+    v.form.risposte.length === 47 && tv.indexOf('NON le tolgo: 7 non le ritrovo') >= 0);
+  verifica('nessuna risposta persa', v.perse() === 0);
 }
 
 titolo('ANNO NUOVO CON LA SPUNTA, ma il foglio vecchio non ha piu\' tutte le righe');
@@ -501,7 +641,7 @@ titolo('ANNO NUOVO CON LA SPUNTA, ma il foglio vecchio non ha piu\' tutte le rig
   c.MODULO_2_prepara();
   const primo = m.form.destinazione.foglio;
   m.form.rispondi(6);
-  primo.schede[1].righe = 3;                                   // qualcuno ha cancellato delle righe dal foglio
+  primo.schede[1].tempi.splice(2);                             // qualcuno ha cancellato delle righe dal foglio
   m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
   c.MODULO_chiusura();
   m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
@@ -679,6 +819,12 @@ titolo('IL MENU');
   verifica('il messaggio finale arriva a lavoro fatto, non a meta\'', ultimo.collegamentiFinoAQui === 1 && ultimo.testo.indexOf('FATTO') >= 0);
   verifica('la conferma mostra anno e nome del foglio', m.avvisi[1].testo.indexOf('2026-27') >= 0 &&
     m.avvisi[1].testo.indexOf('Risposte Recuperi - A.S. 2026-27') >= 0);
+
+  verifica('senza svuotare la conferma dice che non cancella niente', m.avvisi[0].testo.indexOf('Non cancello niente') >= 0);
+  const sv = nuovoMondo({ risposteUi: ['NO'] });
+  carica(sv, { config: { svuotaRisposte: true } }).MODULO_menu_prepara();
+  verifica('con svuotaRisposte la conferma dice che le risposte vecchie le toglie, e non "Non cancello niente"',
+    sv.avvisi[0].testo.indexOf('Non cancello niente') < 0 && sv.avvisi[0].testo.indexOf('non si puo\' annullare') >= 0);
 
   const rotto = nuovoMondo({ risposteUi: ['YES'] });
   const cr = carica(rotto, { config: { chiusura: 'boh' } });

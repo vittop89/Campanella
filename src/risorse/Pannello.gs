@@ -26,10 +26,10 @@
  *      scollega il foglio, che resta fermo com'e'.
  *
  *  COSA NON FA
- *    Non cancella moduli, fogli, cartelle o risposte. Non manda email. Non
- *    condivide niente. Le risposte degli anni scorsi le toglie da un modulo
- *    solo se lo chiedi nella sua riga, e solo dopo aver verificato che stanno
- *    gia' in un foglio degli anni scorsi.
+ *    Non cancella moduli, fogli o cartelle. Non manda email. Non condivide
+ *    niente. Le risposte degli anni scorsi le toglie da un modulo solo se lo
+ *    chiedi nella sua riga, e solo dopo aver ritrovato ognuna, dal momento in
+ *    cui e' arrivata, in un foglio degli anni scorsi.
  *
  *  FUNZIONI  (dal menu Campanella, dentro il foglio)
  *    PANNELLO_1_preparaIlFoglio ... crea la scheda con le colonne e le righe
@@ -116,8 +116,27 @@ function PANNELLO_3_anteprima() {
 
 function PANNELLO_4_preparaAnno() {
   if (!_panConferma('Preparo l\'anno scolastico ' + _panAnno() + ' per tutte le righe attive.\n\n' +
-                    'Non cancello niente. Procedo?')) return '';
+                    (_panQualcunaDaSvuotare()
+                      ? 'Nelle righe con "Svuota" tolgo dal modulo le risposte degli anni scorsi, ma solo se le ' +
+                        'ritrovo tutte, una per una, in un foglio vecchio: toglierle non si puo\' annullare. ' +
+                        'Fogli e cartelle non li cancello. Procedo?'
+                      : 'Non cancello niente. Procedo?'))) return '';
   return _panRacconta(_panUnoAllaVolta(function () { return _panEsegui(true); }));
+}
+
+/** C'e' una riga attiva con "Svuota"? Allora la conferma non puo' dire che non cancello niente. */
+function _panQualcunaDaSvuotare() {
+  try {
+    var foglio = _panScheda(false);
+    if (!foglio) return false;
+    var dati = _panLeggi(foglio);
+    for (var i = 0; i < dati.righe.length; i++) {
+      if (dati.righe[i].attivo && dati.righe[i].svuota) return true;
+    }
+    return false;
+  } catch (e) {
+    return true;                                  // nel dubbio, la conferma lo dice
+  }
 }
 
 /**
@@ -322,7 +341,7 @@ function _panNoteColonne() {
   note[_PAN_C.CARTELLA] = 'Dentro la cartella dell\'anno. Vuota = direttamente nella cartella dell\'anno. Sottocartelle con la barra: RECUPERI/TRIMESTRE.';
   note[_PAN_C.FOGLIO] = '{anno} diventa l\'anno scolastico. Se un foglio con questo nome c\'e\' gia\', usa quello.';
   note[_PAN_C.CHIUSURA] = 'Giorno/mese, per esempio 31/08. Vuoto = nessuna chiusura automatica per questo modulo.';
-  note[_PAN_C.SVUOTA] = 'Toglie dal modulo le risposte degli anni scorsi, ma solo dopo aver controllato che stanno gia\' tutte in un foglio vecchio.';
+  note[_PAN_C.SVUOTA] = 'Toglie dal modulo le risposte degli anni scorsi, ma solo dopo averle ritrovate tutte, una per una, in un foglio vecchio.';
   note[_PAN_C.ATTIVO] = 'Togli la spunta per saltare questa riga.';
   note[_PAN_C.STATO] = 'Lo scrive lo script.';
   note[_PAN_C.URL] = 'Lo scrive lo script: il foglio delle risposte di quest\'anno.';
@@ -824,13 +843,14 @@ function _panRisposteVecchie(form, r, quante, collegatoA, idFoglio, memoria, dav
     var id = memoria.fogli[k];
     if (id && id !== idFoglio && candidati.indexOf(id) < 0) candidati.push(id);
   }
-  var alSicuro = null;
-  for (var i = 0; i < candidati.length && !alSicuro; i++) {
-    if (_panRigheDiRisposte(candidati[i]) >= quante) alSicuro = candidati[i];
-  }
-  if (!alSicuro) {
-    righe.push('  risposte gia\' nel modulo: ' + quante + '. NON le tolgo: non trovo un foglio vecchio');
-    righe.push('  che le contenga tutte, e toglierle sarebbe cancellarle.');
+  // contare le righe non basta: un foglio vecchio puo' averne tante e non avere
+  // quelle arrivate dopo, solo nel modulo. Le cerco una per una.
+  var alSicuro = _panRisposteAlSicuro(form, candidati);
+  if (alSicuro.mancano > 0) {
+    righe.push('  risposte gia\' nel modulo: ' + quante + '. NON le tolgo: ' +
+               (alSicuro.mancano === quante ? 'non le ritrovo' : alSicuro.mancano + ' non le ritrovo') +
+               ' in nessun foglio vecchio');
+    righe.push('  (le cerco una per una, dal momento in cui sono arrivate), e toglierle sarebbe cancellarle.');
     return;
   }
   if (davvero) { form.deleteAllResponses(); righe.push('  risposte vecchie: ' + quante + ', tolte dal modulo (restano nel foglio vecchio).'); }
@@ -1208,16 +1228,58 @@ function _panApribile(idFoglio) {
   try { SpreadsheetApp.openById(idFoglio); return true; } catch (e) { return false; }
 }
 
-function _panRigheDiRisposte(idFoglio) {
+/**
+ * Quante risposte del modulo NON stanno in nessuno dei fogli candidati, e i
+ * fogli in cui stanno le altre. Ogni risposta la cerco per il momento in cui
+ * e' arrivata: Google lo scrive nella prima colonna (Informazioni
+ * cronologiche), al secondo. Una riga del foglio vale per una risposta sola.
+ */
+function _panRisposteAlSicuro(form, candidati) {
+  var righe = {};                                      // secondo -> i fogli che hanno una riga di quel secondo
+  for (var i = 0; i < candidati.length; i++) {
+    var tempi = _panTempiNelFoglio(candidati[i]);
+    for (var k = 0; k < tempi.length; k++) {
+      var s = String(Math.floor(tempi[k] / 1000));
+      if (!righe.hasOwnProperty(s)) righe[s] = [];
+      righe[s].push(candidati[i]);
+    }
+  }
+  var risposte = form.getResponses();
+  var secondi = [];
+  for (var q = 0; q < risposte.length; q++) secondi.push(Math.floor(risposte[q].getTimestamp().getTime() / 1000));
+  secondi.sort(function (a, b) { return a - b; });     // in ordine: ognuna prende la riga libera piu' vicina
+  var mancano = 0, fogli = [];
+  for (var r = 0; r < secondi.length; r++) {
+    var t = secondi[r];
+    // il foglio puo' avere il secondo arrotondato per eccesso: guardo anche quello dopo
+    var chiave = null;
+    if (righe.hasOwnProperty(String(t)) && righe[String(t)].length > 0) chiave = String(t);
+    else if (righe.hasOwnProperty(String(t + 1)) && righe[String(t + 1)].length > 0) chiave = String(t + 1);
+    if (chiave === null) { mancano++; continue; }
+    var id = righe[chiave].pop();
+    if (fogli.indexOf(id) < 0) fogli.push(id);
+  }
+  return { mancano: mancano, fogli: fogli };
+}
+
+/** I momenti (in millisecondi) scritti nella prima colonna di ogni scheda del foglio. */
+function _panTempiNelFoglio(idFoglio) {
+  var fuori = [];
   try {
     var schede = SpreadsheetApp.openById(idFoglio).getSheets();
-    var massimo = 0;
     for (var i = 0; i < schede.length; i++) {
-      var righe = schede[i].getLastRow() - 1;
-      if (righe > massimo) massimo = righe;
+      var ultima = schede[i].getLastRow();
+      if (ultima < 2) continue;
+      var valori = schede[i].getRange(2, 1, ultima - 1, 1).getValues();
+      for (var k = 0; k < valori.length; k++) {
+        var v = valori[k][0];
+        if (v && typeof v.getTime === 'function' && !isNaN(v.getTime())) fuori.push(v.getTime());
+      }
     }
-    return massimo;
-  } catch (e) { return -1; }
+  } catch (e) {
+    // un foglio che non si apre non tiene al sicuro niente
+  }
+  return fuori;
 }
 
 /**

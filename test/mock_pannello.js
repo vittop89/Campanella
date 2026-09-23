@@ -57,11 +57,14 @@ function nuovoMondo(opzioni) {
     permessiMancanti: false,
     lockOccupato: false,
     menu: null,
+    risposteDate: 0,
+    tutte: [],                                        // ogni risposta mai data, per contare quelle perse
     moduli: new Map(),
     fogli: new Map(),
     file: new Map()
   };
   const id = p => p + (m.prossimoId++) + 'xxxxxxxxxxxxxxxxxxxxxx';
+  const momento = r => new Date(Math.round(r.tempo / 1000) * 1000);
 
   class Iteratore {
     constructor(e) { this.e = e.slice(); this.i = 0; }
@@ -313,10 +316,17 @@ function nuovoMondo(opzioni) {
     getTitle() { return this.titolo; }
     getUrl() { return this.file.getUrl(); }
     getResponses() { return this.risposte.slice(); }
+    /**
+     * Ogni risposta ha il suo momento, con i millesimi; nella prima colonna del
+     * foglio Google lo scrive al secondo (qui arrotondato, il caso piu' scomodo).
+     */
     rispondi(n) {
       for (let i = 0; i < n; i++) {
-        this.risposte.push({});
-        if (this.destinazione) this.destinazione.scheda.scrivi(this.destinazione.scheda.getLastRow(), 0, 'risposta');
+        m.risposteDate++;
+        const tempo = m.adesso + m.risposteDate * 1000 + (m.risposteDate * 337) % 1000;
+        const risposta = { tempo, getTimestamp: () => new Date(tempo) };
+        this.risposte.push(risposta); m.tutte.push(risposta);
+        if (this.destinazione) this.destinazione.scheda.scrivi(this.destinazione.scheda.getLastRow(), 0, momento(risposta));
       }
     }
     getDestinationType() {
@@ -333,7 +343,7 @@ function nuovoMondo(opzioni) {
       m.collegamenti++;
       const scheda = foglio.insertSheet('Risposte del modulo ' + foglio.schede.length);
       scheda.scrivi(0, 0, 'Informazioni cronologiche');
-      for (let i = 0; i < this.risposte.length; i++) scheda.scrivi(i + 1, 0, 'risposta');
+      for (let i = 0; i < this.risposte.length; i++) scheda.scrivi(i + 1, 0, momento(this.risposte[i]));
       this.destinazione = { foglio, scheda };
     }
     removeDestination() { this.destinazione = null; }
@@ -352,6 +362,26 @@ function nuovoMondo(opzioni) {
 
   m.radice = new Cartella('Il mio Drive', null);
   m.Cartella = Cartella; m.File = File; m.Modulo = Modulo; m.FoglioDiCalcolo = FoglioDiCalcolo;
+
+  /** Le risposte date che non stanno piu' da nessuna parte: ne' in un modulo, ne' in un foglio. */
+  m.perse = function () {
+    const righe = new Map();
+    for (const f of m.fogli.values()) {
+      for (const s of f.schede) {
+        for (const riga of s.celle) {
+          const v = riga && riga[0];
+          if (v instanceof Date) righe.set(v.getTime(), (righe.get(v.getTime()) || 0) + 1);
+        }
+      }
+    }
+    let n = 0;
+    for (const r of m.tutte) {
+      if ([...m.moduli.values()].some(x => x.risposte.indexOf(r) >= 0)) continue;
+      const t = momento(r).getTime();
+      if (righe.get(t) > 0) righe.set(t, righe.get(t) - 1); else n++;
+    }
+    return n;
+  };
   m.pannello = new FoglioDiCalcolo('Campanella - Moduli', null);     // il foglio in cui gira lo script
 
   m.cartella = function (percorso) {
@@ -1168,6 +1198,73 @@ titolo('DUE ANNI DI FILA');
   verifica('anno 2: il foglio nuovo comincia vuoto', m.recuperi.destinazione.foglio.righeDiRisposte() === 0);
   verifica('anno 2: i moduli riaprono', m.recuperi.aperto === true && m.uscite.aperto === true);
   verifica('anno 2: chiusure riprogrammate', m.trigger.length === 2 && m.trigger.some(x => x.anno === 2028));
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(200);
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('(anno 2: le 200 dell\'anno prima tolte dal modulo, stanno nel loro foglio)',
+    m.recuperi.risposte.length === 0 && primo.righeDiRisposte() === 200);
+  const secondo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(50);
+  c.PANNELLO_ANNULLA();
+  m.recuperi.rispondi(10);                                   // aperto, ma non scrive in nessun foglio
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('60 risposte, 10 in nessun foglio: NON le toglie, anche se il foglio vecchio ha 200 righe',
+    m.recuperi.risposte.length === 60 && t.indexOf('NON le tolgo') >= 0);
+  verifica('e il foglio dell\'anno, ricollegato, le riceve tutte',
+    m.recuperi.destinazione.foglio.id === secondo.id && secondo.righeDiRisposte() === 60);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: UN MODULO SCOLLEGATO, CON RISPOSTE ARRIVATE SOLO LI\'');
+{
+  // come lasciava le cose una chiusura fallita di una versione di prima: scollegato ma aperto
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(40);
+  // e un foglio di due anni fa, con piu' righe di quante il modulo ne abbia
+  const vecchio = new m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2025-26', m.cartella('A.S. 2025-26/RECUPERI'));
+  const sv = vecchio.insertSheet('Risposte del modulo 1');
+  sv.scrivi(0, 0, 'Informazioni cronologiche');
+  for (let i = 0; i < 200; i++) sv.scrivi(i + 1, 0, new Date(m.adesso - 400 * 24 * 3600 * 1000 + i * 60000));
+  const r = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  r.fogli[m.recuperi.id + '|2025-26'] = vecchio.id;
+  m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));
+  m.recuperi.removeDestination();
+  m.recuperi.rispondi(7);                                    // queste stanno solo nel modulo
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('47 risposte, 7 solo nel modulo: NON le toglie, anche se il foglio di due anni fa ha 200 righe',
+    m.recuperi.risposte.length === 47 && t.indexOf('NON le tolgo: 7 non le ritrovo') >= 0 && primo.righeDiRisposte() === 40);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('LA CONFERMA DICE IL VERO SULLO SVUOTARE');
+{
+  const p = mondoPronto();
+  p.m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);      // Recuperi: svuota
+  p.c.PANNELLO_4_preparaAnno();
+  const domanda = p.m.avvisi.filter(a => a.bottoni === 'YES_NO')[0].testo;
+  verifica('con una riga "Svuota" non dice "Non cancello niente", e dice che non si annulla',
+    domanda.indexOf('Non cancello niente') < 0 && domanda.indexOf('non si puo\' annullare') >= 0);
+  const q = mondoPronto();
+  q.c.PANNELLO_4_preparaAnno();
+  verifica('senza righe "Svuota" dice che non cancella niente',
+    q.m.avvisi.filter(a => a.bottoni === 'YES_NO')[0].testo.indexOf('Non cancello niente') >= 0);
 }
 
 // ---- 8. annulla ---------------------------------------------------------------------------

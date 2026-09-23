@@ -22,8 +22,8 @@
  *  COSA NON FA
  *    Non cancella fogli, cartelle o file. Non spedisce niente a nessuno e non
  *    condivide niente. Le risposte vecchie le toglie dal modulo solo se lo
- *    chiedi tu (svuotaRisposte) e solo dopo aver verificato che stanno gia' in
- *    un foglio degli anni scorsi.
+ *    chiedi tu (svuotaRisposte) e solo dopo aver ritrovato ognuna, dal momento
+ *    in cui e' arrivata, in un foglio degli anni scorsi.
  *
  *  FUNZIONI
  *    MODULO_1_anteprima ... dice cosa farebbe, senza fare niente
@@ -108,26 +108,45 @@ function MODULO_PASSA_AL_FOGLIO() {
 /**
  * La chiama Google, da sola, finito il giorno di chiusura. Prima chiude il
  * modulo (cosi' non arriva niente a meta' lavoro), poi scollega il foglio.
+ * Se il modulo non si chiude, il foglio resta collegato: le risposte che
+ * arrivano ci finiscono lo stesso, e fra un'ora si riprova.
  */
-function MODULO_chiusura() {
+function MODULO_chiusura(e) {
   var form = _moduloForm();
   var righe = ['CHIUSURA DI FINE ANNO'];
-  try {
-    form.setAcceptingResponses(false);
-    righe.push('Il modulo non accetta piu\' risposte. Riapre con "Prepara l\'anno nuovo".');
-  } catch (e) {
-    righe.push('Non sono riuscito a chiudere il modulo: ' + (e.message || e));
+  var guasto = '';
+  try { _moduloRiprova(function () { form.setAcceptingResponses(false); }); }
+  catch (e1) { guasto = String(e1.message || e1); }  // lo guardo qui sotto
+  var ancoraAperto = false;
+  try { ancoraAperto = form.isAcceptingResponses(); } catch (e2) { ancoraAperto = false; }
+  if (ancoraAperto) {
+    // un modulo non pubblicato non raccoglie risposte comunque: quello non lo riprovo per sempre
+    var pubblicato = true;
+    try {
+      if (typeof form.supportsAdvancedResponderPermissions === 'function' &&
+          form.supportsAdvancedResponderPermissions()) pubblicato = form.isPublished();
+    } catch (e3) { pubblicato = true; }
+    if (pubblicato) {
+      righe.push('Non sono riuscito a chiudere il modulo' + (guasto ? ' (' + guasto + ')' : '') + ': accetta ancora risposte.');
+      righe.push('Resta collegato al suo foglio, cosi\' le risposte che arrivano ci finiscono. Riprovo fra un\'ora.');
+      _moduloRiprogramma(e);
+      return _moduloScriviNelRegistro(righe);
+    }
   }
+  righe.push('Il modulo non accetta piu\' risposte. Riapre con "Prepara l\'anno nuovo".');
   if (_moduloDestinazione(form)) {
-    _moduloRiprova(function () { form.removeDestination(); });
+    try { _moduloRiprova(function () { form.removeDestination(); }); }
+    catch (e4) {
+      righe.push('Non sono riuscito a scollegare il foglio (' + (e4.message || e4) + '). Riprovo fra un\'ora.');
+      _moduloRiprogramma(e);
+      return _moduloScriviNelRegistro(righe);
+    }
     righe.push('Foglio delle risposte scollegato: resta dov\'e\', con tutto quello che contiene.');
   } else {
     righe.push('Il modulo non era collegato a nessun foglio.');
   }
   _moduloTogliTrigger();                               // i trigger gia' scattati restano in elenco: li tolgo
-  var testo = righe.join('\n');
-  Logger.log(testo);
-  return testo;
+  return _moduloScriviNelRegistro(righe);
 }
 
 
@@ -162,7 +181,10 @@ function MODULO_menu_prepara() {
   var risposta = ui.alert('Campanella',
     'Preparo l\'anno scolastico ' + anno + ': foglio delle risposte "' +
     _moduloNome(MODULO.nomeFoglio, anno) + '", collegamento del modulo e chiusura programmata.\n\n' +
-    'Non cancello niente. Procedo?', ui.ButtonSet.YES_NO);
+    (MODULO.svuotaRisposte
+      ? 'Le risposte degli anni scorsi le tolgo dal modulo, ma solo se le ritrovo tutte, una per una, ' +
+        'in un foglio degli anni scorsi: toglierle non si puo\' annullare. Fogli e cartelle non li cancello. Procedo?'
+      : 'Non cancello niente. Procedo?'), ui.ButtonSet.YES_NO);
   if (risposta !== ui.Button.YES) return;
   // prima il lavoro, poi il messaggio: una finestra lasciata aperta fermerebbe lo script a meta'
   var testo = _moduloProtetto(function () { return MODULO_2_prepara(); });
@@ -324,9 +346,10 @@ function _moduloEsegui(davvero) {
 /**
  * Le risposte restano dentro il modulo anche dopo che il foglio e' stato
  * scollegato: collegando un foglio nuovo Google ce le ricopia tutte. Si
- * possono togliere dal modulo, ma solo se un foglio degli anni scorsi le
- * contiene gia': altrimenti sarebbe una cancellazione vera, e non si torna
- * indietro.
+ * possono togliere dal modulo, ma solo se ognuna sta gia' in un foglio degli
+ * anni scorsi: altrimenti sarebbe una cancellazione vera, e non si torna
+ * indietro. Contare le righe non basta: un foglio vecchio puo' averne tante e
+ * non avere quelle arrivate dopo, solo nel modulo.
  */
 function _moduloRisposteVecchie(form, quante, collegatoA, idFoglio, memoria, davvero, righe) {
   if (!MODULO.svuotaRisposte) {
@@ -343,14 +366,14 @@ function _moduloRisposteVecchie(form, quante, collegatoA, idFoglio, memoria, dav
     var id = memoria.fogli[anni[i]];
     if (id && id !== idFoglio && candidati.indexOf(id) < 0) candidati.push(id);
   }
-  var alSicuro = null;
-  for (var k = 0; k < candidati.length && !alSicuro; k++) {
-    if (_moduloRigheDiRisposte(candidati[k]) >= quante) alSicuro = candidati[k];
-  }
-  if (!alSicuro) {
-    righe.push('Risposte gia\' nel modulo: ' + quante + '. NON le tolgo: non trovo un foglio degli anni scorsi');
-    righe.push('  che le contenga tutte, e toglierle sarebbe cancellarle. Finiranno anche nel foglio nuovo.');
-    righe.push('  Se sei sicuro che non servono, toglile tu dal modulo (Risposte -> Elimina tutte le risposte).');
+  var alSicuro = _moduloRisposteAlSicuro(form, candidati);
+  if (alSicuro.mancano > 0) {
+    righe.push('Risposte gia\' nel modulo: ' + quante + '. NON le tolgo: ' +
+               (alSicuro.mancano === quante ? 'non le ritrovo' : alSicuro.mancano + ' non le ritrovo') +
+               ' in nessun foglio degli anni scorsi');
+    righe.push('  (le cerco una per una, dal momento in cui sono arrivate), e toglierle sarebbe cancellarle.');
+    righe.push('  Finiranno anche nel foglio nuovo. Se sei sicuro che non servono, toglile tu dal modulo');
+    righe.push('  (Risposte -> Elimina tutte le risposte).');
     return;
   }
   if (davvero) {
@@ -359,7 +382,9 @@ function _moduloRisposteVecchie(form, quante, collegatoA, idFoglio, memoria, dav
   } else {
     righe.push('Risposte degli anni scorsi: ' + quante + ', verrebbero tolte dal modulo. Restano nel foglio');
   }
-  righe.push('  ' + SpreadsheetApp.openById(alSicuro).getUrl());
+  for (var k = 0; k < alSicuro.fogli.length; k++) {
+    righe.push('  ' + SpreadsheetApp.openById(alSicuro.fogli[k]).getUrl());
+  }
 }
 
 function _moduloRiapri(form, davvero, righe) {
@@ -538,6 +563,27 @@ function _moduloTogliTrigger() {
   return tolti;
 }
 
+/** Il trigger che mi ha chiamato non scatta piu': lo tolgo, e ne programmo uno fra un'ora. */
+function _moduloRiprogramma(e) {
+  _moduloTogliScattato(e);
+  ScriptApp.newTrigger(_MODULO_TRIGGER).timeBased().after(60 * 60 * 1000).create();
+}
+
+/** Toglie dall'elenco il trigger che ha lanciato questa esecuzione: scattato, resterebbe li'. */
+function _moduloTogliScattato(e) {
+  if (!e || !e.triggerUid) return;
+  var tutti = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < tutti.length; i++) {
+    if (String(tutti[i].getUniqueId()) === String(e.triggerUid)) { ScriptApp.deleteTrigger(tutti[i]); return; }
+  }
+}
+
+function _moduloScriviNelRegistro(righe) {
+  var testo = righe.join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
 /** L'id del foglio in cui il modulo scrive adesso, oppure null. */
 function _moduloDestinazione(form) {
   try {
@@ -562,19 +608,58 @@ function _moduloApribile(idFoglio) {
   catch (e) { return false; }
 }
 
-/** Quante righe di risposte ci sono nel foglio: la scheda piu' lunga, senza l'intestazione. */
-function _moduloRigheDiRisposte(idFoglio) {
+/**
+ * Quante risposte del modulo NON stanno in nessuno dei fogli candidati, e i
+ * fogli in cui stanno le altre. Ogni risposta la cerco per il momento in cui
+ * e' arrivata: Google lo scrive nella prima colonna (Informazioni
+ * cronologiche), al secondo. Una riga del foglio vale per una risposta sola.
+ */
+function _moduloRisposteAlSicuro(form, candidati) {
+  var righe = {};                                      // secondo -> i fogli che hanno una riga di quel secondo
+  for (var i = 0; i < candidati.length; i++) {
+    var tempi = _moduloTempiNelFoglio(candidati[i]);
+    for (var k = 0; k < tempi.length; k++) {
+      var s = String(Math.floor(tempi[k] / 1000));
+      if (!righe.hasOwnProperty(s)) righe[s] = [];
+      righe[s].push(candidati[i]);
+    }
+  }
+  var risposte = form.getResponses();
+  var secondi = [];
+  for (var q = 0; q < risposte.length; q++) secondi.push(Math.floor(risposte[q].getTimestamp().getTime() / 1000));
+  secondi.sort(function (a, b) { return a - b; });     // in ordine: ognuna prende la riga libera piu' vicina
+  var mancano = 0, fogli = [];
+  for (var r = 0; r < secondi.length; r++) {
+    var t = secondi[r];
+    // il foglio puo' avere il secondo arrotondato per eccesso: guardo anche quello dopo
+    var chiave = null;
+    if (righe.hasOwnProperty(String(t)) && righe[String(t)].length > 0) chiave = String(t);
+    else if (righe.hasOwnProperty(String(t + 1)) && righe[String(t + 1)].length > 0) chiave = String(t + 1);
+    if (chiave === null) { mancano++; continue; }
+    var id = righe[chiave].pop();
+    if (fogli.indexOf(id) < 0) fogli.push(id);
+  }
+  return { mancano: mancano, fogli: fogli };
+}
+
+/** I momenti (in millisecondi) scritti nella prima colonna di ogni scheda del foglio. */
+function _moduloTempiNelFoglio(idFoglio) {
+  var fuori = [];
   try {
     var schede = SpreadsheetApp.openById(idFoglio).getSheets();
-    var massimo = 0;
     for (var i = 0; i < schede.length; i++) {
-      var righe = schede[i].getLastRow() - 1;
-      if (righe > massimo) massimo = righe;
+      var ultima = schede[i].getLastRow();
+      if (ultima < 2) continue;
+      var valori = schede[i].getRange(2, 1, ultima - 1, 1).getValues();
+      for (var k = 0; k < valori.length; k++) {
+        var v = valori[k][0];
+        if (v && typeof v.getTime === 'function' && !isNaN(v.getTime())) fuori.push(v.getTime());
+      }
     }
-    return massimo;
   } catch (e) {
-    return -1;
+    // un foglio che non si apre non tiene al sicuro niente
   }
+  return fuori;
 }
 
 /** Quello che lo script ricorda da un anno all'altro: { modulo: id, fogli: { '2026-27': id } }. */
