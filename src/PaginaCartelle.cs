@@ -694,7 +694,7 @@ namespace Campanella
             {
                 "1. Il codice da incollare nel modulo",
                 "2. Cosa fare, passo per passo",
-                "3. (facoltativo) Il manifest, per chiedere meno permessi",
+                "3. Il manifest, consigliato prima della prima esecuzione",
                 "4. Piu' moduli: il codice del foglio di controllo",
                 "5. Piu' moduli: cosa fare, passo per passo"
             });
@@ -880,11 +880,9 @@ namespace Campanella
                 ParametriModulo p = new ParametriModulo();
                 p.Modulo = nome;
                 p.Anno = scelto.Anno;
-                p.CartellaAnno = scelto.CartellaAnno;
                 p.CartellaFoglio = ScriptModuli.CartellaProposta(percorso, cartelle);
                 p.NomeFoglio = ScriptModuli.NomeFoglioProposto(nome);
                 p.Chiusura = scelto.Chiusura;
-                p.FusoOrario = scelto.FusoOrario;
                 fuori.Add(p);
             }
             if (!trovato && scelto.Modulo.Trim() != "") fuori.Insert(0, scelto);

@@ -24,13 +24,14 @@ namespace Campanella
     {
         public string Modulo = "";                   // nome del modulo, senza estensione
         public string Anno = "auto";                 // "auto" oppure 2026-27
-        public string CartellaAnno = ScriptModuli.CartellaAnnoDiDefault;
         public string CartellaFoglio = "";           // dentro la cartella dell'anno; vuoto = la cartella dell'anno
         public string NomeFoglio = "";               // puo' contenere {anno}
         public string Chiusura = ScriptModuli.ChiusuraDiDefault;   // giorno/mese; vuoto = nessuna chiusura
         public bool Svuota = false;
         public bool UsaDrive = true;
-        public string FusoOrario = ScriptModuli.FusoDiDefault;
+        // la cartella dell'anno e il fuso orario non si scelgono dall'app: sono
+        // sempre ScriptModuli.CartellaAnnoDiDefault e FusoDiDefault, e nel codice
+        // generato si possono cambiare a mano
     }
 
     static class ScriptModuli
@@ -192,7 +193,7 @@ namespace Campanella
                 string cartella = radice;
                 if (p.UsaDrive)
                 {
-                    cartella = Path.Combine(radice, (p.CartellaAnno ?? CartellaAnnoDiDefault).Replace("{anno}", annoScolastico));
+                    cartella = Path.Combine(radice, CartellaAnnoDiDefault.Replace("{anno}", annoScolastico));
                     string sotto = (p.CartellaFoglio ?? "").Trim().Replace('/', '\\').Trim('\\');
                     if (sotto != "") cartella = Path.Combine(cartella, sotto);
                 }
@@ -209,8 +210,6 @@ namespace Campanella
             string anno = (p.Anno ?? "").Replace(" ", "");
             if (anno == "" || anno.Equals("auto", StringComparison.OrdinalIgnoreCase)) anno = "auto";
             string cartella = (p.CartellaFoglio ?? "").Trim().Replace('\\', '/').Trim('/');
-            string fuso = Fuso(p);
-
             StringBuilder sb = new StringBuilder();
             sb.Append(InizioConfig).Append("  (scritta da Campanella");
             if ((p.Modulo ?? "").Trim() != "")
@@ -220,14 +219,14 @@ namespace Campanella
             Riga(sb, "anno", Testo(anno),
                  anno == "auto" ? "dal primo settembre passa da solo all'anno nuovo"
                                 : "anno fisso: per l'anno dopo rigenera lo script, o scrivi \"auto\"");
-            Riga(sb, "cartellaAnno", Testo(p.CartellaAnno), "nella radice di \"Il mio Drive\"");
+            Riga(sb, "cartellaAnno", Testo(CartellaAnnoDiDefault), "nella radice di \"Il mio Drive\"");
             Riga(sb, "cartellaFoglio", Testo(cartella), "dentro la cartella dell'anno; \"\" = nella cartella dell'anno");
             Riga(sb, "nomeFoglio", Testo((p.NomeFoglio ?? "").Trim()), "");
             Riga(sb, "chiusura", Testo((p.Chiusura ?? "").Replace(" ", "")), "giorno/mese; \"\" = nessuna chiusura automatica");
             Riga(sb, "riapri", "true", "riapre il modulo alle risposte (false = lo lasci come lo trovi)");
             Riga(sb, "svuotaRisposte", p.Svuota ? "true" : "false",
                  "toglie dal modulo le risposte degli anni scorsi, solo se gia' al sicuro in un foglio");
-            Riga(sb, "fusoOrario", Testo(fuso), "");
+            Riga(sb, "fusoOrario", Testo(FusoDiDefault), "");
             sb.AppendLine("  usaDrive:       " + (p.UsaDrive ? "true" : "false"));
             sb.AppendLine("};");
             sb.Append(FineConfig);
@@ -241,12 +240,6 @@ namespace Campanella
         }
 
         static string Testo(string s) { return "\"" + AnalisiOrario.Js(s ?? "") + "\""; }
-
-        /// <summary>Il fuso orario dello script: quello scelto, o quello delle scuole italiane.</summary>
-        static string Fuso(ParametriModulo p)
-        {
-            return ((p.FusoOrario ?? "").Trim() == "") ? FusoDiDefault : p.FusoOrario.Trim();
-        }
 
         public static string Codice(ParametriModulo p)
         {
@@ -296,8 +289,8 @@ namespace Campanella
         public const string RisorsaPannello = "Pannello.gs";
 
         /// <summary>
-        /// Il codice del foglio di controllo: una riga per modulo. Le impostazioni
-        /// comuni (anno, cartella dell'anno, fuso) vengono dal primo, il resto
+        /// Il codice del foglio di controllo: una riga per modulo. L'anno viene dal
+        /// primo, la cartella dell'anno e il fuso sono quelli di partenza, il resto
         /// finisce nelle righe.
         /// </summary>
         public static string CodicePannello(IList<ParametriModulo> moduli)
@@ -314,7 +307,6 @@ namespace Campanella
             if (a < 0 || b < a) throw new Exception("Nel motore " + RisorsaPannello + " manca il blocco della configurazione.");
 
             ParametriModulo primo = moduli[0];
-            string fuso = Fuso(primo);
             string anno = (primo.Anno ?? "").Replace(" ", "");
             if (anno == "" || anno.Equals("auto", StringComparison.OrdinalIgnoreCase)) anno = "auto";
 
@@ -323,9 +315,9 @@ namespace Campanella
             sb.AppendLine("var PANNELLO = {");
             Riga(sb, "anno", Testo(anno),
                  anno == "auto" ? "dal primo settembre passa da solo all'anno nuovo" : "anno fisso");
-            Riga(sb, "cartellaAnno", Testo(primo.CartellaAnno), "nella radice di \"Il mio Drive\"");
+            Riga(sb, "cartellaAnno", Testo(CartellaAnnoDiDefault), "nella radice di \"Il mio Drive\"");
             Riga(sb, "chiusura", Testo((primo.Chiusura ?? "").Replace(" ", "")), "giorno/mese proposto alle righe di partenza; quelle che aggiungi tu solo se lo scrivi in Chiusura");
-            Riga(sb, "fusoOrario", Testo(fuso), "");
+            Riga(sb, "fusoOrario", Testo(FusoDiDefault), "");
             Riga(sb, "scheda", Testo("Moduli"), "la scheda di questo foglio con l'elenco");
             sb.AppendLine("  moduli: [                                      // le righe di partenza: poi comanda la scheda");
             for (int i = 0; i < moduli.Count; i++)
@@ -534,10 +526,9 @@ namespace Campanella
         /// </summary>
         public static string Manifest(ParametriModulo p)
         {
-            string fuso = Fuso(p);
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
-            sb.AppendLine("  \"timeZone\": \"" + AnalisiOrario.Js(fuso) + "\",");
+            sb.AppendLine("  \"timeZone\": \"" + AnalisiOrario.Js(FusoDiDefault) + "\",");
             sb.AppendLine("  \"exceptionLogging\": \"STACKDRIVER\",");
             sb.AppendLine("  \"runtimeVersion\": \"V8\",");
             sb.AppendLine("  \"oauthScopes\": [");

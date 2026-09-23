@@ -120,6 +120,9 @@ Verifica "Drive solo nella versione con Drive" (($manifest.oauthScopes -contains
 
 Verifica "il fuso del manifest e' quello di partenza di Campanella" ($manifest.timeZone -eq $tS.GetField('FusoDiDefault').GetValue($null))
 Verifica "il modulo si riapre sempre (l'opzione non si sceglie da Campanella)" ($conDrive -match 'riapri:\s+true' -and $null -eq $tP.GetField('Riapri'))
+Verifica "cartella dell'anno e fuso non sono opzioni: nel codice ci sono quelli di partenza" (
+    $null -eq $tP.GetField('CartellaAnno') -and $null -eq $tP.GetField('FusoOrario') -and
+    $conDrive -match 'cartellaAnno:\s+"A\.S\. \{anno\}"' -and $conDrive -match 'fusoOrario:\s+"Europe/Rome"')
 
 $istr = Chiama 'Istruzioni' @((Parametri $true), '2026-27')
 Verifica "le istruzioni parlano del menu sotto l'icona a puzzle" ($istr.Contains('puzzle') -and $istr.Contains('Prepara l''anno nuovo'))
