@@ -39,8 +39,9 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+; solo per l'utente corrente: nessuna finestra che proponga di installare
+; per tutti gli utenti (servirebbero i diritti di amministratore)
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
 OutputBaseFilename=Installa-Campanella
 SetupIconFile=
@@ -107,11 +108,14 @@ Type: filesandordirs; Name: "{app}\documenti"
 // Il consenso e' stato dato nel wizard (pagina della licenza): lo registro
 // come fa l'installer C#, cosi' Campanella non lo richiede al primo avvio.
 // Non tocco un campanella.json gia' esistente: contiene le impostazioni.
+// Con /SILENT o /VERYSILENT la pagina della licenza non compare, quindi
+// nessuno ha accettato niente: non registro nulla, e le condizioni le
+// chiede Campanella al primo avvio.
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Percorso, Contenuto: String;
 begin
-  if CurStep = ssPostInstall then
+  if (CurStep = ssPostInstall) and not WizardSilent then
   begin
     Percorso := ExpandConstant('{app}\campanella.json');
     if not FileExists(Percorso) then
