@@ -77,6 +77,17 @@ try {
     Verifica "e lo segnala fra i problemi"               (($r1.Errori | Where-Object { $_ -like '*3C; 3D*' }).Count -eq 1)
     Verifica "nessun altro problema"                     ($r1.Errori.Count -eq 1)
 
+    # con la 1.4.x il punto e virgola separava anche le classi, e "1A: Matematica; 2B"
+    # erano due classi: adesso 2B non diventa una materia di 1A, e lo dice
+    $driveC = Join-Path $finto 'Classi'
+    New-Item -ItemType Directory -Force $driveC | Out-Null
+    $annoC = Join-Path $driveC 'A.S. 2026-27'
+    $rC = Genera $driveC "1A: Matematica; 2B`r`n3C: Fisica; Storia" @() @('CLASSI') ''
+    Verifica "'1A: Matematica; 2B': 1A ha Matematica"     (Test-Path (Join-Path $annoC 'CLASSI\1A\Matematica'))
+    Verifica "ma nessuna materia '2B', neanche nei recuperi" (-not (Test-Path (Join-Path $annoC 'CLASSI\1A\2B')) -and -not (Test-Path (Join-Path $annoC 'RECUPERI\TRIMESTRE\1A\2B')) -and -not (Test-Path (Join-Path $annoC 'RECUPERI\PENTAMESTRE\1A\2B')))
+    Verifica "e lo segnala: una classe per riga"          ($rC.Errori.Count -eq 1 -and ($rC.Errori | Where-Object { $_ -like '*`[1A: Matematica; 2B`]*2B*una classe per riga*' }).Count -eq 1)
+    Verifica "'3C: Fisica; Storia' ha le sue due materie" ((Test-Path (Join-Path $annoC 'CLASSI\3C\Fisica')) -and (Test-Path (Join-Path $annoC 'CLASSI\3C\Storia')))
+
     # --- 2. i modelli e le note ---------------------------------------------------
     Write-Host "`nI MODELLI" -ForegroundColor Cyan
     $notaVerifiche = Join-Path $anno 'Verifiche\DUPLICA IN GOOGLE DOCS - Verifiche.txt'

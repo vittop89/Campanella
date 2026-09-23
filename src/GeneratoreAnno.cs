@@ -183,14 +183,29 @@ namespace Campanella
         {
             string nomeClasse = c;
             List<string> materie = new List<string>();
+            List<string> sembranoClassi = new List<string>();
             int idx = c.IndexOf(':');
             if (idx > 0)
             {
                 nomeClasse = c.Substring(0, idx).Trim();
-                foreach (string m in c.Substring(idx + 1).Split(new char[] { ',', ';' }))
+                // con la 1.4.x il punto e virgola separava le classi, e
+                // "1A: Matematica; 2B" erano due classi: un pezzo dopo il punto e
+                // virgola fatto come una classe (2B, 4Ar, 2B-Ls) non diventa una
+                // materia della 1A
+                string resto = c.Substring(idx + 1);
+                bool conPuntoEVirgola = resto.IndexOf(';') >= 0;
+                foreach (string pezzo in resto.Split(';'))
                 {
-                    string mm = m.Trim();
-                    if (mm != "") materie.Add(mm);
+                    if (conPuntoEVirgola && Regex.IsMatch(pezzo.Trim(), @"^\d+\s*[A-Za-z]"))
+                    {
+                        sembranoClassi.Add(pezzo.Trim());
+                        continue;
+                    }
+                    foreach (string m in pezzo.Split(','))
+                    {
+                        string mm = m.Trim();
+                        if (mm != "") materie.Add(mm);
+                    }
                 }
             }
             string problema = ControllaNome(nomeClasse);
@@ -207,6 +222,9 @@ namespace Campanella
                 Errore("Classe non valida: [" + c + "]: una classe per riga, le materie dopo i due punti");
                 return;
             }
+            foreach (string s in sembranoClassi)
+                Errore("Materia non valida in [" + c + "]: " + s +
+                       " (sembra una classe: una classe per riga, le materie dopo i due punti)");
 
             string dirClasse = Path.Combine(target, "CLASSI", nomeClasse);
             string trimestre = Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse);
