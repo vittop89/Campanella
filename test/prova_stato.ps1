@@ -79,6 +79,7 @@ static class ProvaStato
                 case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
                 case "cambiato-dopo-l-avvio": CambiatoDopoLAvvio(); break;
                 case "cambiato-e-spostato": CambiatoESpostato(); break;
+                case "scrittura-a-meta": ScritturaAMeta(); break;
                 case "chiavi-sconosciute": ChiaviSconosciute(); break;
                 case "nome-calendario": NomeCalendario(); break;
                 case "nome-calendario-drive-non-pronto": NomeCalendarioDriveNonPronto(); break;
@@ -471,6 +472,75 @@ static class ProvaStato
             Leggi(FileDati(e)) == altroPc && r is bool && !(bool)r && Pieno(arg[1] as string));
     }
 
+    // S-1: la scrittura del file dei dati si ferma a meta' (qui un'altra maniglia
+    // blocca il primo byte dopo la fine del file: la lettura passa, la scrittura
+    // no). Quello che resta sul disco e' di questa sessione: il salvataggio dopo
+    // lo ripara, invece di dire che l'ha cambiato un altro computer
+    static void ScritturaAMeta()
+    {
+        // piu' di 4096 byte: una lettura piu' corta chiede comunque 4096 byte al
+        // disco, e toccherebbe il byte bloccato
+        const int quante = 60;
+        string prima = ToJson(DatiCon(Molte(quante)));
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), prima);
+        Stato s = Carica();
+        s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        SalvaConUnByteBloccato(s, FileDati(c));
+        Verifica("(la scrittura si e' davvero fermata a meta')", s.UltimoErrore != "" && Leggi(FileDati(c)) != prima);
+        s.Salva();
+        List<string> nomi = Nomi(Json(FileDati(c)));
+        Verifica("il salvataggio dopo ripara il file: c'e' l'elenco intero",
+            s.UltimoErrore == "" && nomi.Count == quante + 1 && nomi.Contains("BIANCHI LUCA"));
+        Verifica("e non dice che l'ha cambiato un altro computer",
+            Testo(s, "DaAvvisare") == "" && Testo(s, "ErroreDati") == "");
+        Stato t = Carica();
+        Verifica("riaprendo si legge l'elenco intero",
+            Testo(t, "ErroreDati") == "" && t.Personale.Count == quante + 1);
+
+        // un cambio fatto altrove dopo la scrittura a meta' si riconosce ancora
+        string altroPc = ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"),
+                                        Persona("VERDI ANNA", "anna.verdi@scuola.example")));
+        string n = Cartella("Altro");
+        ScriviImpostazioni(true, n, null);
+        Scrivi(FileDati(n), prima);
+        Stato u = Carica();
+        u.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        SalvaConUnByteBloccato(u, FileDati(n));
+        Scrivi(FileDati(n), altroPc);
+        u.Salva();
+        Verifica("un cambio fatto altrove dopo la scrittura a meta' non si sovrascrive",
+            u.UltimoErrore != "" && Leggi(FileDati(n)) == altroPc);
+
+        // un file che non si apre nemmeno (sola lettura) resta com'era, e dopo si salva
+        string o = Cartella("SolaLettura");
+        ScriviImpostazioni(true, o, null);
+        Scrivi(FileDati(o), prima);
+        Stato v = Carica();
+        v.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        File.SetAttributes(FileDati(o), FileAttributes.ReadOnly);
+        try { v.Salva(); }
+        finally { File.SetAttributes(FileDati(o), FileAttributes.Normal); }
+        Verifica("in sola lettura non scrive, e il file resta intero", v.UltimoErrore != "" && Leggi(FileDati(o)) == prima);
+        v.Salva();
+        Verifica("tolta la sola lettura, il salvataggio dopo scrive l'elenco",
+            v.UltimoErrore == "" && Nomi(Json(FileDati(o))).Contains("BIANCHI LUCA"));
+    }
+
+    // Salva mentre un'altra maniglia blocca il primo byte dopo la fine del file
+    static void SalvaConUnByteBloccato(Stato s, string file)
+    {
+        long fine = new FileInfo(file).Length;
+        using (FileStream f = new FileStream(file, FileMode.Open, FileAccess.Read,
+                                             FileShare.ReadWrite | FileShare.Delete))
+        {
+            f.Lock(fine, 1);
+            try { s.Salva(); }
+            finally { f.Unlock(fine, 1); }
+        }
+    }
+
     // A-51: numero di formato e chiavi sconosciute conservate
     static void ChiaviSconosciute()
     {
@@ -647,6 +717,15 @@ static class ProvaStato
 
     static object[] Elenco(params Dictionary<string, object>[] persone) { return persone; }
 
+    // un elenco lungo di persone inventate
+    static Dictionary<string, object>[] Molte(int quante)
+    {
+        Dictionary<string, object>[] fuori = new Dictionary<string, object>[quante];
+        for (int i = 0; i < quante; i++)
+            fuori[i] = Persona("DOCENTE NUMERO " + (i + 1), "docente" + (i + 1) + "@scuola.example");
+        return fuori;
+    }
+
     static Dictionary<string, object> DatiCon(params Dictionary<string, object>[] persone)
     {
         Dictionary<string, object> d = new Dictionary<string, object>();
@@ -737,6 +816,7 @@ $casi = @(
     'torna-locale-illeggibile'
     'cambiato-dopo-l-avvio'
     'cambiato-e-spostato'
+    'scrittura-a-meta'
     'chiavi-sconosciute'
     'nome-calendario'
     'nome-calendario-drive-non-pronto'

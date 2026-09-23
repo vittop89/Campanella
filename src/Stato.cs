@@ -562,7 +562,8 @@ namespace Campanella
                 Directory.CreateDirectory(cartella);
                 // scritto sul posto, non sostituito: nel Drive un file nuovo
                 // perderebbe la cronologia delle versioni, che e' il modo di recuperarlo
-                File.WriteAllBytes(dati, testo);
+                try { File.WriteAllBytes(dati, testo); }
+                catch (Exception) { RicordaScrittoAMeta(dati, testo); throw; }
                 datiLetti = dati;
                 datiSulDisco = testo;
                 return true;
@@ -575,6 +576,30 @@ namespace Campanella
                     "gli orari (" + ex.Message + "): le modifiche di adesso non sono state salvate.");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Dopo una scrittura del file dei dati non riuscita. WriteAllBytes svuota il
+        /// file prima di scrivere: se poi si ferma (disco pieno, una parte del file
+        /// bloccata) sul disco resta l'inizio di quello che si scriveva, cioe' un
+        /// file di questa sessione. Lo ricordo come tale: il prossimo salvataggio lo
+        /// ripara, invece di dire che l'ha cambiato un altro computer, e un cambio
+        /// fatto altrove dopo si riconosce lo stesso. Se sul disco c'e' altro (il
+        /// file non si e' nemmeno aperto) o non si legge, non cambio niente.
+        /// </summary>
+        void RicordaScrittoAMeta(string dati, byte[] testo)
+        {
+            byte[] ora;
+            try
+            {
+                if (!File.Exists(dati)) return;
+                ora = File.ReadAllBytes(dati);
+            }
+            catch (Exception) { return; }
+            if (ora.Length > testo.Length) return;
+            for (int i = 0; i < ora.Length; i++) if (ora[i] != testo[i]) return;
+            datiLetti = dati;
+            datiSulDisco = ora;
         }
 
         /// <summary>Annota un problema del salvataggio: per le Impostazioni e, se serve, per un avviso.</summary>
