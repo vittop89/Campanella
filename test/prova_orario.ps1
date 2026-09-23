@@ -310,6 +310,17 @@ console.log(JSON.stringify({
     Verifica "i dati di una versione precedente si leggono ($($dopo.Lezioni.Count) lezioni)" ($dopo.Lezioni.Count -eq 2)
     Verifica "  ...con le colonne ricavate dai giorni ($(@($dopo.Giorni) -join ' '))" ((@($dopo.IndiciGiorni) -join ',') -eq '1,3')
     Verifica "  ...e ogni lezione sotto il suo giorno" (((Cella $dopo 'ROSSI' 1 1) -eq '1A') -and ((Cella $dopo 'ROSSI' 2 3) -eq '2B'))
+    # la 1.4.x salvava la tabella Docente/Giorno/Ora senza lunedi' con i giorni
+    # compattati (martedi' = 0): da qui non si capisce, e la pagina invita a
+    # ricaricare il file una volta (A-59)
+    Verifica "  ...con l'invito a ricaricare il file dell'orario" (
+        @($dopo.Avvisi).Count -eq 1 -and $dopo.Avvisi[0] -match "ricarica una volta il file dell'orario")
+    $ancora = DaJson (JsonDati $dopo)
+    Verifica "  ...che resta anche dopo un altro riavvio, finche' il file non si ricarica" (
+        @($ancora.Avvisi).Count -eq 1 -and (@($ancora.IndiciGiorni) -join ',') -eq '1,3' -and
+        ((Cella $ancora 'ROSSI' 2 3) -eq '2B'))
+    $nuovo = DaJson (JsonDati (AnalizzaFile $File))
+    Verifica "i dati salvati da questa versione non invitano a ricaricare niente" (@($nuovo.Avvisi).Count -eq 0)
 
     # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------
     # i banchi girano di solito su DatiOrari_esempio.gs, scritto a mano: qui

@@ -133,6 +133,10 @@ namespace Campanella
             // le colonne e il periodo sono salvati con le lezioni: dopo un
             // riavvio l'orario torna con gli stessi giorni del tabellone
             orario = RisultatoOrario.Ripristina(S);
+            // con i dati di una versione precedente qui c'e' l'invito a
+            // ricaricare il file: lo mostro in "Cosa ho capito", al passo 1
+            if (orario.Avvisi.Count > 0)
+                txtEsito.Text = string.Join("\r\n\r\n", orario.Avvisi.ToArray());
         }
 
         // ===================================================================
