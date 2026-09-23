@@ -134,8 +134,8 @@ namespace Campanella
         /// <summary>
         /// Spiega cosa cambia nel raggruppare le etichette. Senza gruppo lo script
         /// usa i nomi cosi' come sono: se in Gmail ci sono gia' etichette con quei
-        /// nomi, applica quelle, e ANNULLA_etichettatura le toglierebbe anche dai
-        /// messaggi a cui le avevi messe tu.
+        /// nomi, applica quelle, e ANNULLA_etichettatura non le svuota, perche' non
+        /// saprebbe distinguerle dai messaggi a cui le avevi messe tu.
         /// </summary>
         void AggiornaAvvisoPrefisso()
         {
@@ -620,8 +620,10 @@ namespace Campanella
                 "anche la posta della scuola: le etichette nascono tutte li' dentro " +
                 "(Scuola/Circolari, Scuola/Colleghi...), restano separate dal resto e si tolgono " +
                 "in un colpo solo.\r\n\r\n" +
-                "Il prezzo dei nomi diretti: ANNULLA_etichettatura toglierebbe quelle etichette " +
-                "anche dai messaggi a cui le avevi messe tu, perche' non puo' distinguerli."));
+                "Il prezzo dei nomi diretti: sulle etichette che avevi gia', ANNULLA_etichettatura " +
+                "non puo' distinguere i messaggi etichettati da te da quelli etichettati dallo " +
+                "script. Per non toccare i tuoi le lascia come sono e te lo dice: svuota solo le " +
+                "etichette che ha creato lo script."));
             lblPrefisso = Tema.Testo1("", 346, y + 4, 480, Tema.Piccolo, Ruolo.Tenue);
             lblPrefisso.Height = 20;
             p.Controls.Add(lblPrefisso);
@@ -921,7 +923,8 @@ namespace Campanella
                 { "Ho sbagliato: come torno indietro?",
                   "Esegui ANNULLA_etichettatura: ferma il riordino se sta ancora lavorando e toglie " +
                   "dalle conversazioni le etichette delle regole accese (quelle delle regole spente " +
-                  "le nomina ma non le tocca). Con molta posta il tempo di Google finisce prima e lo " +
+                  "le nomina ma non le tocca). Senza gruppo toglie solo le etichette che ha creato " +
+                  "lo script: quelle che avevi gia' in Gmail le nomina e le lascia come sono. Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
                   "(Gmail -> Impostazioni -> Filtri). Nulla viene mai cancellato, quindi non si perde posta." },

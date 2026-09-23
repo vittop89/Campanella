@@ -187,6 +187,7 @@ const GmailApp = {
     return (inizio === undefined) ? r : r.slice(inizio, inizio + quanti);
   },
   getUserLabelByName(nome) { return etichette.get(nome) || null; },
+  getUserLabels() { return [...etichette.values()]; },
   createLabel(nome) {
     if (!etichette.has(nome)) etichette.set(nome, new Label(nome));
     return etichette.get(nome);
@@ -239,7 +240,10 @@ const ScriptApp = {
 const posta = [];
 const MailApp = { sendEmail: (a, o, c) => posta.push({ a, o, c }) };
 const Logger = { log: t => registro.push(String(t)) };
-const Utilities = { sleep: () => {} };
+const Utilities = {
+  sleep: () => {},
+  formatDate: (d, fuso, modello) => (modello === 'yyyyMMdd' ? '20260923' : String(d))
+};
 const LockService = {
   getUserLock: () => ({ tryLock: () => true, releaseLock: () => {} })
 };
@@ -256,7 +260,11 @@ const DateFinta = new Proxy(Date, {
 //  CARICO GLI SCRIPT
 // ---------------------------------------------------------------------------
 const radice = path.join(__dirname, '..', 'src', 'risorse');
-const codice = fs.readFileSync(path.join(radice, 'Organizzazione_Gmail.gs'), 'utf8');
+// di partenza il motore vero; un secondo argomento carica una sua copia (serve
+// a test/invarianti_script.js per provare che il banco si accorge dei guasti)
+const codice = process.argv[3]
+  ? fs.readFileSync(process.argv[3], 'utf8')
+  : fs.readFileSync(path.join(radice, 'Organizzazione_Gmail.gs'), 'utf8');
 // di partenza i dati inventati di Configurazione_esempio.gs; si puo' passare
 // un'altra configurazione (la casella finta si adatta al suo dominio)
 const configurazione = process.argv[2]
@@ -272,7 +280,10 @@ vm.runInContext(configurazione, contesto, { filename: 'Configurazione.gs' });
 
 const DOM = String(contesto.CONFIG.dominioScuola || 'scuola-esempio.edu.it').replace(/^@/, '');
 const IO = 'io@' + DOM;
-const Session = { getActiveUser: () => ({ getEmail: () => IO }) };
+const Session = {
+  getActiveUser: () => ({ getEmail: () => IO }),
+  getScriptTimeZone: () => 'Europe/Rome'
+};
 contesto.Session = Session;
 vm.runInContext(codice, contesto, { filename: 'Organizzazione_Gmail.gs' });
 
@@ -668,6 +679,85 @@ intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
   verifica('e ne sono nate di nuove', etichette.size > quante);
   contesto.CONFIG.prefissoEtichette = 'Scuola';
 }
+
+// il codice di stato: CMP1-giorno-etichette-automazione-conversazioni
+function leggiCodice(c) {
+  const m = /^CMP1-(\d{8})-(\d+)-([01])-(\d+)$/.exec(c);
+  return m ? { etichette: +m[2], automazione: +m[3], conversazioni: +m[4] } : null;
+}
+
+intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script');
+{
+  // da capo: nessuna etichetta, nessuna memoria, posta intatta
+  casella.forEach(t => { t.labels.clear(); t.inInbox = true; });
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  contesto.CONFIG.prefissoEtichette = '';
+  contesto.CONFIG.provaSenzaModifiche = false;
+
+  // "Colleghi" c'era gia': l'avevi messa tu, a mano, a una conversazione
+  const aMano = GmailApp.createLabel('Colleghi');
+  aMano.addToThreads([amico]);
+  // e un'etichetta tua che con la scuola non c'entra
+  GmailApp.createLabel('Viaggi').addToThreads([amico]);
+
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('il riordino riempie anche la "Colleghi" che c\'era', rossi.labels.has('Colleghi'));
+  const create = JSON.parse(proprieta.get('ORGGMAIL_ETICHETTE_CREATE') || '[]');
+  verifica('lo script si segna le etichette che crea',
+    create.indexOf('Studenti') >= 0 && create.indexOf('Colleghi/Docenti') >= 0);
+  verifica('e non quelle che c\'erano gia\'', create.indexOf('Colleghi') < 0 && create.indexOf('Viaggi') < 0);
+
+  const codice = leggiCodice(contesto.EXTRA_codiceStato());
+  const conversazioniCreate = casella.filter(t => [...t.labels].some(l => create.indexOf(l) >= 0)).length;
+  verifica('il codice di stato conta solo le etichette dello strumento, non "Viaggi"',
+    codice && codice.etichette === create.length);
+  verifica('e le loro conversazioni', codice && codice.conversazioni >= conversazioniCreate &&
+    codice.conversazioni > 0);
+  verifica('il codice di stato dice la versione dello script',
+    registro[registro.length - 1].indexOf('Versione dello script: ' + contesto._POSTA_VERSIONE) === 0);
+
+  const t = contesto.ANNULLA_etichettatura();
+  console.log(t);
+  verifica('la tua "Colleghi" resta sulla conversazione a cui l\'avevi messa', amico.labels.has('Colleghi'));
+  verifica('e anche "Viaggi"', amico.labels.has('Viaggi'));
+  verifica('le etichette nate dallo script sono vuote',
+    casella.every(x => [...x.labels].every(l => create.indexOf(l) < 0)));
+  verifica('il resoconto dice quale non ha toccato e perche\'',
+    t.indexOf('FATTO') === 0 && /Non toccate, perche' non le ha create lo script: Colleghi\./.test(t));
+  const dopo = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('dopo ANNULLA il codice di stato non dice piu\' "fatto" (conversazioni 0)',
+    dopo && dopo.conversazioni === 0);
+
+  // uno script di una versione di prima non si segnava niente: si contano le
+  // etichette delle regole, ma mai quelle che non c'entrano
+  proprieta.delete('ORGGMAIL_ETICHETTE_CREATE');
+  const vecchio = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('senza memoria il codice conta le etichette delle regole, non "Viaggi"',
+    vecchio && vecchio.conversazioni === casella.filter(x => x.labels.has('Colleghi')).length);
+  const t2 = contesto.ANNULLA_etichettatura();
+  verifica('e senza memoria ANNULLA non toglie niente, e lo dice',
+    rossi.labels.has('Colleghi') && t2.indexOf('Non toccate') > 0);
+
+  // un'etichetta nata dallo script e poi cancellata da te in Gmail viene dimenticata
+  _memoriaCon(['Circolari', 'Sparita']);
+  GmailApp.createLabel('Circolari');
+  contesto.PASSO_2_creaEtichette();
+  const memoria = JSON.parse(proprieta.get('ORGGMAIL_ETICHETTE_CREATE') || '[]');
+  verifica('le etichette cancellate da Gmail escono dalla memoria',
+    memoria.indexOf('Sparita') < 0 && memoria.indexOf('Circolari') >= 0);
+
+  // con il gruppo non cambia niente: tutto quello che sta sotto "Scuola"
+  contesto.CONFIG.prefissoEtichette = 'Scuola';
+  GmailApp.createLabel('Scuola/Circolari').addToThreads([preside]);
+  const conGruppo = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('con il gruppo conta le etichette sotto il gruppo',
+    conGruppo && conGruppo.etichette === [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length &&
+    conGruppo.conversazioni >= 1);
+}
+function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
 
 intestazione('RISULTATO');
 if (fallimenti === 0) {

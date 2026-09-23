@@ -44,6 +44,7 @@
  *
  *    ANNULLA_automazione ........... spegne lo smistamento automatico
  *    ANNULLA_etichettatura ......... toglie dalle mail le etichette applicate
+ *                                    (senza gruppo, solo quelle nate qui)
  *    ANNULLA_progressoRiordino ..... azzera il segnaposto del PASSO 3
  *
  *  Le funzioni che finiscono con "_" sono interne: Apps Script non le mostra
@@ -64,6 +65,7 @@ var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
 var _THREAD_INDIRIZZI       = 4000;  // tetto di EXTRA_elencaIndirizziScuola
 var _RIGHE_PER_SCRITTA      = 40;    // il registro taglia le scritte lunghe
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
+var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
 
@@ -128,6 +130,7 @@ function PASSO_2_creaEtichette() {
   var prova = !!cfg.provaSenzaModifiche;
   var create = [];
   var esistenti = [];
+  if (!prova) _potaCreate_();
 
   for (var i = 0; i < regole.length; i++) {
     // le etichette annidate vanno create anche nei livelli superiori
@@ -138,7 +141,7 @@ function PASSO_2_creaEtichette() {
       if (GmailApp.getUserLabelByName(progressivo)) {
         if (esistenti.indexOf(progressivo) < 0) esistenti.push(progressivo);
       } else if (create.indexOf(progressivo) < 0) {
-        if (!prova) GmailApp.createLabel(progressivo);
+        if (!prova) _creaEtichetta_(progressivo);
         create.push(progressivo);
       }
     }
@@ -209,7 +212,7 @@ function _riordina_() {
     var regola = regole[stato.indice];
     var nomeEtichetta = _etichettaCompleta_(cfg, regola);
     var etichetta = prova ? null
-      : (GmailApp.getUserLabelByName(nomeEtichetta) || GmailApp.createLabel(nomeEtichetta));
+      : (GmailApp.getUserLabelByName(nomeEtichetta) || _creaEtichetta_(nomeEtichetta));
     var queries = _queryDellaRegola_(cfg, regola);
 
     while (stato.query < queries.length) {
@@ -331,7 +334,7 @@ function smistaNuoviMessaggi() {
     for (var i = 0; i < regole.length && Date.now() < scadenza; i++) {
       var regola = regole[i];
       var nome = _etichettaCompleta_(cfg, regola);
-      var etichetta = GmailApp.getUserLabelByName(nome) || GmailApp.createLabel(nome);
+      var etichetta = GmailApp.getUserLabelByName(nome) || _creaEtichetta_(nome);
       var queries = _queryDellaRegola_(cfg, regola, 'newer_than:' + giorni + 'd');
 
       for (var q = 0; q < queries.length && Date.now() < scadenza; q++) {
@@ -562,10 +565,13 @@ function EXTRA_codiceStato() {
   var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
   var etichette = GmailApp.getUserLabels();
   var nostre = 0, conversazioni = 0;
+  // senza gruppo non si contano tutte le etichette dell'utente, ma solo quelle
+  // di cui lo strumento risponde
+  var gestite = prefisso ? null : _etichetteGestite_(cfg);
 
   for (var i = 0; i < etichette.length; i++) {
     var nome = etichette[i].getName();
-    if (prefisso && nome.indexOf(prefisso + '/') !== 0) continue;
+    if (prefisso ? nome.indexOf(prefisso + '/') !== 0 : gestite.indexOf(nome) < 0) continue;
     nostre++;
     try { conversazioni += GmailApp.search('label:' + _virgolette_(nome), 0, 500).length; }
     catch (e) { }
@@ -617,6 +623,12 @@ function ANNULLA_etichettatura() {
     return occupato;
   }
   var regole, tolte = {}, finito = true;
+  // Senza gruppo un'etichetta con il nome di una regola puo' essere tua, e
+  // lo script non sa distinguere i messaggi etichettati da te da quelli
+  // etichettati da lui: svuota soltanto le etichette che ha creato lui.
+  var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
+  var create = prefisso ? null : _etichetteCreate_();
+  var nonSue = [];
   try {
     _rimuoviTrigger_(_TRIGGER_RIPRESA);
     _azzeraProgresso_();
@@ -627,6 +639,10 @@ function ANNULLA_etichettatura() {
       var nome = _etichettaCompleta_(cfg, regole[i]);
       var etichetta = GmailApp.getUserLabelByName(nome);
       if (!etichetta) continue;
+      if (create && create.indexOf(nome) < 0) {
+        if (etichetta.getThreads(0, 1).length && nonSue.indexOf(nome) < 0) nonSue.push(nome);
+        continue;
+      }
       while (true) {
         if (Date.now() >= scadenza) { finito = false; break; }
         var threads = etichetta.getThreads(0, _THREAD_PER_BLOCCO);
@@ -656,13 +672,21 @@ function ANNULLA_etichettatura() {
   // con tanta posta il tempo di Google finisce prima: va detto, altrimenti
   // sembra tutto a posto e le etichette rimaste non le toglie piu' nessuno
   var testo = (finito
-      ? 'FATTO: tolte tutte le etichette delle regole attive.\n\n'
+      ? 'FATTO: tolte ' + (create ? 'le etichette create dallo script' : 'tutte le etichette delle regole attive') +
+        '.\n\n'
       : 'TEMPO SCADUTO A META\'. Esegui di nuovo ANNULLA_etichettatura, e ancora, ' +
         'finche\' non compare "FATTO" in cima.\n\n') +
     'Etichette tolte dalle conversazioni in questo giro:\n' + _riepilogo_(tolte) +
     (finito
-      ? '\n\nLe etichette restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
+      ? '\n\nLe etichette tolte restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
         'cancellarle da Gmail -> Impostazioni -> Etichette.'
+      : '') +
+    (nonSue.length
+      ? '\n\nNon toccate, perche\' non le ha create lo script: ' + nonSue.join(', ') + '.\n' +
+        'C\'erano gia\' (le avevi fatte tu), oppure le ha create una versione di prima dello ' +
+        'script, che non se lo segnava. Lo script non sa distinguere i messaggi etichettati ' +
+        'da te da quelli etichettati da lui, quindi non toglie niente. Se erano solo dello ' +
+        'script, cancellale da Gmail -> Impostazioni -> Etichette: i messaggi restano.'
       : '') +
     (spente.length
       ? '\n\nEtichette di regole spente, non toccate: ' + spente.join(', ') + '.\n' +
@@ -951,6 +975,62 @@ function _salvaProgresso_(stato) {
 
 function _azzeraProgresso_() {
   PropertiesService.getUserProperties().deleteProperty(_CHIAVE_PROGRESSO);
+}
+
+// ---------------------------------------------------------------------------
+//  Le etichette create dallo script. Senza gruppo hanno nomi comuni
+//  (Colleghi, Circolari...) e possono essere etichette che avevi gia': solo
+//  qui resta scritto quali sono nate dallo script, e le annulla solo quelle.
+// ---------------------------------------------------------------------------
+function _etichetteCreate_() {
+  var raw = PropertiesService.getUserProperties().getProperty(_CHIAVE_CREATE);
+  if (!raw) return [];
+  try {
+    var elenco = JSON.parse(raw);
+    return (elenco && typeof elenco.length === 'number') ? elenco : [];
+  } catch (e) { return []; }
+}
+
+function _salvaCreate_(elenco) {
+  PropertiesService.getUserProperties().setProperty(_CHIAVE_CREATE, JSON.stringify(elenco));
+}
+
+/** Crea un'etichetta e se lo segna. */
+function _creaEtichetta_(nome) {
+  var etichetta = GmailApp.createLabel(nome);
+  var create = _etichetteCreate_();
+  if (create.indexOf(nome) < 0) {
+    create.push(nome);
+    _salvaCreate_(create);
+  }
+  return etichetta;
+}
+
+/** Dimentica le etichette create qui che nel frattempo hai cancellato da Gmail. */
+function _potaCreate_() {
+  var create = _etichetteCreate_();
+  var restano = [];
+  for (var i = 0; i < create.length; i++) {
+    if (GmailApp.getUserLabelByName(create[i])) restano.push(create[i]);
+  }
+  if (restano.length !== create.length) _salvaCreate_(restano);
+}
+
+/**
+ * Senza gruppo, le etichette di cui lo strumento risponde: quelle che ha
+ * creato lui. Se non ne ricorda nessuna (le ha create una versione di prima,
+ * o c'erano gia' tutte), quelle delle regole attive.
+ */
+function _etichetteGestite_(cfg) {
+  var create = _etichetteCreate_();
+  if (create.length) return create;
+  var fuori = [];
+  var regole = _regoleAttive_(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    var nome = _etichettaCompleta_(cfg, regole[i]);
+    if (fuori.indexOf(nome) < 0) fuori.push(nome);
+  }
+  return fuori;
 }
 
 function _programmaRipresa_() {
