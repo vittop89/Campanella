@@ -1332,53 +1332,6 @@ namespace Campanella
             return e;
         }
 
-        /// <summary>Indirizzo del docente il cui nominativo assomiglia a quello dato.</summary>
-        public Persona TrovaPersona(string nominativo)
-        {
-            string chiave = Chiave(nominativo);
-            if (chiave == "") return null;
-
-            // 1) corrispondenza esatta sul nominativo normalizzato
-            foreach (Persona p in Personale)
-                if (Chiave(p.Nome) == chiave) return p;
-
-            // 2) stesse parole in ordine diverso ("ROSSI MARIO" / "Mario Rossi")
-            List<string> parole = Parole(nominativo);
-            foreach (Persona p in Personale)
-            {
-                List<string> altre = Parole(p.Nome);
-                if (altre.Count != parole.Count || altre.Count == 0) continue;
-                bool tutte = true;
-                foreach (string w in parole) if (!altre.Contains(w)) { tutte = false; break; }
-                if (tutte) return p;
-            }
-
-            // 3) cognome + iniziale del nome ("ROSSI M." su "ROSSI MARIO")
-            if (parole.Count >= 2)
-            {
-                foreach (Persona p in Personale)
-                {
-                    List<string> altre = Parole(p.Nome);
-                    if (altre.Count < 2) continue;
-                    if (altre[0] != parole[0]) continue;
-                    if (altre[1].StartsWith(parole[1]) || parole[1].StartsWith(altre[1])) return p;
-                }
-            }
-            return null;
-        }
-
-        public static List<string> Parole(string s)
-        {
-            List<string> fuori = new List<string>();
-            foreach (string w in (s ?? "").Split(new char[] { ' ', '.', ',', '\t' },
-                                                 StringSplitOptions.RemoveEmptyEntries))
-            {
-                string k = Chiave(w);
-                if (k != "") fuori.Add(k);
-            }
-            return fuori;
-        }
-
         public static string Chiave(string s)
         {
             return Regex.Replace(SenzaAccenti(s ?? "").ToLowerInvariant(), "[^a-z0-9]", "");
