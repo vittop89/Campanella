@@ -272,6 +272,18 @@ $privacyBuild  = Cerca $build '/resource:\$privacy,([^"]+)"' 'la risorsa di PRIV
 Verifica "PRIVACY.md e' incorporato con il nome che Guscio.DocPrivacy cerca ($privacyGuscio)" ($privacyBuild -eq $privacyGuscio)
 
 # ===========================================================================
+Write-Host "`n=== WINDOWS SUPPORTATI ===" -ForegroundColor Cyan
+# L'app, l'installer C# e quello di Inno Setup dicono la stessa cosa: Windows
+# 10 e 11, gli unici su cui Campanella e' provata (un solo supportedOS, lo
+# stesso per tutti e due).
+$win10 = '{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}'
+foreach ($m in @('src\app.manifest', 'src-installer\app.manifest')) {
+    $ids = @([regex]::Matches((Leggi $m), 'supportedOS\s+Id="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+    Verifica "$m dichiara solo Windows 10 e 11 (supportedOS: $($ids -join ', '))" ($ids.Count -eq 1 -and $ids[0] -eq $win10)
+}
+Verifica "installer\Campanella.iss chiede almeno Windows 10" ($iss -match '(?m)^MinVersion=10\.0\s*$')
+
+# ===========================================================================
 #  La finestra delle condizioni: questa parte usa l'eseguibile compilato, e
 #  si salta quando manca (il flusso di rilascio lancia la prova prima di
 #  compilare). Costruisce le finestre senza mostrarle.
