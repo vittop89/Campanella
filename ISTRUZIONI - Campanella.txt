@@ -206,6 +206,32 @@ POSTA - riordinare la casella
    un'etichetta che c'era gia'. EXTRA_coloraTutteLeEtichette ricolora anche
    quelle. In modalita' prova le due funzioni dicono soltanto che cosa
    cambierebbero; le etichette delle regole senza colore non le toccano mai.
+   I filtri che avevi gia' in Gmail continuano a lavorare accanto allo
+   script, e un messaggio puo' prendere due etichette simili (la Genitori
+   dello script e la tua Famiglie). "Filtri che hai gia' in Gmail...", sotto
+   le regole, serve a togliere quelli che non vuoi piu'. Prima esportali da
+   Gmail: Impostazioni (la rotella) -> Vedi tutte le impostazioni -> Filtri
+   e indirizzi bloccati, spunta la casella sopra l'elenco per sceglierli
+   tutti e premi Esporta. Gmail scarica un file, di solito mailFilters.xml:
+   aprilo nella finestra con "Apri il file...". Ogni filtro compare con che
+   cosa cerca, che cosa fa e un suggerimento: "uguale a una regola di
+   Campanella" (mette proprio l'etichetta di una regola accesa, gruppo
+   compreso: parte spuntato), "simile a ..." (ha una parola o un sinonimo
+   in comune con una regola) oppure "tuo". Spunta quelli da togliere e premi
+   "Usa questa scelta". Il file contiene i tuoi filtri, con indirizzi e
+   parole: dopo averlo aperto puoi cancellarlo. Campanella tiene i filtri
+   spuntati insieme all'elenco del personale, e li scrive nella
+   configurazione: copiala di nuovo (passo 5). Poi, nell'editor dello
+   script, con il servizio Gmail API (l'ottavo passo dell'installazione
+   guidata), esegui EXTRA_togliFiltri. Toglie solo un filtro che ha proprio
+   quei criteri, nessuno in piu', e mette proprio quell'etichetta; prima di
+   toglierlo ne scrive una copia completa nel registro, con cui lo rifai a
+   mano se serve, e alla fine ti manda lo stesso riepilogo per email (se hai
+   il riepilogo acceso). In modalita' prova dice soltanto che cosa
+   toglierebbe e che cosa non trova; rieseguita non toglie niente e lo dice.
+   Gli altri filtri non li tocca. Le etichette gia' messe ai messaggi
+   restano: se non ti servono, cancellale tu da Gmail (Impostazioni ->
+   Etichette); i messaggi non si cancellano.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
@@ -217,7 +243,8 @@ POSTA - riordinare la casella
    non rimettono lo script in prova. Il passo 5 dice sempre se la
    configurazione che copi e' in prova o agisce davvero. L'ottavo,
    facoltativo, aggiunge il servizio Gmail API: serve ai colori delle
-   etichette e ai filtri veri di Gmail.
+   etichette, ai filtri veri di Gmail e a togliere i filtri che avevi gia'
+   (EXTRA_togliFiltri).
    L'anteprima (PASSO_1_anteprima) dice per ogni regola quante conversazioni
    prenderanno l'etichetta e, se l'etichetta c'e' gia' in Gmail, quante ce
    l'hanno e se l'ha creata lo script o c'era gia'. "500+" vuol dire almeno
@@ -227,7 +254,8 @@ POSTA - riordinare la casella
    registro elettronico: guarda il mittente vero di una notifica). In fondo
    elenca le regole che mettono due etichette agli stessi messaggi. Sotto
    l'impronta una riga dice quante etichette hanno un colore e se il
-   servizio Gmail API c'e' per metterli.
+   servizio Gmail API c'e' per metterli, e un'altra, se ne hai scelti,
+   quanti filtri di Gmail ci sono da togliere.
 
 
 CARTELLE - il nuovo anno scolastico
@@ -388,9 +416,13 @@ COSE CHE NON SUCCEDONO MAI
   lui, e quando glielo chiedi: le etichette dai messaggi, gli eventi del tuo
   orario. Il foglio di controllo toglie da se' la scheda vuota "Foglio1" che
   Google mette nei fogli nuovi e riscrive la sua scheda "Istruzioni".
-  Unica eccezione vera, che devi chiedere tu: lo script dei moduli puo'
-  togliere dal modulo le risposte degli anni scorsi, e solo dopo averle
-  ritrovate una per una in un foglio vecchio. Quella non si annulla.
+  Due eccezioni, che devi chiedere tu. Lo script dei moduli puo' togliere
+  dal modulo le risposte degli anni scorsi, e solo dopo averle ritrovate una
+  per una in un foglio vecchio: quella non si annulla. Lo script della
+  posta, con EXTRA_togliFiltri, toglie i filtri di Gmail che hai spuntato tu
+  al passo 4, e solo quelli: non si rimettono da script, ma prima di
+  toglierli ne scrive una copia nel registro per rifarli a mano. Messaggi
+  ed etichette restano.
 - La prima esecuzione del riordino parte in modalita' prova: conta e basta.
 - Lo script non scrive a nessun altro: le email arrivano solo a te.
 - Lo script dei moduli non manda email a nessuno e non condivide niente.
@@ -415,8 +447,11 @@ di controllo, il menu Campanella > "Annulla: togli chiusure e collegamenti"
 dell'anno, che restano nel Drive.
 Due cose restano a mano: i filtri veri di Gmail (se li hai creati con
 EXTRA_creaFiltriGmail) si cancellano da Gmail > Impostazioni > Filtri e
-indirizzi bloccati; i messaggi che una regola ha segnato come letti restano
-letti. I colori dati alle etichette restano: si cambiano da Gmail. Alla
+indirizzi bloccati (oppure li esporti, li spunti al passo 4 della Posta e li
+toglie EXTRA_togliFiltri); i messaggi che una regola ha segnato come letti
+restano letti. I filtri tolti con EXTRA_togliFiltri non si rimettono da
+script: si rifanno a mano con la copia che lo script ha scritto nel
+registro (e nel riepilogo per email). I colori dati alle etichette restano: si cambiano da Gmail. Alla
 fine, se vuoi, revoca l'accesso agli script da
 https://myaccount.google.com/permissions.
 

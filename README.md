@@ -246,7 +246,10 @@ found, by its arrival time, in an earlier sheet.
   timetable events they created. The control sheet also removes the empty
   "Foglio1" tab of a new spreadsheet and rewrites its own "Istruzioni" tab.
   The one real deletion is optional and off by default: clearing last year's
-  answers from a form, described above, which cannot be undone.
+  answers from a form, described above, which cannot be undone. Besides, only
+  when you run `EXTRA_togliFiltri`, the mail script removes the Gmail filters
+  you already had and ticked in step 4, only those, after writing a copy of
+  each one to the log so it can be made again by hand.
 - The first run of the mail sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
 - Every script has its undo functions (`ANNULLA_…`, `MODULO_ANNULLA`,
@@ -254,8 +257,8 @@ found, by its arrival time, in an earlier sheet.
   only the labels the script created, and says "NIENTE DA TOGLIERE" when
   there are none; `ANNULLA_etichettaturaCompleta` empties the labels of every
   active rule, same-named labels applied by hand included. Two things are
-  undone by hand: native Gmail filters, if created, and messages a rule
-  marked as read.
+  undone by hand: native Gmail filters, if created (or ticked in step 4 and
+  removed by `EXTRA_togliFiltri`), and messages a rule marked as read.
 - The mail and timetable scripts share one Apps Script project, and Google
   asks for its permissions all at once: Gmail, sending to yourself
   (`MailApp`), your own address (`Session`), triggers and, as soon as the

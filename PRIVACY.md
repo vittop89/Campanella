@@ -23,19 +23,21 @@ programma: è quello che finisce per sbaglio dentro al repository.
 | `DatiOrari_prova.gs`, `Configurazione_prova.gs` | generati dai dati veri (cognomi, indirizzi, orario di servizio): `test\genera_dati_prova.ps1` scrive il suo in `%TEMP%\campanella-dati-prova`, fuori dal repository. I banchi di prova usano i file `*_esempio.gs`, inventati. |
 | qualunque `.xlsx` di orario | come sopra |
 | `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
+| `mailFilters.xml` (i filtri esportati da Gmail) | i filtri veri di un account, con gli indirizzi e le parole che cercano. Le prove usano `test/filtri_gmail_esempio.xml`, inventato. |
 | `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
 
 Il `.gitignore` del progetto li esclude già tutti. Prima di ogni `push`
 conviene comunque controllare a mano:
 
 ```bash
-git ls-files | grep -iE "\.(json|gs|xlsx|xls|csv)$"
+git ls-files | grep -iE "\.(json|gs|xlsx|xls|csv|xml)$"
 ```
 
 Devono comparire solo i `.gs` di `src/risorse`, il `manifest.json`
-dell'estensione e i file inventati di `test/`: `Configurazione_esempio.gs`,
-`DatiOrari_esempio.gs` e `tabellone_esempio.csv`. Qualunque altro nome è da
-controllare. Se un file con dati è già stato committato, non basta
+dell'estensione, la configurazione della firma in `installer/` e i file
+inventati di `test/`: `Configurazione_esempio.gs`, `DatiOrari_esempio.gs`,
+`tabellone_esempio.csv` e `filtri_gmail_esempio.xml`. Qualunque altro nome è
+da controllare. Se un file con dati è già stato committato, non basta
 cancellarlo: resta nella storia. Va riscritta la storia
 (`git filter-repo`) oppure, molto più semplice, si ricomincia da un
 repository nuovo.
@@ -96,7 +98,12 @@ se quel file non l'ha letto, o nel frattempo l'ha cambiato un altro
 computer, lo lascia e lo dice. Quando non ti servono più, svuota l'elenco.
 Le righe senza spunta (per esempio gli indirizzi di studenti trovati nella
 casella, che arrivano senza spunta) non vanno nello script ma restano
-salvate: toglile con «Togli le righe senza spunta». Quando Campanella copia
+salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
+scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
+perché i loro criteri possono contenere indirizzi: Campanella tiene solo
+quelli che spunti, con l'etichetta e i criteri. Il file che Gmail esporta
+(di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo averlo
+aperto in Campanella puoi cancellarlo. Quando Campanella copia
 negli appunti la configurazione degli script, i dati degli orari, gli
 indirizzi di un gruppo o i testi della Privacy, chiede a Windows di non
 tenerli nella cronologia degli appunti e di non sincronizzarli con altri
@@ -107,7 +114,11 @@ ricava dalla tua casella (`EXTRA_elencaIndirizziScuola`: nomi e indirizzi
 del dominio della scuola che compaiono nei tuoi messaggi) ti arrivano in
 un'email a te stesso. Nel registro delle esecuzioni di Apps Script, che
 Google conserva nel tuo account, finisce solo il conteggio; l'elenco ci
-finisce soltanto se quell'email non parte.
+finisce soltanto se quell'email non parte. `EXTRA_togliFiltri` invece, prima
+di togliere ognuno dei filtri che hai scelto, ne scrive nel registro una
+copia completa, criteri compresi (anche indirizzi): serve a rifarlo a mano.
+Con il riepilogo acceso la stessa copia ti arriva per email. Toglie solo
+quei filtri; gli altri, le etichette e i messaggi restano.
 
 **I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
 2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio

@@ -89,7 +89,9 @@ namespace Campanella
             Tema.TitoloAiuto(this, "Dove tenere i dati di altre persone", 0, y,
                 "Dove tenere i dati di altre persone",
                 "L'elenco del personale, gli indirizzi di dirigenza e segreteria e gli orari " +
-                "con i cognomi sono dati personali di colleghi.\r\n\r\n" +
+                "con i cognomi sono dati personali di colleghi. Con loro stanno anche i filtri " +
+                "di Gmail che scegli di togliere (Posta, passo 4): i loro criteri possono avere " +
+                "indirizzi.\r\n\r\n" +
                 "Tenendoli in un file dentro il Drive della scuola restano nell'account " +
                 "istituzionale, si ritrovano su tutti i computer che sincronizzano quel Drive, " +
                 "e nel file accanto al programma non ne resta traccia.");

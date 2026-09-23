@@ -250,7 +250,10 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   foglio di controllo toglie anche la scheda vuota "Foglio1" di un foglio
   nuovo e riscrive la propria scheda "Istruzioni". L'unica cancellazione vera
   è facoltativa e spenta di partenza: togliere dal modulo le risposte degli
-  anni scorsi, come detto sopra, e non si annulla.
+  anni scorsi, come detto sopra, e non si annulla. In più, solo quando esegui
+  `EXTRA_togliFiltri`, lo script della posta toglie i filtri di Gmail che
+  avevi già e che hai spuntato al passo 4, solo quelli, dopo averne scritto
+  una copia nel registro per rifarli a mano.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
 - Ogni script ha le sue funzioni per annullare (`ANNULLA_…`, `MODULO_ANNULLA`,
@@ -259,7 +262,8 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   TOGLIERE" se non ne trova; `ANNULLA_etichettaturaCompleta` svuota le
   etichette di tutte le regole attive, comprese quelle con lo stesso nome
   messe a mano. Due cose si annullano a mano: i filtri veri di Gmail, se li
-  hai creati, e i messaggi che una regola ha segnato come letti.
+  hai creati (oppure li spunti al passo 4 e li toglie `EXTRA_togliFiltri`), e
+  i messaggi che una regola ha segnato come letti.
 - Lo script della posta e quello degli orari stanno nello stesso progetto
   Apps Script, e Google ne chiede i permessi tutti insieme: Gmail, l'invio a
   te stesso (`MailApp`), il tuo indirizzo (`Session`), i trigger e, appena

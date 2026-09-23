@@ -60,6 +60,49 @@ again).
   service, for the colours and for the native filters. "Aiuto e problemi"
   has an entry for labels that stay grey.
 
+**Posta: removing the Gmail filters you already had**
+
+- Step 4: "Filtri che hai gia' in Gmail..." opens a window that explains how
+  to export your filters from Gmail (Settings -> See all settings -> Filters
+  and Blocked Addresses -> select all -> Export, usually mailFilters.xml) and
+  opens that file. Each filter is listed with what it looks for, what it
+  does and a suggestion: "uguale a una regola di Campanella" when its label
+  is the full label (group included, case aside) of a rule the configuration
+  writes on, or of a role sub-label, and then it starts ticked; "simile a
+  ..." when it shares a word (singular or plural alike) or a synonym
+  (famiglie/genitori, alunni/studenti, ClasseViva/registro...) with a rule,
+  or is the name of a rule that is off; otherwise "tuo". Filters chosen
+  earlier stay ticked, two identical filters tick together, a filter with no
+  label cannot be ticked. A broken or wrong file gets a plain message, and a
+  file with a DOCTYPE is not opened. The window says that the exported file
+  contains your filters and can be deleted once opened; under the button
+  step 4 says how many filters are to be removed.
+- The chosen filters (label and exact criteria) are saved with the personal
+  data, next to the staff list (campanella-dati.json in the Drive when the
+  data are there), because criteria can contain addresses. An entry that
+  cannot be fully understood is dropped, never kept with a criterion
+  missing. Format 2, already new in this release, covers them.
+- Configurazione.gs carries them as `filtriDaTogliere` (label and criteria
+  with the Gmail API names): they change the fingerprint, and the step 5
+  summary counts them.
+- New script function EXTRA_togliFiltri, with the optional Gmail API service
+  (without it, it says how to add it and changes nothing). Under the same
+  lock as the sorting it removes only a filter with exactly those criteria,
+  all of them and none more, that adds that label, and before removing each
+  one it writes a complete copy (criteria and actions, with label names) to
+  the log, to recreate it by hand; at the end it sends the same recap to
+  your own address when the report email is on. It never touches other
+  filters, labels or messages. In test mode it only lists what it would
+  remove and what it cannot find. It reports removed, not found and already
+  removed: run again, it removes nothing and says so (it remembers only a
+  fingerprint of each removed entry, no address or word). PASSO_1_anteprima
+  adds one line with how many filters are to be removed.
+- Labels already on messages stay: delete in Gmail the ones you no longer
+  want (messages are not deleted). The check of the promises made to the
+  DPO allows removing a filter only inside EXTRA_togliFiltri; deleting a
+  label or a message stays forbidden everywhere. Guided installation step 8
+  and "Aiuto e problemi" explain it.
+
 ## 1.5.2 — 23 September 2026
 
 No script to paste again: only the application changes.

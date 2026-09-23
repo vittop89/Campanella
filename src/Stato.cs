@@ -906,7 +906,7 @@ namespace Campanella
             return r;
         }
 
-        /// <summary>I dati personali di altre persone: personale, indirizzi, orari.</summary>
+        /// <summary>I dati personali di altre persone: personale, indirizzi, orari, filtri di Gmail da togliere.</summary>
         Dictionary<string, object> Dati()
         {
             Dictionary<string, object> r = new Dictionary<string, object>();

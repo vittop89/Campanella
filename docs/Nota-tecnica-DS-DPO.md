@@ -65,12 +65,22 @@ Quattro funzioni, tutte facoltative e indipendenti:
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
-  ogni esecuzione. Unica eccezione, facoltativa e spenta di
+  ogni esecuzione. Un'eccezione, facoltativa e spenta di
   partenza: lo script dei moduli può togliere dal modulo le risposte degli
   anni precedenti, e lo fa solo dopo aver ritrovato ogni risposta, una per
   una e dall'ora in cui è arrivata, in un foglio degli anni scorsi; se ne
-  manca anche una non tocca niente e lo segnala. È l'unica cancellazione che
-  non si può annullare.
+  manca anche una non tocca niente e lo segnala. È l'unica cancellazione di
+  dati che non si può annullare.
+  L'altra eccezione riguarda le impostazioni della casella, non i messaggi:
+  lo script della posta, solo se il docente lo esegue con il servizio
+  facoltativo Gmail API (`EXTRA_togliFiltri`), toglie i filtri di Gmail che
+  il docente aveva già e che ha scelto uno per uno in Campanella: soltanto
+  quelli, cioè un filtro con proprio quei criteri che mette proprio
+  quell'etichetta, e ognuno solo dopo averne scritto una copia completa nel
+  registro dell'esecuzione (e nel riepilogo per email al docente stesso, se
+  attivo). Non tocca gli altri filtri, le etichette né i messaggi. La
+  rimozione di un filtro non si annulla da script: con quella copia il
+  docente lo ricrea a mano.
   Il programma sul computer cancella soltanto il proprio file dei dati
   (`campanella-dati.json`): quando il docente, dalle Impostazioni e dopo una
   conferma, sposta i dati in un'altra cartella del Drive o di nuovo sul
@@ -112,6 +122,7 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Elenco del personale (nominativo, ruolo, indirizzo istituzionale dei colleghi) | rubrica/registro elettronico, oppure i mittenti già presenti nella casella | nel file di configurazione dello script dentro l'account Google del docente; e sul computer del docente, oppure — scelta consigliata — in un file dentro la cartella del Drive istituzionale (in quel caso il file delle impostazioni sul computer non contiene nomi). Gli indirizzi che lo script ricava dalla casella (`EXTRA_elencaIndirizziScuola`) arrivano in un'email al docente stesso, e finiscono nel registro delle esecuzioni di Apps Script, che resta nell'account per il tempo stabilito da Google, solo se quell'email non parte. Le righe senza spunta (per esempio indirizzi di studenti trovati nella casella) non entrano nella configurazione dello script, ma restano nel file dei dati finché il docente non le toglie («Togli le righe senza spunta»). Con «Scrivere a un gruppo», gli indirizzi di una categoria passano per gli appunti di Windows, esclusi dalla cronologia | solo il docente |
 | Indirizzi di dirigenza e segreteria | pubblici nel sito della scuola | come sopra | solo il docente |
 | Etichette applicate ai messaggi | generate dallo script | nell'account Gmail del docente | solo il docente |
+| Filtri di Gmail che il docente sceglie di togliere (etichetta e criteri, che possono contenere indirizzi) | l'esportazione dei filtri che il docente scarica da Gmail e apre in Campanella; il file resta dove il docente l'ha salvato, e Campanella dice che si può cancellare dopo averlo aperto | solo i filtri scelti, nel file dei dati di Campanella insieme all'elenco del personale (sul computer o nel Drive istituzionale, come sopra) e nel file di configurazione dello script; prima di togliere un filtro, lo script ne scrive una copia nel registro delle esecuzioni e, se il riepilogo è attivo, nell'email al docente stesso; nelle proprietà dello script resta solo un'impronta numerica dei filtri tolti, senza indirizzi né parole | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar, con il cognome scelto nella descrizione | solo il docente |
 | Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne legge solo il numero e l'ora di arrivo (per ritrovarle nei fogli degli anni scorsi prima di un eventuale svuotamento) e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
 | Testi e file dati alla funzione Privacy | scelti dal docente | elaborati sul computer, senza rete, da rizzo-pii raggiunto solo a un indirizzo locale; le copie anonimizzate dove il docente le salva, mai sopra gli originali | solo il docente |
@@ -149,8 +160,10 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   inserisce gli eventi del proprio orario, marcati con un contrassegno, e
   `ORARI_ANNULLA_calendario`, che rimuove solo quelli.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
-  facoltativo): per creare i filtri nativi di Gmail e per dare alle etichette
-  dello script i colori scelti in Campanella.
+  facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
+  dello script i colori scelti in Campanella e per togliere i filtri di Gmail
+  che il docente ha scelto in Campanella fra quelli che aveva già
+  (`EXTRA_togliFiltri`, descritta al punto 2).
 
 Questo script non richiede: accesso al Drive, accesso a servizi esterni,
 accesso a dati di altri utenti del dominio.
@@ -229,8 +242,11 @@ eseguendo lo script il [data].]*
   le etichette di tutte le regole attive, comprese quelle con lo stesso nome
   messe a mano dal docente. I messaggi archiviati restano in «Tutti i
   messaggi». Due cose non si annullano da script: i filtri nativi di Gmail,
-  se il docente li ha creati, si tolgono a mano dalle impostazioni di Gmail,
-  e i messaggi che una regola ha segnato come letti restano letti.
+  se il docente li ha creati, si tolgono a mano dalle impostazioni di Gmail
+  (oppure scegliendoli in Campanella per `EXTRA_togliFiltri`), e i messaggi
+  che una regola ha segnato come letti restano letti. Anche un filtro tolto
+  con `EXTRA_togliFiltri` non si rimette da script: si ricrea a mano dalla
+  copia che lo script ha scritto nel registro prima di toglierlo.
 - Lo script usa un **blocco di esecuzione** per non far girare due copie
   contemporaneamente, e in caso di errore in una regola passa alla
   successiva senza interrompere il resto. Anche `ANNULLA_automazione`
@@ -259,9 +275,10 @@ eseguendo lo script il [data].]*
    docente, come spiegato al punto 5), `ORARI_ANNULLA_calendario` (toglie
    gli eventi).
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),
-   cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati:
-   nessuna funzione dello script li toglie. I messaggi segnati come letti da
-   una regola restano letti.
+   cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,
+   oppure esportarli, sceglierli in Campanella (Posta, passo 4) ed eseguire
+   `EXTRA_togliFiltri`, che toglie solo i filtri scelti. I messaggi segnati
+   come letti da una regola restano letti.
 3. Se usa lo script dei moduli: eseguire `MODULO_ANNULLA` in ogni modulo in
    cui l'ha incollato; se usa il foglio di controllo, `PANNELLO_ANNULLA`
    (menu Campanella del foglio). Tolgono le chiusure programmate e
