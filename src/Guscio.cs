@@ -491,12 +491,23 @@ namespace Campanella
         public void Stato1(string testo, Color colore)
         {
             lblStato.Text = testo;
+            // anche il ruolo, non solo il colore: cambiando tema l'avviso ambra
+            // tornava verde, il colore del ruolo con cui la riga e' nata
+            lblStato.Tag = Tema.RuoloDi(colore);
             lblStato.ForeColor = colore;
         }
 
-        void CambiaTema()
+        void CambiaTema() { ImpostaTema(!Tema.Scuro); }
+
+        /// <summary>
+        /// Cambia il tema a tutta la finestra, da qualunque parte lo si chieda
+        /// (il bottone in alto o le Impostazioni). Applica rimette i colori di
+        /// base, quindi dopo va ridipinta la voce scelta del menu: dalle
+        /// Impostazioni prima restava spenta.
+        /// </summary>
+        public void ImpostaTema(bool scuro)
         {
-            Tema.Imposta(!Tema.Scuro);
+            Tema.Imposta(scuro);
             S.TemaScuro = Tema.Scuro;
             Tema.Applica(this);
             AggiornaMenu();
@@ -1112,11 +1123,7 @@ namespace Campanella
         void ApplicaTema(bool scuro)
         {
             if (Tema.Scuro == scuro) return;
-            Tema.Imposta(scuro);
-            S.TemaScuro = scuro;
-            Tema.Applica(FindForm());
-            Guscio.AggiornaBottoneTema();
-            FindForm().Refresh();
+            Guscio.ImpostaTema(scuro);
         }
 
         void Verifica()

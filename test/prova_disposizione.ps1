@@ -403,6 +403,54 @@ foreach ($scuro in @($true, $false)) {
 $mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
 $mApplica.Invoke($null, @($guscio)) | Out-Null
 
+# --- i colori che dicono qualcosa restano dopo Applica e dopo il cambio di tema -
+# Tema.Applica ricolora secondo il ruolo nella Tag: un colore messo a mano
+# spariva ("Elimina regola" non era rosso, l'avviso ambra tornava verde), e
+# il cambio di tema dalle Impostazioni lasciava spenta la voce del menu.
+Write-Host "`nI COLORI DOPO IL CAMBIO DI TEMA" -ForegroundColor Cyan
+$FSpub = [System.Reflection.BindingFlags]'Public,Static'
+function ColoreTema($nome) { return $tTema.GetField($nome, $FSpub).GetValue($null).ToArgb() }
+function Scuro { return $tTema.GetField('Scuro', $FSpub).GetValue($null) }
+
+$tRegola = $asm.GetType('Campanella.Regola')
+$regola = [Activator]::CreateInstance($tRegola)
+$tRegola.GetField('Etichetta').SetValue($regola, 'Etichetta di prova')
+$formRegola = [Activator]::CreateInstance($asm.GetType('Campanella.FormRegola'), @($regola))
+$elimina = $null
+foreach ($c in $formRegola.Controls) { if ($c -is [System.Windows.Forms.Button] -and $c.Text -eq 'Elimina regola') { $elimina = $c } }
+Verifica "'Elimina regola' e' rosso" ($elimina -ne $null -and $elimina.ForeColor.ToArgb() -eq (ColoreTema 'Rosso'))
+$mImposta.Invoke($null, @([bool](-not $scuroPrima))) | Out-Null
+$mApplica.Invoke($null, @($formRegola)) | Out-Null
+Verifica "e resta rosso nell'altro tema" ($elimina -ne $null -and $elimina.ForeColor.ToArgb() -eq (ColoreTema 'Rosso'))
+$mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
+$formRegola.Dispose()
+
+$lblStato = $tGuscio.GetField('lblStato', $FIp).GetValue($guscio)
+$mStato1 = $tGuscio.GetMethod('Stato1', [Type[]]@([string], [System.Drawing.Color]))
+$mCambia = $tGuscio.GetMethod('CambiaTema', $FIp)
+$mStato1.Invoke($guscio, @('Avviso di prova', $tTema.GetField('Ambra', $FSpub).GetValue($null))) | Out-Null
+$mCambia.Invoke($guscio, @()) | Out-Null
+Verifica "la riga di stato ambra resta ambra dopo il cambio di tema" ($lblStato.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+$mCambia.Invoke($guscio, @()) | Out-Null
+Verifica "e anche tornando al tema di prima" ($lblStato.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+
+$iImp = -1
+for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Impostazioni') { $iImp = $k } }
+$metodoVaiA.Invoke($guscio, @([int]$iImp, [int]0)) | Out-Null
+$vocImp = $null
+foreach ($v in $tGuscio.GetField('voci', $FIp).GetValue($guscio)) {
+    if ($v.GetType().GetField('Pagina').GetValue($v) -eq $iImp -and $v.GetType().GetField('Passo').GetValue($v) -eq -1) {
+        $vocImp = $v.GetType().GetField('Bottone').GetValue($v)
+    }
+}
+$mApplicaTema = $pagine[$iImp].GetType().GetMethod('ApplicaTema', $FIp)
+$mApplicaTema.Invoke($pagine[$iImp], @([bool](-not (Scuro)))) | Out-Null
+Verifica "dalle Impostazioni il menu si ricolora: la voce scelta resta evidenziata" (
+    $vocImp -ne $null -and $vocImp.BackColor.ToArgb() -eq (ColoreTema 'AccentoSfondo'))
+$mApplicaTema.Invoke($pagine[$iImp], @([bool]$scuroPrima)) | Out-Null
+Verifica "e anche tornando al tema di prima" (
+    $vocImp -ne $null -and $vocImp.BackColor.ToArgb() -eq (ColoreTema 'AccentoSfondo'))
+
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
 # Dispose senza Close: Close salverebbe le impostazioni, e qui dentro
 # PowerShell "accanto al programma" vuol dire accanto a powershell.exe
