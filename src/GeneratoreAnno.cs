@@ -12,7 +12,8 @@
 //  L'unica eccezione e' la nota "DUPLICA IN GOOGLE DOCS" di un gruppo di
 //  modelli: quando in MODELLI cambiano i documenti da duplicare la riscrive,
 //  ma solo se e' ancora come l'ha scritta Campanella (lo dice il codice
-//  nell'ultima riga). Se l'hai modificata tu, resta la tua.
+//  nell'ultima riga, o per quelle delle versioni precedenti il fatto di avere
+//  solo le righe di Campanella). Se l'hai modificata tu, resta la tua.
 //
 //  Tutto finisce dentro "A.S. <anno>": le voci di struttura.json, le classi,
 //  le materie e le cartelle in piu' sono controllate prima (niente percorsi
@@ -333,24 +334,35 @@ namespace Campanella
                 else documenti.Add(gf);
             }
             if (!Cartella(dest)) return;
+            // le stesse righe fisse le scrivevano anche le versioni precedenti
+            string[] testaDocumenti =
+            {
+                "Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:",
+                "(i documenti Google non si possono copiare come file normali)"
+            };
+            string[] testaModuli =
+            {
+                "Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni",
+                "anno riceve un foglio delle risposte nuovo, con lo script che si prepara in",
+                "Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):"
+            };
             List<string> righe = new List<string>();
             if (documenti.Count > 0)
             {
-                righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
-                righe.Add("(i documenti Google non si possono copiare come file normali)");
+                righe.AddRange(testaDocumenti);
                 righe.Add("");
                 foreach (string gf in documenti) righe.Add("- " + gf);
             }
             if (moduli.Count > 0)
             {
                 if (righe.Count > 0) righe.Add("");
-                righe.Add("Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni");
-                righe.Add("anno riceve un foglio delle risposte nuovo, con lo script che si prepara in");
-                righe.Add("Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):");
+                righe.AddRange(testaModuli);
                 righe.Add("");
                 foreach (string gf in moduli) righe.Add("- " + gf);
             }
-            NotaDelGruppo(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"), righe, google);
+            List<string> fisse = new List<string>(testaDocumenti);
+            fisse.AddRange(testaModuli);
+            NotaDelGruppo(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"), righe, google, fisse);
             if (documenti.Count > 0)
                 Riga("  " + documenti.Count + " documenti Google da duplicare a mano (vedi la nota)");
             if (moduli.Count > 0)
@@ -360,9 +372,10 @@ namespace Campanella
         /// <summary>
         /// Scrive la nota di un gruppo se non c'e', o se e' ancora come l'ha
         /// scritta Campanella e l'elenco e' cambiato. Una nota modificata a mano
-        /// resta com'e': al massimo il registro dice cosa non nomina.
+        /// resta com'e': al massimo il registro dice cosa non nomina. fisse sono
+        /// le righe che la nota ha sempre, fuori dall'elenco dei documenti.
         /// </summary>
-        void NotaDelGruppo(string percorso, List<string> righe, List<string> nomi)
+        void NotaDelGruppo(string percorso, List<string> righe, List<string> nomi, List<string> fisse)
         {
             string corpo = string.Join("\r\n", righe.ToArray());
             string nuovo = TestoNota(corpo);
@@ -388,7 +401,11 @@ namespace Campanella
                 return;
             }
 
-            if (NotaIntatta(vecchio))
+            // senza codice ma mai toccata: la scriveva una versione precedente,
+            // che la riscriveva a ogni giro. Il codice che non torna, invece, vuol
+            // dire che l'hai cambiata tu
+            bool conCodice = Normale(vecchio).IndexOf(FirmaNota, StringComparison.Ordinal) >= 0;
+            if (NotaIntatta(vecchio) || (!conCodice && NotaDiPrima(vecchio, fisse, nomi)))
             {
                 if (ScriviNota(percorso, nuovo))
                 {
@@ -402,8 +419,42 @@ namespace Campanella
             List<string> mancanti = new List<string>();
             foreach (string n in nomi)
                 if (vecchio.IndexOf(n, StringComparison.OrdinalIgnoreCase) < 0) mancanti.Add(n);
-            Riga("  la nota \"" + nomeNota + "\" l'hai modificata tu: la lascio com'e'" +
+            Riga("  la nota \"" + nomeNota + "\" " +
+                 (conCodice ? "l'hai modificata tu"
+                            : "non porta il codice di Campanella (scritta da una versione precedente o modificata da te)") +
+                 ": la lascio com'e'" +
                  (mancanti.Count > 0 ? ". Non nomina: " + string.Join(", ", mancanti.ToArray()) : "."));
+        }
+
+        /// <summary>
+        /// Vero se la nota e' come la scrivevano le versioni precedenti: solo
+        /// le righe fisse e un elenco "- documento" di file Google che in MODELLI
+        /// ci sono ancora. Del documento conta solo il nome, perche' la 1.4.x dei
+        /// documenti piu' in fondo scriveva solo la prima sottocartella
+        /// ("Archivio\Foglio.gsheet" per "Archivio\2025\Foglio.gsheet").
+        /// </summary>
+        static bool NotaDiPrima(string testo, List<string> fisse, List<string> nomi)
+        {
+            Dictionary<string, bool> file = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (string n in nomi) file[UltimoPezzo(n)] = true;
+            int voci = 0;
+            foreach (string riga in Normale(testo).Split('\n'))
+            {
+                string r = riga.TrimEnd();
+                if (r == "" || fisse.Contains(r)) continue;
+                if (r.StartsWith("- ") && file.ContainsKey(UltimoPezzo(r.Substring(2).Trim()))) { voci++; continue; }
+                return false;
+            }
+            return voci > 0;
+        }
+
+        /// <summary>
+        /// Il nome del file in fondo a "Archivio\2025\Foglio.gsheet". Non e'
+        /// Path.GetFileName perche' quello da' errore su righe con &lt; o |.
+        /// </summary>
+        static string UltimoPezzo(string percorso)
+        {
+            return percorso.Substring(percorso.LastIndexOfAny(new char[] { '\\', '/' }) + 1);
         }
 
         bool ScriviNota(string percorso, string testo)

@@ -134,6 +134,45 @@ try {
     Verifica "la nota senza codice delle versioni precedenti lo riceve"  ($intatta.Invoke($null, @([string](Leggi $notaVecchia))) -and (Leggi $notaVecchia).Contains('- Avviso.gdoc'))
     Verifica "creato solo l'aggiornamento della nota ($($r3.Creati))"    ($r3.Creati -eq 1)
 
+    # --- 4b. le note della 1.4.x, senza codice, mai toccate --------------------------
+    Write-Host "`nLE NOTE DELLA 1.4.x" -ForegroundColor Cyan
+    $driveN   = Join-Path $finto 'Note14'
+    $annoN    = Join-Path $driveN 'A.S. 2026-27'
+    $modelliN = Join-Path $driveN 'MODELLI'
+    foreach ($f in @('Altro\Lettera.gdoc', 'Verifiche\Traccia.gdoc', 'Verifiche\Recuperi.gform',
+                     'Verifiche\Archivio\2025\Foglio.gsheet', 'Mia\Avviso.gdoc', 'Tua\Avviso.gdoc')) {
+        Scrivi (Join-Path $modelliN $f) '{}'
+    }
+    # come le scriveva la 1.4.x (File.WriteAllLines, riscritte a ogni giro)
+    function Nota14([string[]]$righe) { return (($righe -join "`r`n") + "`r`n") }
+    $testaDoc = @('Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:',
+                  '(i documenti Google non si possono copiare come file normali)', '')
+    $testaMod = @('Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\Verifiche e ogni',
+                  'anno riceve un foglio delle risposte nuovo, con lo script che si prepara in',
+                  'Campanella -> Cartelle -> passo 2 ("I moduli Google"):', '')
+    $nAltro = Join-Path $annoN 'Altro\DUPLICA IN GOOGLE DOCS - Altro.txt'
+    $nVer   = Join-Path $annoN 'Verifiche\DUPLICA IN GOOGLE DOCS - Verifiche.txt'
+    $nMia   = Join-Path $annoN 'Mia\DUPLICA IN GOOGLE DOCS - Mia.txt'
+    $nTua   = Join-Path $annoN 'Tua\DUPLICA IN GOOGLE DOCS - Tua.txt'
+    # elenco cresciuto: dopo l'ultimo giro della 1.4.x in MODELLI\Altro arriva Circolare
+    Scrivi $nAltro (Nota14 ($testaDoc + @('- Lettera.gdoc')))
+    Scrivi (Join-Path $modelliN 'Altro\Circolare.gdoc') '{}'
+    # documento annidato: la 1.4.x scriveva solo la prima sottocartella
+    Scrivi $nVer (Nota14 ($testaDoc + @('- Traccia.gdoc', '- Archivio\Foglio.gsheet', '') + $testaMod + @('- Recuperi.gform')))
+    # due note senza codice che l'utente ha toccato: restano sue
+    $mia14 = Nota14 ($testaDoc + @('- Avviso.gdoc', '', 'Avviso duplicato il 3/9 - M.R.'))
+    $tua14 = Nota14 ($testaDoc + @('- Avviso.gdoc', '- chiesto alla segreteria'))
+    Scrivi $nMia $mia14
+    Scrivi $nTua $tua14
+    $rN = Genera $driveN '1A' @('Altro', 'Verifiche', 'Mia', 'Tua') @() ''
+    Verifica "elenco cresciuto: la nota nomina il documento nuovo, con il codice" ((Leggi $nAltro).Contains('- Circolare.gdoc') -and $intatta.Invoke($null, @([string](Leggi $nAltro))))
+    Verifica "documento annidato: la nota ha il percorso intero, con il codice"  ((Leggi $nVer).Contains('- Archivio\2025\Foglio.gsheet') -and -not (Leggi $nVer).Contains('- Archivio\Foglio.gsheet') -and $intatta.Invoke($null, @([string](Leggi $nVer))))
+    Verifica "e il registro dice che le ha aggiornate"                           (($rN.Registro | Where-Object { $_ -like '*nota aggiornata*' }).Count -eq 2)
+    Verifica "una nota con una riga dell'utente resta com'era"                   ((Leggi $nMia) -eq $mia14)
+    Verifica "anche con una voce '- ' che non e' un documento"                   ((Leggi $nTua) -eq $tua14)
+    Verifica "e il registro non dice che l'hai modificata tu, ma che non ha il codice" (($rN.Registro | Where-Object { $_ -like "*l'hai modificata tu*" }).Count -eq 0 -and ($rN.Registro | Where-Object { $_ -like '*non porta il codice di Campanella*' }).Count -eq 2)
+    Verifica "nessun problema ($($rN.Errori.Count))"                             ($rN.Errori.Count -eq 0)
+
     # --- 5. tutto resta dentro "A.S. <anno>" -----------------------------------------
     Write-Host "`nNOMI CHE ESCONO DALLA CARTELLA DELL'ANNO" -ForegroundColor Cyan
     # l'unica voce assoluta punta dentro la cartella temporanea: anche se il
