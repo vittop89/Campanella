@@ -821,9 +821,64 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
     vecchio && vecchio.conversazioni === casella.filter(x => x.labels.has('Colleghi')).length);
   verifica('e dice che fra quelle ci possono essere le tue (T): Campanella non ci crede',
     vecchio && !vecchio.soloSue);
+
+  // Chi ha organizzato la posta con la 1.4.6 o prima e poi ha reincollato il
+  // motore nuovo: le etichette delle regole le ha create lo script di allora,
+  // che non se lo segnava. ANNULLA_etichettatura non le puo' svuotare e non
+  // deve dire FATTO; per svuotarle c'e' ANNULLA_etichettaturaCompleta.
+  // La casella come la lascia un PASSO_3 di allora: etichette piene, nessuna memoria.
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('(preparazione) etichette delle regole piene e nessuna memoria, come con la 1.4.6',
+    !proprieta.has('ORGGMAIL_ETICHETTE_CREATE') && rossi.labels.has('Colleghi') &&
+    esposito.labels.has('Studenti') && amico.labels.has('Colleghi'));
+  const primaDiAnnullare = casella.map(x => [...x.labels].sort().join('|')).join('\n');
   const t2 = contesto.ANNULLA_etichettatura();
-  verifica('e senza memoria ANNULLA non toglie niente, e lo dice',
-    rossi.labels.has('Colleghi') && t2.indexOf('Non toccate') > 0);
+  console.log(t2);
+  verifica('senza memoria ANNULLA non toglie niente',
+    rossi.labels.has('Colleghi') && casella.map(x => [...x.labels].sort().join('|')).join('\n') === primaDiAnnullare);
+  verifica('e non dice FATTO: in cima c\'e\' NIENTE DA TOGLIERE',
+    t2.indexOf('NIENTE DA TOGLIERE') === 0 && t2.indexOf('FATTO') < 0);
+  verifica('e non dice che le etichette restano vuote', t2.indexOf('ma vuote') < 0);
+  verifica('nomina le etichette non toccate e la funzione che le svuota',
+    /Non toccate, perche' non le ha create lo script: [^\n]*Colleghi/.test(t2) &&
+    t2.indexOf('ANNULLA_etichettaturaCompleta') > 0);
+
+  // ANNULLA_etichettaturaCompleta: prima di tutto il blocco, come l'altra
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  const occupata = contesto.ANNULLA_etichettaturaCompleta();
+  LockService.getUserLock = bloccoVero;
+  verifica('la versione completa aspetta il riordino in corso e non tocca niente',
+    occupata.indexOf('riprova fra un minuto') >= 0 && rossi.labels.has('Colleghi'));
+
+  // con molta posta il tempo finisce a meta': si riesegue, e riparte da li'
+  proprieta.set('ORGGMAIL_PROGRESSO', JSON.stringify({ indice: 2, query: 0, fatti: {}, iniziato: '2026-09-01' }));
+  trigger.push({ fn: 'PASSO_3_riordinaPostaEsistente', tipo: 'dopo', valore: 60000 });
+  const toglieVera = Label.prototype.removeFromThreads;
+  let volte = 0;
+  Label.prototype.removeFromThreads = function (threads) {
+    volte++;
+    if (volte === 1) orologio += 10 * 60 * 1000;          // alla prima tornata il tempo e' finito
+    return toglieVera.call(this, threads);
+  };
+  const meta = contesto.ANNULLA_etichettaturaCompleta();
+  Label.prototype.removeFromThreads = toglieVera;
+  orologio = 0;
+  verifica('tempo finito a meta\': lo dice in cima e dice di rieseguire la versione completa',
+    meta.indexOf('TEMPO SCADUTO A META\'') === 0 && meta.indexOf('Esegui di nuovo ANNULLA_etichettaturaCompleta') > 0);
+  verifica('e anche li\' dice che svuota pure le etichette fatte a mano', /a mano/.test(meta.split('\n\n')[0]));
+  verifica('il riordino in corso e\' fermato anche dalla versione completa',
+    !trigger.some(x => x.fn === 'PASSO_3_riordinaPostaEsistente') && !proprieta.has('ORGGMAIL_PROGRESSO'));
+
+  const t3 = contesto.ANNULLA_etichettaturaCompleta();
+  console.log(t3);
+  verifica('la versione completa svuota le etichette delle regole create da uno script di prima',
+    !rossi.labels.has('Colleghi') && !esposito.labels.has('Studenti') &&
+    casella.every(x => [...x.labels].every(l => l === 'Viaggi')));
+  verifica('anche la "Colleghi" che avevi messo tu a mano, e lo dice in cima',
+    !amico.labels.has('Colleghi') && t3.indexOf('FATTO') === 0 && /a mano/.test(t3.split('\n')[0]));
+  verifica('ma non le etichette che non sono delle regole ("Viaggi")', amico.labels.has('Viaggi'));
+  verifica('e le etichette restano in Gmail, vuote', etichette.has('Colleghi') && etichette.has('Studenti'));
 
   // un'etichetta nata dallo script e poi cancellata da te in Gmail viene dimenticata
   _memoriaCon(['Circolari', 'Sparita']);

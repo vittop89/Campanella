@@ -619,7 +619,8 @@ namespace Campanella
                 "Il prezzo dei nomi diretti: sulle etichette che avevi gia', ANNULLA_etichettatura " +
                 "non puo' distinguere i messaggi etichettati da te da quelli etichettati dallo " +
                 "script. Per non toccare i tuoi le lascia come sono e te lo dice: svuota solo le " +
-                "etichette che ha creato lo script."));
+                "etichette che ha creato lo script. ANNULLA_etichettaturaCompleta invece le svuota " +
+                "tutte, comprese le tue."));
             lblPrefisso = Tema.Testo1("", 346, y + 4, 480, Tema.Piccolo, Ruolo.Tenue);
             lblPrefisso.Height = 20;
             p.Controls.Add(lblPrefisso);
@@ -921,6 +922,10 @@ namespace Campanella
                   "dalle conversazioni le etichette delle regole accese (quelle delle regole spente " +
                   "le nomina ma non le tocca). Senza gruppo toglie solo le etichette che ha creato " +
                   "lo script: quelle che avevi gia' in Gmail le nomina e le lascia come sono. " +
+                  "Se avevi riordinato con Campanella 1.4.6 o prima, lo script di allora non si " +
+                  "segnava le etichette che creava: ANNULLA_etichettatura risponde NIENTE DA TOGLIERE " +
+                  "e per svuotarle serve ANNULLA_etichettaturaCompleta, che le toglie da tutti i " +
+                  "messaggi, anche da quelli a cui le avevi messe tu a mano. " +
                   "Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
@@ -933,6 +938,10 @@ namespace Campanella
                   "incollala di nuovo. PASSO_3 aggiunge etichette ma non ne toglie: per rifare " +
                   "da capo esegui prima ANNULLA_etichettatura (con molta posta, finche' in cima non " +
                   "compare FATTO): ferma anche il riordino in corso, che poi riparte dall'inizio. " +
+                  "Se in cima compare NIENTE DA TOGLIERE, le etichette le ha create lo script di " +
+                  "Campanella 1.4.6 o prima, che non se lo segnava: esegui " +
+                  "ANNULLA_etichettaturaCompleta, che svuota le etichette delle regole accese " +
+                  "anche dove le avevi messe tu a mano, e poi PASSO_3. " +
                   "Se hai creato i filtri veri di Gmail, cancella anche il filtro vecchio " +
                   "di quella regola: altrimenti continua a etichettare come prima." },
                 { "Colleghi e studenti finiscono insieme",

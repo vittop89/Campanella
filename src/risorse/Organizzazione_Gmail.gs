@@ -46,6 +46,12 @@
  *                                    riprese degli orari, se ci sono)
  *    ANNULLA_etichettatura ......... toglie dalle mail le etichette applicate
  *                                    (senza gruppo, solo quelle nate qui)
+ *    ANNULLA_etichettaturaCompleta . come la precedente, ma senza gruppo
+ *                                    svuota TUTTE le etichette delle regole
+ *                                    accese: anche quelle con lo stesso nome
+ *                                    che avevi fatto tu a mano, e quelle
+ *                                    create dallo script fino alla 1.4.6, che
+ *                                    non se lo segnava
  *    ANNULLA_progressoRiordino ..... azzera il segnaposto del PASSO 3
  *
  *  Le funzioni che finiscono con "_" sono interne: Apps Script non le mostra
@@ -635,10 +641,31 @@ function ANNULLA_automazione() {
   return testo;
 }
 
-/** Toglie dalle conversazioni le etichette applicate da questo strumento. */
+/**
+ * Toglie dalle conversazioni le etichette applicate da questo strumento.
+ * Senza gruppo svuota solo quelle che lo script ha creato e si e' segnato.
+ */
 function ANNULLA_etichettatura() {
+  return _annullaEtichettatura_(false);
+}
+
+/**
+ * Come ANNULLA_etichettatura, ma senza gruppo svuota tutte le etichette delle
+ * regole accese, anche quelle con lo stesso nome che avevi fatto tu a mano:
+ * lo script non sa distinguere i messaggi etichettati da te da quelli
+ * etichettati da lui, e qui li tratta allo stesso modo. Serve soprattutto a
+ * chi ha riordinato la posta con Campanella fino alla 1.4.6, il cui script
+ * non si segnava le etichette che creava. Non cancella niente: toglie solo
+ * le etichette, e le etichette restano nell'elenco di Gmail, vuote.
+ */
+function ANNULLA_etichettaturaCompleta() {
+  return _annullaEtichettatura_(true);
+}
+
+function _annullaEtichettatura_(completa) {
   var cfg = _config_();
   var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+  var funzione = completa ? 'ANNULLA_etichettaturaCompleta' : 'ANNULLA_etichettatura';
 
   // Prima fermo il riordino: se PASSO_3 sta ancora riprendendo da solo, fra un
   // giro e l'altro rimetterebbe le etichette che tolgo, e il segnaposto lo
@@ -653,8 +680,9 @@ function ANNULLA_etichettatura() {
   // Senza gruppo un'etichetta con il nome di una regola puo' essere tua, e
   // lo script non sa distinguere i messaggi etichettati da te da quelli
   // etichettati da lui: svuota soltanto le etichette che ha creato lui.
+  // La versione completa le svuota tutte, come faceva lo script fino alla 1.4.6.
   var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
-  var create = prefisso ? null : _etichetteCreate_();
+  var create = (prefisso || completa) ? null : _etichetteCreate_();
   var nonSue = [];
   try {
     _rimuoviTrigger_(_TRIGGER_RIPRESA);
@@ -696,24 +724,43 @@ function ANNULLA_etichettatura() {
     if (e && e.getThreads(0, 1).length) spente.push(nomeSpenta);
   }
 
+  // Senza gruppo e senza niente da togliere: le etichette delle regole ancora
+  // piene non le ha create lo script (tipico di chi ha riordinato con la 1.4.6
+  // o prima). "FATTO" farebbe credere che siano state svuotate.
+  var niente = finito && !!create && _totale_(tolte) === 0 && nonSue.length > 0;
+
   // con tanta posta il tempo di Google finisce prima: va detto, altrimenti
   // sembra tutto a posto e le etichette rimaste non le toglie piu' nessuno
   var testo = (finito
-      ? 'FATTO: tolte ' + (create ? 'le etichette create dallo script' : 'tutte le etichette delle regole attive') +
-        '.\n\n'
-      : 'TEMPO SCADUTO A META\'. Esegui di nuovo ANNULLA_etichettatura, e ancora, ' +
-        'finche\' non compare "FATTO" in cima.\n\n') +
+      ? (niente
+          ? 'NIENTE DA TOGLIERE: le etichette delle regole che hanno dei messaggi non le ha ' +
+            'create questo script, quindi non ne ho tolta nessuna. Leggi qui sotto.'
+          : 'FATTO: tolte ' + (completa
+              ? 'tutte le etichette delle regole accese, anche quelle con lo stesso nome ' +
+                'che avevi fatto tu a mano'
+              : create ? 'le etichette create dallo script' : 'tutte le etichette delle regole attive') +
+            '.') +
+        '\n\n'
+      : 'TEMPO SCADUTO A META\'. Esegui di nuovo ' + funzione + ', e ancora, ' +
+        'finche\' non compare "FATTO" in cima.' +
+        (completa ? '\nQuesta funzione toglie le etichette delle regole accese da tutti i messaggi, ' +
+                    'anche da quelli a cui le avevi messe tu a mano.' : '') +
+        '\n\n') +
     'Etichette tolte dalle conversazioni in questo giro:\n' + _riepilogo_(tolte) +
-    (finito
+    (finito && !niente
       ? '\n\nLe etichette tolte restano nell\'elenco di Gmail, ma vuote: se vuoi puoi ' +
         'cancellarle da Gmail -> Impostazioni -> Etichette.'
       : '') +
     (nonSue.length
       ? '\n\nNon toccate, perche\' non le ha create lo script: ' + nonSue.join(', ') + '.\n' +
         'C\'erano gia\' (le avevi fatte tu), oppure le ha create una versione di prima dello ' +
-        'script, che non se lo segnava. Lo script non sa distinguere i messaggi etichettati ' +
-        'da te da quelli etichettati da lui, quindi non toglie niente. Se erano solo dello ' +
-        'script, cancellale da Gmail -> Impostazioni -> Etichette: i messaggi restano.'
+        'script (Campanella fino alla 1.4.6), che non se lo segnava. Lo script non sa ' +
+        'distinguere i messaggi etichettati da te da quelli etichettati da lui, quindi non ' +
+        'toglie niente.\n' +
+        'Per svuotarle lo stesso esegui ANNULLA_etichettaturaCompleta: toglie le etichette ' +
+        'delle regole accese da tutti i messaggi, anche da quelli a cui le avevi messe tu a ' +
+        'mano. Se invece erano solo dello script puoi anche cancellarle da Gmail -> ' +
+        'Impostazioni -> Etichette: i messaggi restano.'
       : '') +
     (spente.length
       ? '\n\nEtichette di regole spente, non toccate: ' + spente.join(', ') + '.\n' +
