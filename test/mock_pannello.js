@@ -1338,6 +1338,29 @@ titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
   verifica('nessuna risposta persa', m.perse() === 0);
 }
 
+titolo('SVUOTARE: LA CHIUSURA DI FINE ANNO NON RIESCE');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(40);
+  const vera = m.recuperi.setAcceptingResponses;
+  m.recuperi.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return vera.call(this, si); };
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 9).uid });
+  verifica('chiusura non riuscita: resta collegato al foglio dell\'anno', m.recuperi.destinazione !== null &&
+    m.recuperi.destinazione.foglio.id === primo.id);
+  m.recuperi.rispondi(7);
+  verifica('le risposte arrivate dopo finiscono nel foglio', primo.righeDiRisposte() === 47);
+  m.recuperi.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('anno 2: nessuna risposta persa (stanno tutte nel foglio del primo anno)',
+    m.perse() === 0 && primo.righeDiRisposte() === 47);
+}
+
 titolo('SVUOTARE: UN MODULO SCOLLEGATO, CON RISPOSTE ARRIVATE SOLO LI\'');
 {
   // come lasciava le cose una chiusura fallita di una versione di prima: scollegato ma aperto
