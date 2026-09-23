@@ -47,7 +47,7 @@ namespace Campanella
 
         CheckedListBox clbRegole;
         TextBox txtPrefisso;
-        Label lblPrefisso, lblDoppioni;
+        Label lblPrefisso, lblDoppioni, lblFiltri;
         bool zitto = false;
         TextBox txtDescrizioneRegola;
         // il colore dell'etichetta della regola scelta e, per Colleghi, quelli
@@ -136,6 +136,7 @@ namespace Campanella
             AggiornaPersonale();
             AggiornaElencoRegole(0);
             AggiornaAvvisoPrefisso();
+            AggiornaFiltriDaTogliere();
         }
 
         /// <summary>
@@ -198,10 +199,11 @@ namespace Campanella
                 { "Che cosa fa lo script",
                   "Crea le etichette (Dirigenza, Segreteria, Circolari, Colleghi, Studenti, ...), " +
                   "le applica alla posta gia' ricevuta e poi continua da solo con i messaggi nuovi. " +
-                  "Se vuoi, da' alle etichette i colori che scegli e crea anche i veri filtri di Gmail." },
+                  "Se vuoi, da' alle etichette i colori che scegli, crea anche i veri filtri di Gmail e " +
+                  "toglie i filtri vecchi che scegli tu." },
                 { "Che cosa NON fa",
-                  "Non cancella niente, non svuota il cestino, non segnala come spam, non manda " +
-                  "messaggi al posto tuo. Al massimo archivia, cioe' toglie dalla Posta in arrivo: " +
+                  "Non cancella messaggi ne' etichette, non svuota il cestino, non segnala come spam, non " +
+                  "manda messaggi al posto tuo. Al massimo archivia, cioe' toglie dalla Posta in arrivo: " +
                   "il messaggio resta comunque in \"Tutti i messaggi\"." },
                 { "Prima si prova",
                   "La prima esecuzione parte sempre in modalita' prova: conta i messaggi e ti dice " +
@@ -647,6 +649,27 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Su", 272, yb, 60, delegate { SpostaRegola(-1); }));
             p.Controls.Add(Tema.Bottone("Giu'", 336, yb, 60, delegate { SpostaRegola(1); }));
 
+            // i filtri che l'utente ha gia' in Gmail, che mettono le loro
+            // etichette accanto a quelle dello script
+            string filtri = "Filtri che hai gia' in Gmail...";
+            int wf = 26 + TextRenderer.MeasureText(filtri, Tema.Normale).Width;
+            p.Controls.Add(Tema.Bottone(filtri, 0, yb + 40, wf, delegate { FiltriGiaInGmail(); }));
+            p.Controls.Add(Tema.Aiuto(wf + 8, yb + 47, "I filtri che hai gia' in Gmail",
+                "Un filtro che avevi fatto in Gmail, magari anni fa, continua a mettere la sua etichetta anche " +
+                "quando le etichette le mette lo script: un messaggio puo' finire sia in Genitori sia nella tua " +
+                "Famiglie.\r\n\r\n" +
+                "Qui apri l'elenco dei tuoi filtri, esportato da Gmail (Impostazioni -> Vedi tutte le impostazioni " +
+                "-> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta), e spunti quelli da togliere. Li " +
+                "toglie lo script, con EXTRA_togliFiltri: serve il servizio Gmail API (passo 8 dell'installazione " +
+                "guidata), e dopo la scelta va copiata di nuovo la configurazione (passo 5).\r\n\r\n" +
+                "Lo script toglie solo i filtri spuntati, e prima di toglierne uno ne scrive una copia nel " +
+                "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
+                "cancellale da Gmail (i messaggi non si cancellano)."));
+            lblFiltri = Tema.Testo1("", 0, yb + 76, 400, Tema.Piccolo, Ruolo.Tenue);
+            lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri.",
+                                                 Tema.Piccolo, 400);
+            p.Controls.Add(lblFiltri);
+
             txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 108, Ruolo.Normale);
             p.Controls.Add(txtDescrizioneRegola);
 
@@ -880,17 +903,20 @@ namespace Campanella
                 "vengono etichettati da soli, anche a computer spento.",
                 new string[] { }, new EventHandler[] { });
 
-            Cartellino(8, "Facoltativo: il servizio Gmail API, per i colori e i filtri veri",
+            Cartellino(8, "Facoltativo: il servizio Gmail API, per i colori e i filtri",
                 "Nell'editor, colonna di sinistra, alla voce \"Servizi\" premi il \"+\", scegli " +
-                "\"Gmail API\" e conferma. Serve a due cose, tutte e due facoltative. " +
+                "\"Gmail API\" e conferma. Serve a tre cose, tutte facoltative. " +
                 "I colori delle etichette scelti al passo 4: esegui  EXTRA_coloraEtichette; da li' in " +
                 "poi le etichette nuove nascono gia' colorate. Un'etichetta che avevi gia' e a cui " +
                 "avevi dato un colore tu resta com'e' (EXTRA_coloraTutteLeEtichette ricolora anche " +
                 "quelle). I filtri veri: esegui  EXTRA_creaFiltriGmail, cosi' lo smistamento " +
                 "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
-                "filtro non sa escludere chi e' gia' fra i Colleghi. Se poi cambi una regola, il " +
-                "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri). Con la " +
-                "modalita' prova accesa le due funzioni non cambiano niente.",
+                "filtro non sa escludere chi e' gia' fra i Colleghi. I filtri che avevi gia' e che hai " +
+                "scelto al passo 4 (\"Filtri che hai gia' in Gmail...\"): esegui  EXTRA_togliFiltri, che " +
+                "prima di togliere ognuno ne scrive una copia nel registro. Se poi cambi una regola, il " +
+                "filtro vecchio va tolto: a mano in Gmail (Impostazioni -> Filtri), oppure scegliendolo " +
+                "al passo 4. Con la modalita' prova accesa queste funzioni non cambiano niente: dicono " +
+                "che cosa farebbero.",
                 new string[] { }, new EventHandler[] { });
 
             return p;
@@ -1010,6 +1036,15 @@ namespace Campanella
                   "EXTRA_coloraTutteLeEtichette. Se hai cambiato un colore, copia di nuovo la " +
                   "configurazione (passo 5) prima di eseguirle. In modalita' prova dicono soltanto " +
                   "che cosa cambierebbero. Le etichette delle regole senza colore non le toccano." },
+                { "Un messaggio prende anche l'etichetta di un mio vecchio filtro",
+                  "I filtri che avevi fatto in Gmail continuano a lavorare accanto allo script: un messaggio " +
+                  "puo' finire sia in Genitori sia nella tua Famiglie. Al passo 4 premi \"Filtri che hai gia' " +
+                  "in Gmail...\", apri l'esportazione dei tuoi filtri (Gmail -> Impostazioni -> Vedi tutte le " +
+                  "impostazioni -> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta) e spunta quelli da " +
+                  "togliere. Poi copia di nuovo la configurazione (passo 5) ed esegui EXTRA_togliFiltri, con il " +
+                  "servizio Gmail API (passo 8): prima di togliere un filtro ne scrive una copia nel registro. " +
+                  "Le etichette gia' messe ai messaggi restano: cancellale da Gmail se non ti servono, i " +
+                  "messaggi non si cancellano." },
                 { "Colleghi e studenti finiscono insieme",
                   "Di solito vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello " +
                   "stesso dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del " +
@@ -2048,6 +2083,36 @@ namespace Campanella
             }
         }
 
+        /// <summary>
+        /// La finestra dei filtri che l'utente ha gia' in Gmail: quelli che
+        /// spunta vanno nello Stato, e da li' in Configurazione.gs.
+        /// </summary>
+        void FiltriGiaInGmail()
+        {
+            Raccogli();    // gruppo, indirizzi e spunte delle regole: servono al confronto
+            using (FormFiltriGmail f = new FormFiltriGmail(S))
+            {
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+                S.FiltriDaTogliere = f.Scelti;
+            }
+            AggiornaFiltriDaTogliere();
+            int n = GeneratorePosta.FiltriDaTogliere(S);
+            Guscio.Stato1(n == 0 ? "Nessun filtro di Gmail da togliere." :
+                n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: copia di nuovo la configurazione " +
+                "(passo 5) ed esegui EXTRA_togliFiltri.");
+        }
+
+        /// <summary>La riga sotto "Filtri che hai gia' in Gmail...": quanti ce ne sono da togliere.</summary>
+        void AggiornaFiltriDaTogliere()
+        {
+            if (lblFiltri == null) return;
+            int n = GeneratorePosta.FiltriDaTogliere(S);
+            lblFiltri.Text = (n == 0) ? "Nessun filtro di Gmail da togliere." :
+                n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.";
+            lblFiltri.Tag = (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
+            Tema.Applica(lblFiltri);
+        }
+
         void LeggiSpunteRegole()
         {
             for (int i = 0; i < S.Regole.Count && i < clbRegole.Items.Count; i++)
@@ -2129,6 +2194,9 @@ namespace Campanella
             int colorate = GeneratorePosta.EtichetteColorate(S);
             sb.AppendLine("Etichette colorate ........... " + (colorate == 0 ? "nessuna" :
                 colorate + " (i colori li mette il servizio Gmail API: passo 8)"));
+            int daTogliere = GeneratorePosta.FiltriDaTogliere(S);
+            sb.AppendLine("Filtri di Gmail da togliere .. " + (daTogliere == 0 ? "nessuno" :
+                daTogliere + " (li toglie EXTRA_togliFiltri, con il servizio Gmail API: passo 8)"));
             sb.AppendLine();
 
             List<string> avvisi = new List<string>();

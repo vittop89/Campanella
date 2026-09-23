@@ -617,6 +617,95 @@ if ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0) {
     $g.Close()
     $g.Dispose()
 }
+
+# --- i filtri che hai gia' in Gmail: la finestra del passo 4 --------------------
+# L'esportazione inventata di test\filtri_gmail_esempio.xml, con lo Stato di qui
+# (i ruoli appena aggiunti): la finestra sta in piedi prima e dopo aver aperto
+# il file, partono spuntati proprio i filtri uguali a una regola, e quello scelto
+# prima che nel file non c'e' resta in fondo, spuntato.
+Write-Host "`nI FILTRI CHE HAI GIA' IN GMAIL" -ForegroundColor Cyan
+$tFF = $asm.GetType('Campanella.FormFiltriGmail')
+$tFG = $asm.GetType('Campanella.FiltriGmail')
+$tDT = $asm.GetType('Campanella.FiltroDaTogliere')
+Verifica "c'e' la finestra dei filtri che hai gia' in Gmail" ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT)
+if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
+    $FIf = [System.Reflection.BindingFlags]'NonPublic,Instance'
+    $filtriEs = $tFG.GetMethod('LeggiFile', $FS).Invoke($null, @([string](Join-Path $radice 'test\filtri_gmail_esempio.xml')))
+    $sceltiPrima = [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT))
+    $vecchio = [Activator]::CreateInstance($tDT)
+    $tDT.GetField('Etichetta').SetValue($vecchio, 'Vecchia')
+    $criteriVecchio = $tDT.GetField('Criteri').GetValue($vecchio)
+    $criteriVecchio['from'] = 'vecchio@scuola.example'
+    $sceltiPrima.Add($vecchio)
+    $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, $sceltiPrima)
+    $ff = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))
+    $ff.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $ff.Location = New-Object System.Drawing.Point(-4000, -4000)
+    $ff.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+    ControllaPannello $ff "Filtri che hai gia' in Gmail, senza file"
+    $gr = $tFF.GetField('griglia', $FIf).GetValue($ff)
+    Verifica "senza file ci sono i filtri scelti prima, spuntati" ($gr.Rows.Count -eq 1 -and $ff.Spuntata(0) -and
+        [string]$gr.Rows[0].Cells[1].Value -eq 'Vecchia')
+
+    $ff.Carica($filtriEs)
+    [System.Windows.Forms.Application]::DoEvents()
+    ControllaPannello $ff "Filtri che hai gia' in Gmail, con il file"
+    Verifica "con il file: i suoi 14 filtri, e in fondo quello scelto prima che non c'e'" (
+        $gr.Rows.Count -eq 15 -and $ff.Spuntata(14) -and [string]$gr.Rows[14].Cells[4].Value -match "^scelto prima: nel file non c'e'")
+    $mConfronta = $tFG.GetMethod('Confronta', $FS)
+    $storte = @(); $uguali = 0
+    for ($i = 0; $i -lt 14; $i++) {
+        $tipo = $mConfronta.Invoke($null, @([string]$filtriEs[$i].Etichetta, $stato.PSObject.BaseObject)).Tipo
+        if ($tipo -eq 'uguale') { $uguali++ }
+        if ($ff.Spuntata($i) -ne ($tipo -eq 'uguale')) { $storte += $filtriEs[$i].Etichetta }
+    }
+    Verifica "partono spuntati proprio i filtri uguali a una regola ($uguali)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
+        $storte.Count -eq 0 -and $uguali -ge 2 -and $uguali -lt 14)
+    Verifica "un filtro senza etichetta non si puo' spuntare" (
+        [string]$gr.Rows[6].Cells[1].Value -eq '(nessuna)' -and $gr.Rows[6].Cells[0].ReadOnly -and -not $ff.Spuntata(6))
+    $ff.Spunta(6, $true)
+    Verifica "nemmeno chiedendolo" (-not $ff.Spuntata(6))
+    $ff.Spunta(4, $true)
+    $scelti = @($ff.SceltiAdesso())
+    $viaggi = @($scelti | Where-Object { $_.Etichetta -eq 'Viaggi' })
+    Verifica "un filtro tuo spuntato a mano va fra quelli da togliere, con i suoi criteri" (
+        $viaggi.Count -eq 1 -and $viaggi[0].Criteri['query'] -eq '{prenotazione biglietto}' -and $viaggi[0].Criteri.Count -eq 1)
+    Verifica "e quello scelto prima resta scelto" (@($scelti | Where-Object { $_.Etichetta -eq 'Vecchia' }).Count -eq 1)
+    # due filtri uguali: per lo script sono la stessa voce, e si spuntano insieme
+    $filtriEs.Add($filtriEs[4])
+    $ff.Carica($filtriEs)
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "aprendo di nuovo il file le spunte restano, anche sul filtro uguale" (
+        $gr.Rows.Count -eq 16 -and $ff.Spuntata(4) -and $ff.Spuntata(14) -and $ff.Spuntata(15))
+    $ff.Spunta(14, $false)
+    Verifica "tolta la spunta a uno, la perde anche l'altro, e la voce va via" (
+        -not $ff.Spuntata(4) -and @($ff.SceltiAdesso() | Where-Object { $_.Etichetta -eq 'Viaggi' }).Count -eq 0)
+    $gr.CurrentCell = $gr.Rows[10].Cells[1]
+    [System.Windows.Forms.Application]::DoEvents()
+    $dettaglio = $tFF.GetField('txtDettaglio', $FIf).GetValue($ff).Text
+    Verifica "sotto la griglia tutto il filtro scelto, anche quello che fa" (
+        $dettaglio -match 'Etichetta: Dirigenza' -and $dettaglio -match 'inoltra a vice@scuola\.example')
+    ControllaPannello $ff "Filtri che hai gia' in Gmail, con il file aperto due volte"
+    $ff.Close()
+    $ff.Dispose()
+
+    # il passo 4 dice quanti ce ne sono da togliere
+    $lblF = $posta.GetType().GetField('lblFiltri', $FIp).GetValue($posta)
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    Verifica "il passo 4 dice quanti filtri ci sono da togliere ('$($lblF.Text)')" (
+        $lblF.Text -eq '1 filtro di Gmail da togliere: li toglie EXTRA_togliFiltri.')
+    $metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]3)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $pannelloF = $null
+    foreach ($c in $posta.Controls) {
+        if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannelloF = $c }
+    }
+    ControllaPannello $pannelloF 'Posta / 4 con un filtro da togliere'
+    $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT)))
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    Verifica "e senza filtri lo dice" ($lblF.Text -eq 'Nessun filtro di Gmail da togliere.')
+}
 # tutto come prima
 $personale.GetType().GetMethod('Clear').Invoke($personale, @()) | Out-Null
 $tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $false)
