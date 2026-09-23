@@ -50,6 +50,12 @@ namespace Campanella
         Label lblPrefisso, lblDoppioni;
         bool zitto = false;
         TextBox txtDescrizioneRegola;
+        // il colore dell'etichetta della regola scelta e, per Colleghi, quelli
+        // delle sottoetichette dei ruoli (un quadratino per categoria)
+        Campione campioneRegola;
+        List<Campione> miniRuoli = new List<Campione>();
+        List<string> categorieMini = new List<string>();
+        ToolTip suggerimenti = new ToolTip();
         CheckBox chkArchiviaRegola, chkProva, chkReport, chkEscludiInviata, chkFiltri;
         ComboBox cmbPeriodo;
         NumericUpDown numOre;
@@ -192,7 +198,7 @@ namespace Campanella
                 { "Che cosa fa lo script",
                   "Crea le etichette (Dirigenza, Segreteria, Circolari, Colleghi, Studenti, ...), " +
                   "le applica alla posta gia' ricevuta e poi continua da solo con i messaggi nuovi. " +
-                  "Se vuoi, crea anche i veri filtri di Gmail." },
+                  "Se vuoi, da' alle etichette i colori che scegli e crea anche i veri filtri di Gmail." },
                 { "Che cosa NON fa",
                   "Non cancella niente, non svuota il cestino, non segnala come spam, non manda " +
                   "messaggi al posto tuo. Al massimo archivia, cioe' toglie dalla Posta in arrivo: " +
@@ -641,11 +647,45 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Su", 272, yb, 60, delegate { SpostaRegola(-1); }));
             p.Controls.Add(Tema.Bottone("Giu'", 336, yb, 60, delegate { SpostaRegola(1); }));
 
-            txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 108, Ruolo.Normale);
+            txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 100, Ruolo.Normale);
             p.Controls.Add(txtDescrizioneRegola);
 
+            // il colore dell'etichetta in Gmail: lo sceglie Cambia..., lo mette
+            // il servizio Gmail API. Per Colleghi, accanto, le sottoetichette dei ruoli
+            Label lblColore = Tema.RigaAiuto(p, "Colore in Gmail", 420, y + 112, Tema.Normale, Ruolo.Normale,
+                "Il colore dell'etichetta",
+                "Il colore che l'etichetta avra' in Gmail. Gmail accetta solo i colori della sua " +
+                "tavolozza, per lo sfondo e per il testo: qui si sceglie fra quelli, con il testo che " +
+                "si legge meglio. Ogni regola parte con il suo; \"nessun colore\" lascia l'etichetta " +
+                "del grigio di Gmail.\r\n\r\n" +
+                "I colori li mette il servizio Gmail API, da attivare nell'editor dello script " +
+                "(passo 8 dell'installazione guidata). Con il servizio attivo le etichette nascono gia' " +
+                "colorate; per quelle che ci sono gia' esegui EXTRA_coloraEtichette. Un'etichetta che " +
+                "avevi gia' e a cui avevi dato un colore tu resta com'e', a meno di eseguire " +
+                "EXTRA_coloraTutteLeEtichette.\r\n\r\n" +
+                "Con le sottoetichette dei ruoli accese (passo 3), per Colleghi \"Cambia...\" sceglie " +
+                "anche i loro colori: i quadratini accanto. Di partenza sono sfumature del colore di " +
+                "Colleghi e lo seguono quando cambia.");
+            int xc = 420 + TextRenderer.MeasureText(lblColore.Text, Tema.Normale).Width + 8 + 17 + 10;
+            campioneRegola = new Campione("", "", xc, y + 107, 140, 30);
+            campioneRegola.Click += delegate { ScegliColore(null); };
+            p.Controls.Add(campioneRegola);
+            string cambia = "Cambia...";
+            int wc = 26 + TextRenderer.MeasureText(cambia, Tema.Normale).Width;
+            p.Controls.Add(Tema.Bottone(cambia, xc + 148, y + 107, wc, delegate { ScegliColore(null); }));
+            int xm = xc + 148 + wc + 10;
+            for (int k = 0; k < Stato.Categorie.Length; k++)
+            {
+                Campione m = new Campione("", "", xm + k * 19, y + 113, 18, 18);
+                int quale = k;
+                m.Click += delegate { if (quale < categorieMini.Count) ScegliColore(categorieMini[quale]); };
+                m.Visible = false;
+                miniRuoli.Add(m);
+                p.Controls.Add(m);
+            }
+
             chkArchiviaRegola = Tema.Spunta("Archivia: togli questi messaggi dalla Posta in arrivo",
-                                            420, y + 116, Ruolo.Normale);
+                                            420, y + 146, Ruolo.Normale);
             chkArchiviaRegola.CheckedChanged += delegate
             {
                 int i = clbRegole.SelectedIndex;
@@ -657,7 +697,7 @@ namespace Campanella
             };
             p.Controls.Add(chkArchiviaRegola);
 
-            GroupBox go = Tema.Gruppo("Come deve lavorare lo script", 420, y + 150, 480, 210);
+            GroupBox go = Tema.Gruppo("Come deve lavorare lo script", 420, y + 180, 480, 210);
             chkProva = Tema.Spunta("Modalita' prova: conta soltanto, non modifica niente", 14, 28, Ruolo.Avviso);
             chkProva.Font = Tema.Grassetto;
             go.Controls.Add(chkProva);
@@ -693,7 +733,7 @@ namespace Campanella
 
             // regole che etichettano gli stessi messaggi di una sottoetichetta
             // per ruolo (lo scrive AggiornaDoppioni; vuota, non si vede)
-            lblDoppioni = Tema.Testo1("", 0, y + 372, 900, Tema.Normale, Ruolo.Avviso);
+            lblDoppioni = Tema.Testo1("", 0, y + 402, 900, Tema.Normale, Ruolo.Avviso);
             lblDoppioni.Visible = false;
             p.Controls.Add(lblDoppioni);
             return p;
@@ -840,13 +880,17 @@ namespace Campanella
                 "vengono etichettati da soli, anche a computer spento.",
                 new string[] { }, new EventHandler[] { });
 
-            Cartellino(8, "Facoltativo: i filtri veri di Gmail",
+            Cartellino(8, "Facoltativo: il servizio Gmail API, per i colori e i filtri veri",
                 "Nell'editor, colonna di sinistra, alla voce \"Servizi\" premi il \"+\", scegli " +
-                "\"Gmail API\" e conferma. Poi esegui  EXTRA_creaFiltriGmail. Cosi' lo smistamento " +
+                "\"Gmail API\" e conferma. Serve a due cose, tutte e due facoltative. " +
+                "I colori delle etichette scelti al passo 4: esegui  EXTRA_coloraEtichette; da li' in " +
+                "poi le etichette nuove nascono gia' colorate. Un'etichetta che avevi gia' e a cui " +
+                "avevi dato un colore tu resta com'e' (EXTRA_coloraTutteLeEtichette ricolora anche " +
+                "quelle). I filtri veri: esegui  EXTRA_creaFiltriGmail, cosi' lo smistamento " +
                 "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
-                "filtro non sa escludere chi e' gia' fra i Colleghi. Con la modalita' prova accesa " +
-                "non crea niente. Se poi cambi una regola, il " +
-                "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri).",
+                "filtro non sa escludere chi e' gia' fra i Colleghi. Se poi cambi una regola, il " +
+                "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri). Con la " +
+                "modalita' prova accesa le due funzioni non cambiano niente.",
                 new string[] { }, new EventHandler[] { });
 
             return p;
@@ -958,6 +1002,14 @@ namespace Campanella
                   "anche dove le avevi messe tu a mano, e poi PASSO_3. " +
                   "Se hai creato i filtri veri di Gmail, cancella anche il filtro vecchio " +
                   "di quella regola: altrimenti continua a etichettare come prima." },
+                { "Le etichette sono grigie, senza i colori del passo 4",
+                  "I colori li mette il servizio Gmail API, che va attivato a mano: nell'editor, " +
+                  "Servizi -> \"+\" -> Gmail API -> Aggiungi (passo 8 dell'installazione guidata). " +
+                  "Poi esegui EXTRA_coloraEtichette. Le etichette che avevi gia' e a cui avevi dato un " +
+                  "colore tu restano come sono: per dare anche a quelle i colori di Campanella esegui " +
+                  "EXTRA_coloraTutteLeEtichette. Se hai cambiato un colore, copia di nuovo la " +
+                  "configurazione (passo 5) prima di eseguirle. In modalita' prova dicono soltanto " +
+                  "che cosa cambierebbero. Le etichette delle regole senza colore non le toccano." },
                 { "Colleghi e studenti finiscono insieme",
                   "Di solito vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello " +
                   "stesso dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del " +
@@ -1852,6 +1904,7 @@ namespace Campanella
         void MostraDescrizioneRegola()
         {
             int i = clbRegole.SelectedIndex;
+            AggiornaColore();
             if (i < 0 || i >= S.Regole.Count) { txtDescrizioneRegola.Text = ""; return; }
             Regola r = S.Regole[i];
 
@@ -1871,6 +1924,67 @@ namespace Campanella
             txtDescrizioneRegola.Text = sb.ToString();
             txtDescrizioneRegola.Select(0, 0);
             chkArchiviaRegola.Checked = r.Archivia;
+        }
+
+        /// <summary>
+        /// La riga del colore della regola scelta: il campione con il nome
+        /// dell'etichetta nei suoi colori e, per Colleghi con i ruoli accesi,
+        /// un quadratino per ogni sottoetichetta che nascera'.
+        /// </summary>
+        void AggiornaColore()
+        {
+            if (campioneRegola == null) return;
+            int i = clbRegole.SelectedIndex;
+            Regola r = (i >= 0 && i < S.Regole.Count) ? S.Regole[i] : null;
+            campioneRegola.Text = (r == null) ? "" : r.Etichetta;
+            campioneRegola.Colore = (r == null) ? "" : r.Colore;
+            suggerimenti.SetToolTip(campioneRegola, (r == null) ? "" :
+                r.Etichetta + ": " + Campione.Descrizione(r.Colore) + ". Clicca per cambiarlo.");
+            categorieMini = RuoliDi(r);
+            string colleghi = ColoriEtichette.DeiColleghi(S.Regole);
+            for (int k = 0; k < miniRuoli.Count; k++)
+            {
+                bool c = k < categorieMini.Count;
+                miniRuoli[k].Visible = c;
+                if (!c) continue;
+                string colore = ColoriEtichette.DelRuolo(colleghi, categorieMini[k], S.ColoriRuoli);
+                miniRuoli[k].Colore = colore;
+                miniRuoli[k].AccessibleName = EtichettaColleghi() + "/" + categorieMini[k];
+                suggerimenti.SetToolTip(miniRuoli[k], EtichettaColleghi() + "/" + categorieMini[k] + ": " +
+                    Campione.Descrizione(colore) + ". Clicca per cambiarlo.");
+            }
+        }
+
+        /// <summary>
+        /// Le categorie delle sottoetichette dei ruoli sotto questa regola: ci
+        /// sono solo per quella dei colleghi, con i ruoli accesi al passo 3, e
+        /// solo per le categorie che l'elenco del personale ha davvero.
+        /// </summary>
+        List<string> RuoliDi(Regola r)
+        {
+            if (r == null || !S.EtichettaPerRuolo) return new List<string>();
+            if ((r.Etichetta ?? "").Trim().ToLowerInvariant() != "colleghi") return new List<string>();
+            return GeneratorePosta.CategoriePresenti(S.GruppiPerRuolo());
+        }
+
+        /// <summary>
+        /// Sceglie il colore della regola selezionata e, se e' Colleghi, delle
+        /// sottoetichette dei ruoli; categoria = quella da cui partire.
+        /// </summary>
+        void ScegliColore(string categoria)
+        {
+            int i = clbRegole.SelectedIndex;
+            if (i < 0 || i >= S.Regole.Count) return;
+            Regola r = S.Regole[i];
+            List<string> ruoli = RuoliDi(r);
+            using (FormColore f = new FormColore(r.Etichetta, r.Colore, ruoli, S.ColoriRuoli, categoria))
+            {
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+                r.Colore = f.Colore;
+                if (ruoli.Count > 0) S.ColoriRuoli = f.ColoriRuoli;
+            }
+            AggiornaColore();
+            Guscio.Stato1("Colore di " + r.Etichetta + " cambiato: copia di nuovo la configurazione (passo 5).");
         }
 
         List<string> MittentiDellaRegola(Regola r)
@@ -1905,6 +2019,9 @@ namespace Campanella
             using (FormRegola f = new FormRegola(null))
             {
                 if (f.ShowDialog(this) != DialogResult.OK) return;
+                // una regola nuova prende il primo colore che nessuna etichetta usa
+                if (f.Risultato.Colore == null)
+                    f.Risultato.Colore = ColoriEtichette.PrimoLibero(S.Regole, S.ColoriRuoli);
                 S.Regole.Add(f.Risultato);
                 AggiornaElencoRegole(S.Regole.Count - 1);
                 Guscio.Stato1("Regola aggiunta.");
@@ -2009,6 +2126,9 @@ namespace Campanella
             sb.AppendLine("Posta da esaminare ........... " + cmbPeriodo.Text);
             sb.AppendLine("Controllo posta nuova ........ ogni " + S.Ore + " ora/e");
             sb.AppendLine("Filtri veri di Gmail ......... " + (S.Filtri ? "si (passo 8)" : "no"));
+            int colorate = GeneratorePosta.EtichetteColorate(S);
+            sb.AppendLine("Etichette colorate ........... " + (colorate == 0 ? "nessuna" :
+                colorate + " (i colori li mette il servizio Gmail API: passo 8)"));
             sb.AppendLine();
 
             List<string> avvisi = new List<string>();

@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Text;
 using System.Windows.Forms;
 
@@ -297,6 +298,354 @@ namespace Campanella
                 if (!fuori.Contains(s)) fuori.Add(s);
             }
             return fuori;
+        }
+    }
+
+    /// <summary>
+    /// Un colore di etichetta, disegnato come Gmail mostra l'etichetta accanto
+    /// a un messaggio: lo sfondo e sopra la scritta nel colore del testo. ""
+    /// e' nessun colore: bordo tratteggiato e scritta tenue. Deriva da Control,
+    /// non da Label o Button, cosi' Tema.Applica non gli rifa' i colori. Si
+    /// sceglie con il clic, o con Invio e spazio quando ha lo stato attivo.
+    /// </summary>
+    class Campione : Control
+    {
+        string colore = "";
+        bool scelto = false;
+
+        public Campione(string scritta, string colore, int x, int y, int w, int h)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor | ControlStyles.Selectable, true);
+            BackColor = Color.Transparent;
+            Text = scritta ?? "";
+            this.colore = ColoriEtichette.Pulito(colore);
+            Location = new Point(x, y);
+            Size = new Size(w, h);
+            Font = Tema.Normale;
+            Cursor = Cursors.Hand;
+            TabStop = true;
+            AccessibleRole = AccessibleRole.PushButton;
+            AccessibleName = Text;
+            AccessibleDescription = Descrizione(this.colore);
+        }
+
+        /// <summary>"sfondo/testo", oppure "" per nessun colore.</summary>
+        public string Colore
+        {
+            get { return colore; }
+            set { colore = ColoriEtichette.Pulito(value); AccessibleDescription = Descrizione(colore); Invalidate(); }
+        }
+
+        /// <summary>Il colore scelto adesso: ha intorno il bordo dell'accento.</summary>
+        public bool Scelto
+        {
+            get { return scelto; }
+            set { if (scelto != value) { scelto = value; Invalidate(); } }
+        }
+
+        /// <summary>Un colore detto a parole, per i suggerimenti e per chi legge lo schermo.</summary>
+        public static string Descrizione(string colore)
+        {
+            string c = ColoriEtichette.Pulito(colore);
+            if (c == "") return "nessun colore: l'etichetta resta del grigio di Gmail";
+            return "sfondo " + ColoriEtichette.Sfondo(c) + ", testo " +
+                   (ColoriEtichette.TestoDi(c) == "#ffffff" ? "bianco" :
+                    ColoriEtichette.TestoDi(c) == "#000000" ? "nero" : ColoriEtichette.TestoDi(c));
+        }
+
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            AccessibleName = Text;
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            // 3 pixel tutto intorno per il bordo della scelta
+            Rectangle r = new Rectangle(3, 3, Math.Max(1, Width - 7), Math.Max(1, Height - 7));
+            Color testo;
+            if (colore == "")
+            {
+                using (SolidBrush b = new SolidBrush(Tema.Campo)) g.FillRectangle(b, r);
+                using (Pen p = new Pen(Tema.CampoBordo))
+                {
+                    p.DashStyle = DashStyle.Dash;
+                    g.DrawRectangle(p, r);
+                }
+                testo = Tema.Tenue;
+            }
+            else
+            {
+                using (SolidBrush b = new SolidBrush(ColorTranslator.FromHtml(ColoriEtichette.Sfondo(colore))))
+                    g.FillRectangle(b, r);
+                testo = ColorTranslator.FromHtml(ColoriEtichette.TestoDi(colore));
+            }
+            if (Text != "")
+                TextRenderer.DrawText(g, Text, Font, r, testo,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            if (scelto)
+                using (Pen p = new Pen(Tema.Accento, 2)) g.DrawRectangle(p, 1, 1, Width - 3, Height - 3);
+            else if (Focused)
+                using (Pen p = new Pen(Tema.Testo))
+                {
+                    p.DashStyle = DashStyle.Dot;
+                    g.DrawRectangle(p, 1, 1, Width - 3, Height - 3);
+                }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (CanFocus) Focus();
+            base.OnMouseDown(e);
+        }
+
+        protected override bool IsInputKey(Keys tasto)
+        {
+            // Invio sceglie il colore, non preme il bottone predefinito della finestra
+            return tasto == Keys.Enter || base.IsInputKey(tasto);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter)
+            {
+                e.Handled = true;
+                OnClick(EventArgs.Empty);
+                return;
+            }
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+    }
+
+    /// <summary>
+    /// Il colore dell'etichetta di una regola, dalla tavolozza di Gmail (Gmail
+    /// non ne accetta altri), oppure nessun colore. Per Colleghi, con le
+    /// sottoetichette dei ruoli accese, anche quello di ogni sottoetichetta:
+    /// di partenza una sfumatura del colore di Colleghi, che lo segue quando
+    /// cambia; oppure uno scelto a mano, compreso "nessun colore".
+    /// </summary>
+    class FormColore : Form
+    {
+        /// <summary>Il colore della regola: "sfondo/testo", "" = nessun colore.</summary>
+        public string Colore;
+        /// <summary>I colori dei ruoli scelti a mano (una copia): chi non c'e' segue Colleghi.</summary>
+        public Dictionary<string, string> ColoriRuoli;
+
+        readonly string etichetta;
+        readonly List<string> categorie;
+        string bersaglio = null;                  // null = la regola, se no una categoria
+        readonly Campione campioneRegola;
+        readonly Dictionary<string, Campione> campioniRuoli = new Dictionary<string, Campione>();
+        readonly List<Campione> tavolozza = new List<Campione>();
+        readonly Campione nessuno;
+        readonly Button btnSegui;
+        readonly Label lblNota;
+        readonly ToolTip suggerimenti = new ToolTip();
+
+        public FormColore(string etichetta, string colore, List<string> categorie,
+                          Dictionary<string, string> coloriRuoli, string daScegliere)
+        {
+            this.etichetta = etichetta ?? "";
+            this.categorie = categorie ?? new List<string>();
+            Colore = ColoriEtichette.Pulito(colore);
+            ColoriRuoli = new Dictionary<string, string>();
+            if (coloriRuoli != null)
+                foreach (KeyValuePair<string, string> kv in coloriRuoli) ColoriRuoli[kv.Key] = kv.Value;
+
+            Text = "Colore di " + this.etichetta;
+            StartPosition = FormStartPosition.CenterParent;
+            Font = Tema.Normale;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ShowInTaskbar = false;
+            Disposed += delegate { suggerimenti.Dispose(); };
+            const int larga = 552;
+
+            int y = 14;
+            Label spiega = Tema.Testo1(
+                "Clicca un colore. Gmail accetta solo quelli della sua tavolozza, e in Gmail li mette il " +
+                "servizio Gmail API (passo 8 dell'installazione guidata).",
+                16, y, larga, Tema.Normale, Ruolo.Tenue);
+            Controls.Add(spiega);
+            y += spiega.Height + 8;
+
+            Label lblEt = Tema.Testo1("Etichetta", 16, y + 6, 0, Tema.Grassetto, Ruolo.Normale);
+            Controls.Add(lblEt);
+            int x0 = 16 + TextRenderer.MeasureText(lblEt.Text, Tema.Grassetto).Width + 16;
+            campioneRegola = new Campione(this.etichetta, Colore, x0, y, Larghezza(this.etichetta, 300), 30);
+            campioneRegola.Click += delegate { Scegli(null); };
+            Controls.Add(campioneRegola);
+            y += 40;
+
+            if (this.categorie.Count > 0)
+            {
+                Label lblR = Tema.Testo1("Sottoetichette dei ruoli: " + this.etichetta + "/...", 16, y, 0,
+                                         Tema.Grassetto, Ruolo.Normale);
+                Controls.Add(lblR);
+                y += 26;
+                int x = 16;
+                foreach (string c in this.categorie)
+                {
+                    int w = Larghezza(c, 160);
+                    if (x + w > 16 + larga) { x = 16; y += 36; }
+                    Campione cr = new Campione(c, ColoreDelRuolo(c), x, y, w, 30);
+                    string categoria = c;
+                    cr.Click += delegate { Scegli(categoria); };
+                    campioniRuoli[c] = cr;
+                    Controls.Add(cr);
+                    x += w + 6;
+                }
+                y += 40;
+            }
+
+            Controls.Add(Tema.Testo1("Tavolozza di Gmail", 16, y, 0, Tema.Grassetto, Ruolo.Normale));
+            y += 26;
+            int righe = 0;
+            for (int t = 0; t < ColoriEtichette.Tinte.Length; t++)
+            {
+                string[] tinta = ColoriEtichette.Tinte[t];
+                for (int k = 0; k < tinta.Length; k++)
+                {
+                    string coppia = ColoriEtichette.Coppia(tinta[k]);
+                    Campione c = new Campione("a", coppia, 16 + t * 55, y + k * 32, 52, 30);
+                    c.AccessibleName = coppia;
+                    c.Click += delegate { Metti(coppia); };
+                    suggerimenti.SetToolTip(c, Campione.Descrizione(coppia));
+                    tavolozza.Add(c);
+                    Controls.Add(c);
+                }
+                righe = Math.Max(righe, tinta.Length);
+            }
+            y += righe * 32 + 8;
+
+            nessuno = new Campione("nessun colore", "", 16, y, 150, 30);
+            nessuno.Click += delegate { Metti(""); };
+            suggerimenti.SetToolTip(nessuno, Campione.Descrizione(""));
+            Controls.Add(nessuno);
+            string segui = "Segui " + this.etichetta;
+            btnSegui = Tema.Bottone(segui, 176, y, Math.Min(260, 26 + TextRenderer.MeasureText(segui, Tema.Normale).Width),
+                                    delegate { Segui(); });
+            Controls.Add(btnSegui);
+            y += 40;
+
+            // alta quanto la nota piu' lunga, che cambia con il colore che si sceglie
+            lblNota = Tema.Testo1("", 16, y, larga, Tema.Normale, Ruolo.Tenue);
+            lblNota.AutoSize = false;
+            lblNota.Width = larga;
+            lblNota.Height = Tema.AltezzaTesto(NotaPiuLunga(), Tema.Normale, larga);
+            Controls.Add(lblNota);
+            y += lblNota.Height + 10;
+
+            Button ok = Tema.BottonePrincipale("Usa questi colori", 16 + larga - 180, y, 180, null);
+            ok.DialogResult = DialogResult.OK;
+            Controls.Add(ok);
+            Button ann = Tema.Bottone("Annulla", 16 + larga - 180 - 98, y + 2, 90, null);
+            ann.DialogResult = DialogResult.Cancel;
+            Controls.Add(ann);
+            CancelButton = ann;
+            ClientSize = new Size(16 + larga + 16, y + 34 + 16);
+
+            Scegli(daScegliere != null && this.categorie.Contains(daScegliere) ? daScegliere : null);
+            Tema.Applica(this);
+        }
+
+        /// <summary>Quello che si sta colorando: null la regola, oppure una categoria.</summary>
+        public string Bersaglio { get { return bersaglio; } }
+
+        static int Larghezza(string scritta, int massimo)
+        {
+            return Math.Max(64, Math.Min(massimo, 26 + TextRenderer.MeasureText(scritta ?? "", Tema.Normale).Width));
+        }
+
+        string ColoreDelRuolo(string categoria)
+        {
+            return ColoriEtichette.DelRuolo(Colore, categoria, ColoriRuoli);
+        }
+
+        /// <summary>Sceglie che cosa colorare: la regola (null) o la sottoetichetta di una categoria.</summary>
+        public void Scegli(string categoria)
+        {
+            bersaglio = categoria;
+            Aggiorna();
+        }
+
+        /// <summary>Da' un colore a quello che si sta colorando ("" = nessun colore).</summary>
+        public void Metti(string colore)
+        {
+            string c = ColoriEtichette.Pulito(colore);
+            if (bersaglio == null) Colore = c;
+            else ColoriRuoli[bersaglio] = c;
+            Aggiorna();
+        }
+
+        /// <summary>La sottoetichetta scelta torna a seguire il colore della regola.</summary>
+        public void Segui()
+        {
+            if (bersaglio != null) ColoriRuoli.Remove(bersaglio);
+            Aggiorna();
+        }
+
+        void Aggiorna()
+        {
+            campioneRegola.Colore = Colore;
+            campioneRegola.Scelto = (bersaglio == null && campioniRuoli.Count > 0);
+            foreach (KeyValuePair<string, Campione> kv in campioniRuoli)
+            {
+                kv.Value.Colore = ColoreDelRuolo(kv.Key);
+                kv.Value.Scelto = (bersaglio == kv.Key);
+                suggerimenti.SetToolTip(kv.Value, etichetta + "/" + kv.Key + ": " + Campione.Descrizione(kv.Value.Colore));
+            }
+            string attuale = (bersaglio == null) ? Colore : ColoreDelRuolo(bersaglio);
+            foreach (Campione c in tavolozza) c.Scelto = (c.Colore == attuale);
+            nessuno.Scelto = (attuale == "");
+            btnSegui.Visible = (bersaglio != null);
+            btnSegui.Enabled = (bersaglio != null && ColoriRuoli.ContainsKey(bersaglio));
+            lblNota.Text = Nota();
+        }
+
+        string Nota()
+        {
+            if (bersaglio != null)
+            {
+                string nome = etichetta + "/" + bersaglio;
+                if (ColoriRuoli.ContainsKey(bersaglio))
+                    return "Stai colorando " + nome + ", con un colore scelto a mano. \"Segui " + etichetta +
+                           "\" la rimette sulla sfumatura del colore di " + etichetta + ".";
+                return "Stai colorando " + nome + ": adesso ha una sfumatura del colore di " + etichetta +
+                       (Colore == "" ? " (che non ha colore, quindi nemmeno lei)" : "") +
+                       " e lo segue se cambia. Clicca un colore per sceglierne uno tu.";
+            }
+            if (campioniRuoli.Count > 0)
+                return "Stai colorando " + etichetta + ". Le sottoetichette dei ruoli senza un colore scelto a " +
+                       "mano prendono le sue sfumature: cliccane una per sceglierne il colore.";
+            return "Stai colorando " + etichetta + ".";
+        }
+
+        string NotaPiuLunga()
+        {
+            string nome = etichetta + "/Amministrativi";
+            string[] note =
+            {
+                "Stai colorando " + nome + ", con un colore scelto a mano. \"Segui " + etichetta +
+                "\" la rimette sulla sfumatura del colore di " + etichetta + ".",
+                "Stai colorando " + nome + ": adesso ha una sfumatura del colore di " + etichetta +
+                " (che non ha colore, quindi nemmeno lei) e lo segue se cambia. Clicca un colore per sceglierne uno tu.",
+                "Stai colorando " + etichetta + ". Le sottoetichette dei ruoli senza un colore scelto a " +
+                "mano prendono le sue sfumature: cliccane una per sceglierne il colore."
+            };
+            string lunga = "";
+            foreach (string n in note)
+                if (Tema.AltezzaTesto(n, Tema.Normale, 552) > Tema.AltezzaTesto(lunga, Tema.Normale, 552)) lunga = n;
+            return lunga;
         }
     }
 }

@@ -454,6 +454,117 @@ $mApplicaTema.Invoke($pagine[$iImp], @([bool]$scuroPrima)) | Out-Null
 Verifica "e anche tornando al tema di prima" (
     $vocImp -ne $null -and $vocImp.BackColor.ToArgb() -eq (ColoreTema 'AccentoSfondo'))
 
+# --- i colori delle etichette: il passo 4 con Colleghi, e la finestra dei colori ---
+# Con le sottoetichette dei ruoli accese, accanto al colore di Colleghi compare
+# un quadratino per ruolo: anche cosi' il passo 4 deve stare in piedi. La
+# finestra dei colori si apre fuori dallo schermo, come la finestra principale.
+Write-Host "`nI COLORI DELLE ETICHETTE" -ForegroundColor Cyan
+$tPersona = $asm.GetType('Campanella.Persona')
+$personale = $tStato.GetField('Personale', $FI).GetValue($stato)
+$ruoliProva = @(@('GRIGI SARA', 'DIRIGENTE SCOLASTICO'), @('ROSSI MARIO', 'DOCENTE'),
+                @('NERI ANNA', 'ASSISTENTE AMMINISTRATIVO'), @('BLU CARLA', 'ASSISTENTE TECNICO'),
+                @('VERDI LUCA', 'COLLABORATORE SCOLASTICO'))
+foreach ($r in $ruoliProva) {
+    $p = [Activator]::CreateInstance($tPersona)
+    $tPersona.GetField('Nome').SetValue($p, $r[0])
+    $tPersona.GetField('Ruolo').SetValue($p, $r[1])
+    $tPersona.GetField('Email').SetValue($p, ($r[0].ToLowerInvariant() -replace ' ', '.') + '@scuola.example')
+    $personale.GetType().GetMethod('Add').Invoke($personale, @($p)) | Out-Null
+}
+$tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $true)
+$posta = $pagine[$iPosta]
+$metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]3)) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$clb = $posta.GetType().GetField('clbRegole', $FIp).GetValue($posta)
+$campioneRegola = $posta.GetType().GetField('campioneRegola', $FIp).GetValue($posta)
+$mini = $posta.GetType().GetField('miniRuoli', $FIp).GetValue($posta)
+$regoleStato = $tStato.GetField('Regole', $FI).GetValue($stato)
+$iColleghi = -1
+for ($k = 0; $k -lt $regoleStato.Count; $k++) { if ($regoleStato[$k].Etichetta -eq 'Colleghi') { $iColleghi = $k } }
+Verifica "il passo 4 ha il campione del colore e i quadratini dei ruoli" ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0)
+if ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0) {
+    $clb.SelectedIndex = 0
+    [System.Windows.Forms.Application]::DoEvents()
+    $visibili = @($mini | Where-Object { $_.Visible }).Count
+    Verifica "Dirigenza: il campione ha il suo colore, e niente quadratini" (
+        $campioneRegola.Colore -eq '#cc3a21/#ffffff' -and $campioneRegola.Text -eq 'Dirigenza' -and $visibili -eq 0)
+    $clb.SelectedIndex = $iColleghi
+    [System.Windows.Forms.Application]::DoEvents()
+    $colori = @($mini | Where-Object { $_.Visible } | ForEach-Object { $_.Colore })
+    Verifica "Colleghi: il suo blu, e un quadratino per ruolo con la sua sfumatura" (
+        $campioneRegola.Colore -eq '#4a86e8/#000000' -and $colori.Count -eq 5 -and
+        ($colori -join ' ') -eq '#c9daf8/#000000 #a4c2f4/#000000 #6d9eeb/#000000 #3c78d8/#000000 #285bac/#ffffff')
+    # il campione si disegna davvero nel suo colore (in memoria, non sullo schermo)
+    $bmp = New-Object System.Drawing.Bitmap($campioneRegola.Width, $campioneRegola.Height)
+    $campioneRegola.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $campioneRegola.Width, $campioneRegola.Height)))
+    $pixel = $bmp.GetPixel(6, [int]($campioneRegola.Height / 2))
+    $bmp.Dispose()
+    Verifica "e si disegna nel suo colore ($('#{0:x2}{1:x2}{2:x2}' -f $pixel.R, $pixel.G, $pixel.B))" (
+        $pixel.R -eq 0x4a -and $pixel.G -eq 0x86 -and $pixel.B -eq 0xe8)
+    $pannello4 = $null
+    foreach ($c in $posta.Controls) {
+        if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannello4 = $c }
+    }
+    ControllaPannello $pannello4 'Posta / 4 con Colleghi e i ruoli'
+    ControllaAiuti $pannello4 'Posta / 4 con Colleghi e i ruoli'
+
+    # la finestra dei colori di Colleghi, con le cinque sottoetichette
+    $tForm = $asm.GetType('Campanella.FormColore')
+    $categorie = New-Object 'System.Collections.Generic.List[string]'
+    $categorie.AddRange([string[]]@('Dirigenza', 'Docenti', 'Amministrativi', 'Tecnici', 'Collaboratori'))
+    $scelti = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    $scelti['Tecnici'] = ''
+    # BaseObject: dentro un array PowerShell passerebbe l'involucro, e il costruttore non si trova
+    $f = [Activator]::CreateInstance($tForm, @([string]'Colleghi', [string]'#4a86e8/#000000',
+        $categorie.PSObject.BaseObject, $scelti.PSObject.BaseObject, $null))
+    $f.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $f.Location = New-Object System.Drawing.Point(-4000, -4000)
+    $f.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+    ControllaPannello $f 'Colore di Colleghi'
+    $FIf = [System.Reflection.BindingFlags]'NonPublic,Instance'
+    $tavolozzaF = $tForm.GetField('tavolozza', $FIf).GetValue($f)
+    $chips = $tForm.GetField('campioniRuoli', $FIf).GetValue($f)
+    function Clic($c) { $onClick.Invoke($c, @([System.EventArgs]::Empty)) | Out-Null; [System.Windows.Forms.Application]::DoEvents() }
+    function Campione($colore) { return @($tavolozzaF | Where-Object { $_.Colore -eq $colore })[0] }
+    Verifica "la finestra mostra la tavolozza ($($tavolozzaF.Count)) e i cinque ruoli" ($tavolozzaF.Count -ge 60 -and $chips.Count -eq 5)
+    Verifica "Tecnici, scelto a mano senza colore, resta senza; gli altri hanno le sfumature" (
+        $chips['Tecnici'].Colore -eq '' -and $chips['Docenti'].Colore -eq '#a4c2f4/#000000')
+    Clic (Campione '#16a766/#000000')
+    Verifica "un clic sul verde: Colleghi e' verde, e i ruoli lo seguono (tranne Tecnici)" (
+        $f.Colore -eq '#16a766/#000000' -and $chips['Docenti'].Colore -eq '#89d3b2/#000000' -and $chips['Tecnici'].Colore -eq '')
+    Clic $chips['Docenti']
+    Clic (Campione '#fb4c2f/#000000')
+    Verifica "clic su Docenti e poi sul rosso: solo Docenti e' rosso, Colleghi resta verde" (
+        $f.ColoriRuoli['Docenti'] -eq '#fb4c2f/#000000' -and $f.Colore -eq '#16a766/#000000' -and
+        $chips['Docenti'].Colore -eq '#fb4c2f/#000000')
+    ControllaPannello $f 'Colore di Colleghi, con un ruolo scelto'
+    $segui = $tForm.GetField('btnSegui', $FIf).GetValue($f)
+    Verifica "per un ruolo scelto a mano si puo' tornare alla sfumatura" ($segui.Visible -and $segui.Enabled)
+    Clic $segui
+    Verifica "e allora segue di nuovo Colleghi" (-not $f.ColoriRuoli.ContainsKey('Docenti') -and $chips['Docenti'].Colore -eq '#89d3b2/#000000')
+    Clic ($tForm.GetField('nessuno', $FIf).GetValue($f))
+    Verifica "nessun colore per Docenti si ricorda come scelta (vuota)" (
+        $f.ColoriRuoli.ContainsKey('Docenti') -and $f.ColoriRuoli['Docenti'] -eq '' -and $f.Colore -eq '#16a766/#000000')
+    $f.Close()
+    $f.Dispose()
+
+    # e per una regola qualunque: niente ruoli, niente "Segui"
+    $g = [Activator]::CreateInstance($tForm, @([string]'Circolari', [string]'#fad165/#000000', $null, $null, $null))
+    $g.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $g.Location = New-Object System.Drawing.Point(-4000, -4000)
+    $g.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+    ControllaPannello $g 'Colore di Circolari'
+    Verifica "per Circolari niente ruoli e niente 'Segui'" (
+        $tForm.GetField('campioniRuoli', $FIf).GetValue($g).Count -eq 0 -and -not $tForm.GetField('btnSegui', $FIf).GetValue($g).Visible)
+    $g.Close()
+    $g.Dispose()
+}
+# tutto come prima
+$personale.GetType().GetMethod('Clear').Invoke($personale, @()) | Out-Null
+$tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $false)
+
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
 # Dispose senza Close: Close salverebbe le impostazioni, e qui dentro
 # PowerShell "accanto al programma" vuol dire accanto a powershell.exe
