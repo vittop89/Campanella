@@ -497,6 +497,17 @@ static class ProvaStato
         s.SpostaDati(false, "", out errore);
         imp = Json(Impostazioni());
         Verifica("in locale la chiave sconosciuta di campanella.json resta", imp.ContainsKey("chiaveFutura"));
+        Verifica("quella del file dei dati segue i dati e non si perde",
+            imp.ContainsKey("elencoFuturo") && !File.Exists(FileDati(c)));
+
+        // e di nuovo nel Drive
+        bool ok = s.SpostaDati(true, c, out errore);
+        imp = Json(Impostazioni());
+        dati = Json(FileDati(c));
+        Verifica("tornando nel Drive la chiave del file dei dati torna li'", ok && dati.ContainsKey("elencoFuturo"));
+        Verifica("e non resta in campanella.json", !imp.ContainsKey("elencoFuturo"));
+        Verifica("quella di campanella.json invece resta dov'e'",
+            imp.ContainsKey("chiaveFutura") && !dati.ContainsKey("chiaveFutura"));
     }
 
     // A-57: il nome del calendario segue i dati personali

@@ -374,10 +374,14 @@ namespace Campanella
 
         /// <summary>
         /// Il formato dei due file. Le chiavi che questa versione non conosce si
-        /// riscrivono tali e quali; il numero va alzato solo quando una versione
-        /// vecchia, riscrivendo il file, perderebbe qualcosa che non sa leggere
-        /// (per esempio un campo nuovo dentro le persone dell'elenco): vedendo un
-        /// numero piu' alto del suo, quella versione non lo sovrascrive.
+        /// riscrivono tali e quali, e quelle del file dei dati seguono i dati
+        /// quando cambiano posto. Il numero va alzato quando una versione vecchia,
+        /// riscrivendo il file, perderebbe qualcosa che non sa leggere (per
+        /// esempio un campo nuovo dentro le persone dell'elenco), e ogni volta che
+        /// Dati() scrive una chiave nuova in cima: in campanella.json una versione
+        /// vecchia non distingue un dato personale sconosciuto da un'impostazione,
+        /// e ce lo lascerebbe anche con i dati nel Drive. Vedendo un numero piu'
+        /// alto del suo, quella versione non sovrascrive il file.
         /// </summary>
         public const int Formato = 1;
 
@@ -453,7 +457,13 @@ namespace Campanella
 
             Dictionary<string, object> r = Impostazioni();
             if (conDati)
+            {
                 foreach (KeyValuePair<string, object> kv in Dati()) r[kv.Key] = kv.Value;
+                // le chiavi sconosciute del file dei dati seguono i dati: tornando
+                // accanto al programma non si perdono, e tornando nel Drive ci vanno
+                foreach (KeyValuePair<string, object> kv in altroDati)
+                    if (!r.ContainsKey(kv.Key)) r[kv.Key] = kv.Value;
+            }
             foreach (KeyValuePair<string, object> kv in altroImpostazioni)
                 if (!r.ContainsKey(kv.Key)) r[kv.Key] = kv.Value;
             r["formato"] = Formato;
