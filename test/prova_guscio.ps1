@@ -19,7 +19,10 @@
         temporanea;
       - gli avvisi dell'avvio: un file dei dati o un campanella.json che
         non si possono usare (e quindi non si sovrascrivono) si dicono
-        subito, una volta sola.
+        subito, una volta sola;
+      - chiudere mentre un lavoro va avanti: il guscio sa quali lavori
+        vanno (e chiede prima di chiudere), e lo scarico di rizzo-pii viene
+        fermato con un'attesa breve e limitata.
 
     Uno Stato si crea senza costruttore, oppure con Carica dopo aver messo
     Stato.CartellaDiProva su una cartella temporanea: cosi' non guarda il
@@ -342,6 +345,92 @@ catch {
 finally {
     $campoProva.SetValue($null, '')
     Remove-Item -Recurse -Force -LiteralPath $cartellaAvvio -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+Intestazione "CHIUDERE MENTRE UN LAVORO VA AVANTI"
+# Chiudendo durante la creazione delle cartelle, la pulizia dei file o lo
+# scarico di rizzo-pii il lavoro si fermava in silenzio, e l'installer a
+# meta' restava in %TEMP%. Adesso il guscio sa quali lavori vanno (e chiede
+# prima di chiudere), e lo scarico ha qualche secondo per fare pulizia.
+# La domanda e' una finestra: qui si prova la chiusura allo spegnimento del
+# computer, che non chiede niente.
+Add-Type -TypeDefinition @'
+public static class AiutoProvaGuscio
+{
+    /// <summary>Un thread che dorme e poi finisce, al posto di uno scarico.</summary>
+    public static System.Threading.Thread Dorme(int ms)
+    {
+        System.Threading.Thread t = new System.Threading.Thread(delegate() { System.Threading.Thread.Sleep(ms); });
+        t.IsBackground = true;
+        t.Start();
+        return t;
+    }
+}
+'@
+$cartellaChiusura = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-chiusura-' + (Get-Random))
+New-Item -ItemType Directory -Force $cartellaChiusura | Out-Null
+$campoProva.SetValue($null, $cartellaChiusura)
+$g = $null
+try {
+    $mLavori = $tGuscio.GetMethod('LavoriInCorso')
+    Verifica "il guscio sa dire quali lavori vanno" ($mLavori -ne $null)
+    $g = NuovoGuscio (Rileggi)
+    $pg = @{}
+    foreach ($p in $tGuscio.GetField('pagine', $FI).GetValue($g)) { $pg[$p.GetType().Name] = $p }
+    function Metti($pagina, $campo, $valore) { $pagina.GetType().GetField($campo, $FI).SetValue($pagina, $valore) }
+    function Leggi2($pagina, $campo) { return $pagina.GetType().GetField($campo, $FI).GetValue($pagina) }
+    if ($mLavori -ne $null) {
+        Verifica "nessun lavoro: nessuna domanda" ($mLavori.Invoke($g, @()).Count -eq 0)
+
+        Metti $pg['PaginaImpostazioni'] 'scaricando' $true
+        Metti $pg['PaginaCartelle'] 'generatoreInCorso' (
+            [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($asm.GetType('Campanella.GeneratoreAnno')))
+        Metti $pg['PaginaPrivacy'] 'lavoro' ([System.Threading.Thread]::CurrentThread)
+        $lavori = @($mLavori.Invoke($g, @()))
+        Verifica "lo scarico di rizzo-pii e' un lavoro in corso" (@($lavori | Where-Object { $_ -match 'rizzo-pii' }).Count -eq 1)
+        Verifica "la creazione delle cartelle e' un lavoro in corso" (@($lavori | Where-Object { $_ -match 'cartelle' }).Count -eq 1)
+        Verifica "la pulizia dei file e' un lavoro in corso" (@($lavori | Where-Object { $_ -match 'pulizia' }).Count -eq 1)
+        Metti $pg['PaginaCartelle'] 'generatoreInCorso' $null
+        Metti $pg['PaginaPrivacy'] 'lavoro' $null
+    }
+
+    $mFerma = $pg['PaginaImpostazioni'].GetType().GetMethod('FermaScarico')
+    Verifica "lo scarico si puo' fermare dal guscio" ($mFerma -ne $null)
+    if ($mFerma -ne $null) {
+        Metti $pg['PaginaImpostazioni'] 'lavoro' ([AiutoProvaGuscio]::Dorme(400))
+        $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+        $mFerma.Invoke($pg['PaginaImpostazioni'], @([int]3000)) | Out-Null
+        $cronometro.Stop()
+        Verifica "fermato, aspetta che lo scarico finisca ($($cronometro.ElapsedMilliseconds) ms)" (
+            $cronometro.ElapsedMilliseconds -ge 250 -and $cronometro.ElapsedMilliseconds -lt 2500 -and
+            (Leggi2 $pg['PaginaImpostazioni'] 'interrompi'))
+        Metti $pg['PaginaImpostazioni'] 'lavoro' ([AiutoProvaGuscio]::Dorme(20000))
+        $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+        $mFerma.Invoke($pg['PaginaImpostazioni'], @([int]500)) | Out-Null
+        $cronometro.Stop()
+        Verifica "ma non piu' del tempo dato ($($cronometro.ElapsedMilliseconds) ms)" ($cronometro.ElapsedMilliseconds -lt 2000)
+
+        # allo spegnimento non si chiede niente: si ferma lo scarico e si salva
+        Metti $pg['PaginaImpostazioni'] 'interrompi' $false
+        Metti $pg['PaginaImpostazioni'] 'lavoro' ([AiutoProvaGuscio]::Dorme(300))
+        $chiusura = New-Object System.Windows.Forms.FormClosingEventArgs(
+            [System.Windows.Forms.CloseReason]::WindowsShutDown, $false)
+        [System.Windows.Forms.Form].GetMethod('OnFormClosing', $FI).Invoke($g, [object[]]@($chiusura.PSObject.BaseObject)) | Out-Null
+        Verifica "allo spegnimento la chiusura non si ferma" (-not $chiusura.Cancel)
+        Verifica "e lo scarico viene fermato" (Leggi2 $pg['PaginaImpostazioni'] 'interrompi')
+        Verifica "e la pulizia dei file non ne comincia altri" (Leggi2 $pg['PaginaPrivacy'] 'interrompi')
+        Verifica "e le impostazioni si salvano (nella cartella di prova)" (
+            Test-Path -LiteralPath (Join-Path $cartellaChiusura 'campanella.json'))
+    }
+}
+catch {
+    Verifica "la chiusura con un lavoro in corso si prova senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($g -ne $null) { $g.Dispose() }
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaChiusura -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

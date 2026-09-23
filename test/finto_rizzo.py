@@ -11,14 +11,18 @@ Campanella parli il protocollo giusto (JSON, multipart, intestazioni X-PII-*).
 --senza-testo: /analyze risponde senza "anonymized_text", come farebbe una
 versione di rizzo-pii che ha cambiato il protocollo.
 
-Per le prove dello scarico dell'installer ci sono anche due file finti:
+Per le prove dello scarico dell'installer ci sono anche tre file finti:
     /scarico/intero     un milione di byte a zero, lunghezza dichiarata giusta
     /scarico/troncato   dichiara un milione di byte, ne manda 400.000 e chiude
+    /scarico/lento      dichiara cento milioni di byte e ne manda 16 KB ogni
+                        decimo di secondo, finche' il client non chiude: un
+                        punto percentuale arriva ogni sei secondi e mezzo
 """
 
 import json
 import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ARGOMENTI = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -131,6 +135,20 @@ class Gestore(BaseHTTPRequestHandler):
             self.wfile.write(SCARICO[:400000])
             self.wfile.flush()
             self.close_connection = True
+        elif self.path == "/scarico/lento":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", "100000000")
+            self.end_headers()
+            self.close_connection = True
+            # al massimo mezzo minuto: la prova chiude molto prima
+            for _ in range(300):
+                try:
+                    self.wfile.write(b"\0" * 16384)
+                    self.wfile.flush()
+                except OSError:
+                    return          # il client ha chiuso: e' quello che si voleva
+                time.sleep(0.1)
         else:
             self._json({"error": "non previsto"}, 404)
 

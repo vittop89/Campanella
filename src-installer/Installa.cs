@@ -560,6 +560,7 @@ namespace Campanella
                         // dimensione e impronta controllate: un file a meta' viene
                         // cancellato e non parte. Campanella resta installata comunque.
                         string file = null, errore = null;
+                        int scritto = -1;     // la stessa percentuale puo' tornare: una riga sola
                         try
                         {
                             file = Aggiornamenti.Scarica(r.FileWindows, "Rizzo-PII-Setup.exe",
@@ -567,9 +568,12 @@ namespace Campanella
                                 delegate (int pc, long fatti, long tot)
                                 {
                                     Avanzamento(75 + pc / 4);
-                                    if (pc % 5 == 0)
+                                    if (pc % 5 == 0 && pc != scritto)
+                                    {
+                                        scritto = pc;
                                         Scrivi("    " + Math.Round(fatti / 1048576.0) + " / " +
                                                Math.Round(tot / 1048576.0) + " MB  (" + pc + "%)");
+                                    }
                                     return !interrompi;
                                 });
                         }

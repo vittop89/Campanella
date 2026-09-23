@@ -301,7 +301,8 @@ namespace Campanella
             logBox.ScrollToCaret();
         }
 
-        bool InCorso() { return generatoreInCorso != null; }
+        /// <summary>Vero mentre "Genera la struttura" lavora: il guscio lo chiede prima di chiudere.</summary>
+        public bool InCorso() { return generatoreInCorso != null; }
 
         /// <summary>Esegue sul thread della finestra, se la finestra c'e' ancora.</summary>
         void SullaPagina(MethodInvoker m)

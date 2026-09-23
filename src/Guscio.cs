@@ -274,15 +274,68 @@ namespace Campanella
 
             FormClosing += delegate(object o, FormClosingEventArgs e)
             {
+                // niente finestre allo spegnimento del computer, che una
+                // finestra fermerebbe
+                bool siPuoChiedere = e.CloseReason != CloseReason.WindowsShutDown &&
+                                     e.CloseReason != CloseReason.TaskManagerClosing;
+                // un lavoro a meta' (cartelle, pulizia dei file, scarico) prima si
+                // interrompeva in silenzio: adesso si chiede, e "No" lascia la
+                // finestra aperta senza salvare niente
+                List<string> lavori = LavoriInCorso();
+                if (lavori.Count > 0 && siPuoChiedere && MessageBox.Show(this,
+                        "Sta ancora andando avanti " + string.Join(" e ", lavori.ToArray()) + ".\n\n" +
+                        "Se chiudi adesso si ferma a meta', e quello che manca andra' rifatto. " +
+                        "I file originali non vengono toccati.\n\nChiudo lo stesso?",
+                        "Chiudere Campanella?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                FermaLavori();
                 SalvaTutto();
                 // un file lasciato com'era per non rovinarlo, o un Drive che non
-                // c'era: va detto adesso, dopo sarebbe troppo tardi. Non allo
-                // spegnimento del computer, che una finestra fermerebbe.
-                if (S.DaAvvisare != "" && e.CloseReason != CloseReason.WindowsShutDown &&
-                    e.CloseReason != CloseReason.TaskManagerClosing)
+                // c'era: va detto adesso, dopo sarebbe troppo tardi
+                if (S.DaAvvisare != "" && siPuoChiedere)
                     MessageBox.Show(this, S.DaAvvisare, "Non tutto e' stato salvato",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
             };
+        }
+
+        /// <summary>
+        /// I lavori che chiudendo adesso si fermerebbero a meta', detti come in
+        /// una frase. Vuoto se non ce n'e' nessuno.
+        /// </summary>
+        public List<string> LavoriInCorso()
+        {
+            List<string> lavori = new List<string>();
+            foreach (Pagina p in pagine)
+            {
+                PaginaCartelle cartelle = p as PaginaCartelle;
+                if (cartelle != null && cartelle.InCorso()) lavori.Add("la creazione delle cartelle dell'anno");
+                PaginaPrivacy privacy = p as PaginaPrivacy;
+                if (privacy != null && privacy.LavoroInCorso) lavori.Add("la pulizia dei file (Privacy)");
+                PaginaImpostazioni impostazioni = p as PaginaImpostazioni;
+                if (impostazioni != null && impostazioni.LavoroInCorso) lavori.Add("lo scarico di rizzo-pii");
+            }
+            return lavori;
+        }
+
+        /// <summary>
+        /// Prima di chiudere: la pulizia dei file non ne comincia altri, e lo
+        /// scarico di rizzo-pii ha tre secondi al massimo per togliere il file a
+        /// meta'. Le cartelle finiscono il file che stanno copiando: lo chiede
+        /// la pagina stessa quando la finestra sparisce.
+        /// </summary>
+        void FermaLavori()
+        {
+            foreach (Pagina p in pagine)
+            {
+                PaginaPrivacy privacy = p as PaginaPrivacy;
+                if (privacy != null) privacy.Ferma();
+                PaginaImpostazioni impostazioni = p as PaginaImpostazioni;
+                if (impostazioni != null) impostazioni.FermaScarico(3000);
+            }
         }
 
         public void SalvaTutto()
@@ -917,6 +970,20 @@ namespace Campanella
         /// <summary>Vero mentre si scarica rizzo-pii: chiudendo la finestra lo
         /// scarico si interromperebbe a meta'.</summary>
         public bool LavoroInCorso { get { return scaricando; } }
+
+        /// <summary>
+        /// Chiudendo la finestra: ferma lo scarico e aspetta al massimo quei
+        /// millisecondi che tolga da %TEMP% il file a meta'. Il thread e' in
+        /// background: senza aspettare moriva con il programma, e l'installer
+        /// incompleto restava li'.
+        /// </summary>
+        public void FermaScarico(int millisecondi)
+        {
+            if (!scaricando) return;
+            interrompi = true;
+            System.Threading.Thread t = lavoro;
+            if (t != null && t.IsAlive) t.Join(millisecondi);
+        }
 
         public override string Nome { get { return "Impostazioni"; } }
 

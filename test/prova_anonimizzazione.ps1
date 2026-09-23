@@ -294,6 +294,19 @@ Cordiali saluti, Anna Verdi
     $ferma = [Func[int,long,long,bool]]{ param($pc, $fatti, $tot) $false }
     $r6 = Scarico '/scarico/intero' 'fermato.exe' 1000000 $giusta $ferma
     Verifica 'fermato: nessun file e nessun errore' ($r6.Errore -eq $null -and $r6.File -eq $null -and (Rimasti) -eq 0)
+
+    # un file grande su una rete lenta: un punto percentuale ogni sei secondi e
+    # mezzo. Chi lo ferma (anche la chiusura di Campanella, che aspetta al
+    # massimo tre secondi) aspettava il punto dopo: adesso la domanda "vado
+    # avanti?" arriva almeno ogni mezzo secondo
+    $script:chiamate = 0
+    $fermaAllaSeconda = [Func[int,long,long,bool]]{ param($pc, $fatti, $tot) $script:chiamate++; $script:chiamate -lt 2 }
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    $r7 = Scarico '/scarico/lento' 'lento.exe' 0 '' $fermaAllaSeconda
+    $cronometro.Stop()
+    Verifica "su una rete lenta si ferma in fretta ($($cronometro.ElapsedMilliseconds) ms)" (
+        $r7.Errore -eq $null -and $r7.File -eq $null -and $cronometro.ElapsedMilliseconds -lt 3000)
+    Verifica '... e non lascia file'               ((Rimasti) -eq 0)
     $env:TMP = $tmpPrima
 
     Write-Host "`n=== VERSIONI (Cerca aggiornamenti) ===" -ForegroundColor Cyan

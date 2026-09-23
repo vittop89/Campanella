@@ -208,8 +208,9 @@ namespace Campanella
         /// (sha256, se non e' vuota). Se qualcosa non torna, o lo scarico
         /// fallisce, il file a meta' viene cancellato e parte un'eccezione:
         /// un installer incompleto non si avvia. Chiama avanzamento con la
-        /// percentuale; se torna false lo scarico si ferma, il file viene
-        /// cancellato e torna null.
+        /// percentuale, quando cambia e comunque almeno ogni mezzo secondo (la
+        /// stessa percentuale puo' tornare piu' volte); se torna false lo scarico
+        /// si ferma, il file viene cancellato e torna null.
         /// </summary>
         public static string Scarica(string indirizzo, string nomeFile, long attesi, string sha256,
                                      Func<int, long, long, bool> avanzamento)
@@ -238,6 +239,7 @@ namespace Campanella
                         byte[] buffer = new byte[128 * 1024];
                         int letti;
                         int ultimaPercentuale = -1;
+                        int ultimaChiamata = Environment.TickCount;
 
                         while ((letti = sorgente.Read(buffer, 0, buffer.Length)) > 0)
                         {
@@ -248,9 +250,14 @@ namespace Campanella
                                 throw new IOException("Il server manda piu' byte dei " + totale +
                                                       " annunciati: ho cancellato il file.");
                             int percentuale = (totale > 0) ? (int)(fatti * 100 / totale) : 0;
-                            if (avanzamento != null && percentuale != ultimaPercentuale)
+                            // anche senza un punto in piu', ogni mezzo secondo: con un file
+                            // di 1,3 GB e una rete lenta un punto e' una decina di secondi,
+                            // e tanto aspettava chi lo ferma (anche chiudendo Campanella)
+                            bool tempo = unchecked(Environment.TickCount - ultimaChiamata) >= 500;
+                            if (avanzamento != null && (percentuale != ultimaPercentuale || tempo))
                             {
                                 ultimaPercentuale = percentuale;
+                                ultimaChiamata = Environment.TickCount;
                                 if (!avanzamento(percentuale, fatti, totale))
                                     return null;      // fermato dall'utente: il file lo toglie finally
                             }

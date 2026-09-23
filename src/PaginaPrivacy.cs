@@ -75,6 +75,9 @@ namespace Campanella
         /// chiudendo la finestra si interromperebbe a meta'.</summary>
         public bool LavoroInCorso { get { return lavoro != null && lavoro.IsAlive; } }
 
+        /// <summary>Chiudendo la finestra: dopo il file in corso non ne comincia altri.</summary>
+        public void Ferma() { interrompi = true; }
+
         public override int Passo
         {
             get { return passo; }
