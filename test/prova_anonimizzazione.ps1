@@ -5,7 +5,8 @@
       - un indirizzo fuori dal computer venga rifiutato subito;
       - una risposta senza il testo anonimizzato sia un errore, non un file vuoto;
       - una copia pulita non finisca mai sopra l'originale;
-      - uno scarico troncato o con l'impronta sbagliata non lasci file.
+      - uno scarico troncato o con l'impronta sbagliata non lasci file;
+      - il confronto delle versioni di "Cerca aggiornamenti" sia giusto.
     Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
@@ -281,6 +282,28 @@ Cordiali saluti, Anna Verdi
     $r6 = Scarico '/scarico/intero' 'fermato.exe' 1000000 $giusta $ferma
     Verifica 'fermato: nessun file e nessun errore' ($r6.Errore -eq $null -and $r6.File -eq $null -and (Rimasti) -eq 0)
     $env:TMP = $tmpPrima
+
+    Write-Host "`n=== VERSIONI (Cerca aggiornamenti) ===" -ForegroundColor Cyan
+    $piuRecente = $ag.GetMethod('PiuRecente')
+    $versioni = @(
+        @('1.4.7',   '1.4.6', $true),
+        @('v1.4.7',  '1.4.6', $true),
+        @('1.4.10',  '1.4.9', $true),
+        @('1.5',     '1.4.6', $true),
+        @('2.0.0',   '1.4.6', $true),
+        @('1.4.6',   '1.4.6', $false),
+        @('v1.4.6',  '1.4.6', $false),
+        @('1.4.6.0', '1.4.6', $false),
+        @('1.4.5',   '1.4.6', $false),
+        @('1.4.9',   '1.4.10', $false),
+        @('',        '1.4.6', $false),
+        @('ultima',  '1.4.6', $false)
+    )
+    foreach ($v in $versioni) {
+        $esito = $piuRecente.Invoke($null, [object[]]@($v[0], $v[1]))
+        Verifica ("{0,-9} rispetto a {1,-7} -> {2}" -f "'$($v[0])'", $v[1], $(if ($v[2]) { 'piu'' recente' } else { 'no' })) `
+            ($esito -eq $v[2])
+    }
 
     Write-Host "`n=== SERVIZIO SPENTO ===" -ForegroundColor Cyan
     # una porta dove non c'e' davvero nessuno: se ne cerco una fissa, basta un

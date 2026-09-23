@@ -3,8 +3,10 @@
 //
 //  L'applicazione non si collega a internet da sola: queste funzioni partono
 //  solo quando l'utente preme un pulsante. Chiedono a GitHub qual e' l'ultima
-//  versione pubblicata e, se serve, scaricano l'installer di rizzo-pii
-//  (circa 1,2 GB), ne controllano dimensione e impronta, e lo avviano.
+//  versione pubblicata di Campanella e di rizzo-pii e, se serve, scaricano
+//  l'installer di rizzo-pii (circa 1,2 GB), ne controllano dimensione e
+//  impronta, e lo avviano. Di Campanella non scaricano niente: dicono solo
+//  che c'e' una versione nuova e dove prenderla.
 //
 //  Perche' non e' dentro Campanella: rizzo-pii porta con se' PyTorch e un
 //  modello da 1,2 GB. Metterlo nell'installer significherebbe un file da
@@ -51,6 +53,8 @@ namespace Campanella
         public const string PaginaRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/latest";
         // si scarica solo un file pubblicato fra i rilasci di rizzo-pii, in https
         const string ScaricoRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/download/";
+        const string ApiCampanella = "https://api.github.com/repos/vittop89/Campanella/releases/latest";
+        public const string PaginaCampanella = "https://github.com/vittop89/Campanella/releases";
 
         /// <summary>Solo TLS 1.2, assegnato e non aggiunto con |=, che
         /// lascerebbe acceso anche SSL 3. Va detto a mano perche' l'exe non
@@ -79,6 +83,46 @@ namespace Campanella
             JavaScriptSerializer ser = new JavaScriptSerializer();
             ser.MaxJsonLength = 40 * 1024 * 1024;
             return ser.DeserializeObject(corpo) as Dictionary<string, object>;
+        }
+
+        /// <summary>
+        /// Chiede a GitHub l'ultimo rilascio di Campanella. Parte solo quando
+        /// l'utente preme "Cerca aggiornamenti" e non scarica niente: chi lo
+        /// chiama confronta la versione con PiuRecente e, se serve, rimanda
+        /// alla pagina dei rilasci.
+        /// </summary>
+        public static Rilascio UltimoCampanella()
+        {
+            Rilascio r = new Rilascio();
+            try
+            {
+                Dictionary<string, object> d = ChiediAGitHub(ApiCampanella);
+                if (d == null) { r.Messaggio = "Risposta di GitHub non comprensibile."; return r; }
+
+                r.Versione = Stato.Str(d, "tag_name", "").TrimStart('v', 'V');
+                r.Nome = Stato.Str(d, "name", "");
+                r.Indirizzo = PaginaCampanella;
+                r.Trovato = (Numeri(r.Versione).Length > 0);
+                r.Messaggio = r.Trovato
+                    ? "Ultima versione pubblicata di Campanella: " + r.Versione
+                    : "Non sono riuscito a leggere il numero di versione di Campanella.";
+            }
+            catch (Exception ex)
+            {
+                r.Messaggio = "Non riesco a chiedere a GitHub: " + ex.Message;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Vero se la versione pubblicata e' piu' recente di quella in uso.
+        /// Accetta anche il nome del tag ("v1.4.7"); una versione vuota o
+        /// senza numeri non e' mai piu' recente.
+        /// </summary>
+        public static bool PiuRecente(string pubblicata, string inUso)
+        {
+            if (Numeri(pubblicata).Length == 0) return false;
+            return Confronta(pubblicata, inUso) > 0;
         }
 
         /// <summary>Chiede a GitHub l'ultimo rilascio di rizzo-pii.</summary>

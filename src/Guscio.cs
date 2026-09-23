@@ -720,6 +720,8 @@ namespace Campanella
         volatile bool interrompi = false;
         volatile bool scaricando = false;
         int giroSalute = 0;                  // l'ultimo controllo di rizzo-pii chiesto
+        Label lblCampanella;                 // c'e' una Campanella piu' nuova?
+        Button btnRilasci;
         bool zitto = false;
 
         public PaginaImpostazioni(Guscio g) : base(g) { Costruisci(); }
@@ -831,7 +833,9 @@ namespace Campanella
                 "Privacy: gira sul tuo computer, all'indirizzo qui sotto. Un indirizzo che " +
                 "porta fuori dal computer viene rifiutato.\r\n\r\n" +
                 "L'applicazione non si collega a internet da sola: il controllo degli " +
-                "aggiornamenti parte solo quando premi il pulsante.");
+                "aggiornamenti parte solo quando premi il pulsante, e chiede a GitHub " +
+                "l'ultima versione di Campanella e di rizzo-pii. Campanella nuova non viene " +
+                "scaricata: ti dice solo dove prenderla.");
             y += 30;
 
             Controls.Add(Tema.Testo1("Indirizzo del servizio", 0, y + 5, 0, Tema.Normale, Ruolo.Tenue));
@@ -869,7 +873,17 @@ namespace Campanella
             lblAggiornamenti = Tema.Testo1("", 0, y + 22, 860, Tema.Piccolo, Ruolo.Tenue);
             lblAggiornamenti.Height = 40;
             Controls.Add(lblAggiornamenti);
-            y += 74;
+            y += 66;
+
+            // l'avviso di una Campanella nuova: solo dopo "Cerca aggiornamenti"
+            lblCampanella = Tema.Testo1("", 0, y + 4, 650, Tema.Piccolo, Ruolo.Tenue);
+            lblCampanella.Height = 36;
+            Controls.Add(lblCampanella);
+            btnRilasci = Tema.Bottone("Pagina dei rilasci", 666, y, 160,
+                delegate { Guscio.Apri(Aggiornamenti.PaginaCampanella); });
+            btnRilasci.Visible = false;
+            Controls.Add(btnRilasci);
+            y += 48;
 
             // ---- documenti ----------------------------------------------------
             Controls.Add(Tema.Testo1("Documenti per la dirigenza e il DPO", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
@@ -1154,25 +1168,34 @@ namespace Campanella
             // tutta la rete qui dentro, anche la domanda a rizzo-pii
             lavoro = new System.Threading.Thread(delegate ()
             {
+                Rilascio c = Aggiornamenti.UltimoCampanella();
                 Rilascio r = Aggiornamenti.UltimoRizzoPii();
                 SaluteAnonimizzatore s = r.Trovato ? a.Salute() : null;
                 SulThread(delegate
                 {
                     btnCerca.Enabled = true;
+                    MostraCampanella(c);
                     ultimoRilascio = r;
                     if (!r.Trovato) { Messaggio(r.Messaggio, Ruolo.Avviso); return; }
+
+                    // una versione di rizzo-pii piu' nuova di quella provata si puo'
+                    // installare, ma e' giusto dirlo prima
+                    string provata = Aggiornamenti.PiuRecente(r.Versione, Anonimizzatore.VersioneRizzoProvata)
+                        ? "  Campanella e' provata con la " + Anonimizzatore.VersioneRizzoProvata +
+                          ": con la " + r.Versione + " qualcosa potrebbe non andare."
+                        : "";
 
                     if (!s.Pronto)
                     {
                         Messaggio("rizzo-pii non risulta installato o avviato. " + r.Messaggio +
-                                  "  Puoi scaricarlo da qui.", Ruolo.Avviso);
+                                  "  Puoi scaricarlo da qui." + provata, Ruolo.Avviso);
                         btnInstalla.Visible = (r.FileWindows != "");
                         btnInstalla.Text = "Scarica e installa rizzo-pii  (" + r.PesoLeggibile + ")";
                     }
                     else if (Aggiornamenti.Confronta(r.Versione, s.Versione) > 0)
                     {
                         Messaggio("C'e' una versione piu' recente di rizzo-pii: hai la " +
-                                  s.Versione + ", l'ultima e' la " + r.Versione + ".", Ruolo.Avviso);
+                                  s.Versione + ", l'ultima e' la " + r.Versione + "." + provata, Ruolo.Avviso);
                         btnInstalla.Visible = (r.FileWindows != "");
                         btnInstalla.Text = "Aggiorna rizzo-pii  (" + r.PesoLeggibile + ")";
                     }
@@ -1187,6 +1210,27 @@ namespace Campanella
             });
             lavoro.IsBackground = true;
             lavoro.Start();
+        }
+
+        /// <summary>Dice se c'e' una Campanella piu' nuova. Non scarica niente:
+        /// rimanda alla pagina dei rilasci.</summary>
+        void MostraCampanella(Rilascio c)
+        {
+            string mia = Aggiornamenti.VersioneCampanella;
+            bool nuova = c.Trovato && Aggiornamenti.PiuRecente(c.Versione, mia);
+            if (!c.Trovato)
+                lblCampanella.Text = "Non sono riuscito a controllare la versione di Campanella. " +
+                                     c.Messaggio;
+            else if (nuova)
+                lblCampanella.Text = "E' uscita Campanella " + c.Versione + ": tu hai la " + mia + ". " +
+                                     "Scaricala dalla pagina dei rilasci, dove trovi anche le novita'.";
+            else
+                lblCampanella.Text = "Campanella e' aggiornata: hai la " + mia +
+                                     ", l'ultima pubblicata e' la " + c.Versione + ".";
+            lblCampanella.Tag = (c.Trovato && !nuova) ? Ruolo.Buono : Ruolo.Avviso;
+            btnRilasci.Visible = nuova || !c.Trovato;
+            Tema.Applica(lblCampanella);
+            Tema.Applica(btnRilasci);
         }
 
         void InstallaRizzo()
