@@ -718,6 +718,7 @@ namespace Campanella
         Rilascio ultimoRilascio;
         System.Threading.Thread lavoro;
         volatile bool interrompi = false;
+        volatile bool scaricando = false;
         bool zitto = false;
 
         public PaginaImpostazioni(Guscio g) : base(g) { Costruisci(); }
@@ -1159,6 +1160,14 @@ namespace Campanella
 
         void InstallaRizzo()
         {
+            // durante lo scarico lo stesso pulsante lo ferma
+            if (scaricando)
+            {
+                interrompi = true;
+                btnInstalla.Enabled = false;
+                Messaggio("Fermo lo scarico...", Ruolo.Tenue);
+                return;
+            }
             if (ultimoRilascio == null || ultimoRilascio.FileWindows == "") return;
             if (lavoro != null && lavoro.IsAlive) return;
 
@@ -1173,12 +1182,16 @@ namespace Campanella
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             interrompi = false;
-            btnInstalla.Enabled = false;
+            scaricando = true;
+            string testoBottone = btnInstalla.Text;
+            btnInstalla.Text = "Ferma lo scarico";
             btnCerca.Enabled = false;
             barra.Visible = true;
             barra.Value = 0;
 
             string url = ultimoRilascio.FileWindows;
+            long attesi = ultimoRilascio.ByteWindows;
+            string sha256 = ultimoRilascio.Sha256Windows;
             string nome = "Rizzo-PII-Setup.exe";
             try { nome = Path.GetFileName(new Uri(url).LocalPath); } catch { }
 
@@ -1188,7 +1201,9 @@ namespace Campanella
                 string errore = null;
                 try
                 {
-                    file = Aggiornamenti.Scarica(url, nome, delegate (int pc, long fatti, long tot)
+                    // dimensione e impronta controllate: un file a meta' viene
+                    // cancellato e non parte
+                    file = Aggiornamenti.Scarica(url, nome, attesi, sha256, delegate (int pc, long fatti, long tot)
                     {
                         BeginInvoke((MethodInvoker)delegate
                         {
@@ -1204,7 +1219,9 @@ namespace Campanella
 
                 BeginInvoke((MethodInvoker)delegate
                 {
+                    scaricando = false;
                     barra.Visible = false;
+                    btnInstalla.Text = testoBottone;
                     btnInstalla.Enabled = true;
                     btnCerca.Enabled = true;
 

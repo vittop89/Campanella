@@ -555,20 +555,34 @@ namespace Campanella
                     }
                     else
                     {
-                        Scrivi("  versione " + r.Versione + ", " + r.PesoLeggibile + ". Scarico...");
-                        string file = Aggiornamenti.Scarica(r.FileWindows, "Rizzo-PII-Setup.exe",
-                            delegate (int pc, long fatti, long tot)
-                            {
-                                Avanzamento(75 + pc / 4);
-                                if (pc % 5 == 0)
-                                    Scrivi("    " + Math.Round(fatti / 1048576.0) + " / " +
-                                           Math.Round(tot / 1048576.0) + " MB  (" + pc + "%)");
-                                return !interrompi;
-                            });
-                        if (file == null) Scrivi("  scarico interrotto.");
+                        Scrivi("  versione " + r.Versione + ", " + r.PesoLeggibile +
+                               ". Scarico...  (per fermarlo premi Esci)");
+                        // dimensione e impronta controllate: un file a meta' viene
+                        // cancellato e non parte. Campanella resta installata comunque.
+                        string file = null, errore = null;
+                        try
+                        {
+                            file = Aggiornamenti.Scarica(r.FileWindows, "Rizzo-PII-Setup.exe",
+                                r.ByteWindows, r.Sha256Windows,
+                                delegate (int pc, long fatti, long tot)
+                                {
+                                    Avanzamento(75 + pc / 4);
+                                    if (pc % 5 == 0)
+                                        Scrivi("    " + Math.Round(fatti / 1048576.0) + " / " +
+                                               Math.Round(tot / 1048576.0) + " MB  (" + pc + "%)");
+                                    return !interrompi;
+                                });
+                        }
+                        catch (Exception ex) { errore = ex.Message; }
+                        if (errore != null)
+                        {
+                            Scrivi("  scarico non riuscito: " + errore);
+                            Scrivi("  potrai installarlo dopo, da Campanella > Impostazioni.");
+                        }
+                        else if (file == null) Scrivi("  scarico interrotto.");
                         else
                         {
-                            Scrivi("  scaricato. Avvio l'installazione di rizzo-pii.");
+                            Scrivi("  scaricato e controllato. Avvio l'installazione di rizzo-pii.");
                             Aggiornamenti.Avvia(file);
                         }
                     }

@@ -10,6 +10,10 @@ Campanella parli il protocollo giusto (JSON, multipart, intestazioni X-PII-*).
 
 --senza-testo: /analyze risponde senza "anonymized_text", come farebbe una
 versione di rizzo-pii che ha cambiato il protocollo.
+
+Per le prove dello scarico dell'installer ci sono anche due file finti:
+    /scarico/intero     un milione di byte a zero, lunghezza dichiarata giusta
+    /scarico/troncato   dichiara un milione di byte, ne manda 400.000 e chiude
 """
 
 import json
@@ -20,6 +24,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ARGOMENTI = [a for a in sys.argv[1:] if not a.startswith("--")]
 PORTA = int(ARGOMENTI[0]) if ARGOMENTI else 5005
 SENZA_TESTO = "--senza-testo" in sys.argv[1:]
+
+SCARICO = b"\0" * 1000000
 
 RICONOSCITORI = [
     ("EMAIL", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
@@ -113,6 +119,18 @@ class Gestore(BaseHTTPRequestHandler):
                 "app_version": "finto", "device": "cpu", "tags": 22,
                 "excluded_tags": [], "mapping_enabled": True,
             })
+        elif self.path in ("/scarico/intero", "/scarico/troncato"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(SCARICO)))
+            self.end_headers()
+            if self.path == "/scarico/intero":
+                self.wfile.write(SCARICO)
+                return
+            # una chiusura pulita a meta': nessun errore di rete, solo meno byte
+            self.wfile.write(SCARICO[:400000])
+            self.wfile.flush()
+            self.close_connection = True
         else:
             self._json({"error": "non previsto"}, 404)
 

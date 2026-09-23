@@ -4,7 +4,8 @@
     servizio di test\finto_rizzo.py. Verifica anche che:
       - un indirizzo fuori dal computer venga rifiutato subito;
       - una risposta senza il testo anonimizzato sia un errore, non un file vuoto;
-      - una copia pulita non finisca mai sopra l'originale.
+      - una copia pulita non finisca mai sopra l'originale;
+      - uno scarico troncato o con l'impronta sbagliata non lasci file.
     Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
@@ -17,6 +18,7 @@ $exe = Join-Path $radice 'dist\Campanella.exe'
 $temp = Join-Path $env:TEMP 'campanella_anon'
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $temp | Out-Null
+$tmpPrima = $env:TMP
 $PortaSenzaTesto = $Porta + 1
 
 Write-Host "Avvio il finto rizzo-pii sulle porte $Porta e $PortaSenzaTesto..." -ForegroundColor Cyan
@@ -232,6 +234,54 @@ Cordiali saluti, Anna Verdi
         ($e7.Saltato -and $cronometro.ElapsedMilliseconds -lt 1000 -and
          -not (Test-Path (Join-Path $uscita3 'circolare.pdf')))
 
+    Write-Host "`n=== SCARICO DELL'INSTALLER ===" -ForegroundColor Cyan
+    # Scarica scrive nella cartella temporanea di Windows: qui la faccio
+    # puntare a una sottocartella della prova
+    $scarichi = Join-Path $temp 'scarichi'
+    New-Item -ItemType Directory -Path $scarichi | Out-Null
+    $env:TMP = $scarichi
+    $ag = $asm.GetType('Campanella.Aggiornamenti')
+    $scarica = $ag.GetMethod('Scarica')
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $giusta = (($sha.ComputeHash((New-Object byte[] 1000000)) | ForEach-Object { $_.ToString('x2') }) -join '')
+    $sbagliata = ('0' * 64)
+
+    function Scarico($percorso, $nome, [long]$attesi, $impronta, $avanzamento) {
+        $argScarico = [object[]]@("http://127.0.0.1:$Porta$percorso", $nome, $attesi, $impronta, $avanzamento)
+        try { return @{ File = $scarica.Invoke($null, $argScarico); Errore = $null } }
+        catch {
+            $interna = $_.Exception
+            while ($interna.InnerException) { $interna = $interna.InnerException }
+            return @{ File = $null; Errore = $interna.Message }
+        }
+    }
+    function Rimasti() { @(Get-ChildItem -LiteralPath $scarichi -File).Count }
+
+    $r1 = Scarico '/scarico/intero' 'intero.exe' 1000000 $giusta $null
+    Verifica 'un file intero e giusto arriva'      ($r1.Errore -eq $null -and $r1.File -and (Test-Path $r1.File))
+    Verifica '... con tutti i suoi byte'           ($r1.File -and (Get-Item $r1.File).Length -eq 1000000)
+    if ($r1.File) { Remove-Item $r1.File -Force }
+
+    $r2 = Scarico '/scarico/troncato' 'troncato.exe' 1000000 $giusta $null
+    Write-Host "  troncato: $($r2.Errore)"
+    Verifica 'uno scarico troncato e'' un errore'  ($r2.Errore -ne $null -and $r2.File -eq $null)
+    Verifica '... e non lascia file'               ((Rimasti) -eq 0)
+
+    $r3 = Scarico '/scarico/troncato' 'troncato2.exe' 0 '' $null
+    Verifica 'troncato anche senza dimensione e impronta da GitHub' ($r3.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $r4 = Scarico '/scarico/intero' 'impronta.exe' 1000000 $sbagliata $null
+    Write-Host "  impronta sbagliata: $($r4.Errore)"
+    Verifica "l'impronta sbagliata e' un errore"   ($r4.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $r5 = Scarico '/scarico/intero' 'dimensione.exe' 999999 '' $null
+    Verifica 'la dimensione sbagliata e'' un errore' ($r5.Errore -ne $null -and (Rimasti) -eq 0)
+
+    $ferma = [Func[int,long,long,bool]]{ param($pc, $fatti, $tot) $false }
+    $r6 = Scarico '/scarico/intero' 'fermato.exe' 1000000 $giusta $ferma
+    Verifica 'fermato: nessun file e nessun errore' ($r6.Errore -eq $null -and $r6.File -eq $null -and (Rimasti) -eq 0)
+    $env:TMP = $tmpPrima
+
     Write-Host "`n=== SERVIZIO SPENTO ===" -ForegroundColor Cyan
     # una porta dove non c'e' davvero nessuno: se ne cerco una fissa, basta un
     # avanzo di una prova precedente per far fallire questa senza colpa
@@ -250,6 +300,7 @@ Cordiali saluti, Anna Verdi
     else { Write-Host "PROVE FALLITE: $fallimenti" -ForegroundColor Red; exit 1 }
 }
 finally {
+    $env:TMP = $tmpPrima
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
     if ($serverSenzaTesto -and -not $serverSenzaTesto.HasExited) { Stop-Process -Id $serverSenzaTesto.Id -Force }
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
