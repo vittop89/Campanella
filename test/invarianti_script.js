@@ -29,14 +29,17 @@
  *     EXTRA_togliFiltri e la sua funzione interna _togliFiltri_, che toglie
  *     soltanto i filtri scelti dal docente dopo averne scritto la copia:
  *     altrove e' una cancellazione non ammessa, come tutte le altre.
+ *     EXTRA_togliFiltri la esegue solo il docente: nessuna funzione e nessun
+ *     trigger la chiama, e _togliFiltri_ la chiama solo EXTRA_togliFiltri.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
  * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
  * estraneo, una copia in cc, un moveToTrash, un filtro tolto fuori da
- * EXTRA_togliFiltri o un'etichetta cancellata anche li' dentro devono far
- * fallire i controlli. Se un giorno uno di questi non fallisse piu', il
- * controllo sarebbe diventato cieco.
+ * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora o
+ * un'etichetta cancellata anche li' dentro devono far fallire i controlli.
+ * Se un giorno uno di questi non fallisse piu', il controllo sarebbe
+ * diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -228,7 +231,9 @@ const REGOLE = {
     gmailApi: ['Gmail.Users.Labels.list', 'Gmail.Users.Labels.get', 'Gmail.Users.Labels.patch',
                'Gmail.Users.Settings.Filters.list', 'Gmail.Users.Settings.Filters.create'],
     // togliere un filtro: solo i filtri scelti dal docente, e solo dentro
-    // queste funzioni, che prima ne scrivono la copia nel registro
+    // queste funzioni, che prima ne scrivono la copia nel registro. Quella
+    // pubblica (senza "_" in fondo) la esegue solo il docente: nessuna
+    // funzione la chiama. Quelle interne le chiama solo quella pubblica.
     gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] }
   },
   'Orari.gs': {
@@ -320,6 +325,29 @@ function controlla(nomeFile, sorgente) {
   for (const nome of Object.keys(soloIn)) {
     for (const f of soloIn[nome]) {
       if ((corpi[f] || []).length > 1) fuori.push('la funzione ' + f + ' e\' dichiarata ' + corpi[f].length + ' volte');
+    }
+  }
+
+  // e chi le chiama. Quella pubblica (EXTRA_togliFiltri) la esegue solo il
+  // docente dall'editor: nel codice non compare mai, se non nella sua
+  // dichiarazione, cosi' nessuna funzione e nessun trigger orario la chiama.
+  // Quelle interne (_togliFiltri_) si chiamano solo dentro quella pubblica,
+  // e non si prendono come valore. Il loro nome non si scrive nemmeno fra
+  // virgolette da solo: ScriptApp.newTrigger('EXTRA_togliFiltri').
+  for (const nome of Object.keys(soloIn)) {
+    const pubbliche = soloIn[nome].filter(f => !/_$/.test(f));
+    for (const f of soloIn[nome]) {
+      const pubblica = pubbliche.indexOf(f) >= 0;
+      const uso = new RegExp('\\b' + f + '\\b', 'g');
+      let u;
+      while ((u = uso.exec(nudo))) {
+        if (/\bfunction\s+$/.test(nudo.slice(Math.max(0, u.index - 30), u.index))) continue;   // la dichiarazione
+        const chiamata = /^\s*\(/.test(nudo.slice(u.index + f.length));
+        if (!pubblica && chiamata && dentroA(corpi, pubbliche, u.index)) continue;
+        fuori.push((pubblica ? f + ' chiamata o nominata nel codice: la esegue solo il docente'
+                             : f + ' usata fuori da ' + pubbliche.join(' e ')) + ' (riga ' + riga(u.index) + ')');
+      }
+      if (stringhe.some(s => s.trim() === f)) fuori.push('il nome ' + f + ' da solo fra virgolette (un trigger?)');
     }
   }
 
@@ -531,6 +559,23 @@ function provaDellaProva() {
     'servizio Gmail non ammesso: Gmail.Users.Messages.remove');
   deveFallire('Organizzazione_Gmail.gs', 'o messo nel cestino, li\' dentro',
     inserisci(posta, DENTRO_TOGLI, '\n  GmailApp.search(\'label:Famiglie\')[0].moveToTrash();'), 'cestino');
+  // e chi le chiama: EXTRA_togliFiltri solo il docente, _togliFiltri_ solo EXTRA_togliFiltri
+  deveFallire('Organizzazione_Gmail.gs', '_togliFiltri_ chiamata dallo smistamento di ogni ora viene trovata',
+    inserisci(posta, 'function smistaNuoviMessaggi() {',
+              '\n  if (_servizioFiltri_()) _togliFiltri_(_vociFiltri_(_config_()).buone, false);'),
+    '_togliFiltri_ usata fuori da EXTRA_togliFiltri');
+  deveFallire('Organizzazione_Gmail.gs', 'EXTRA_togliFiltri chiamata dal riordino viene trovata',
+    inserisci(posta, 'function PASSO_3_riordinaPostaEsistente(e) {', '\n  EXTRA_togliFiltri();'),
+    'EXTRA_togliFiltri chiamata o nominata nel codice');
+  deveFallire('Organizzazione_Gmail.gs', '_togliFiltri_ presa come valore viene trovata',
+    inserisci(posta, INIZIO, '\n  var t = _togliFiltri_;'), '_togliFiltri_ usata fuori da EXTRA_togliFiltri');
+  deveFallire('Organizzazione_Gmail.gs', 'anche dentro EXTRA_togliFiltri, se non e\' una chiamata',
+    inserisci(posta, 'function EXTRA_togliFiltri() {', '\n  var t = _togliFiltri_;'),
+    '_togliFiltri_ usata fuori da EXTRA_togliFiltri');
+  deveFallire('Organizzazione_Gmail.gs', 'e un trigger che esegue EXTRA_togliFiltri viene trovato',
+    inserisci(posta, 'function PASSO_4_attivaAutomazione() {',
+              '\n  ScriptApp.newTrigger(\'EXTRA_togliFiltri\').timeBased().everyHours(1).create();'),
+    'il nome EXTRA_togliFiltri da solo fra virgolette');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto
