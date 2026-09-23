@@ -140,6 +140,13 @@ function _moduloChiudi_(e) {
   }
   var finito = memoria.scadenza ||
     Utilities.formatDate(new Date(new Date().getTime() - 12 * 60 * 60 * 1000), _moduloFuso_(), 'yyyy-MM-dd');
+  if (!memoria.scadenza) {
+    // lo segno al primo tentativo: se il modulo non si chiude, quelli fra un'ora devono chiudere
+    // lo stesso anno. Ricalcolato dopo mezza giornata sarebbe gia' l'anno nuovo
+    memoria.modulo = form.getId();
+    memoria.scadenza = finito;
+    _moduloRicorda_(memoria);
+  }
   var guasto = '';
   try { _moduloRiprova_(function () { form.setAcceptingResponses(false); }); }
   catch (e1) { guasto = String(e1.message || e1); }  // lo guardo qui sotto

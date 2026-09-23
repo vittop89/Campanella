@@ -989,6 +989,38 @@ titolo('LA CHIUSURA: LOCK, TENTATIVI, MEMORIA');
   co.MODULO_chiusura();
   verifica('chiusura di una versione di prima: chiude, e si segna l\'anno giusto',
     o.form.aperto === false && memoria(o).chiusi['2026-27'] === '2027-08-31');
+
+  // la stessa, ma Google non chiude il modulo per dodici tentativi: al tredicesimo, alle 12:05
+  // del primo settembre, l'anno finito e' ancora quello del 31/08, non quello di adesso
+  const t13 = nuovoMondo();
+  t13.cartella('A.S. 2026-27/RECUPERI');
+  const ct13 = carica(t13);
+  ct13.MODULO_2_prepara();
+  const suo13 = t13.form.destinazione.foglio;
+  t13.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: t13.form.id, fogli: memoria(t13).fogli }));
+  const vera13 = t13.form.setAcceptingResponses;
+  t13.form.setAcceptingResponses = function (si) {
+    if (!si) throw new Error('Service error: Forms');
+    return vera13.call(this, si);
+  };
+  t13.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  let uid13 = t13.trigger[0].uid;
+  for (let i = 0; i < 12; i++) {
+    ct13.MODULO_chiusura({ triggerUid: uid13 });
+    uid13 = t13.trigger[t13.trigger.length - 1].uid;
+    t13.adesso += 60 * 60 * 1000;
+  }
+  t13.form.setAcceptingResponses = vera13;
+  ct13.MODULO_chiusura({ triggerUid: uid13 });
+  verifica('versione di prima, chiusa al tredicesimo tentativo (12:05 del 01/09): segna il 2026-27, finito il 31/08',
+    t13.form.aperto === false && t13.form.destinazione === null && t13.trigger.length === 0 &&
+    memoria(t13).chiusi['2026-27'] === '2027-08-31' && memoria(t13).chiusi['2027-28'] === undefined);
+  t13.adesso = new Date('2027-09-05T09:00:00+02:00').getTime();
+  const tt13 = ct13.MODULO_2_prepara();
+  verifica('e il 05/09 "Prepara l\'anno nuovo" prepara il 2027-28: foglio nuovo, collegato, modulo riaperto',
+    tt13.indexOf('FATTO') >= 0 && t13.form.aperto === true && t13.form.destinazione !== null &&
+    t13.form.destinazione.foglio.id !== suo13.id &&
+    t13.form.destinazione.foglio.nome === 'Risposte Recuperi - A.S. 2027-28');
 }
 
 // ---- 9e. tanti anni di fila ---------------------------------------------------------------------
