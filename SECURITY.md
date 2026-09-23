@@ -18,7 +18,11 @@ a few weeks, but it comes.
 - The application writes personal data somewhere other than the declared
   places (`campanella.json`, `campanella-dati.json`, the folders chosen by
   the user), or sends it over the network.
-- The download of rizzo-pii from Settings can be hijacked.
+- The application connects anywhere without the user pressing a button, or
+  sends text or files for rizzo-pii to an address that is not on the same
+  computer.
+- The download of rizzo-pii (from Settings or the C# installer) can be
+  hijacked, or a file that fails its size and SHA-256 check gets launched.
 - The Chrome extension reads or sends more than it declares.
 - The installer or the uninstaller touch files outside their own folder.
 
@@ -29,3 +33,4 @@ which appears for every personal script.
 ## Supported versions
 
 Only the latest published release. Earlier ones receive no fixes: update.
+Settings > "Cerca aggiornamenti" says when a newer release is out.
