@@ -225,7 +225,7 @@ namespace Campanella
                     DialogResult = DialogResult.OK;
                 };
                 Controls.Add(el);
-                el.ForeColor = Tema.Rosso;
+                el.Tag = Ruolo.Pericolo;      // un ForeColor messo a mano spariva con Tema.Applica
             }
 
             if (daModificare != null)

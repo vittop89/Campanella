@@ -39,6 +39,20 @@ namespace Campanella
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // Un errore che nessuno ha previsto non deve aprire la finestra di
+            // .NET, con la traccia dello stack e "Continua": basta dire cosa e'
+            // successo, in italiano, e se il programma puo' andare avanti.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += delegate(object o, System.Threading.ThreadExceptionEventArgs e)
+            {
+                MostraImprevisto(e.Exception, false);
+            };
+            AppDomain.CurrentDomain.UnhandledException += delegate(object o, UnhandledExceptionEventArgs e)
+            {
+                MostraImprevisto(e.ExceptionObject as Exception, e.IsTerminating);
+            };
+
             try
             {
                 Stato s = Stato.Carica();
@@ -87,6 +101,36 @@ namespace Campanella
                 MessageBox.Show("Errore imprevisto:\n\n" + ex.Message,
                     "Campanella", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        static bool mostrandoImprevisto = false;
+
+        /// <summary>
+        /// Il messaggio breve di un errore imprevisto. Uno alla volta: un errore
+        /// che si ripete (per esempio mentre si ridisegna una pagina) non deve
+        /// aprire una finestra sopra l'altra.
+        /// </summary>
+        static void MostraImprevisto(Exception ex, bool chiude)
+        {
+            if (mostrandoImprevisto) return;
+            mostrandoImprevisto = true;
+            try
+            {
+                MessageBox.Show(TestoImprevisto(ex, chiude), "Campanella", MessageBoxButtons.OK,
+                    chiude ? MessageBoxIcon.Error : MessageBoxIcon.Warning);
+            }
+            catch (Exception) { /* senza finestre (Windows in chiusura) non c'e' altro modo di dirlo */ }
+            finally { mostrandoImprevisto = false; }
+        }
+
+        static string TestoImprevisto(Exception ex, bool chiude)
+        {
+            string motivo = (ex != null && !string.IsNullOrEmpty(ex.Message)) ? ex.Message : "motivo sconosciuto";
+            return "Qualcosa non e' andato come previsto:\n\n" + motivo + "\n\n" +
+                   (chiude
+                        ? "Campanella deve chiudersi: quello che hai cambiato da quando l'hai " +
+                          "aperta potrebbe non essere salvato."
+                        : "Puoi continuare a lavorare. Se qualcosa non risponde, chiudi e riapri Campanella.");
         }
     }
 
@@ -137,13 +181,6 @@ namespace Campanella
         List<VoceMenu> voci = new List<VoceMenu>();
         int pagina = 0;
 
-        public PaginaPosta Posta;
-        public PaginaCartelle Cartelle;
-        public PaginaOrari Orari;
-        public PaginaPrivacy Privacy;
-
-        public Guscio() : this(Stato.Carica()) { }
-
         public Guscio(Stato stato)
         {
             S = stato;
@@ -166,10 +203,10 @@ namespace Campanella
             contenuto.BringToFront();
 
             pagine.Add(new PaginaHome(this));
-            Posta = new PaginaPosta(this); pagine.Add(Posta);
-            Cartelle = new PaginaCartelle(this); pagine.Add(Cartelle);
-            Orari = new PaginaOrari(this); pagine.Add(Orari);
-            Privacy = new PaginaPrivacy(this); pagine.Add(Privacy);
+            pagine.Add(new PaginaPosta(this));
+            pagine.Add(new PaginaCartelle(this));
+            pagine.Add(new PaginaOrari(this));
+            pagine.Add(new PaginaPrivacy(this));
             pagine.Add(new PaginaImpostazioni(this));
 
             foreach (Pagina p in pagine) contenuto.Controls.Add(p);
@@ -423,11 +460,40 @@ namespace Campanella
             btnIndietro.Location = new Point(btnAvanti.Left - 18 - btnIndietro.Width, 14);
         }
 
+        /// <summary>
+        /// Va a una pagina e a un suo passo, scelti per quello che sono e non per
+        /// la posizione nel menu: riordinare gli strumenti non deve rompere i
+        /// bottoni che portano dall'uno all'altro. Per esempio
+        /// Guscio.VaiAPagina(this, 1) dal primo passo di una pagina.
+        /// </summary>
+        public void VaiAPagina(Pagina p, int passo)
+        {
+            int i = pagine.IndexOf(p);
+            if (i < 0) throw new ArgumentException("La pagina non e' nel menu.");
+            VaiA(i, passo);
+        }
+
+        /// <summary>La pagina di quel tipo, per esempio typeof(PaginaPosta).</summary>
+        public void VaiAPagina(Type tipo, int passo)
+        {
+            foreach (Pagina p in pagine)
+                if (p.GetType() == tipo) { VaiAPagina(p, passo); return; }
+            throw new ArgumentException("Non c'e' la pagina " + (tipo != null ? tipo.Name : "(nessuna)") + ".");
+        }
+
+        /// <summary>
+        /// Lo strumento con quel nome esatto (maiuscole e spazi a parte), al primo
+        /// passo. Prima bastava un pezzo del nome, e "Impostazioni" contiene
+        /// "posta": un nome sbagliato adesso si vede subito, invece di portare
+        /// altrove in silenzio.
+        /// </summary>
         public void VaiAStrumento(string nome)
         {
-            for (int i = 0; i < pagine.Count; i++)
-                if (pagine[i].Nome.IndexOf(nome, StringComparison.CurrentCultureIgnoreCase) >= 0)
-                { VaiA(i, 0); return; }
+            string cercato = (nome ?? "").Trim();
+            foreach (Pagina p in pagine)
+                if (string.Equals(p.Nome, cercato, StringComparison.OrdinalIgnoreCase))
+                { VaiAPagina(p, 0); return; }
+            throw new ArgumentException("Non c'e' uno strumento che si chiama \"" + nome + "\".");
         }
 
         public void Stato1(string testo) { Stato1(testo, Tema.Verde); }
@@ -435,12 +501,23 @@ namespace Campanella
         public void Stato1(string testo, Color colore)
         {
             lblStato.Text = testo;
+            // anche il ruolo, non solo il colore: cambiando tema l'avviso ambra
+            // tornava verde, il colore del ruolo con cui la riga e' nata
+            lblStato.Tag = Tema.RuoloDi(colore);
             lblStato.ForeColor = colore;
         }
 
-        void CambiaTema()
+        void CambiaTema() { ImpostaTema(!Tema.Scuro); }
+
+        /// <summary>
+        /// Cambia il tema a tutta la finestra, da qualunque parte lo si chieda
+        /// (il bottone in alto o le Impostazioni). Applica rimette i colori di
+        /// base, quindi dopo va ridipinta la voce scelta del menu: dalle
+        /// Impostazioni prima restava spenta.
+        /// </summary>
+        public void ImpostaTema(bool scuro)
         {
-            Tema.Imposta(!Tema.Scuro);
+            Tema.Imposta(scuro);
             S.TemaScuro = Tema.Scuro;
             Tema.Applica(this);
             AggiornaMenu();
@@ -579,6 +656,13 @@ namespace Campanella
         Panel[] schede = new Panel[4];
         Label[] statoStrumento = new Label[4];
 
+        /// <summary>
+        /// I Drive del computer con cui confrontare quello scelto; null = cercarli
+        /// davvero. Serve alle prove, che ci mettono cartelle finte invece di
+        /// guardare i Drive veri.
+        /// </summary>
+        List<DriveTrovato> driviDiProva = null;
+
         public PaginaHome(Guscio g) : base(g) { Costruisci(); }
 
         public override string Nome { get { return "Inizio"; } }
@@ -608,6 +692,10 @@ namespace Campanella
                              "Apri Privacy" }
             };
 
+            // ogni scheda porta alla sua pagina, cercata per tipo e non per nome
+            Type[] pagineDelleSchede = { typeof(PaginaPosta), typeof(PaginaCartelle),
+                                         typeof(PaginaOrari), typeof(PaginaPrivacy) };
+
             // due colonne per due righe: sta comodo anche in una finestra piccola
             int larghezza = 440, altezza = 196, colonne = 2;
             for (int i = 0; i < 4; i++)
@@ -630,9 +718,9 @@ namespace Campanella
                 statoStrumento[i].Height = 34;
                 c.Controls.Add(statoStrumento[i]);
 
-                string bersaglio = voci[i, 0];
+                Type bersaglio = pagineDelleSchede[i];
                 Button b = Tema.BottonePrincipale(voci[i, 2], 18, altezza - 50, 170,
-                    delegate { Guscio.VaiAStrumento(bersaglio); });
+                    delegate { Guscio.VaiAPagina(bersaglio, 0); });
                 c.Controls.Add(b);
 
                 Controls.Add(c);
@@ -677,32 +765,41 @@ namespace Campanella
                 // due account Google sul computer = due "Il mio Drive": se stiamo
                 // guardando quello sbagliato, tutto il resto direbbe "da fare"
                 DriveTrovato questo = Stato.EsaminaDrive(S.Drive, "");
+                string altroDrive = "";
                 if (!questo.ConModelli && !questo.ConAnni)
                 {
-                    foreach (DriveTrovato d in Stato.DriviPossibili())
+                    foreach (DriveTrovato d in (driviDiProva != null ? driviDiProva : Stato.DriviPossibili()))
                     {
                         if (string.Equals(d.Percorso, S.Drive, StringComparison.OrdinalIgnoreCase)) continue;
                         if (!d.ConModelli && !d.ConAnni) continue;
-                        statoStrumento[1].Text = "Sto guardando " + S.Drive + ", dove non c'e' MODELLI.\r\n" +
-                            "Il Drive della scuola sembra " + d.Percorso + ": apri Cartelle e cambialo.";
-                        statoStrumento[1].Tag = Ruolo.Avviso;
-                        Tema.Applica(this);
-                        return;
+                        altroDrive = d.Percorso;
+                        break;
                     }
                 }
-                if (S.ModuloFoglio.Trim() != "")
+                // Qui prima c'era un return: le schede Orari e Privacy e il
+                // riepilogo restavano vuoti o vecchi proprio in questo caso.
+                if (altroDrive != "")
                 {
-                    ParametriModulo pm = new ParametriModulo();
-                    pm.CartellaFoglio = S.ModuloCartella;
-                    pm.NomeFoglio = S.ModuloFoglio;
-                    pm.UsaDrive = S.ModuloDrive;
-                    bool foglio = ScriptModuli.FoglioSulPc(S.Drive, anno, pm);
-                    riga += foglio ? "   ·   foglio del modulo: c'e'"
-                                   : "   ·   foglio del modulo: da preparare (passo 2)";
-                    if (!foglio) daFare = true;
+                    statoStrumento[1].Text = "Sto guardando " + S.Drive + ", dove non c'e' MODELLI.\r\n" +
+                        "Il Drive della scuola sembra " + altroDrive + ": apri Cartelle e cambialo.";
+                    statoStrumento[1].Tag = Ruolo.Avviso;
                 }
-                statoStrumento[1].Text = riga;
-                statoStrumento[1].Tag = daFare ? Ruolo.Avviso : Ruolo.Buono;
+                else
+                {
+                    if (S.ModuloFoglio.Trim() != "")
+                    {
+                        ParametriModulo pm = new ParametriModulo();
+                        pm.CartellaFoglio = S.ModuloCartella;
+                        pm.NomeFoglio = S.ModuloFoglio;
+                        pm.UsaDrive = S.ModuloDrive;
+                        bool foglio = ScriptModuli.FoglioSulPc(S.Drive, anno, pm);
+                        riga += foglio ? "   ·   foglio del modulo: c'e'"
+                                       : "   ·   foglio del modulo: da preparare (passo 2)";
+                        if (!foglio) daFare = true;
+                    }
+                    statoStrumento[1].Text = riga;
+                    statoStrumento[1].Tag = daFare ? Ruolo.Avviso : Ruolo.Buono;
+                }
             }
 
             statoStrumento[2].Text = (S.Lezioni.Count > 0)
@@ -854,7 +951,7 @@ namespace Campanella
             }));
             y += 40;
             lblEsito = Tema.Testo1("", 0, y, 860, Tema.Normale, Ruolo.Tenue);
-            lblEsito.Height = 24;     // nasce vuota: senza questo l'esito resta tagliato
+            lblEsito.Height = 40;     // nasce vuota: senza questo l'esito (fino a due righe) resta tagliato
             Controls.Add(lblEsito);
             y += 44;
 
@@ -1133,20 +1230,25 @@ namespace Campanella
         void ApplicaTema(bool scuro)
         {
             if (Tema.Scuro == scuro) return;
-            Tema.Imposta(scuro);
-            S.TemaScuro = scuro;
-            Tema.Applica(FindForm());
-            Guscio.AggiornaBottoneTema();
-            FindForm().Refresh();
+            Guscio.ImpostaTema(scuro);
         }
 
         void Verifica()
         {
-            StatoPosta r = StatoPosta.LeggiCodice(txtCodice.Text);
+            StatoPosta r = StatoPosta.LeggiCodice(txtCodice.Text, S.PrefissoPulito());
             if (r == null)
             {
                 lblEsito.Text = "Non ho riconosciuto il codice. Deve essere una riga sola, " +
                                 "nella forma CMP1-20260910-9-1-2431.";
+                lblEsito.Tag = Ruolo.Avviso;
+            }
+            else if (r.Incerto)
+            {
+                // Senza gruppo il codice conta anche le etichette dell'utente: non
+                // lo tengo, cosi' la pagina iniziale non dice "Gia' fatto" per
+                // questo, neanche se poi il gruppo cambia.
+                S.CodiceStatoPosta = "";
+                lblEsito.Text = "Non basta a confermarlo: " + r.Dettaglio;
                 lblEsito.Tag = Ruolo.Avviso;
             }
             else

@@ -31,10 +31,22 @@ function Verifica($testo, $ok) {
     else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
 }
 
-# Le impostazioni: quelle vere se ci sono, cosi' guardo le pagine come le vedo io
+# Le impostazioni: mai quelle vere, e mai il Drive vero. Oggi "new Stato()"
+# punta da solo al Drive del computer: lo sposto subito su cartelle finte in
+# %TEMP%. Il Drive finto ha MODELLI e un modulo, cosi' ne' la pagina iniziale
+# ne' Cartelle vanno a cercare negli altri Drive del computer.
 $tStato = $asm.GetType('Campanella.Stato')
 $FS = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
-$stato = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+$FI = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+$prova = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-guscio-disposizione-' + (Get-Random))
+$driveFinto = Join-Path $prova 'Il mio Drive'
+New-Item -ItemType Directory -Force (Join-Path $driveFinto 'MODELLI') | Out-Null
+Set-Content -Path (Join-Path $driveFinto 'MODELLI\Modulo di prova.gform') -Value '{}'
+$stato = [Activator]::CreateInstance($tStato)
+$tStato.GetField('Drive', $FI).SetValue($stato, $driveFinto)
+$tStato.GetField('CartellaDati', $FI).SetValue($stato, (Join-Path $prova 'dati'))
+$tStato.GetField('DatiNelDrive', $FI).SetValue($stato, $false)
+$tStato.GetField('AnonDestinazione', $FI).SetValue($stato, (Join-Path $prova 'anonimizzati'))
 
 $tGuscio = $asm.GetType('Campanella.Guscio')
 $guscio = [Activator]::CreateInstance($tGuscio, @($stato.PSObject.BaseObject))
@@ -149,6 +161,26 @@ function ControllaAiuti($pannello, $dove) {
 $campoPagine = $tGuscio.GetField('pagine', [System.Reflection.BindingFlags]'NonPublic,Instance')
 $pagine = $campoPagine.GetValue($guscio)
 $metodoVaiA = $tGuscio.GetMethod('VaiA')
+
+# Cartelle confronta il Drive scelto con quelli del computer: le do un elenco
+# con il solo Drive finto, cosi' non va a guardare quelli veri
+$tDriveTrovato = $asm.GetType('Campanella.DriveTrovato')
+function ElencoDrivi($percorsi) {
+    $lista = [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDriveTrovato))
+    foreach ($p in $percorsi) {
+        $d = [Activator]::CreateInstance($tDriveTrovato)
+        $tDriveTrovato.GetField('Percorso').SetValue($d, [string]$p)
+        $tDriveTrovato.GetField('ConModelli').SetValue($d, (Test-Path (Join-Path $p 'MODELLI')))
+        $tDriveTrovato.GetField('Punti').SetValue($d, 4)
+        $lista.Add($d)
+    }
+    return ,$lista
+}
+foreach ($pg in $pagine) {
+    if ($pg.GetType().Name -eq 'PaginaCartelle') {
+        $pg.GetType().GetField('drivi', $FI).SetValue($pg, (ElencoDrivi @($driveFinto)))
+    }
+}
 
 # --- i bottoni in basso: Avanti deve dire la verita' ------------------------
 # All'ultimo passo di uno strumento "Avanti" restava blu e non faceva niente.
@@ -279,6 +311,75 @@ $tGuscio.GetMethod('Avanti', $FIp).Invoke($guscio, @()) | Out-Null
 Verifica "a meta' strada Avanti resta nello stesso strumento" (
     $tGuscio.GetField('pagina', $FIp).GetValue($guscio) -eq $iPosta -and $pagine[$iPosta].Passo -eq 1)
 
+# --- si va a una pagina, non a una posizione nel menu -------------------------
+# "Cominciamo" chiamava VaiA(1, 1) e VaiAStrumento cercava un pezzo del nome:
+# "Impostazioni" contiene "posta". Riordinare le pagine rompeva i bottoni.
+Write-Host "`nLA NAVIGAZIONE" -ForegroundColor Cyan
+function PaginaOra { return $pagine[$tGuscio.GetField('pagina', $FIp).GetValue($guscio)] }
+$mPerTipo = $tGuscio.GetMethod('VaiAPagina', [Type[]]@([System.Type], [int]))
+$mPerPagina = $tGuscio.GetMethod('VaiAPagina', [Type[]]@($asm.GetType('Campanella.Pagina'), [int]))
+$mStrumento = $tGuscio.GetMethod('VaiAStrumento', [Type[]]@([string]))
+Verifica "si puo' andare a una pagina per tipo e per pagina" ($mPerTipo -ne $null -and $mPerPagina -ne $null)
+if ($mPerTipo -ne $null -and $mPerPagina -ne $null) {
+    $mPerTipo.Invoke($guscio, @($asm.GetType('Campanella.PaginaImpostazioni'), [int]0)) | Out-Null
+    Verifica "per tipo: PaginaImpostazioni porta alle Impostazioni" ((PaginaOra).Nome -eq 'Impostazioni')
+    $mPerPagina.Invoke($guscio, @($pagine[$iPosta], [int]1)) | Out-Null
+    Verifica "per pagina: la Posta, al secondo passo" ((PaginaOra).Nome -eq 'Posta' -and $pagine[$iPosta].Passo -eq 1)
+}
+$mStrumento.Invoke($guscio, @(' posta ')) | Out-Null
+Verifica "per nome, maiuscole e spazi a parte: 'posta' porta alla Posta" ((PaginaOra).Nome -eq 'Posta')
+$errore = $null
+try { $mStrumento.Invoke($guscio, @('Imposta')) | Out-Null }
+catch { $errore = $_.Exception.GetBaseException() }
+Verifica "un pezzo di nome non basta: 'Imposta' non porta alle Impostazioni" ((PaginaOra).Nome -eq 'Posta')
+Verifica "e il nome sbagliato si vede subito (eccezione)" ($errore -is [System.ArgumentException])
+# le schede della pagina iniziale portano ognuna alla sua pagina
+foreach ($nome in @('Posta', 'Cartelle', 'Orari', 'Privacy')) {
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    $bottone = $null
+    foreach ($c in $pagine[0].Controls) {
+        foreach ($d in $c.Controls) { if ($d -is [System.Windows.Forms.Button] -and $d.Text -eq "Apri $nome") { $bottone = $d } }
+    }
+    if ($bottone -eq $null) { Verifica "la pagina iniziale ha il bottone 'Apri $nome'" $false; continue }
+    $onClick.Invoke($bottone, @([System.EventArgs]::Empty)) | Out-Null
+    Verifica "'Apri $nome' porta a $nome" ((PaginaOra).Nome -eq $nome)
+}
+
+# --- la pagina iniziale quando il Drive scelto non e' quello della scuola ------
+# Con un altro Drive che ha MODELLI, Entra usciva prima di aggiornare le schede
+# Orari e Privacy e il riepilogo. I Drive sono finti: senza l'elenco di prova
+# la pagina andrebbe a guardare quelli veri, e allora la prova non si fa.
+Write-Host "`nLA PAGINA INIZIALE CON UN ALTRO DRIVE" -ForegroundColor Cyan
+$home1 = $pagine[0]
+$campoDrivi = $home1.GetType().GetField('driviDiProva', $FI)
+Verifica "la pagina iniziale accetta un elenco di Drive di prova" ($campoDrivi -ne $null)
+if ($campoDrivi -ne $null) {
+    $vuoto = Join-Path $prova 'Personale\Il mio Drive'
+    $scuola = Join-Path $prova 'Scuola\Il mio Drive'
+    New-Item -ItemType Directory -Force $vuoto | Out-Null
+    New-Item -ItemType Directory -Force (Join-Path $scuola 'MODELLI') | Out-Null
+    $campoDrivi.SetValue($home1, (ElencoDrivi @($vuoto, $scuola)))
+    # prima si arriva alla pagina iniziale: uscendo, Privacy rimette PrivacyLetta
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    $tStato.GetField('Drive', $FI).SetValue($stato, $vuoto)
+    $tStato.GetField('PrivacyLetta', $FI).SetValue($stato, $true)
+    $tStato.GetField('Dominio', $FI).SetValue($stato, 'scuola.example')
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $schede = $home1.GetType().GetField('statoStrumento', $FI).GetValue($home1)
+    $riepilogo = $home1.GetType().GetField('lblRiepilogo', $FI).GetValue($home1)
+    Verifica "la scheda Cartelle suggerisce l'altro Drive" ($schede[1].Text -like "*$scuola*")
+    Verifica "la scheda Privacy e' aggiornata lo stesso" ($schede[3].Text -match 'Regole lette')
+    Verifica "il riepilogo e' aggiornato lo stesso" ($riepilogo.Text -match 'scuola\.example')
+    ControllaPannello $home1 'Inizio con un altro Drive'
+    # tutto come prima
+    $tStato.GetField('Drive', $FI).SetValue($stato, $driveFinto)
+    $tStato.GetField('PrivacyLetta', $FI).SetValue($stato, $false)
+    $tStato.GetField('Dominio', $FI).SetValue($stato, '')
+    $campoDrivi.SetValue($home1, $null)
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+}
+
 # --- un bottone spento si legge, in tutti e due i temi -----------------------
 Write-Host "`nI BOTTONI SPENTI" -ForegroundColor Cyan
 $iPrivacy = -1
@@ -302,9 +403,60 @@ foreach ($scuro in @($true, $false)) {
 $mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
 $mApplica.Invoke($null, @($guscio)) | Out-Null
 
+# --- i colori che dicono qualcosa restano dopo Applica e dopo il cambio di tema -
+# Tema.Applica ricolora secondo il ruolo nella Tag: un colore messo a mano
+# spariva ("Elimina regola" non era rosso, l'avviso ambra tornava verde), e
+# il cambio di tema dalle Impostazioni lasciava spenta la voce del menu.
+Write-Host "`nI COLORI DOPO IL CAMBIO DI TEMA" -ForegroundColor Cyan
+$FSpub = [System.Reflection.BindingFlags]'Public,Static'
+function ColoreTema($nome) { return $tTema.GetField($nome, $FSpub).GetValue($null).ToArgb() }
+function Scuro { return $tTema.GetField('Scuro', $FSpub).GetValue($null) }
+
+$tRegola = $asm.GetType('Campanella.Regola')
+$regola = [Activator]::CreateInstance($tRegola)
+$tRegola.GetField('Etichetta').SetValue($regola, 'Etichetta di prova')
+$formRegola = [Activator]::CreateInstance($asm.GetType('Campanella.FormRegola'), @($regola))
+$elimina = $null
+foreach ($c in $formRegola.Controls) { if ($c -is [System.Windows.Forms.Button] -and $c.Text -eq 'Elimina regola') { $elimina = $c } }
+Verifica "'Elimina regola' e' rosso" ($elimina -ne $null -and $elimina.ForeColor.ToArgb() -eq (ColoreTema 'Rosso'))
+$mImposta.Invoke($null, @([bool](-not $scuroPrima))) | Out-Null
+$mApplica.Invoke($null, @($formRegola)) | Out-Null
+Verifica "e resta rosso nell'altro tema" ($elimina -ne $null -and $elimina.ForeColor.ToArgb() -eq (ColoreTema 'Rosso'))
+$mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
+$formRegola.Dispose()
+
+$lblStato = $tGuscio.GetField('lblStato', $FIp).GetValue($guscio)
+$mStato1 = $tGuscio.GetMethod('Stato1', [Type[]]@([string], [System.Drawing.Color]))
+$mCambia = $tGuscio.GetMethod('CambiaTema', $FIp)
+$mStato1.Invoke($guscio, @('Avviso di prova', $tTema.GetField('Ambra', $FSpub).GetValue($null))) | Out-Null
+$mCambia.Invoke($guscio, @()) | Out-Null
+Verifica "la riga di stato ambra resta ambra dopo il cambio di tema" ($lblStato.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+$mCambia.Invoke($guscio, @()) | Out-Null
+Verifica "e anche tornando al tema di prima" ($lblStato.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+
+$iImp = -1
+for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Impostazioni') { $iImp = $k } }
+$metodoVaiA.Invoke($guscio, @([int]$iImp, [int]0)) | Out-Null
+$vocImp = $null
+foreach ($v in $tGuscio.GetField('voci', $FIp).GetValue($guscio)) {
+    if ($v.GetType().GetField('Pagina').GetValue($v) -eq $iImp -and $v.GetType().GetField('Passo').GetValue($v) -eq -1) {
+        $vocImp = $v.GetType().GetField('Bottone').GetValue($v)
+    }
+}
+$mApplicaTema = $pagine[$iImp].GetType().GetMethod('ApplicaTema', $FIp)
+$mApplicaTema.Invoke($pagine[$iImp], @([bool](-not (Scuro)))) | Out-Null
+Verifica "dalle Impostazioni il menu si ricolora: la voce scelta resta evidenziata" (
+    $vocImp -ne $null -and $vocImp.BackColor.ToArgb() -eq (ColoreTema 'AccentoSfondo'))
+$mApplicaTema.Invoke($pagine[$iImp], @([bool]$scuroPrima)) | Out-Null
+Verifica "e anche tornando al tema di prima" (
+    $vocImp -ne $null -and $vocImp.BackColor.ToArgb() -eq (ColoreTema 'AccentoSfondo'))
+
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
-$guscio.Close()
+# Dispose senza Close: Close salverebbe le impostazioni, e qui dentro
+# PowerShell "accanto al programma" vuol dire accanto a powershell.exe
+$guscio.Hide()
 $guscio.Dispose()
+Remove-Item $prova -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($script:fallimenti -eq 0) { Write-Host "`nNessuna sovrapposizione: le pagine stanno in piedi." -ForegroundColor Green }
 else { Write-Host "`nPROBLEMI DI DISPOSIZIONE: $script:fallimenti" -ForegroundColor Red; exit 1 }

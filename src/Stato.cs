@@ -1520,36 +1520,66 @@ namespace Campanella
     class StatoPosta
     {
         public bool Fatto;
+        /// <summary>Il codice e' stato letto ma non basta a dirlo: vedi LeggiCodice.</summary>
+        public bool Incerto;
         public string Come = "";          // come lo si e' capito
         public string Dettaglio = "";
         public DateTime Quando = DateTime.MinValue;
+        public int Versione = 0;          // del codice incollato: CMP1 = 1
         public int Etichette = 0;
+        public int Conversazioni = 0;
         public bool Automazione = false;
 
-        public const int PassiInstallazione = 8;
+        /// <summary>
+        /// I passi facoltativi dell'installazione guidata della Posta, che stanno
+        /// in fondo: oggi uno, i filtri veri di Gmail. Il numero dei passi invece
+        /// non si copia qui: e' quello delle spunte che la pagina salva, una per
+        /// passo.
+        /// </summary>
+        public const int PassiFacoltativi = 1;
+
+        /// <summary>
+        /// La prima versione del codice che conta solo le etichette create dallo
+        /// script, e che quindi vale anche con le etichette senza gruppo.
+        /// 0 = nessuna: CMP1, senza gruppo, conta tutte le etichette dell'account.
+        /// </summary>
+        public static readonly int VersioneSoloEtichetteDelloScript = 0;
 
         public static StatoPosta Verifica(Stato s)
         {
             // --- 2. il codice incollato dall'utente --------------------------
-            StatoPosta daCodice = LeggiCodice(s.CodiceStatoPosta);
+            StatoPosta daCodice = LeggiCodice(s.CodiceStatoPosta, s.PrefissoPulito());
             if (daCodice != null && daCodice.Fatto) return daCodice;
 
             // --- 1. quello che sappiamo da soli ------------------------------
+            // Per dire "fatto" servono tutti i passi obbligatori, non sette
+            // spunte qualsiasi: prima bastava saltarne uno e spuntare il
+            // facoltativo.
             StatoPosta r = new StatoPosta();
+            List<bool> spunte = s.SpunteInstallazione ?? new List<bool>();
+            int totale = spunte.Count;
+            int obbligatori = Math.Max(0, totale - PassiFacoltativi);
             int spuntate = 0;
-            foreach (bool b in s.SpunteInstallazione) if (b) spuntate++;
+            List<string> mancano = new List<string>();
+            for (int i = 0; i < totale; i++)
+            {
+                if (spunte[i]) spuntate++;
+                else if (i < obbligatori) mancano.Add((i + 1).ToString(CultureInfo.InvariantCulture));
+            }
+            string conto = "Hai spuntato " + spuntate + (spuntate == 1 ? " passo su " : " passi su ") + totale;
             r.Etichette = ContaRegoleAttive(s);
-            if (spuntate >= 7)
+            if (obbligatori > 0 && mancano.Count == 0)
             {
                 r.Fatto = true;
                 r.Come = "spunte dell'installazione";
-                r.Dettaglio = "Hai spuntato " + spuntate + " passi su " + PassiInstallazione + ".";
+                r.Dettaglio = conto + ".";
             }
             else if (spuntate > 0)
             {
                 r.Fatto = false;
                 r.Come = "installazione a meta'";
-                r.Dettaglio = "Hai spuntato " + spuntate + " passi su " + PassiInstallazione + ".";
+                r.Dettaglio = conto + (mancano.Count == 1 ? "; manca il passo " : "; mancano i passi ") +
+                              string.Join(", ", mancano.ToArray()) + ".";
             }
             else
             {
@@ -1569,27 +1599,56 @@ namespace Campanella
 
         /// <summary>
         /// Il codice ha la forma  CMP1-&lt;giorno&gt;-&lt;etichette&gt;-&lt;automazione&gt;-&lt;conversazioni&gt;
-        /// ed e' pensato per essere letto a voce senza sbagliare.
+        /// ed e' pensato per essere letto a voce senza sbagliare. Si leggono solo
+        /// cifre ASCII e numeri che stanno in un int: un codice incollato male e'
+        /// "non riconosciuto" (null), non fa cadere il programma. Una versione
+        /// piu' nuova (CMP2...) e campi in piu' in coda si accettano, e i campi in
+        /// piu' si ignorano.
+        ///
+        /// prefisso e' il gruppo delle etichette dello script. Senza gruppo lo
+        /// script conta tutte le etichette dell'account e le loro conversazioni,
+        /// anche quelle messe a mano, e le conta anche dopo ANNULLA_etichettatura:
+        /// allora il codice non basta a dire che il riordino e' fatto (Incerto).
         /// </summary>
-        public static StatoPosta LeggiCodice(string codice)
+        public static StatoPosta LeggiCodice(string codice, string prefisso)
         {
             if (string.IsNullOrEmpty(codice)) return null;
             Match m = Regex.Match(codice.Trim().ToUpperInvariant(),
-                @"^CMP1-(\d{8})-(\d+)-([01])-(\d+)$");
+                @"^CMP([0-9]{1,4})-([0-9]{8})-([0-9]{1,10})-([01])-([0-9]{1,10})(?:-[0-9A-Z]{1,16})*$");
             if (!m.Success) return null;
 
+            int versione, etichette, conversazioni;
+            DateTime quando;
+            if (!Intero(m.Groups[1].Value, out versione) || versione < 1 ||
+                !Intero(m.Groups[3].Value, out etichette) ||
+                !Intero(m.Groups[5].Value, out conversazioni) ||
+                !DateTime.TryParseExact(m.Groups[2].Value, "yyyyMMdd", CultureInfo.InvariantCulture,
+                                        DateTimeStyles.None, out quando))
+                return null;
+
             StatoPosta r = new StatoPosta();
-            DateTime.TryParseExact(m.Groups[1].Value, "yyyyMMdd", CultureInfo.InvariantCulture,
-                                   DateTimeStyles.None, out r.Quando);
-            r.Etichette = int.Parse(m.Groups[2].Value);
-            r.Automazione = (m.Groups[3].Value == "1");
-            int conversazioni = int.Parse(m.Groups[4].Value);
-            r.Fatto = (r.Etichette > 0 && conversazioni > 0);
+            r.Versione = versione;
+            r.Quando = quando;
+            r.Etichette = etichette;
+            r.Conversazioni = conversazioni;
+            r.Automazione = (m.Groups[4].Value == "1");
             r.Come = "codice di verifica";
-            r.Dettaglio = "Riordinate " + conversazioni + " conversazioni in " + r.Etichette +
-                          " etichette il " + r.Quando.ToString("dd/MM/yyyy") + ". Automazione " +
-                          (r.Automazione ? "attiva." : "spenta.");
+            bool soloDelloScript = VersioneSoloEtichetteDelloScript > 0 &&
+                                   versione >= VersioneSoloEtichetteDelloScript;
+            r.Incerto = !soloDelloScript && (prefisso ?? "").Trim().Trim('/') == "";
+            r.Fatto = !r.Incerto && etichette > 0 && conversazioni > 0;
+            r.Dettaglio = (r.Incerto
+                ? "il codice conta anche le etichette messe da te, perche' non hanno un gruppo (" +
+                  etichette + " etichette, " + conversazioni + " conversazioni)."
+                : "Riordinate " + conversazioni + " conversazioni in " + etichette +
+                  " etichette il " + quando.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) + ".") +
+                " Automazione " + (r.Automazione ? "attiva." : "spenta.");
             return r;
+        }
+
+        static bool Intero(string cifre, out int n)
+        {
+            return int.TryParse(cifre, NumberStyles.None, CultureInfo.InvariantCulture, out n);
         }
     }
 }

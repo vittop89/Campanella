@@ -32,6 +32,7 @@ namespace Campanella
         public const string Tenue       = "tenue";
         public const string Accento     = "accento";
         public const string Avviso      = "avviso";
+        public const string Pericolo    = "pericolo";     // rosso: un'azione che non si annulla
         public const string Buono       = "buono";
         public const string Scheda      = "scheda";
         public const string Barra       = "barra";
@@ -49,7 +50,7 @@ namespace Campanella
         // ---- tavolozza corrente -------------------------------------------
         public static Color Sfondo, Pannello, Scheda, Bordo, Campo, CampoBordo;
         public static Color Testo, Tenue, Accento, AccentoSfondo, AccentoTesto;
-        public static Color Verde, Ambra, Rosso, Ombra;
+        public static Color Verde, Ambra, Rosso;
 
         public static readonly Font Normale   = new Font("Segoe UI", 9.75f);
         public static readonly Font Piccolo   = new Font("Segoe UI", 8.75f);
@@ -81,7 +82,6 @@ namespace Campanella
                 Verde         = Rgb(0x7B, 0xD8, 0x8F);
                 Ambra         = Rgb(0xE3, 0xB3, 0x41);
                 Rosso         = Rgb(0xF0, 0x71, 0x78);
-                Ombra         = Rgb(0x10, 0x12, 0x16);
             }
             else
             {
@@ -99,7 +99,6 @@ namespace Campanella
                 Verde         = Rgb(0x18, 0x80, 0x38);
                 Ambra         = Rgb(0xB4, 0x5F, 0x06);
                 Rosso         = Rgb(0xC5, 0x22, 0x1F);
-                Ombra         = Rgb(0xE2, 0xE6, 0xEC);
             }
         }
 
@@ -210,6 +209,16 @@ namespace Campanella
                     b.FlatAppearance.BorderSize = 0;
                     b.FlatAppearance.MouseOverBackColor = Mescola(Pannello, Accento, 0.18);
                 }
+                else if (ruolo == Ruolo.Pericolo)
+                {
+                    // contornato come gli altri, ma rosso: prima il rosso messo a
+                    // mano spariva alla prima Applica
+                    b.BackColor = Scheda;
+                    b.ForeColor = Rosso;
+                    b.FlatAppearance.BorderSize = 1;
+                    b.FlatAppearance.BorderColor = Rosso;
+                    b.FlatAppearance.MouseOverBackColor = Mescola(Scheda, Rosso, 0.16);
+                }
                 else
                 {
                     b.BackColor = Scheda;
@@ -233,6 +242,7 @@ namespace Campanella
             {
                 c.BackColor = Color.Transparent;
                 c.ForeColor = (ruolo == Ruolo.Avviso) ? Ambra
+                            : (ruolo == Ruolo.Pericolo) ? Rosso
                             : (ruolo == Ruolo.Buono) ? Verde
                             : (ruolo == Ruolo.Tenue) ? Tenue : Testo;
             }
@@ -254,6 +264,7 @@ namespace Campanella
                 else if (ruolo == Ruolo.Sottotitolo || ruolo == Ruolo.Tenue) c.ForeColor = Tenue;
                 else if (ruolo == Ruolo.Accento) c.ForeColor = Accento;
                 else if (ruolo == Ruolo.Avviso) c.ForeColor = Ambra;
+                else if (ruolo == Ruolo.Pericolo) c.ForeColor = Rosso;
                 else if (ruolo == Ruolo.Buono) c.ForeColor = Verde;
                 else c.ForeColor = Testo;
             }
@@ -277,6 +288,22 @@ namespace Campanella
                 c.BackColor = Campo;
                 c.ForeColor = Testo;
             }
+        }
+
+        /// <summary>
+        /// Il ruolo di un colore della tavolozza corrente: chi riceve un colore
+        /// (per esempio la riga di stato in basso) mette nella Tag il ruolo, e
+        /// cambiando tema un avviso ambra resta ambra invece di tornare verde.
+        /// </summary>
+        public static string RuoloDi(Color c)
+        {
+            int x = c.ToArgb();
+            if (x == Ambra.ToArgb()) return Ruolo.Avviso;
+            if (x == Rosso.ToArgb()) return Ruolo.Pericolo;
+            if (x == Verde.ToArgb()) return Ruolo.Buono;
+            if (x == Tenue.ToArgb()) return Ruolo.Tenue;
+            if (x == Accento.ToArgb()) return Ruolo.Accento;
+            return Ruolo.Normale;
         }
 
         public static Color Mescola(Color a, Color b, double quanto)
@@ -321,7 +348,7 @@ namespace Campanella
                 SetWindowPos(c.Handle, IntPtr.Zero, 0, 0, 0, 0,
                              SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             }
-            catch { /* Windows senza uxtheme, o senza tema scuro: pazienza */ }
+            catch (Exception) { /* Windows senza uxtheme, o senza tema scuro: pazienza */ }
         }
 
         // ===================================================================
@@ -671,7 +698,7 @@ namespace Campanella
                 using (Pen p = new Pen(Focused && !ReadOnly ? Tema.Accento : Tema.CampoBordo))
                     g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
             }
-            catch { }
+            catch (Exception) { /* casella in chiusura: il bordo torna al prossimo WM_NCPAINT */ }
             finally { ReleaseDC(Handle, hdc); }
         }
 
@@ -691,7 +718,7 @@ namespace Campanella
                     TextRenderer.DrawText(g, segnaposto, Font, r, Tema.Tenue, f);
                 }
             }
-            catch { }
+            catch (Exception) { /* solo il testo d'esempio: meglio non vederlo che far cadere la pagina */ }
         }
     }
 
