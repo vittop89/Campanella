@@ -2,12 +2,30 @@
     firma.ps1 - firma digitalmente l'eseguibile con un certificato locale
 
     Uso:
-        .\strumenti\firma.ps1 -File '.\dist\Organizzazione_Gmail.exe'
+        .\strumenti\firma.ps1 -File '.\dist\Campanella.exe'
+        .\strumenti\firma.ps1 -File '.\dist\Campanella.exe' -SenzaAttendibilita
 
     COSA FA
       Crea (una volta sola) un certificato di firma del codice intestato a
-      "Organizzazione Gmail", lo mette fra i certificati attendibili DI QUESTO
-      UTENTE e lo usa per firmare l'eseguibile.
+      "Campanella" (il valore di -Nome) e lo usa per firmare l'eseguibile,
+      con una marca temporale se un server di marche risponde.
+
+    COSA INSTALLA SUL COMPUTER, E DOVE RESTA
+      - Il certificato con la sua chiave privata va in Cert:\CurrentUser\My
+        (certificati personali di questo utente). La chiave e' creata NON
+        esportabile: serve a firmare da questo profilo, ma non si copia
+        altrove. I certificati creati da versioni precedenti di questo
+        script hanno la chiave esportabile: per sostituirlo, cancellalo da
+        certmgr.msc (Personale > Certificati) e rilancia.
+      - Salvo -SenzaAttendibilita, una copia del solo certificato pubblico
+        va anche in Cert:\CurrentUser\Root (Autorita' di certificazione
+        radice attendibili) e in Cert:\CurrentUser\TrustedPublisher (Autori
+        attendibili). Da quel momento, per questo utente, Windows considera
+        attendibile QUALUNQUE programma firmato con quel certificato. Prima
+        di aggiungerlo a Root Windows chiede conferma con una sua finestra.
+      - Tutto resta installato finche' non lo togli tu: da certmgr.msc,
+        oppure con Remove-Item Cert:\CurrentUser\<negozio>\<impronta> per
+        ciascuno dei tre negozi.
 
     COSA OTTIENI
       Su questo computer Windows smette di dire "Autore sconosciuto" e non
@@ -28,9 +46,9 @@ param(
     [Parameter(Mandatory = $true)][string]$File,
     [string]$Nome = 'Campanella',
     [int]$AnniValidita = 3,
-    # salta l'aggiunta alle Autorita' radice, che fa comparire una finestra di
-    # Windows: la firma si mette lo stesso, semplicemente non e' ancora
-    # riconosciuta come attendibile
+    # non aggiunge il certificato a Root e TrustedPublisher (vedi sopra): la
+    # firma si mette lo stesso, semplicemente questo computer non la
+    # riconosce come attendibile
     [switch]$SenzaAttendibilita
 )
 
@@ -55,6 +73,7 @@ if (-not $cert) {
                 -KeyLength 2048 `
                 -KeyAlgorithm RSA `
                 -HashAlgorithm SHA256 `
+                -KeyExportPolicy NonExportable `
                 -CertStoreLocation Cert:\CurrentUser\My `
                 -NotAfter (Get-Date).AddYears($AnniValidita)
 } else {
@@ -95,25 +114,36 @@ $marcatori = @(
     'http://timestamp.globalsign.com/tsa/r6advanced1'
 )
 
+# la firma e' nostra se il file porta il nostro certificato: lo stato resta
+# diverso da Valid quando il certificato non e' fra quelli attendibili
+function FirmatoDaNoi($e) {
+    return ($e -and $e.SignerCertificate -and $e.SignerCertificate.Thumbprint -eq $cert.Thumbprint)
+}
+
 $esito = $null
+$conMarca = $false
 foreach ($m in $marcatori) {
     try {
         $esito = Set-AuthenticodeSignature -FilePath $File -Certificate $cert `
                      -HashAlgorithm SHA256 -TimestampServer $m -ErrorAction Stop
-        if ($esito.Status -eq 'Valid') { break }
+        # la marca c'e' anche quando il certificato non e' attendibile (stato
+        # UnknownError): basta quella, rifirmare la toglierebbe
+        if ((FirmatoDaNoi $esito) -and $esito.TimeStamperCertificate) { $conMarca = $true; break }
     } catch {
         Write-Host "  marca temporale non raggiungibile: $m" -ForegroundColor DarkGray
     }
 }
 
 # senza internet firmo comunque, ma senza marca temporale
-if (-not $esito -or $esito.Status -ne 'Valid') {
+if (-not $conMarca) {
+    Write-Host "  nessun server di marche temporali ha risposto: firmo senza marca" -ForegroundColor Yellow
     $esito = Set-AuthenticodeSignature -FilePath $File -Certificate $cert -HashAlgorithm SHA256
 }
 
-if ($esito.Status -eq 'Valid') {
+if ($esito.Status -eq 'Valid' -and (FirmatoDaNoi $esito)) {
     Write-Host "Firmato: $File" -ForegroundColor Green
-} elseif ($esito.Status -eq 'UnknownError' -or $esito.Status -eq 'NotTrusted' -or -not $attendibile) {
+} elseif ((FirmatoDaNoi $esito) -and
+          ($esito.Status -eq 'UnknownError' -or $esito.Status -eq 'NotTrusted' -or -not $attendibile)) {
     Write-Host "Firmato: $File" -ForegroundColor Green
     Write-Host "Il certificato non e' fra quelli attendibili di questo utente, quindi" -ForegroundColor Yellow
     Write-Host "Windows continuera' a mostrare 'Autore sconosciuto'. Per accettarlo:" -ForegroundColor Yellow
@@ -124,3 +154,5 @@ if ($esito.Status -eq 'Valid') {
     Write-Warning "Firma non riuscita: $($esito.Status) - $($esito.StatusMessage)"
     exit 1
 }
+# build.ps1 guarda il codice d'uscita: 0 solo se la firma c'e'
+exit 0
