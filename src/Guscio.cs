@@ -719,9 +719,14 @@ namespace Campanella
         System.Threading.Thread lavoro;
         volatile bool interrompi = false;
         volatile bool scaricando = false;
+        int giroSalute = 0;                  // l'ultimo controllo di rizzo-pii chiesto
         bool zitto = false;
 
         public PaginaImpostazioni(Guscio g) : base(g) { Costruisci(); }
+
+        /// <summary>Vero mentre si scarica rizzo-pii: chiudendo la finestra lo
+        /// scarico si interromperebbe a meta'.</summary>
+        public bool LavoroInCorso { get { return scaricando; } }
 
         public override string Nome { get { return "Impostazioni"; } }
 
@@ -1080,26 +1085,51 @@ namespace Campanella
             return a;
         }
 
+        /// <summary>Esegue sul thread dell'interfaccia, se la pagina c'e' ancora.</summary>
+        void SulThread(MethodInvoker m)
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(m); }
+            catch (InvalidOperationException) { }     // finestra chiusa nel frattempo
+        }
+
         static string RigaCampanella()
         {
             return "Campanella " + Aggiornamenti.VersioneCampanella +
                    "  (provata con rizzo-pii " + Anonimizzatore.VersioneRizzoProvata + ")\r\n";
         }
 
+        /// <summary>Chiede a rizzo-pii se c'e'. La domanda gira fuori dal thread
+        /// dell'interfaccia: con rizzo-pii spento la risposta arriva dopo un paio
+        /// di secondi, e le Impostazioni non devono bloccarsi.</summary>
         void ControllaComponenti()
         {
             Anonimizzatore a = Servizio();
-            SaluteAnonimizzatore s = a.Salute();
-
-            string riga = RigaCampanella();
-            riga += s.Pronto
-                ? "rizzo-pii " + (s.Versione != "" ? s.Versione : "(versione non dichiarata)") +
-                  " - in ascolto su " + a.Indirizzo + ", modello " + s.Modello + " su " + s.Dispositivo
-                : "rizzo-pii non risponde su " + a.Indirizzo +
-                  ". Senza di lui l'anonimizzazione non funziona: installalo o avvialo.";
-            lblComponenti.Text = riga;
-            lblComponenti.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+            int giro = ++giroSalute;
+            lblComponenti.Text = RigaCampanella() + "Controllo rizzo-pii su " + a.Indirizzo + "...";
+            lblComponenti.Tag = Ruolo.Tenue;
             Tema.Applica(lblComponenti);
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                SaluteAnonimizzatore s = a.Salute();
+                SulThread(delegate
+                {
+                    if (giro != giroSalute) return;     // nel frattempo ne e' partito un altro
+                    string riga = RigaCampanella();
+                    if (s.Pronto)
+                        riga += "rizzo-pii " + (s.Versione != "" ? s.Versione : "(versione non dichiarata)") +
+                                " - in ascolto su " + a.Indirizzo + ", modello " + s.Modello + " su " + s.Dispositivo;
+                    else if (!Anonimizzatore.IndirizzoLocale(a.Indirizzo))
+                        riga += "\"" + a.Indirizzo + "\" non e' su questo computer: non lo uso. " +
+                                "rizzo-pii deve girare qui (localhost o 127.0.0.1): correggilo qui sopra.";
+                    else
+                        riga += "rizzo-pii non risponde su " + a.Indirizzo +
+                                ". Senza di lui l'anonimizzazione non funziona: installalo o avvialo.";
+                    lblComponenti.Text = riga;
+                    lblComponenti.Tag = s.Pronto ? Ruolo.Buono : Ruolo.Avviso;
+                    Tema.Applica(lblComponenti);
+                });
+            });
         }
 
         void Messaggio(string testo, string ruolo)
@@ -1119,17 +1149,18 @@ namespace Campanella
             if (lavoro != null && lavoro.IsAlive) return;
             Messaggio("Chiedo a GitHub...", Ruolo.Tenue);
             btnCerca.Enabled = false;
+            Anonimizzatore a = Servizio();
 
+            // tutta la rete qui dentro, anche la domanda a rizzo-pii
             lavoro = new System.Threading.Thread(delegate ()
             {
                 Rilascio r = Aggiornamenti.UltimoRizzoPii();
-                BeginInvoke((MethodInvoker)delegate
+                SaluteAnonimizzatore s = r.Trovato ? a.Salute() : null;
+                SulThread(delegate
                 {
                     btnCerca.Enabled = true;
                     ultimoRilascio = r;
                     if (!r.Trovato) { Messaggio(r.Messaggio, Ruolo.Avviso); return; }
-
-                    SaluteAnonimizzatore s = Servizio().Salute();
 
                     if (!s.Pronto)
                     {
@@ -1205,7 +1236,7 @@ namespace Campanella
                     // cancellato e non parte
                     file = Aggiornamenti.Scarica(url, nome, attesi, sha256, delegate (int pc, long fatti, long tot)
                     {
-                        BeginInvoke((MethodInvoker)delegate
+                        SulThread(delegate
                         {
                             barra.Value = Math.Max(0, Math.Min(100, pc));
                             Messaggio("Scaricato " + Math.Round(fatti / 1024.0 / 1024.0) + " MB su " +
@@ -1217,7 +1248,7 @@ namespace Campanella
                 }
                 catch (Exception ex) { errore = ex.Message; }
 
-                BeginInvoke((MethodInvoker)delegate
+                SulThread(delegate
                 {
                     scaricando = false;
                     barra.Visible = false;
