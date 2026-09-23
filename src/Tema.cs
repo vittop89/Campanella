@@ -49,7 +49,7 @@ namespace Campanella
         // ---- tavolozza corrente -------------------------------------------
         public static Color Sfondo, Pannello, Scheda, Bordo, Campo, CampoBordo;
         public static Color Testo, Tenue, Accento, AccentoSfondo, AccentoTesto;
-        public static Color Verde, Ambra, Rosso, Ombra;
+        public static Color Verde, Ambra, Rosso;
 
         public static readonly Font Normale   = new Font("Segoe UI", 9.75f);
         public static readonly Font Piccolo   = new Font("Segoe UI", 8.75f);
@@ -81,7 +81,6 @@ namespace Campanella
                 Verde         = Rgb(0x7B, 0xD8, 0x8F);
                 Ambra         = Rgb(0xE3, 0xB3, 0x41);
                 Rosso         = Rgb(0xF0, 0x71, 0x78);
-                Ombra         = Rgb(0x10, 0x12, 0x16);
             }
             else
             {
@@ -99,7 +98,6 @@ namespace Campanella
                 Verde         = Rgb(0x18, 0x80, 0x38);
                 Ambra         = Rgb(0xB4, 0x5F, 0x06);
                 Rosso         = Rgb(0xC5, 0x22, 0x1F);
-                Ombra         = Rgb(0xE2, 0xE6, 0xEC);
             }
         }
 

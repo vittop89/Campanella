@@ -181,13 +181,6 @@ namespace Campanella
         List<VoceMenu> voci = new List<VoceMenu>();
         int pagina = 0;
 
-        public PaginaPosta Posta;
-        public PaginaCartelle Cartelle;
-        public PaginaOrari Orari;
-        public PaginaPrivacy Privacy;
-
-        public Guscio() : this(Stato.Carica()) { }
-
         public Guscio(Stato stato)
         {
             S = stato;
@@ -210,10 +203,10 @@ namespace Campanella
             contenuto.BringToFront();
 
             pagine.Add(new PaginaHome(this));
-            Posta = new PaginaPosta(this); pagine.Add(Posta);
-            Cartelle = new PaginaCartelle(this); pagine.Add(Cartelle);
-            Orari = new PaginaOrari(this); pagine.Add(Orari);
-            Privacy = new PaginaPrivacy(this); pagine.Add(Privacy);
+            pagine.Add(new PaginaPosta(this));
+            pagine.Add(new PaginaCartelle(this));
+            pagine.Add(new PaginaOrari(this));
+            pagine.Add(new PaginaPrivacy(this));
             pagine.Add(new PaginaImpostazioni(this));
 
             foreach (Pagina p in pagine) contenuto.Controls.Add(p);
