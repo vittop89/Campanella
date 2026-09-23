@@ -1,18 +1,55 @@
 <#
     prova_installer.ps1 - installa Campanella in una cartella temporanea
     guidando la finestra, controlla il risultato, poi disinstalla e controlla
-    che non resti niente.
+    che resti solo quello che deve restare.
 
         .\test\prova_installer.ps1
 
+    Si rifiuta di partire se sul computer c'e' gia' Campanella (installata
+    con Inno o con l'installer C#, o anche solo il suo gruppo nel menu Start
+    o il collegamento sulla scrivania): installando e disinstallando
+    toccherebbe l'installazione vera. Va lanciata su un computer, o con un
+    utente di Windows, senza Campanella.
+
     Le finestre le comanda premendo i pulsanti (BM_CLICK), non con SendKeys:
     quelle dipendono da chi ha il fuoco, e basta muovere il mouse per far
-    fallire la prova senza che ci sia niente di rotto.
+    fallire la prova senza che ci sia niente di rotto. Non usa pause fisse:
+    aspetta che succeda quello che deve succedere, con un tempo massimo.
 #>
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $setup  = Join-Path $radice 'dist\Installa Campanella.exe'
+$app    = Join-Path $radice 'dist\Campanella.exe'
 $dove   = Join-Path $env:TEMP ('campanella-prova-' + (Get-Random))
+$inizio = Get-Date
+
+# --- mai sul computer di chi usa Campanella davvero -------------------------
+$menu     = Join-Path ([Environment]::GetFolderPath('Programs')) 'Campanella'
+$lnkScr   = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Campanella.lnk'
+$chiave   = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Campanella'
+$chiaveInno = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6B2C0F4E-3A1D-4C8B-9E57-2D1F7A0C5B31}_is1'
+$trovate = @()
+if (Test-Path -LiteralPath $chiaveInno) { $trovate += "Campanella installata con Inno ($chiaveInno)" }
+if (Test-Path -LiteralPath $chiave) { $trovate += "Campanella installata con l'installer C# ($chiave)" }
+$cartellaVera = Join-Path $env:LOCALAPPDATA 'Programs\Campanella'
+if (Test-Path -LiteralPath $cartellaVera) { $trovate += "la cartella $cartellaVera" }
+if (Test-Path -LiteralPath $menu) { $trovate += "il gruppo del menu Start $menu" }
+if (Test-Path -LiteralPath $lnkScr) { $trovate += "il collegamento $lnkScr" }
+if ($trovate.Count -gt 0) {
+    Write-Host "Su questo computer c'e' gia' Campanella:" -ForegroundColor Red
+    foreach ($t in $trovate) { Write-Host "  - $t" -ForegroundColor Red }
+    Write-Host "La prova installa e disinstalla: toccherebbe l'installazione vera, quindi non parto." -ForegroundColor Red
+    Write-Host "Lanciala su un computer, o con un utente di Windows, dove Campanella non c'e'." -ForegroundColor Red
+    exit 1
+}
+foreach ($f in @($setup, $app)) {
+    if (-not (Test-Path -LiteralPath $f)) { throw "Manca $f`: compila prima con .\build.ps1" }
+}
+
+# la versione del consenso che l'installer deve registrare
+$sorgenteConsenso = [IO.File]::ReadAllText((Join-Path $radice 'src\Consenso.cs'))
+if ($sorgenteConsenso -notmatch 'public const int Versione\s*=\s*(\d+)\s*;') { throw 'Consenso.Versione non trovata' }
+$versioneConsenso = $Matches[1]
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
@@ -28,6 +65,8 @@ public class U {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
 
   public static IntPtr Trova(IntPtr padre, string testo) {
     IntPtr trovato = IntPtr.Zero;
@@ -49,11 +88,12 @@ public class U {
     return o;
   }
 
-  // Il pulsante di conferma di una finestra di dialogo del processo dato.
-  // Il testo vero e' "&Si" con la i accentata: normalizzo togliendo ampersand
-  // e accenti, invece di indovinare la scrittura esatta.
-  public static IntPtr PulsanteConferma(int pid) {
-    IntPtr trovato = IntPtr.Zero;
+  // Una finestra di dialogo visibile del processo dato con un pulsante della
+  // risposta voluta: "si" (vale anche OK) oppure "no". Torna finestra e
+  // pulsante, o null. Il testo vero e' "&Si" con la i accentata: normalizzo
+  // togliendo ampersand e accenti, invece di indovinare la scrittura esatta.
+  public static IntPtr[] Dialogo(int pid, string risposta) {
+    IntPtr[] trovato = null;
     EnumWindows(delegate(IntPtr h, IntPtr l) {
       uint altro; GetWindowThreadProcessId(h, out altro);
       if (altro != (uint)pid || !IsWindowVisible(h)) return true;
@@ -62,10 +102,11 @@ public class U {
         if (cl.ToString() != "Button") return true;
         StringBuilder t = new StringBuilder(64); GetWindowText(c, t, 64);
         string n = Normalizza(t.ToString());
-        if (n == "si" || n == "ok") { trovato = c; return false; }
+        bool giusto = (risposta == "no") ? (n == "no") : (n == "si" || n == "ok");
+        if (giusto) { trovato = new IntPtr[] { h, c }; return false; }
         return true;
       }, IntPtr.Zero);
-      return trovato == IntPtr.Zero;
+      return trovato == null;
     }, IntPtr.Zero);
     return trovato;
   }
@@ -93,61 +134,85 @@ function Verifica($testo, $ok) {
     if ($ok) { Write-Host "  OK      $testo" }
     else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
 }
+# aspetta che la condizione diventi vera, al massimo per i secondi dati
+function Aspetta([scriptblock]$condizione, [int]$secondi) {
+    $fine = (Get-Date).AddSeconds($secondi)
+    do {
+        if (& $condizione) { return $true }
+        Start-Sleep -Milliseconds 150
+    } while ((Get-Date) -lt $fine)
+    return [bool](& $condizione)
+}
 function Premi($h, $nome) {
     $b = [U]::Trova($h, $nome)
     if ($b -eq [IntPtr]::Zero) { throw "non trovo il comando '$nome'" }
     [U]::Click($b)
-    Start-Sleep -Milliseconds 700
 }
-function ConfermaDialogo([int]$secondi) {
-    for ($k = 0; $k -lt ($secondi * 4); $k++) {
-        Start-Sleep -Milliseconds 250
-        foreach ($proc in @(Get-Process -ErrorAction SilentlyContinue |
-                            Where-Object { $_.ProcessName -like '*isinstalla*' })) {
-            $b = [U]::PulsanteConferma($proc.Id)
-            if ($b -ne [IntPtr]::Zero) {
-                [U]::Click($b)
-                Start-Sleep -Milliseconds 700
-                return $true
-            }
+# Risponde alla prima finestra di dialogo dei processi del disinstallatore
+# che ha il pulsante voluto, e aspetta che quella finestra se ne vada: cosi'
+# la risposta successiva non finisce per sbaglio sulla finestra di prima.
+function Rispondi([string]$risposta, [int]$secondi, [string]$processi = '*isinstalla*') {
+    $script:trovato = $null
+    $ok = Aspetta {
+        foreach ($proc in @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like $processi })) {
+            $d = [U]::Dialogo($proc.Id, $risposta)
+            if ($d) { $script:trovato = $d; return $true }
         }
-    }
-    return $false
+        return $false
+    } $secondi
+    if (-not $ok) { return $false }
+    [U]::Click($script:trovato[1])
+    $finestra = $script:trovato[0]
+    [void](Aspetta { -not [U]::IsWindow($finestra) -or -not [U]::IsWindowVisible($finestra) } 10)
+    return $true
 }
+function Disinstallatori() { @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like '*isinstalla*' }) }
 
 Write-Host "Installo in $dove" -ForegroundColor Cyan
 $p = Start-Process $setup -PassThru
-Start-Sleep -Seconds 3
-$h = $p.MainWindowHandle
-if ($h -eq [IntPtr]::Zero) { throw "l'installer non ha aperto la finestra" }
+$h = [IntPtr]::Zero
+$pronta = Aspetta {
+    $p.Refresh()
+    $script:h = $p.MainWindowHandle
+    ($script:h -ne [IntPtr]::Zero) -and ([U]::Trova($script:h, 'Accetto e continuo') -ne [IntPtr]::Zero)
+} 30
+if (-not $pronta) { throw "l'installer non ha aperto la finestra" }
 [U]::SetForegroundWindow($h) | Out-Null
 
 # --- pagina 1: condizioni -------------------------------------------------
 $accetto = [U]::Trova($h, 'Accetto e continuo')
-Verifica "il pulsante e' bloccato senza le spunte" (-not [System.Windows.Forms.Control]::FromHandle($accetto))
+Verifica "il pulsante e' spento senza le spunte" (-not [U]::IsWindowEnabled($accetto))
 Premi $h 'Ho letto le avvertenze sui dati della scuola e sull''intelligenza artificiale.'
+Verifica "con una spunta sola resta spento" (-not [U]::IsWindowEnabled($accetto))
 Premi $h 'Accetto che il programma sia senza garanzie e che l''autore non risponda dell''uso che ne faccio.'
+Verifica "con le due spunte si accende" (Aspetta { [U]::IsWindowEnabled($accetto) } 5)
 Premi $h 'Accetto e continuo'
 
 # --- pagina 2: opzioni ----------------------------------------------------
-# i controlli delle pagine nascoste prendono un handle solo quando compaiono:
-# adesso che siamo alla pagina 2 la casella della cartella esiste
-$caselle = @([U]::Classe($h, 'EDIT'))
-Verifica "la pagina delle opzioni e' comparsa" ($caselle.Count -ge 2)
-$cartellaBox = $caselle | Where-Object { [U]::Leggi($_) -like '*Programs*Campanella*' } | Select-Object -First 1
-if (-not $cartellaBox) { $cartellaBox = $caselle[$caselle.Count - 1] }
+# i controlli delle pagine nascoste prendono un handle solo quando compaiono
+$cartellaBox = [IntPtr]::Zero
+$comparsa = Aspetta {
+    $caselle = @([U]::Classe($h, 'EDIT'))
+    $script:cartellaBox = $caselle | Where-Object { [U]::Leggi($_) -like '*Programs*Campanella*' } | Select-Object -First 1
+    [bool]$script:cartellaBox
+} 10
+Verifica "la pagina delle opzioni e' comparsa" $comparsa
+if (-not $comparsa) { throw "non trovo la casella della cartella: non installo nella cartella predefinita" }
 [U]::Testo($cartellaBox, $dove)
-Start-Sleep -Milliseconds 300
+if ([U]::Leggi($cartellaBox) -ne $dove) {
+    Stop-Process -Id $p.Id -Force
+    throw "non riesco a scrivere la cartella della prova: non installo nella cartella predefinita"
+}
 Premi $h 'Metti un collegamento sulla scrivania'      # tolgo: non sporco la scrivania
 Premi $h 'Avvia Campanella quando ha finito'          # tolgo: non voglio aprirla
 Premi $h 'Installa'
 
-# --- pagina 3: attendo ----------------------------------------------------
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep -Milliseconds 500
-    if (Test-Path (Join-Path $dove 'Campanella.exe')) { break }
-}
-Start-Sleep -Seconds 2
+# --- pagina 3: attendo la fine del lavoro -----------------------------------
+$finito = Aspetta {
+    $b = [U]::Trova($h, 'Fine')
+    ($b -ne [IntPtr]::Zero) -and [U]::IsWindowEnabled($b)
+} 60
+Verifica "l'installazione arriva in fondo" $finito
 
 Write-Host "`n=== DOPO L'INSTALLAZIONE ===" -ForegroundColor Cyan
 Get-ChildItem $dove -ErrorAction SilentlyContinue |
@@ -160,17 +225,14 @@ Verifica "copia il disinstallatore"    (Test-Path (Join-Path $dove 'Disinstalla 
 Verifica "scrive le impostazioni"      (Test-Path (Join-Path $dove 'campanella.json'))
 
 $json = Get-Content (Join-Path $dove 'campanella.json') -Raw -ErrorAction SilentlyContinue
-Verifica "il consenso risulta gia' dato" ($json -match '"consensoVersione":\s*[1-9]\d*')
+Verifica "il consenso risulta dato, versione $versioneConsenso" ($json -match ('"consensoVersione":\s*' + $versioneConsenso + '\s*[,}]'))
 Verifica "copia i documenti per dirigenza e DPO" (Test-Path (Join-Path $dove 'documenti\Nota tecnica per dirigente e DPO.txt'))
 
-$menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Campanella'
 Verifica "crea il gruppo nel menu Start"    (Test-Path $menu)
 Verifica "crea il collegamento principale"  (Test-Path (Join-Path $menu 'Campanella.lnk'))
 Verifica "crea il collegamento per disinstallare" (Test-Path (Join-Path $menu 'Disinstalla Campanella.lnk'))
-Verifica "NON crea quello sulla scrivania (tolto)" `
-    (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Campanella.lnk')))
+Verifica "NON crea quello sulla scrivania (tolto)" (-not (Test-Path $lnkScr))
 
-$chiave = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Campanella'
 Verifica "si registra fra i programmi installati" (Test-Path $chiave)
 if (Test-Path $chiave) {
     $r = Get-ItemProperty $chiave
@@ -182,29 +244,69 @@ if (Test-Path $chiave) {
 # la finestra dell'installer e' ancora aperta sulla pagina finale
 if (-not $p.HasExited) {
     try { Premi $h 'Fine' } catch { }
-    Start-Sleep -Seconds 1
-    if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+    if (-not (Aspetta { $p.HasExited } 5)) { Stop-Process -Id $p.Id -Force }
 }
 
-# --- disinstallazione ------------------------------------------------------
-Write-Host "`n=== DISINSTALLAZIONE ===" -ForegroundColor Cyan
-$argomento = '/' + 'disinstalla'
-Start-Process (Join-Path $dove 'Disinstalla Campanella.exe') -ArgumentList $argomento | Out-Null
+# --- disinstallazione, tenendo le impostazioni ------------------------------
+Write-Host "`n=== DISINSTALLAZIONE (impostazioni: No) ===" -ForegroundColor Cyan
+# due file che l'installazione non ha messo: devono restare
+Set-Content -LiteralPath (Join-Path $dove 'struttura.json') -Value '{"prova":true}'
+Set-Content -LiteralPath (Join-Path $dove 'mio-file.txt') -Value 'un file mio'
+Start-Process (Join-Path $dove 'Disinstalla Campanella.exe') -ArgumentList ('/' + 'disinstalla') | Out-Null
 
-Verifica "chiede conferma prima di togliere"    (ConfermaDialogo 10)
-Verifica "chiede se cancellare le impostazioni" (ConfermaDialogo 10)
-Start-Sleep -Seconds 3
-ConfermaDialogo 12 | Out-Null      # il messaggio finale della fase di rimozione
-Start-Sleep -Seconds 2
+Verifica "chiede conferma prima di togliere"    (Rispondi 'si' 15)
+Verifica "chiede se cancellare le impostazioni" (Rispondi 'no' 15)
+Verifica "a lavoro finito lo dice"              (Rispondi 'si' 20)
+Verifica "il disinstallatore si chiude"         (Aspetta { (Disinstallatori).Count -eq 0 } 15)
 
-Verifica "toglie la cartella"              (-not (Test-Path (Join-Path $dove 'Campanella.exe')))
+Verifica "toglie l'applicazione"           (-not (Test-Path (Join-Path $dove 'Campanella.exe')))
+Verifica "toglie il disinstallatore"       (-not (Test-Path (Join-Path $dove 'Disinstalla Campanella.exe')))
+Verifica "toglie i documenti che ha messo" (-not (Test-Path (Join-Path $dove 'documenti\Nota tecnica per dirigente e DPO.txt')))
+Verifica "tiene campanella.json"           (Test-Path (Join-Path $dove 'campanella.json'))
+Verifica "tiene struttura.json"            (Test-Path (Join-Path $dove 'struttura.json'))
+Verifica "non tocca un file che non e' suo" (Test-Path (Join-Path $dove 'mio-file.txt'))
 Verifica "toglie il gruppo dal menu Start" (-not (Test-Path $menu))
 Verifica "toglie la voce dal registro"     (-not (Test-Path $chiave))
 
-# pulizia di sicurezza, se qualcosa fosse rimasto
-Remove-Item $dove -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item $menu -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item $chiave -Recurse -Force -ErrorAction SilentlyContinue
+# --- disinstallazione di tutto -----------------------------------------------
+# rimetto l'applicazione e il disinstallatore (l'installer stesso) nella cartella
+Write-Host "`n=== DISINSTALLAZIONE (impostazioni: Si) ===" -ForegroundColor Cyan
+Copy-Item -LiteralPath $app -Destination (Join-Path $dove 'Campanella.exe') -Force
+Copy-Item -LiteralPath $setup -Destination (Join-Path $dove 'Disinstalla Campanella.exe') -Force
+Start-Process (Join-Path $dove 'Disinstalla Campanella.exe') -ArgumentList ('/' + 'disinstalla') | Out-Null
+
+Verifica "chiede conferma prima di togliere"    (Rispondi 'si' 15)
+Verifica "chiede se cancellare le impostazioni" (Rispondi 'si' 15)
+Verifica "a lavoro finito lo dice"              (Rispondi 'si' 20)
+Verifica "il disinstallatore si chiude"         (Aspetta { (Disinstallatori).Count -eq 0 } 15)
+
+Verifica "toglie campanella.json"           (-not (Test-Path (Join-Path $dove 'campanella.json')))
+Verifica "toglie struttura.json"            (-not (Test-Path (Join-Path $dove 'struttura.json')))
+Verifica "anche cosi' non tocca il file suo" (Test-Path (Join-Path $dove 'mio-file.txt'))
+
+# --- una cartella che non e' di Campanella -----------------------------------
+Write-Host "`n=== CARTELLA SENZA CAMPANELLA ===" -ForegroundColor Cyan
+$altra = Join-Path $env:TEMP ('campanella-prova-altra-' + (Get-Random))
+New-Item -ItemType Directory -Path $altra | Out-Null
+Set-Content -LiteralPath (Join-Path $altra 'tienimi.txt') -Value 'da non toccare'
+Set-Content -LiteralPath (Join-Path $altra 'PRIVACY.md') -Value 'ha il nome di un file dell''installazione'
+$copia = Join-Path $env:TEMP ('prova-disinstalla-' + (Get-Random) + '.exe')
+Copy-Item -LiteralPath $setup -Destination $copia
+Start-Process $copia -ArgumentList ('/rimuovi "' + $altra + '"') | Out-Null
+Verifica "avvisa che non e' una cartella di Campanella" (Rispondi 'si' 20)
+Verifica "e si chiude"                                  (Aspetta { (Disinstallatori).Count -eq 0 } 15)
+Verifica "non tocca niente"                             ((Test-Path (Join-Path $altra 'tienimi.txt')) -and (Test-Path (Join-Path $altra 'PRIVACY.md')))
+
+# pulizia: la prova e' partita senza Campanella sul computer, quindi quello
+# che resta l'ha creato lei
+Remove-Item -LiteralPath $dove -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $altra -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $copia -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $menu -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $chiave -Recurse -Force -ErrorAction SilentlyContinue
+# le copie temporanee che il disinstallatore fa di se' stesso
+Get-ChildItem -LiteralPath $env:TEMP -Filter 'campanella-disinstalla-*.exe' -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -ge $inizio } | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 if ($fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }

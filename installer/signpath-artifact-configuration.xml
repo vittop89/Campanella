@@ -5,10 +5,12 @@
 
   Each signing request from .github/workflows/release.yml is a ZIP archive
   made by actions/upload-artifact holding exactly one executable:
-  Campanella.exe, or Installa-Campanella-<version>.exe. The "version"
-  parameter is passed by the workflow (e.g. "1.2.0.0") and is enforced
-  against the product version stored in the file, together with the product
-  name, as SignPath Foundation requires for signed binaries.
+  Campanella.exe, or Installa-Campanella.exe (the installer keeps a
+  version-less name, so that the "latest" download link never changes, and
+  signing must not rename it). The "version" parameter is passed by the
+  workflow (e.g. "1.2.0.0") and is enforced against the product version
+  stored in the file, together with the product name, as SignPath Foundation
+  requires for signed binaries.
 -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <parameters>

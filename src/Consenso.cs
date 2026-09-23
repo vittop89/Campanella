@@ -17,8 +17,13 @@ namespace Campanella
 {
     static class Consenso
     {
-        /// <summary>Cambiala quando cambia il testo: il consenso viene richiesto di nuovo.</summary>
-        public const int Versione = 3;
+        /// <summary>
+        /// Cambiala quando cambia il testo: il consenso viene richiesto di nuovo.
+        /// Insieme vanno cambiati installer\CONDIZIONI-it.txt e -en.txt, il
+        /// #define ConsensoVersione di installer\Campanella.iss e le impronte in
+        /// test\prova_versioni.ps1, che controlla che tutto sia allineato.
+        /// </summary>
+        public const int Versione = 4;
 
         public const string Titolo = "Condizioni d'uso di Campanella";
 
@@ -43,6 +48,16 @@ namespace Campanella
 "partire tu. Non manda email, non condivide niente, non cancella niente: le\r\n" +
 "risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo\r\n" +
 "dopo aver controllato che stanno gia' in un foglio vecchio.\r\n" +
+"\r\n" +
+"Se i moduli sono piu' d'uno, al posto dello script nel modulo puoi usare un\r\n" +
+"foglio di controllo: un foglio Google con una riga per modulo e uno script\r\n" +
+"dentro, che fa lo stesso lavoro per ogni modulo elencato nel foglio. Siccome\r\n" +
+"apre moduli che stanno fuori dal foglio, chiede il permesso su tutti i\r\n" +
+"moduli del tuo account, oltre che sui fogli e sul Drive; poi apre soltanto\r\n" +
+"quelli elencati. Anche questo lo incolli e lo fai partire tu, ma le chiusure\r\n" +
+"che programma scattano da sole, nel giorno indicato, senza che tu prema\r\n" +
+"Esegui. Non manda email, non condivide niente, e le risposte le toglie da un\r\n" +
+"modulo solo alle condizioni scritte sopra.\r\n" +
 "\r\n" +
 "Funziona su Windows con un account Google Workspace (Gmail, Drive,\r\n" +
 "Calendar): con Microsoft 365 non fa niente. L'elenco del personale si puo'\r\n" +
@@ -186,7 +201,14 @@ namespace Campanella
         CheckBox chkDati, chkResponsabilita;
         Button btnAccetto;
 
-        public FormConsenso()
+        public FormConsenso() : this(false) { }
+
+        /// <summary>
+        /// soloLettura: per "Rileggile" nelle Impostazioni. Le condizioni sono
+        /// gia' state accettate e la finestra non decide niente: niente spunte,
+        /// niente "Non accetto", solo un bottone per chiudere.
+        /// </summary>
+        public FormConsenso(bool soloLettura)
         {
             Text = Consenso.Titolo;
             Size = new Size(820, 720);
@@ -197,11 +219,14 @@ namespace Campanella
             MaximizeBox = false;
             ShowInTaskbar = true;
 
-            Label titolo = Tema.Testo1("Prima di cominciare", 24, 18, 0, Tema.Sezione, Ruolo.Sezione);
+            Label titolo = Tema.Testo1(soloLettura ? "Condizioni d'uso" : "Prima di cominciare",
+                                       24, 18, 0, Tema.Sezione, Ruolo.Sezione);
             Controls.Add(titolo);
-            Label sotto = Tema.Testo1(
-                "Campanella lavora su dati di altre persone: colleghi, studenti, famiglie. " +
-                "Queste righe dicono cosa comporta. Servono due spunte per andare avanti.",
+            Label sotto = Tema.Testo1(soloLettura
+                ? "Sono le condizioni che hai accettato (versione " + Consenso.Versione + "). " +
+                  "Qui puoi solo rileggerle."
+                : "Campanella lavora su dati di altre persone: colleghi, studenti, famiglie. " +
+                  "Queste righe dicono cosa comporta. Servono due spunte per andare avanti.",
                 26, 52, 740, Tema.Normale, Ruolo.Tenue);
             sotto.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             Controls.Add(sotto);
@@ -220,7 +245,21 @@ namespace Campanella
             Controls.Add(t);
             // senza questo il riquadro si apre gia' scorso, perche' il fuoco
             // passa al primo controllo e trascina il testo con se'
-            Shown += delegate { t.Select(0, 0); t.ScrollToCaret(); chkDati.Focus(); };
+            Shown += delegate { t.Select(0, 0); t.ScrollToCaret(); if (chkDati != null) chkDati.Focus(); };
+
+            if (soloLettura)
+            {
+                t.Size = new Size(756, 504);
+                Button chiudi = Tema.BottonePrincipale("Chiudi", 660, 618, 120, null);
+                chiudi.DialogResult = DialogResult.OK;
+                chiudi.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+                Controls.Add(chiudi);
+                AcceptButton = chiudi;
+                CancelButton = chiudi;
+                Shown += delegate { chiudi.Focus(); };
+                Tema.Applica(this);
+                return;
+            }
 
             chkDati = Tema.Spunta(
                 "Ho letto le avvertenze sui dati della scuola e sull'intelligenza artificiale.",

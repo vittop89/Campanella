@@ -1038,7 +1038,8 @@ namespace Campanella
             Controls.Add(lblConsenso);
             Controls.Add(Tema.Bottone("Rileggile", 580, y - 6, 130, delegate
             {
-                using (FormConsenso f = new FormConsenso()) f.ShowDialog(this);
+                // sola lettura: le condizioni sono gia' accettate, qui non si decide niente
+                using (FormConsenso f = new FormConsenso(true)) f.ShowDialog(this);
             }));
             y += 48;
 

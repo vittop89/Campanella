@@ -5,7 +5,14 @@
         .\build.ps1                 compila l'app e l'installer in .\dist
         .\build.ps1 -SenzaInstaller solo l'applicazione (piu' veloce, per le prove)
         .\build.ps1 -Firma          compila e firma con il certificato locale
-        .\build.ps1 -Pubblica       compila, firma e copia in produzione
+        .\build.ps1 -Pubblica -Produzione 'D:\Campanella'
+                                    compila, firma e copia nella cartella indicata
+
+    -Firma e -Pubblica usano strumenti\firma.ps1, che la prima volta crea un
+    certificato nei certificati di questo utente e lo rende attendibile per
+    lui (leggi la sua intestazione). L'exe viene firmato prima di essere
+    messo dentro l'installer, e se una firma non riesce ci si ferma: niente
+    file non firmati in produzione.
 
     Non serve Visual Studio: usa il compilatore C# incluso in Windows
     (.NET Framework 4.x). Attenzione: e' il compilatore di C# 5, quindi
@@ -21,11 +28,32 @@ param(
     [switch]$Firma,
     [switch]$Pubblica,
     [switch]$SenzaInstaller,
-    [string]$Produzione = 'H:\Il mio Drive\Campanella'
+    # la cartella in cui -Pubblica copia i file: nessun valore predefinito
+    [string]$Produzione = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# prima di compilare e soprattutto prima di firmare, che installa un certificato
+if ($Pubblica) {
+    if ($Produzione.Trim() -eq '') {
+        throw "Con -Pubblica serve -Produzione, la cartella in cui copiare i file: per esempio  .\build.ps1 -Pubblica -Produzione 'D:\Campanella'"
+    }
+    if (-not [IO.Path]::IsPathRooted($Produzione)) {
+        throw "-Produzione deve essere un percorso completo, con l'unita': $Produzione"
+    }
+    $unita = [IO.Path]::GetPathRoot($Produzione)
+    if (-not (Test-Path -LiteralPath $unita)) { throw "L'unita' di -Produzione non c'e': $unita" }
+    if (Test-Path -LiteralPath $Produzione -PathType Leaf) { throw "-Produzione e' un file, non una cartella: $Produzione" }
+} elseif ($Produzione -ne '') {
+    Write-Warning "-Produzione serve solo con -Pubblica: la ignoro."
+}
+
+function Firma($file) {
+    & (Join-Path $radice 'strumenti\firma.ps1') -File $file -Nome 'Campanella'
+    if ($LASTEXITCODE -ne 0) { throw "Firma di $file non riuscita (codice $LASTEXITCODE): mi fermo." }
+}
 $src    = Join-Path $radice 'src'
 $dist   = Join-Path $radice 'dist'
 $exe    = Join-Path $dist 'Campanella.exe'
@@ -97,6 +125,9 @@ if ($LASTEXITCODE -ne 0) { throw "Compilazione fallita (codice $LASTEXITCODE)." 
 $dim = [math]::Round((Get-Item $exe).Length / 1KB, 1)
 Write-Host "OK  ->  $exe  ($dim KB)" -ForegroundColor Green
 
+# l'exe si firma adesso, prima che l'installer ne prenda una copia
+if ($Firma -or $Pubblica) { Firma $exe }
+
 # le istruzioni stanno nel repository: in dist ne va una copia per chi
 # distribuisce l'eseguibile senza installer
 Copy-Item $istruzioni -Destination $dist -Force
@@ -108,13 +139,13 @@ $setup = Join-Path $dist 'Installa Campanella.exe'
 if (-not $SenzaInstaller) {
     Write-Host "Preparo l'installer..." -ForegroundColor Cyan
 
+    # l'installer usa soltanto questi file dell'applicazione
     $sorgentiSetup = @(
         (Join-Path $radice 'src-installer\Installa.cs')
         (Join-Path $src 'Tema.cs')
         (Join-Path $src 'Consenso.cs')
         (Join-Path $src 'Stato.cs')
         (Join-Path $src 'Aggiornamenti.cs')
-        (Join-Path $src 'Anonimizzatore.cs')
     )
 
     $argSetup = @(
@@ -143,19 +174,15 @@ if (-not $SenzaInstaller) {
 
     $dimSetup = [math]::Round((Get-Item $setup).Length / 1KB, 1)
     Write-Host "OK  ->  $setup  ($dimSetup KB)" -ForegroundColor Green
-}
 
-if ($Firma -or $Pubblica) {
-    & (Join-Path $radice 'strumenti\firma.ps1') -File $exe -Nome 'Campanella'
-    if (Test-Path $setup) {
-        & (Join-Path $radice 'strumenti\firma.ps1') -File $setup -Nome 'Campanella'
-    }
+    if ($Firma -or $Pubblica) { Firma $setup }
 }
 
 if ($Pubblica) {
     if (-not (Test-Path $Produzione)) { New-Item -ItemType Directory -Path $Produzione | Out-Null }
     Copy-Item $exe -Destination $Produzione -Force
-    if (Test-Path $setup) { Copy-Item $setup -Destination $Produzione -Force }
+    # solo l'installer compilato (e firmato) adesso, non uno vecchio rimasto in dist
+    if (-not $SenzaInstaller) { Copy-Item $setup -Destination $Produzione -Force }
     Copy-Item $istruzioni -Destination $Produzione -Force
     # PRIVACY.md sta accanto all'exe: chi apre la cartella lo trova subito
     Copy-Item $privacy -Destination $Produzione -Force

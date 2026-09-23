@@ -23,8 +23,9 @@
 #define MyAppPublisher   "Vittorio Pantaleo"
 #define MyAppURL         "https://github.com/vittop89/Campanella"
 #define MyAppExeName     "Campanella.exe"
-; deve coincidere con Consenso.Versione in src\Consenso.cs
-#define ConsensoVersione "3"
+; deve coincidere con Consenso.Versione in src\Consenso.cs (lo controlla
+; test\prova_versioni.ps1, anche nel flusso di rilascio)
+#define ConsensoVersione "4"
 
 [Setup]
 AppId={{6B2C0F4E-3A1D-4C8B-9E57-2D1F7A0C5B31}
@@ -38,8 +39,9 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+; solo per l'utente corrente: nessuna finestra che proponga di installare
+; per tutti gli utenti (servirebbero i diritti di amministratore)
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
 OutputBaseFilename=Installa-Campanella
 SetupIconFile=
@@ -59,7 +61,8 @@ VersionInfoProductTextVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoCopyright=Licenza MIT
 VersionInfoDescription=Installazione di Campanella
-MinVersion=6.1sp1
+; Windows 10 o 11, come dicono README e istruzioni
+MinVersion=10.0
 
 [Languages]
 Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"; LicenseFile: "CONDIZIONI-it.txt"
@@ -106,11 +109,14 @@ Type: filesandordirs; Name: "{app}\documenti"
 // Il consenso e' stato dato nel wizard (pagina della licenza): lo registro
 // come fa l'installer C#, cosi' Campanella non lo richiede al primo avvio.
 // Non tocco un campanella.json gia' esistente: contiene le impostazioni.
+// Con /SILENT o /VERYSILENT la pagina della licenza non compare, quindi
+// nessuno ha accettato niente: non registro nulla, e le condizioni le
+// chiede Campanella al primo avvio.
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Percorso, Contenuto: String;
 begin
-  if CurStep = ssPostInstall then
+  if (CurStep = ssPostInstall) and not WizardSilent then
   begin
     Percorso := ExpandConstant('{app}\campanella.json');
     if not FileExists(Percorso) then

@@ -27,6 +27,15 @@
 #  The artifact configuration takes a "version" parameter and checks that
 #  every signed file carries product name "Campanella" and that product
 #  version; the version is read from src\Guscio.cs and must match the tag.
+#
+#  Before building, test\prova_versioni.ps1 checks that the consent version
+#  and text, the product version and the document names are aligned; after
+#  building, test\tutte.ps1 runs every test of the CI list and stops the
+#  release if any of them fails. The same tests run on every push through
+#  .github/workflows/prove.yml.
+#
+#  Actions are pinned to a full commit SHA, with the version in a comment;
+#  .github/dependabot.yml proposes the updates once a month.
 # ===========================================================================
 name: Release
 
@@ -45,7 +54,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out the sources
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # the whole history with the tags: prova_versioni.ps1 compares the
+          # scripts with those of the previous release
+          fetch-depth: 0
 
       - name: Read the version and check it against the tag
         shell: pwsh
@@ -63,28 +77,33 @@ jobs:
           "PRODUCT_VERSION=$v.0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Version $v"
 
+      - name: Check consent, versions and document names
+        shell: powershell
+        run: .\test\prova_versioni.ps1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
       - name: Build Campanella.exe
         shell: powershell
         run: .\build.ps1 -SenzaInstaller
 
-      - name: Test the Apps Script code on mock services
-        shell: pwsh
-        run: |
-          node test\mock_apps_script.js
-          node test\mock_orari.js
-          node test\mock_moduli.js
-
-      - name: Test the timetable reader
+      # one step, but tutte.ps1 checks the exit code of every test and
+      # exits with 1 if any of them fails or is missing
+      - name: Run all the tests of the CI list
         shell: powershell
-        run: .\test\prova_orario.ps1
-
-      - name: Test the Google Forms script generator
-        shell: powershell
-        run: .\test\prova_moduli.ps1
+        run: .\test\tutte.ps1
 
       - name: Upload the unsigned executable
         id: exe
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: campanella-exe
           path: dist/Campanella.exe
@@ -92,7 +111,7 @@ jobs:
       # ---- signature of the application ---------------------------------------
       - name: Sign Campanella.exe (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -116,21 +135,35 @@ jobs:
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
-          & $iscc installer\Campanella.iss
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          if (-not (Test-Path $iscc)) {
+            # the one of the image is used when present; the fallback is pinned
+            choco install innosetup --version 6.7.1 --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw "choco install innosetup failed with code $LASTEXITCODE" }
+          }
+          $uscita = & $iscc installer\Campanella.iss
+          $codice = $LASTEXITCODE
+          $uscita | ForEach-Object { Write-Host $_ }
+          if ($codice -ne 0) { throw "ISCC failed with code $codice" }
+          # the version that compiled this installer: the engine line of the log,
+          # or the version resource of ISCC.exe; only Inno Setup 6 is accepted
+          $versione = (Get-Item $iscc).VersionInfo.ProductVersion
+          $motore = [regex]::Match(($uscita -join "`n"), 'Compiler engine version: Inno Setup (\d+(?:\.\d+)*)')
+          if ($motore.Success) { $versione = $motore.Groups[1].Value }
+          if (-not $versione) { throw 'Cannot tell which Inno Setup version compiled the installer' }
+          Write-Host "Inno Setup used: $versione"
+          if ($versione -notmatch '^6\.') { throw "Inno Setup 6 is required, found $versione" }
           Get-ChildItem dist
 
       - name: Upload the unsigned installer
         id: setup
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: campanella-installer
           path: dist/Installa-Campanella.exe
 
       - name: Sign the installer (SignPath)
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -187,7 +220,7 @@ jobs:
 
       - name: Publish the release
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           name: Campanella ${{ env.VERSION }}
           body_path: release-notes.md
