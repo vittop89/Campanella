@@ -10,18 +10,21 @@
  * loro). Qui quelle promesse diventano controlli sul testo dei due script,
  * commenti esclusi:
  *
- *   - niente UrlFetchApp, inoltri, condivisioni, invitati, bozze o risposte,
- *     cestino, spam, Drive;
+ *   - solo i servizi dell'elenco di ciascun file (Gmail, invio, trigger,
+ *     proprieta', lock, Session, Utilities, Logger; il calendario solo negli
+ *     orari): qualunque altro, UrlFetchApp, Drive, fogli, documenti, Jdbc,
+ *     fa fallire il controllo anche se nessuno l'aveva previsto;
+ *   - niente inoltri, condivisioni, invitati, bozze o risposte, cestino, spam;
  *   - ogni sendEmail va a un destinatario ammesso (l'account stesso), senza
- *     cc ne' bcc;
+ *     cc ne' bcc (nemmeno { 'bcc': x } oppure o.bcc = x);
  *   - le cancellazioni sono solo quelle dell'elenco di ciascun file;
  *   - i filtri di Gmail (solo Posta) etichettano, archiviano e segnano come
  *     letti, e basta.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
- * UrlFetchApp, un destinatario estraneo, una copia in cc o un moveToTrash
- * devono far fallire i controlli. Se un giorno uno di questi non fallisse
+ * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
+ * estraneo, una copia in cc o un moveToTrash devono far fallire i controlli. Se un giorno uno di questi non fallisse
  * piu', il controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
@@ -147,16 +150,25 @@ function primoArgomento(a) {
 // ---------------------------------------------------------------------------
 //  LE REGOLE, FILE PER FILE
 // ---------------------------------------------------------------------------
+// I servizi di Google (e i nomi globali in genere) non si vietano uno per uno:
+// ogni file ha l'elenco di quelli che puo' usare, e qualunque altro nome
+// globale con la maiuscola fa fallire il controllo. Cosi' SpreadsheetApp,
+// DocumentApp, DriveApp, Jdbc, UrlFetchApp e quelli che Google aggiungera'
+// sono fuori senza doverli conoscere.
+const JS = ['JSON', 'Math', 'String', 'Number', 'Date', 'Object', 'Array', 'Error', 'RegExp'];
+const SERVIZI_POSTA = ['GmailApp', 'MailApp', 'ScriptApp', 'PropertiesService', 'LockService',
+                       'Session', 'Utilities', 'Logger', 'Gmail'];
+
 const VIETATI = [
-  [/\bUrlFetchApp\b/, 'chiamata a un servizio esterno (UrlFetchApp)'],
   [/forward/i, 'inoltro (forward)'],
   [/trash/i, 'cestino (trash)'],
   [/spam/i, 'spam'],
   [/\b(addEditors?|addViewers?|addCommenters?|setSharing|share|setOwner|Permissions)\b/, 'condivisione'],
   [/\b(addGuest|guests|sendInvites)\b/, 'invitati a un evento'],
   [/\b(createDraft|reply|replyAll)\b/, 'bozza o risposta a nome tuo'],
-  [/\bDriveApp\b|\bDrive\s*\.\s*(Files|Permissions|Drives)\b/, 'uso del Drive'],
-  [/\b(cc|bcc)\s*:/, 'copia (cc) o copia nascosta (bcc) in un invio']
+  // { cc: x }, { 'bcc': x }, o.bcc = x, o['cc'] = x
+  [/(['"]?)\b(cc|bcc)\1\s*:|\.\s*(cc|bcc)\s*=(?!=)|\[\s*(['"])(cc|bcc)\4\s*\]\s*=(?!=)/,
+   'copia (cc) o copia nascosta (bcc) in un invio']
 ];
 
 // etichette di sistema di Gmail: un filtro puo' toglierne solo quelle ammesse
@@ -164,6 +176,8 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 
 const REGOLE = {
   'Organizzazione_Gmail.gs': {
+    // CONFIG sta in Configurazione.gs, nello stesso progetto
+    servizi: SERVIZI_POSTA.concat(JS, ['CONFIG']),
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'removeFromThreads'],
     destinatari: [/^_mioIndirizzo_?\(\)$/],
     etichetteDiSistema: ['INBOX', 'UNREAD'],
@@ -171,6 +185,9 @@ const REGOLE = {
                'Gmail.Users.Settings.Filters.create']
   },
   'Orari.gs': {
+    // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
+    // Configurazione.gs della Posta, se c'e'
+    servizi: SERVIZI_POSTA.concat(['CalendarApp'], JS, ['CONFIG', 'ORARI']),
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'deleteEventSeries', 'deleteEvent'],
     destinatari: [/^mio$/, /^m\.a$/, /^_mioIndirizzoOrari_?\(\)$/],
     etichetteDiSistema: [],
@@ -188,6 +205,22 @@ function controlla(nomeFile, sorgente) {
   for (const [re, cosa] of VIETATI) {
     const m = re.exec(codice);
     if (m) fuori.push(cosa + ' (riga ' + riga(m.index) + ': ' + m[0] + ')');
+  }
+
+  // i nomi globali con la maiuscola: solo i servizi dell'elenco del file e i
+  // nomi dichiarati nel file stesso (le sue funzioni e variabili). Un nome
+  // dopo un punto e' un membro (GmailApp.search, CalendarApp.Color), non conta.
+  const dichiarati = new Set([...nudo.matchAll(/\b(?:function|var|let|const)\s+([A-Za-z_$][\w$]*)/g)].map(x => x[1]));
+  const visti = new Set();
+  const maiuscola = /[A-Z][\w$]*/g;
+  let g;
+  while ((g = maiuscola.exec(nudo))) {
+    const nome = g[0];
+    if (g.index > 0 && /[\w$]/.test(nudo[g.index - 1])) continue;       // pezzo di un altro nome
+    if (/\.\s*$/.test(nudo.slice(Math.max(0, g.index - 40), g.index))) continue;   // un membro
+    if (regole.servizi.indexOf(nome) >= 0 || dichiarati.has(nome) || visti.has(nome)) continue;
+    visti.add(nome);
+    fuori.push('servizio non ammesso: ' + nome + ' (riga ' + riga(g.index) + ')');
   }
 
   // le cancellazioni: solo quelle dell'elenco
@@ -296,6 +329,31 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'un servizio Gmail fuori elenco viene trovato',
     inserisci(posta, INIZIO, '\n  Gmail.Users.Messages.batchDelete({ ids: [] }, \'me\');'),
     'Gmail.Users.Messages.batchDelete');
+  // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
+  // scrive nel Drive o parla con un altro server fallisce anche se nessuno
+  // l'aveva previsto
+  deveFallire('Organizzazione_Gmail.gs', 'un foglio creato nel Drive (SpreadsheetApp) viene trovato',
+    inserisci(posta, INIZIO, '\n  SpreadsheetApp.create(\'Personale\').getActiveSheet().appendRow(_config_().personale);'),
+    'servizio non ammesso: SpreadsheetApp');
+  deveFallire('Organizzazione_Gmail.gs', 'un documento creato nel Drive (DocumentApp) viene trovato',
+    inserisci(posta, INIZIO, '\n  DocumentApp.create(\'Elenco\');'), 'servizio non ammesso: DocumentApp');
+  deveFallire('Organizzazione_Gmail.gs', 'una connessione a un database esterno (Jdbc) viene trovata',
+    inserisci(posta, INIZIO, '\n  Jdbc.getConnection(\'jdbc:mysql://esempio.example:3306/db\');'),
+    'servizio non ammesso: Jdbc');
+  deveFallire('Organizzazione_Gmail.gs', 'un servizio preso senza chiamarlo subito viene trovato',
+    inserisci(posta, INIZIO, '\n  var foglio = SpreadsheetApp; foglio[\'create\'](\'x\');'),
+    'servizio non ammesso: SpreadsheetApp');
+  deveFallire('Organizzazione_Gmail.gs', 'il calendario, ammesso solo negli orari, nella posta viene trovato',
+    inserisci(posta, INIZIO, '\n  CalendarApp.getDefaultCalendar();'), 'servizio non ammesso: CalendarApp');
+  deveFallire('Organizzazione_Gmail.gs', 'una copia nascosta con la chiave fra virgolette viene trovata',
+    sostituisci(posta, '\'[Organizzazione Gmail] \' + oggetto, corpo);',
+                '\'[Organizzazione Gmail] \' + oggetto, corpo, { \'bcc\': \'collega@scuola-esempio.edu.it\' });'),
+    'copia nascosta (bcc)');
+  deveFallire('Organizzazione_Gmail.gs', 'una copia nascosta aggiunta dopo (o.bcc = ...) viene trovata',
+    sostituisci(posta, 'MailApp.sendEmail(_mioIndirizzo_(), \'[Organizzazione Gmail] \' + oggetto, corpo);',
+                'var o = {}; o.bcc = \'collega@scuola-esempio.edu.it\'; ' +
+                'MailApp.sendEmail(_mioIndirizzo_(), \'[Organizzazione Gmail] \' + oggetto, corpo, o);'),
+    'copia nascosta (bcc)');
   const commentato = inserisci(posta, INIZIO, '\n  // UrlFetchApp.fetch(\'x\'); moveToTrash(); /* bcc: tutti */');
   verifica('ma un UrlFetchApp in un commento non conta',
     commentato !== null && controlla('Organizzazione_Gmail.gs', commentato).length === 0);
@@ -309,6 +367,11 @@ function provaDellaProva() {
   deveFallire('Orari.gs', 'gli invitati a un evento vengono trovati',
     inserisci(orari, 'function ORARI_4_calendario() {', '\n  var opzioni = { guests: \'collega@scuola-esempio.edu.it\' };'),
     'invitati');
+  deveFallire('Orari.gs', 'un foglio creato nel Drive dagli orari viene trovato',
+    inserisci(orari, 'function ORARI_4_calendario() {', '\n  SpreadsheetApp.create(\'Orari\');'),
+    'servizio non ammesso: SpreadsheetApp');
+  deveFallire('Orari.gs', 'una copia in cc negli orari, con la chiave fra virgolette, viene trovata',
+    sostituisci(orari, 'to: m.a,', 'to: m.a, "cc": \'collega@scuola-esempio.edu.it\','), 'copia (cc)');
 }
 
 // ---------------------------------------------------------------------------
