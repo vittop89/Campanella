@@ -345,6 +345,41 @@ foreach ($nome in @('Posta', 'Cartelle', 'Orari', 'Privacy')) {
     Verifica "'Apri $nome' porta a $nome" ((PaginaOra).Nome -eq $nome)
 }
 
+# --- la pagina iniziale quando il Drive scelto non e' quello della scuola ------
+# Con un altro Drive che ha MODELLI, Entra usciva prima di aggiornare le schede
+# Orari e Privacy e il riepilogo. I Drive sono finti: senza l'elenco di prova
+# la pagina andrebbe a guardare quelli veri, e allora la prova non si fa.
+Write-Host "`nLA PAGINA INIZIALE CON UN ALTRO DRIVE" -ForegroundColor Cyan
+$home1 = $pagine[0]
+$campoDrivi = $home1.GetType().GetField('driviDiProva', $FI)
+Verifica "la pagina iniziale accetta un elenco di Drive di prova" ($campoDrivi -ne $null)
+if ($campoDrivi -ne $null) {
+    $vuoto = Join-Path $prova 'Personale\Il mio Drive'
+    $scuola = Join-Path $prova 'Scuola\Il mio Drive'
+    New-Item -ItemType Directory -Force $vuoto | Out-Null
+    New-Item -ItemType Directory -Force (Join-Path $scuola 'MODELLI') | Out-Null
+    $campoDrivi.SetValue($home1, (ElencoDrivi @($vuoto, $scuola)))
+    # prima si arriva alla pagina iniziale: uscendo, Privacy rimette PrivacyLetta
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    $tStato.GetField('Drive', $FI).SetValue($stato, $vuoto)
+    $tStato.GetField('PrivacyLetta', $FI).SetValue($stato, $true)
+    $tStato.GetField('Dominio', $FI).SetValue($stato, 'scuola.example')
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $schede = $home1.GetType().GetField('statoStrumento', $FI).GetValue($home1)
+    $riepilogo = $home1.GetType().GetField('lblRiepilogo', $FI).GetValue($home1)
+    Verifica "la scheda Cartelle suggerisce l'altro Drive" ($schede[1].Text -like "*$scuola*")
+    Verifica "la scheda Privacy e' aggiornata lo stesso" ($schede[3].Text -match 'Regole lette')
+    Verifica "il riepilogo e' aggiornato lo stesso" ($riepilogo.Text -match 'scuola\.example')
+    ControllaPannello $home1 'Inizio con un altro Drive'
+    # tutto come prima
+    $tStato.GetField('Drive', $FI).SetValue($stato, $driveFinto)
+    $tStato.GetField('PrivacyLetta', $FI).SetValue($stato, $false)
+    $tStato.GetField('Dominio', $FI).SetValue($stato, '')
+    $campoDrivi.SetValue($home1, $null)
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+}
+
 # --- un bottone spento si legge, in tutti e due i temi -----------------------
 Write-Host "`nI BOTTONI SPENTI" -ForegroundColor Cyan
 $iPrivacy = -1

@@ -613,6 +613,13 @@ namespace Campanella
         Panel[] schede = new Panel[4];
         Label[] statoStrumento = new Label[4];
 
+        /// <summary>
+        /// I Drive del computer con cui confrontare quello scelto; null = cercarli
+        /// davvero. Serve alle prove, che ci mettono cartelle finte invece di
+        /// guardare i Drive veri.
+        /// </summary>
+        List<DriveTrovato> driviDiProva = null;
+
         public PaginaHome(Guscio g) : base(g) { Costruisci(); }
 
         public override string Nome { get { return "Inizio"; } }
@@ -715,32 +722,41 @@ namespace Campanella
                 // due account Google sul computer = due "Il mio Drive": se stiamo
                 // guardando quello sbagliato, tutto il resto direbbe "da fare"
                 DriveTrovato questo = Stato.EsaminaDrive(S.Drive, "");
+                string altroDrive = "";
                 if (!questo.ConModelli && !questo.ConAnni)
                 {
-                    foreach (DriveTrovato d in Stato.DriviPossibili())
+                    foreach (DriveTrovato d in (driviDiProva != null ? driviDiProva : Stato.DriviPossibili()))
                     {
                         if (string.Equals(d.Percorso, S.Drive, StringComparison.OrdinalIgnoreCase)) continue;
                         if (!d.ConModelli && !d.ConAnni) continue;
-                        statoStrumento[1].Text = "Sto guardando " + S.Drive + ", dove non c'e' MODELLI.\r\n" +
-                            "Il Drive della scuola sembra " + d.Percorso + ": apri Cartelle e cambialo.";
-                        statoStrumento[1].Tag = Ruolo.Avviso;
-                        Tema.Applica(this);
-                        return;
+                        altroDrive = d.Percorso;
+                        break;
                     }
                 }
-                if (S.ModuloFoglio.Trim() != "")
+                // Qui prima c'era un return: le schede Orari e Privacy e il
+                // riepilogo restavano vuoti o vecchi proprio in questo caso.
+                if (altroDrive != "")
                 {
-                    ParametriModulo pm = new ParametriModulo();
-                    pm.CartellaFoglio = S.ModuloCartella;
-                    pm.NomeFoglio = S.ModuloFoglio;
-                    pm.UsaDrive = S.ModuloDrive;
-                    bool foglio = ScriptModuli.FoglioSulPc(S.Drive, anno, pm);
-                    riga += foglio ? "   ·   foglio del modulo: c'e'"
-                                   : "   ·   foglio del modulo: da preparare (passo 2)";
-                    if (!foglio) daFare = true;
+                    statoStrumento[1].Text = "Sto guardando " + S.Drive + ", dove non c'e' MODELLI.\r\n" +
+                        "Il Drive della scuola sembra " + altroDrive + ": apri Cartelle e cambialo.";
+                    statoStrumento[1].Tag = Ruolo.Avviso;
                 }
-                statoStrumento[1].Text = riga;
-                statoStrumento[1].Tag = daFare ? Ruolo.Avviso : Ruolo.Buono;
+                else
+                {
+                    if (S.ModuloFoglio.Trim() != "")
+                    {
+                        ParametriModulo pm = new ParametriModulo();
+                        pm.CartellaFoglio = S.ModuloCartella;
+                        pm.NomeFoglio = S.ModuloFoglio;
+                        pm.UsaDrive = S.ModuloDrive;
+                        bool foglio = ScriptModuli.FoglioSulPc(S.Drive, anno, pm);
+                        riga += foglio ? "   ·   foglio del modulo: c'e'"
+                                       : "   ·   foglio del modulo: da preparare (passo 2)";
+                        if (!foglio) daFare = true;
+                    }
+                    statoStrumento[1].Text = riga;
+                    statoStrumento[1].Tag = daFare ? Ruolo.Avviso : Ruolo.Buono;
+                }
             }
 
             statoStrumento[2].Text = (S.Lezioni.Count > 0)
