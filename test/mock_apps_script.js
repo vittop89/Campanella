@@ -1,13 +1,19 @@
 /**
  * Banco di prova per Organizzazione_Gmail.gs
  *
- *   node test/mock_apps_script.js
+ *   node test/mock_apps_script.js [Configurazione.gs] [Organizzazione_Gmail.gs]
  *
  * Simula GmailApp, PropertiesService, ScriptApp, MailApp e Session con una
  * finta casella di posta, poi esegue i quattro passi e stampa cosa succede.
  * Serve a verificare le ricerche costruite, l'etichettatura a blocchi, la
  * ripresa dopo il tempo massimo e le funzioni di annullamento, senza dover
- * caricare nulla su Google.
+ * caricare nulla su Google. In fondo controlla che ogni email mandata durante
+ * le prove sia andata solo all'account stesso, senza copie.
+ *
+ * Di partenza usa test/Configurazione_esempio.gs e il motore vero; il primo
+ * argomento e' un'altra configurazione (test/prova_posta.ps1 passa quella
+ * generata da Campanella), il secondo una copia del motore
+ * (test/invarianti_script.js ci mette dei guasti apposta).
  */
 
 'use strict';
@@ -237,8 +243,20 @@ const ScriptApp = {
   }
 };
 
+// Ogni invio, con tutto quello che lo script passa: destinatario, oggetto,
+// corpo e opzioni (cc, bcc...), in tutte e due le forme che MailApp accetta.
+// In fondo si controlla che ogni email sia andata solo all'account stesso.
 const posta = [];
-const MailApp = { sendEmail: (a, o, c) => posta.push({ a, o, c }) };
+function registraInvio(servizio, argomenti) {
+  const primo = argomenti[0];
+  if (primo && typeof primo === 'object') {
+    posta.push({ servizio, a: primo.to, o: primo.subject, c: primo.body, opzioni: primo });
+  } else {
+    posta.push({ servizio, a: primo, o: argomenti[1], c: argomenti[2], opzioni: argomenti[3] || {} });
+  }
+}
+const MailApp = { sendEmail: (...argomenti) => registraInvio('MailApp', argomenti) };
+GmailApp.sendEmail = (...argomenti) => registraInvio('GmailApp', argomenti);
 const Logger = { log: t => registro.push(String(t)) };
 const Utilities = {
   sleep: () => {},
@@ -540,6 +558,14 @@ intestazione('FILTRI VERI DI GMAIL');
   };
   const t = contesto.EXTRA_creaFiltriGmail();
   const etichettate = filtri.map(f => f.action.addLabelIds[0]);
+  // un filtro puo' solo etichettare, archiviare e segnare come letto: niente
+  // cestino, spam, inoltro o altre etichette di sistema
+  verifica('i filtri fanno solo quello che fa lo script (' + filtri.length + ' filtri)',
+    filtri.length > 0 && filtri.every(f =>
+      Object.keys(f.action).every(k => k === 'addLabelIds' || k === 'removeLabelIds') &&
+      f.action.addLabelIds.every(id => etichette.has(id.replace(/^id:/, ''))) &&
+      (f.action.removeLabelIds || []).every(id => id === 'INBOX' || id === 'UNREAD') &&
+      Object.keys(f.criteria).every(k => ['from', 'to', 'subject', 'query', 'hasAttachment'].indexOf(k) >= 0)));
   verifica('crea i filtri delle regole semplici',
     etichettate.indexOf('id:Scuola/Colleghi') >= 0 && etichettate.indexOf('id:Scuola/Circolari') >= 0);
   verifica('ma non quello di Studenti: prenderebbe anche i colleghi',
@@ -800,6 +826,19 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
     conGruppo.conversazioni >= 1);
 }
 function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
+
+intestazione('LA POSTA VA SOLO A TE');
+{
+  // La promessa fatta al DPO: lo script manda email solo all'account in cui
+  // gira. Qui passano tutte quelle mandate durante le prove qui sopra.
+  verifica('le prove hanno mandato delle email, quindi il controllo vale (' + posta.length + ')',
+    posta.length >= 2);
+  const altrove = posta.filter(m => typeof m.a !== 'string' || m.a.trim().toLowerCase() !== IO);
+  verifica('ogni email e\' andata solo al tuo indirizzo', altrove.length === 0);
+  if (altrove.length) console.log('    verso: ' + altrove.map(m => String(m.a)).join(', '));
+  const inCopia = posta.filter(m => { const o = m.opzioni || {}; return !!(o.cc || o.bcc); });
+  verifica('nessuna in copia o in copia nascosta', inCopia.length === 0);
+}
 
 intestazione('RISULTATO');
 if (fallimenti === 0) {
