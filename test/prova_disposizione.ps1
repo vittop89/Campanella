@@ -501,6 +501,34 @@ if ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0) {
     $bmp.Dispose()
     Verifica "e si disegna nel suo colore ($('#{0:x2}{1:x2}{2:x2}' -f $pixel.R, $pixel.G, $pixel.B))" (
         $pixel.R -eq 0x4a -and $pixel.G -eq 0x86 -and $pixel.B -eq 0xe8)
+    # un filo intorno a ogni campione: senza, le sfumature chiare sparivano
+    # nella pagina del tema chiaro e quelle scure in quella dello scuro, e i
+    # quadratini dei ruoli non hanno nemmeno la scritta. Il filo e' il primo
+    # pixel dentro il margine di 3 lasciato al bordo della scelta.
+    function Contrasto($a, $b) {
+        $la = Luminanza $a; $lb = Luminanza $b
+        return ([Math]::Max($la, $lb) + 0.05) / ([Math]::Min($la, $lb) + 0.05)
+    }
+    $quadratino = @($mini | Where-Object { $_.Visible })[0]
+    $coloreQuadratino = $quadratino.Colore
+    $deboli = @()
+    foreach ($scuroQui in @($false, $true)) {
+        $mImposta.Invoke($null, @([bool]$scuroQui)) | Out-Null
+        $paginaQui = $tTema.GetField('Sfondo', [System.Reflection.BindingFlags]'Public,Static').GetValue($null)
+        foreach ($c in @('#c9daf8/#000000', '#fef1d1/#000000', '#efefef/#000000', '#000000/#ffffff', '#0d3b44/#ffffff', '#41236d/#ffffff')) {
+            $quadratino.Colore = $c
+            $bmp = New-Object System.Drawing.Bitmap($quadratino.Width, $quadratino.Height)
+            $quadratino.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $quadratino.Width, $quadratino.Height)))
+            $filo = $bmp.GetPixel(3, [int]($quadratino.Height / 2))
+            $bmp.Dispose()
+            $k = Contrasto $filo $paginaQui
+            if ($k -lt 3.0) { $deboli += "$c tema $(if ($scuroQui) { 'scuro' } else { 'chiaro' }) ($([Math]::Round($k, 2)))" }
+        }
+    }
+    $mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
+    $quadratino.Colore = $coloreQuadratino
+    Verifica "il bordo dei campioni si vede sulla pagina, chiari e scuri, in tutti e due i temi$(if ($deboli.Count) { ': no ' + ($deboli -join ', ') })" (
+        $deboli.Count -eq 0)
     $pannello4 = $null
     foreach ($c in $posta.Controls) {
         if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannello4 = $c }

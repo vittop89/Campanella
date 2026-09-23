@@ -303,10 +303,11 @@ namespace Campanella
 
     /// <summary>
     /// Un colore di etichetta, disegnato come Gmail mostra l'etichetta accanto
-    /// a un messaggio: lo sfondo e sopra la scritta nel colore del testo. ""
-    /// e' nessun colore: bordo tratteggiato e scritta tenue. Deriva da Control,
-    /// non da Label o Button, cosi' Tema.Applica non gli rifa' i colori. Si
-    /// sceglie con il clic, o con Invio e spazio quando ha lo stato attivo.
+    /// a un messaggio: lo sfondo, con un filo intorno, e sopra la scritta nel
+    /// colore del testo. "" e' nessun colore: bordo tratteggiato e scritta
+    /// tenue. Deriva da Control, non da Label o Button, cosi' Tema.Applica non
+    /// gli rifa' i colori. Si sceglie con il clic, o con Invio e spazio quando
+    /// ha lo stato attivo.
     /// </summary>
     class Campione : Control
     {
@@ -382,6 +383,9 @@ namespace Campanella
             {
                 using (SolidBrush b = new SolidBrush(ColorTranslator.FromHtml(ColoriEtichette.Sfondo(colore))))
                     g.FillRectangle(b, r);
+                // un filo tutto intorno: le sfumature chiare sul tema chiaro, e
+                // quelle scure sullo scuro, se no si confondono con la pagina
+                using (Pen p = new Pen(Tema.Tenue)) g.DrawRectangle(p, r);
                 testo = ColorTranslator.FromHtml(ColoriEtichette.TestoDi(colore));
             }
             if (Text != "")
