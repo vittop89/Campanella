@@ -19,7 +19,9 @@ again).
   label uses yet.
 - With the role sub-labels on (step 3), Colleghi/Docenti,
   Colleghi/Amministrativi and the others get shades of the Colleghi colour,
-  always the same shade for the same role, and follow it when it changes.
+  always the same shade for the same role, a different one for each role
+  (teal has only three shades: the lightest blues complete the set), and
+  follow it when it changes.
   "Cambia..." on Colleghi also sets each of them by hand, "nessun colore"
   included; small squares next to the Colleghi colour show them. With no
   colour on Colleghi they have none, unless set by hand. By default no two

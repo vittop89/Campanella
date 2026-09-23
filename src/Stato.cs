@@ -1867,18 +1867,24 @@ namespace Campanella
 
         /// <summary>
         /// Le altre sfumature della tinta di un colore, dalla piu' chiara alla
-        /// piu' scura, ognuna con il suo testo. Vuoto se non c'e' colore o se lo
-        /// sfondo non sta nella tavolozza.
+        /// piu' scura, ognuna con il suo testo. Una tinta che ne ha meno dei
+        /// ruoli (gli azzurri ne hanno tre) prende le altre dalla tinta dopo,
+        /// dalla piu' chiara: cosi' ogni ruolo ha il suo colore. Vuoto se non
+        /// c'e' colore o se lo sfondo non sta nella tavolozza.
         /// </summary>
         public static List<string> Sfumature(string colore)
         {
             List<string> fuori = new List<string>();
             string sfondo = Sfondo(colore);
             if (sfondo == "") return fuori;
-            foreach (string[] tinta in Tinte)
+            for (int t = 0; t < Tinte.Length; t++)
             {
-                if (Array.IndexOf(tinta, sfondo) < 0) continue;
-                foreach (string s in tinta) if (s != sfondo) fuori.Add(Coppia(s));
+                if (Array.IndexOf(Tinte[t], sfondo) < 0) continue;
+                foreach (string s in Tinte[t]) if (s != sfondo) fuori.Add(Coppia(s));
+                // la tinta vicina: quella dopo nella tavolozza (per l'ultima, quella prima)
+                string[] vicina = Tinte[(t + 1 < Tinte.Length) ? t + 1 : t - 1];
+                for (int k = 0; k < vicina.Length && fuori.Count < Stato.Categorie.Length; k++)
+                    if (!fuori.Contains(Coppia(vicina[k]))) fuori.Add(Coppia(vicina[k]));
                 break;
             }
             return fuori;
@@ -1906,9 +1912,9 @@ namespace Campanella
             if (scelti != null && categoria != null && scelti.ContainsKey(categoria)) return Pulito(scelti[categoria]);
             List<string> sfumature = Sfumature(coloreColleghi);
             int i = Array.IndexOf(Stato.Categorie, categoria);
-            if (sfumature.Count == 0 || i < 0) return "";
-            // una tinta con poche sfumature (gli azzurri) le ripete
-            return sfumature[i % sfumature.Count];
+            // Sfumature ne da' almeno una per categoria: nessuna si ripete
+            if (i < 0 || i >= sfumature.Count) return "";
+            return sfumature[i];
         }
 
         /// <summary>

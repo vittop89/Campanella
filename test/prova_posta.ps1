@@ -357,6 +357,22 @@ try {
             (@($sfondi | Sort-Object -Unique)).Count -eq $sfondi.Count -and $sfondi -notcontains '')
         Verifica "le sottoetichette: sfumature del blu di Colleghi, dalla piu' chiara, nell'ordine delle categorie" (
             ($ruoli -join ' ') -eq '#c9daf8/#000000 #a4c2f4/#000000 #6d9eeb/#000000 #3c78d8/#000000 #285bac/#ffffff')
+        # qualunque colore abbia Colleghi, anche uno di una tinta con poche
+        # sfumature (gli azzurri ne hanno tre): un colore diverso per ogni ruolo
+        $ripetuti = @()
+        foreach ($tinta in $tColori.GetField('Tinte', $FS).GetValue($null)) {
+            foreach ($sf in $tinta) {
+                $c = [string](Colori 'Coppia' @([string]$sf))
+                $r = @($categorie | ForEach-Object { [string](Colori 'DelRuolo' @($c, [string]$_, $null)) })
+                $buoni = @($r | Where-Object { $_ -ne $c -and (Colori 'Valido' @([string]$_)) } | Sort-Object -Unique)
+                if ($buoni.Count -ne $categorie.Count) { $ripetuti += "$sf ($($r -join ' '))" }
+            }
+        }
+        Verifica "per ogni colore di Colleghi, $($categorie.Count) sfumature diverse per i ruoli$(if ($ripetuti.Count) { ': no con ' + ($ripetuti -join ', ') })" (
+            $ripetuti.Count -eq 0)
+        $azzurri = @($categorie | ForEach-Object { [string](Colori 'DelRuolo' @([string]'#2da2bb/#000000', [string]$_, $null)) })
+        Verifica "con Colleghi azzurro: prima le altre due sfumature azzurre, poi i blu piu' chiari" (
+            ($azzurri -join ' ') -eq '#98d7e4/#000000 #0d3b44/#ffffff #c9daf8/#000000 #a4c2f4/#000000 #6d9eeb/#000000')
 
         function ColoriNellaConfigurazione($stato) {
             $f = Join-Path $temporanea 'Configurazione_colori.gs'

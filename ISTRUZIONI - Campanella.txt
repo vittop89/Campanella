@@ -194,8 +194,9 @@ POSTA - riordinare la casella
    tutti diversi; una regola nuova prende il primo colore libero. Per
    Colleghi, con le sottoetichette dei ruoli accese, "Cambia..." sceglie
    anche i colori delle sottoetichette (i quadratini accanto): di partenza
-   sono sfumature del colore di Colleghi e lo seguono quando cambia, ma
-   ognuna si puo' scegliere a mano.
+   sono sfumature del colore di Colleghi, una diversa per ogni ruolo (gli
+   azzurri ne hanno solo tre: le altre sono i blu piu' chiari), e lo
+   seguono quando cambia, ma ognuna si puo' scegliere a mano.
    I colori li mette il servizio Gmail API, da aggiungere nell'editor dello
    script (l'ottavo passo dell'installazione guidata): con il servizio le
    etichette nascono gia' colorate. Per quelle che ci sono gia' esegui
