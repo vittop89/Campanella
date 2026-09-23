@@ -134,7 +134,7 @@ namespace Campanella
             sb.AppendLine("  //  Le etichette si sommano: un messaggio puo' prenderne piu' d'una.");
             sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti va sotto le regole");
             sb.AppendLine("  //  che esclude (Colleghi, Dirigenza, Segreteria).");
-            sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio");
+            sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   \u00b7   @DOMINIO@ = tutto il dominio");
             if (gruppi.Count > 0)
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
             sb.AppendLine("  regole: [");

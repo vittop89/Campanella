@@ -75,7 +75,7 @@ function esiste(nome, dopo) {
   if (tutte.has(nome)) return true;
   const inizio = [...tutte].filter(n => n.indexOf(nome) === 0);
   if (nome.charAt(nome.length - 1) === '_') return inizio.length > 0;       // "ANNULLA_..."
-  if (/^\.\.\.|^…/.test(dopo)) return inizio.length > 0;               // "PASSO_3_riordinaPosta..."
+  if (/^\.\.\.|^\u2026/.test(dopo)) return inizio.length > 0;               // "PASSO_3_riordinaPosta..."
   return inizio.some(n => n.charAt(nome.length) === '_');                   // "PASSO_3"
 }
 
