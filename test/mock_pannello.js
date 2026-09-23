@@ -1199,6 +1199,9 @@ titolo('ANTEPRIMA E PREPARAZIONE');
   const t = c.PANNELLO_3_anteprima();
   verifica('l\'anteprima non tocca niente', m.fogliCreati === 0 && m.cartelleCreate === 0 && m.trigger.length === 0);
   verifica('elenca le due chiusure', t.indexOf('31/08/2027') >= 0 && t.indexOf('30/06/2027') >= 0);
+  const versione = /var _PAN_VERSIONE\s*=\s*'([^']+)'/.exec(motore)[1];
+  verifica('dice la versione dello script (' + versione + '), per sapere se va reincollato',
+    t.indexOf('Script: Campanella ' + versione + ' ') >= 0);
 
   const tp = c.PANNELLO_4_preparaAnno();
   verifica('crea un foglio per modulo', m.fogliCreati === 2);
@@ -1640,6 +1643,7 @@ if (process.argv[2]) {
   verifica('ogni riga ha nome e nome del foglio', righe.every(r => String(r[0]) !== '' && String(r[3]).indexOf('{anno}') > 0));
   const t = c.PANNELLO_3_anteprima();
   verifica('l\'anteprima gira e chiede i link', t.indexOf('manca il link del modulo') >= 0);
+  verifica('e dice la versione dello script', /Script: Campanella \d+\.\d+\.\d+ /.test(t));
   verifica('e non ha toccato niente', m.fogliCreati === 0 && m.trigger.length === 0);
 }
 

@@ -277,6 +277,7 @@ function _moduloEsegui(davvero) {
   righe.push(davvero ? 'PREPARO L\'ANNO SCOLASTICO ' + anno
                      : 'ANTEPRIMA per l\'anno scolastico ' + anno + ' - non modifico niente.');
   righe.push('Modulo: "' + (form.getTitle() || '(senza titolo)') + '"');
+  righe.push('Script: Campanella ' + _MODULO_VERSIONE + ' (se Campanella e\' piu\' nuova, rigenera e reincolla il codice)');
   righe.push('');
 
   // Google lascia togliere le spunte ai singoli permessi. La chiusura di fine anno gira da

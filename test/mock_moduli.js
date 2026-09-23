@@ -396,6 +396,7 @@ if (process.argv[2]) {
     !/GmailApp|MailApp|UrlFetchApp|CalendarApp|DocumentApp/.test(generato));
   const anteprima = c.MODULO_1_anteprima();
   verifica('l\'anteprima non tocca niente', m.fogliCreati === 0 && m.trigger.length === 0 && m.collegamenti === 0);
+  verifica('l\'anteprima dice la versione dello script', /Script: Campanella \d+\.\d+\.\d+ /.test(anteprima));
   verifica('l\'anteprima nomina il foglio', anteprima.indexOf(c.MODULO.nomeFoglio.replace('{anno}', '2026-27')) >= 0 ||
     c.MODULO.anno !== 'auto');
   c.MODULO_2_prepara(); c.MODULO_2_prepara();
@@ -427,6 +428,9 @@ titolo('ANTEPRIMA SU UN DRIVE VUOTO: non deve toccare niente');
   const c = carica(m);
   const t = c.MODULO_1_anteprima();
   verifica('dice l\'anno giusto (19 settembre 2026 -> 2026-27)', t.indexOf('2026-27') >= 0);
+  const versione = /var _MODULO_VERSIONE\s*=\s*'([^']+)'/.exec(motore)[1];
+  verifica('dice la versione dello script (' + versione + '), per sapere se va reincollato',
+    t.indexOf('Script: Campanella ' + versione + ' ') >= 0);
   verifica('dice che le cartelle sono da creare', t.indexOf('da creare: Il mio Drive / A.S. 2026-27') >= 0 &&
     t.indexOf('da creare: Il mio Drive / A.S. 2026-27 / RECUPERI') >= 0);
   verifica('nessuna cartella, nessun foglio, nessun collegamento, nessuna chiusura, niente ricordato',
