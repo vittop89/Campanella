@@ -147,9 +147,8 @@ function corrispondeToken(t, token) {
 function cerca(query) {
   const tokens = tokenizza(query);
   return casella.filter(t => {
-    if (t.isChat && !/in:chats/i.test(query)) {
-      // Gmail esclude le chat solo se richiesto: qui lo script lo chiede sempre
-    }
+    // Come in Gmail, le chat restano fuori solo se la ricerca lo chiede con
+    // -in:chats (lo script lo chiede sempre): se ne occupa il token "in"
     for (const tok of tokens) {
       const ok = corrispondeToken(t, tok);
       if (tok.neg ? ok : !ok) return false;
