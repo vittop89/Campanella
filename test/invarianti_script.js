@@ -29,6 +29,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('vm');
 const figlio = require('child_process');
 
 const radice = path.join(__dirname, '..');
@@ -237,11 +238,13 @@ for (const nome of Object.keys(REGOLE)) {
   sorgenti[nome] = fs.readFileSync(path.join(risorse, nome), 'utf8');
 }
 
-intestazione('GLI SCRIPT DI OGGI');
-for (const nome of Object.keys(REGOLE)) {
-  const v = controlla(nome, sorgenti[nome]);
-  verifica(nome + ': nessuna violazione', v.length === 0);
-  v.forEach(x => console.log('        ' + x));
+function scriptDiOggi() {
+  intestazione('GLI SCRIPT DI OGGI');
+  for (const nome of Object.keys(REGOLE)) {
+    const v = controlla(nome, sorgenti[nome]);
+    verifica(nome + ': nessuna violazione', v.length === 0);
+    v.forEach(x => console.log('        ' + x));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -261,8 +264,8 @@ function deveFallire(nomeFile, descrizione, modificato, attesa) {
   verifica(descrizione, v.some(x => x.indexOf(attesa) >= 0));
 }
 
-intestazione('LA PROVA DELLA PROVA: COPIE MODIFICATE IN MEMORIA');
-{
+function provaDellaProva() {
+  intestazione('LA PROVA DELLA PROVA: COPIE MODIFICATE IN MEMORIA');
   const posta = sorgenti['Organizzazione_Gmail.gs'];
   const INIZIO = 'function PASSO_1_anteprima() {';
   deveFallire('Organizzazione_Gmail.gs', 'un UrlFetchApp aggiunto viene trovato',
@@ -306,8 +309,8 @@ intestazione('LA PROVA DELLA PROVA: COPIE MODIFICATE IN MEMORIA');
 //  Lo stesso guasto, ma nel motore che gira nel banco: test/mock_apps_script.js
 //  controlla ogni email mandata durante le prove.
 // ---------------------------------------------------------------------------
-intestazione('IL BANCO DELLA POSTA, SU UNA COPIA TEMPORANEA DEL MOTORE');
-{
+function bancoConGuasti() {
+  intestazione('IL BANCO DELLA POSTA, SU UNA COPIA TEMPORANEA DEL MOTORE');
   const cartella = fs.mkdtempSync(path.join(os.tmpdir(), 'campanella-posta-invarianti-'));
   const banco = path.join(__dirname, 'mock_apps_script.js');
   const esempio = path.join(__dirname, 'Configurazione_esempio.gs');
@@ -336,10 +339,124 @@ intestazione('IL BANCO DELLA POSTA, SU UNA COPIA TEMPORANEA DEL MOTORE');
   }
 }
 
-intestazione('RISULTATO');
-if (fallimenti === 0) {
-  console.log('  Tutte le prove superate.');
-} else {
-  console.log('  PROVE FALLITE: ' + fallimenti);
-  process.exitCode = 1;
+// ---------------------------------------------------------------------------
+//  4. GLI ESTRATTORI DEL PERSONALE
+//  L'estensione per Chrome e la funzione da console leggono la stessa pagina
+//  del registro. Qui girano su una pagina finta, con persone inventate: la
+//  funzione da console non deve lasciare file nei download quando gli appunti
+//  funzionano (A-19).
+// ---------------------------------------------------------------------------
+const FILE_CONSOLE = path.join(risorse, 'estrai_personale_spaggiari.js');
+
+const PERSONE = [
+  { nome: 'ROSSI MARIO', ruolo: 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO', email: 'mario.rossi@scuola-esempio.edu.it' },
+  { nome: 'DE LUCA ANNA', ruolo: 'ASSISTENTE AMMINISTRATIVO', email: 'anna.deluca@scuola-esempio.edu.it' },
+  { nome: 'VERDI GIUSEPPE', ruolo: 'COLLABORATORE SCOLASTICO', email: '' },
+  { nome: 'BLU CARLA', ruolo: 'ASSISTENTE TECNICO', email: 'carla.blu@scuola-esempio.edu.it' },
+  { nome: 'GRIGI SARA', ruolo: 'DIRIGENTE SCOLASTICO', email: 's.grigi@scuola-esempio.edu.it' },
+  { nome: 'VIOLA TIZIO', ruolo: '', email: '' }
+];
+
+/**
+ * Una pagina del personale finta, con solo quello che i due estrattori
+ * leggono. "appunti" dice quali strade per gli appunti funzionano: copy() della
+ * console, navigator.clipboard, execCommand('copy').
+ */
+function paginaFinta(host, persone, appunti) {
+  appunti = appunti || {};
+  const esito = { scorrimenti: 0, scaricati: [], copiato: null, scritte: [] };
+  const contenitori = persone.map((p, i) => ({
+    getAttribute: n => (n === 'account_id' ? 'id' + i : null),
+    querySelector: sel => {
+      if (sel === '.sing_user_nominativo') return { textContent: '\n  ' + p.nome + '  ' };
+      if (sel === '.sing_user_ruolo') return p.ruolo ? { textContent: p.ruolo } : null;
+      if (sel === 'a[href^="mailto:"]') return p.email ? { getAttribute: () => 'mailto:' + p.email } : null;
+      return null;
+    },
+    innerText: p.nome + '\n' + (p.ruolo || ''),
+    classList: { contains: () => false }
+  }));
+  let areaDiTesto = null;
+  const scrivi = (...a) => { esito.scritte.push(a.join(' ')); };
+  const globali = {
+    document: {
+      body: { scrollHeight: 5000, appendChild: () => {} },
+      querySelectorAll: sel => (sel === '[account_id]' ? contenitori : []),
+      createElement: tag => {
+        const el = { tag, style: {}, remove: () => {}, select: () => {} };
+        el.click = () => { if (tag === 'a' && el.download) esito.scaricati.push(el.download); };
+        if (tag === 'textarea') areaDiTesto = el;
+        return el;
+      },
+      execCommand: () => {
+        if (!appunti.execCommand) return false;
+        esito.copiato = areaDiTesto && areaDiTesto.value;
+        return true;
+      }
+    },
+    window: { scrollTo: () => { esito.scorrimenti++; } },
+    location: { hostname: host },
+    navigator: { clipboard: { writeText: t => {
+      if (!appunti.navigatore) return Promise.reject(new Error('permesso negato'));
+      esito.copiato = t;
+      return Promise.resolve();
+    } } },
+    setTimeout: f => { f(); return 0; },
+    URL: { createObjectURL: () => 'blob:finto', revokeObjectURL: () => {} },
+    Blob: function Blob(parti) { this.parti = parti; },
+    console: { log: scrivi, warn: scrivi, table: () => {} }
+  };
+  if (appunti.copy) globali.copy = t => { esito.copiato = t; };
+  return { contesto: vm.createContext(globali), esito };
+}
+
+/** Esegue la funzione da console nella pagina finta, come dopo Invio nella Console. */
+async function eseguiConsole(pagina, file) {
+  const codice = fs.readFileSync(file || FILE_CONSOLE, 'utf8');
+  return await vm.runInContext(codice, pagina.contesto, { filename: 'estrai_personale_spaggiari.js' });
+}
+
+async function estrattori() {
+  intestazione('LA FUNZIONE DA CONSOLE: IL CSV SOLO SE GLI APPUNTI NON FUNZIONANO');
+  const HOST = 'web.spaggiari.eu';
+
+  const conCopy = paginaFinta(HOST, PERSONE, { copy: true });
+  const risposta = await eseguiConsole(conCopy);
+  verifica('legge tutte le persone', risposta === PERSONE.length + ' persone estratte');
+  verifica('con gli appunti che funzionano copia l\'elenco',
+    typeof conCopy.esito.copiato === 'string' && conCopy.esito.copiato.indexOf('NOMINATIVO\tRUOLO\tEMAIL\tCATEGORIA') === 0);
+  verifica('e non scarica nessun file', conCopy.esito.scaricati.length === 0);
+
+  const conNavigatore = paginaFinta(HOST, PERSONE, { navigatore: true });
+  await eseguiConsole(conNavigatore);
+  verifica('anche con navigator.clipboard: copiato, nessun file',
+    conNavigatore.esito.copiato !== null && conNavigatore.esito.scaricati.length === 0);
+
+  const senzaAppunti = paginaFinta(HOST, PERSONE, {});
+  await eseguiConsole(senzaAppunti);
+  verifica('senza appunti scarica il CSV, e solo allora',
+    senzaAppunti.esito.scaricati.length === 1 && senzaAppunti.esito.scaricati[0] === 'personale_spaggiari.csv');
+  verifica('e dice di cancellarlo dopo averlo usato',
+    senzaAppunti.esito.scritte.some(s => /CANCELLA IL FILE/.test(s)));
+}
+
+// ---------------------------------------------------------------------------
+async function principale() {
+  scriptDiOggi();
+  provaDellaProva();
+  bancoConGuasti();
+  await estrattori();
+
+  intestazione('RISULTATO');
+  if (fallimenti === 0) {
+    console.log('  Tutte le prove superate.');
+  } else {
+    console.log('  PROVE FALLITE: ' + fallimenti);
+    process.exitCode = 1;
+  }
+}
+
+module.exports = { smonta, controlla, paginaFinta, eseguiConsole, PERSONE };
+if (require.main === module) {
+  principale().catch(e => { console.error(e); process.exitCode = 1; });
 }

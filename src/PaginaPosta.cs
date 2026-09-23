@@ -1562,7 +1562,11 @@ namespace Campanella
                 "nelle cinque categorie che servono alle sottoetichette di Gmail.\n" +
                 "Nella Console restano stampati il riepilogo per categoria e il\n" +
                 "blocco CSV: se gli appunti non funzionano, seleziona quel blocco,\n" +
-                "copialo a mano e incollalo lo stesso con \"Incolla elenco\".\n\n" +
+                "copialo a mano e incollalo lo stesso con \"Incolla elenco\".\n" +
+                "Solo in quel caso la funzione scarica anche personale_spaggiari.csv\n" +
+                "nella cartella dei download: lo carichi con \"Incolla elenco\" ->\n" +
+                "\"Apri un file...\", e poi lo cancelli, perche' contiene nomi e\n" +
+                "indirizzi dei colleghi.\n\n" +
                 "Se il browser chiede di scrivere \"consentimi\" (o \"allow pasting\")\n" +
                 "prima di poter incollare nella Console, scrivilo e premi Invio:\n" +
                 "e' una protezione di Chrome, va fatto una volta sola.";
