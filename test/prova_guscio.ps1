@@ -23,6 +23,10 @@
       - chiudere mentre un lavoro va avanti: il guscio sa quali lavori
         vanno (e chiede prima di chiudere), e lo scarico di rizzo-pii viene
         fermato con un'attesa breve e limitata;
+      - chiudere quando un altro computer ha cambiato il file dei dati e qui
+        ci sono modifiche: si chiede se chiudere lo stesso, e "No" lascia la
+        finestra aperta sulle Impostazioni (le finestre della chiusura sono
+        sostituite da una funzione che risponde, senza aprirle);
       - i bottoni che portano alla Posta ci arrivano anche con il menu in
         un altro ordine;
       - un file che non si scrive e una sottocartella che non si legge non
@@ -460,6 +464,133 @@ finally {
     if ($g -ne $null) { $g.Dispose() }
     $campoProva.SetValue($null, '')
     Remove-Item -Recurse -Force -LiteralPath $cartellaChiusura -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+Intestazione "CHIUDERE CON IL FILE DEI DATI CAMBIATO DA UN ALTRO COMPUTER"
+# Il file dei dati nel Drive di solito si salva alla chiusura, ed e' li' che ci
+# si accorge che un altro computer l'ha cambiato. Prima c'era un avviso con OK
+# e la finestra si chiudeva: le modifiche di adesso andavano perse, e riaprendo
+# si caricava il file dell'altro computer. Adesso si chiede, e "No" lascia la
+# finestra aperta sulle Impostazioni, dove Applica puo' ancora sostituire quel
+# file. Allo spegnimento del computer non si chiede niente. Le finestre della
+# chiusura passano da FinestraDiChiusura: qui una funzione risponde al posto
+# dell'utente e si ricorda che cosa le e' stato chiesto.
+$cartellaConflitto = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-conflitto-' + (Get-Random))
+$driveConflitto = Join-Path $cartellaConflitto 'Drive finto'
+$datiConflitto = Join-Path $driveConflitto 'Campanella'
+$fileConflitto = Join-Path $datiConflitto 'campanella-dati.json'
+New-Item -ItemType Directory -Force $datiConflitto | Out-Null
+$campoProva.SetValue($null, $cartellaConflitto)
+$tPersona = $asm.GetType('Campanella.Persona')
+function PersonaJson($nome, $email) {
+    return @{ nome = $nome; ruolo = 'Docente'; email = $email; incluso = $true; verificato = $false }
+}
+function ScriviJson($percorso, $d) {
+    [System.IO.File]::WriteAllText($percorso, ($d | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
+}
+function Chiudi($guscio, $perche) {
+    $ev = New-Object System.Windows.Forms.FormClosingEventArgs($perche, $false)
+    [System.Windows.Forms.Form].GetMethod('OnFormClosing', $FI).Invoke($guscio, [object[]]@($ev.PSObject.BaseObject)) | Out-Null
+    return $ev
+}
+function PaginaDi($guscio) {
+    return $tGuscio.GetField('pagine', $FI).GetValue($guscio)[$tGuscio.GetField('pagina', $FI).GetValue($guscio)]
+}
+function MettiCampo($o, $nome, $valore) { $o.GetType().GetField($nome, $FI).SetValue($o, $valore) }
+function DatiSulDisco { return [System.IO.File]::ReadAllText($fileConflitto) }
+# le finestre chieste, e le risposte da dare una dopo l'altra (poi sempre No)
+$script:finestre = New-Object System.Collections.ArrayList
+$script:risposte = New-Object System.Collections.Queue
+function Risposte($elenco) {
+    $script:finestre.Clear(); $script:risposte.Clear()
+    foreach ($r in $elenco) { $script:risposte.Enqueue([bool]$r) }
+}
+$risponde = [Func[string, string, bool, bool]] {
+    param($testo, $titolo, $domanda)
+    [void]$script:finestre.Add(@($testo, $titolo, $domanda))
+    if ($script:risposte.Count -gt 0) { return [bool]$script:risposte.Dequeue() }
+    return $false
+}
+$g = $null
+try {
+    ScriviJson (Join-Path $cartellaConflitto 'campanella.json') @{
+        formato = 1; consensoVersione = $versione; consensoData = '2026-09-01'
+        drive = $driveConflitto; datiNelDrive = $true; cartellaDati = $datiConflitto }
+    ScriviJson $fileConflitto @{ formato = 1; personale = @(PersonaJson 'ROSSI MARIO' 'mario.rossi@scuola.example') }
+    $s = Rileggi
+    $g = NuovoGuscio $s
+    $campoFinestra = $tGuscio.GetField('FinestraDiChiusura', $FI)
+    Verifica "le finestre della chiusura si provano senza aprirle" ($campoFinestra -ne $null)
+    if ($campoFinestra -ne $null) {
+        $campoFinestra.SetValue($g, $risponde)
+        # qui si aggiunge una persona; intanto un altro computer ne aggiunge un'altra
+        $nuova = [Activator]::CreateInstance($tPersona)
+        $tPersona.GetField('Nome').SetValue($nuova, 'BIANCHI LUCA')
+        $tPersona.GetField('Email').SetValue($nuova, 'luca.bianchi@scuola.example')
+        # non con Campo: tornando da una funzione, PowerShell srotola l'elenco
+        $personale = $tStato.GetField('Personale', $FI).GetValue($s.PSObject.BaseObject)
+        $personale.GetType().GetMethod('Add').Invoke($personale, @($nuova)) | Out-Null
+        ScriviJson $fileConflitto @{ formato = 1; personale = @(
+            (PersonaJson 'ROSSI MARIO' 'mario.rossi@scuola.example'),
+            (PersonaJson 'VERDI ANNA' 'anna.verdi@scuola.example')) }
+        $altroPc = DatiSulDisco
+
+        # "No": la finestra resta aperta, sulle Impostazioni
+        Risposte @($false)
+        $ev = Chiudi $g ([System.Windows.Forms.CloseReason]::UserClosing)
+        Verifica "il file dell'altro computer non si sovrascrive" ((DatiSulDisco) -eq $altroPc)
+        Verifica "si chiede, una volta sola, con una domanda" ($script:finestre.Count -eq 1 -and $script:finestre[0][2])
+        $testo = ''
+        if ($script:finestre.Count -gt 0) { $testo = [string]$script:finestre[0][0] }
+        Verifica "la domanda: chiudo lo stesso, e le modifiche di adesso vanno perse" (
+            $testo -match 'Chiudo lo stesso' -and $testo -match 'andranno perse')
+        Verifica "e non consiglia di riaprire fra qualche minuto" ($testo -ne '' -and $testo -notmatch 'fra qualche minuto')
+        Verifica "'No': la finestra resta aperta" ($ev.Cancel)
+        $imp = PaginaDi $g
+        Verifica "e mostra le Impostazioni" ($imp.GetType().Name -eq 'PaginaImpostazioni')
+        Verifica "dove la parte dei dati dice di premere Applica" (
+            $imp.GetType().Name -eq 'PaginaImpostazioni' -and (Campo $imp 'lblDati').Text -match 'Applica')
+        Verifica "e lo dice anche la riga in basso" ((Campo $g 'lblStato').Text -match 'Applica')
+
+        # con un lavoro in corso: prima la domanda sul lavoro, poi quella sui dati;
+        # "No" alla seconda lascia andare avanti anche il lavoro
+        MettiCampo $imp 'scaricando' $true
+        MettiCampo $imp 'interrompi' $false
+        Risposte @($true, $false)
+        $ev = Chiudi $g ([System.Windows.Forms.CloseReason]::UserClosing)
+        MettiCampo $imp 'scaricando' $false
+        Verifica "con un lavoro in corso: due domande, e 'No' alla seconda non chiude" (
+            $script:finestre.Count -eq 2 -and $ev.Cancel)
+        Verifica "e non ferma il lavoro" (-not (Campo $imp 'interrompi'))
+
+        # "Si'": si chiude, senza un altro avviso dopo la domanda
+        Risposte @($true)
+        $ev = Chiudi $g ([System.Windows.Forms.CloseReason]::UserClosing)
+        Verifica "'Si'': si chiude, e dopo la domanda nessun altro avviso" (-not $ev.Cancel -and $script:finestre.Count -eq 1)
+        Verifica "e il file dell'altro computer resta com'era" ((DatiSulDisco) -eq $altroPc)
+
+        # allo spegnimento del computer non si chiede niente
+        Risposte @()
+        $ev = Chiudi $g ([System.Windows.Forms.CloseReason]::WindowsShutDown)
+        Verifica "allo spegnimento non si chiede niente, e si chiude" (-not $ev.Cancel -and $script:finestre.Count -eq 0)
+
+        # rimasta aperta, l'utente sceglie Applica > sostituisci: poi si chiude senza domande
+        $mSposta = $tStato.GetMethod('SpostaDati', [Type[]]@([bool], [string], [bool], [string].MakeByRefType()))
+        $ok = $mSposta.Invoke($s.PSObject.BaseObject, [object[]]@($true, [string]$datiConflitto, $true, $null))
+        Risposte @()
+        $ev = Chiudi $g ([System.Windows.Forms.CloseReason]::UserClosing)
+        Verifica "dopo Applica > sostituisci il Drive ha i dati di adesso, e si chiude senza domande" (
+            $ok -and -not $ev.Cancel -and $script:finestre.Count -eq 0 -and (DatiSulDisco) -match 'BIANCHI LUCA')
+    }
+}
+catch {
+    Verifica "la chiusura con il file dei dati cambiato si prova senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($g -ne $null) { $g.Dispose() }
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaConflitto -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------------------

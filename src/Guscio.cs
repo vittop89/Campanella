@@ -272,6 +272,7 @@ namespace Campanella
             Tema.Applica(this);
             VaiA(0, 0);
 
+            FinestraDiChiusura = MostraFinestraDiChiusura;
             FormClosing += delegate(object o, FormClosingEventArgs e)
             {
                 // niente finestre allo spegnimento del computer, che una
@@ -282,24 +283,62 @@ namespace Campanella
                 // interrompeva in silenzio: adesso si chiede, e "No" lascia la
                 // finestra aperta senza salvare niente
                 List<string> lavori = LavoriInCorso();
-                if (lavori.Count > 0 && siPuoChiedere && MessageBox.Show(this,
+                if (lavori.Count > 0 && siPuoChiedere && !FinestraDiChiusura(
                         "Sta ancora andando avanti " + string.Join(" e ", lavori.ToArray()) + ".\n\n" +
                         "Se chiudi adesso si ferma a meta', e quello che manca andra' rifatto. " +
                         "I file originali non vengono toccati.\n\nChiudo lo stesso?",
-                        "Chiudere Campanella?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                        "Chiudere Campanella?", true))
                 {
                     e.Cancel = true;
                     return;
                 }
-                FermaLavori();
                 SalvaTutto();
+                // il file dei dati nel Drive l'ha cambiato un altro computer, e qui ci
+                // sono modifiche: chiudendo vanno perse. "No" lascia la finestra aperta
+                // (e i lavori in corso) sulle Impostazioni, dove Applica puo' ancora
+                // sostituire quel file
+                if (S.ModificheInConflitto && siPuoChiedere && !FinestraDiChiusura(S.DaAvvisare + "\n\n" +
+                        "Chiudo lo stesso? Le modifiche di adesso andranno perse.\n\n" +
+                        "No = Campanella resta aperta, sulle Impostazioni.",
+                        "Chiudere Campanella?", true))
+                {
+                    e.Cancel = true;
+                    foreach (Pagina p in pagine)
+                    {
+                        PaginaImpostazioni impostazioni = p as PaginaImpostazioni;
+                        if (impostazioni == null) continue;
+                        VaiAPagina(impostazioni, 0);
+                        impostazioni.MostraSezioneDati();
+                    }
+                    Stato1("Per tenere le modifiche di adesso, premi Applica accanto alla cartella dei dati.",
+                           Tema.Ambra);
+                    return;
+                }
+                FermaLavori();
                 // un file lasciato com'era per non rovinarlo, o un Drive che non
-                // c'era: va detto adesso, dopo sarebbe troppo tardi
-                if (S.DaAvvisare != "" && siPuoChiedere)
-                    MessageBox.Show(this, S.DaAvvisare, "Non tutto e' stato salvato",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // c'era: va detto adesso, dopo sarebbe troppo tardi. Dopo la domanda
+                // qui sopra no: diceva gia' tutto
+                if (S.DaAvvisare != "" && siPuoChiedere && !S.ModificheInConflitto)
+                    FinestraDiChiusura(S.DaAvvisare, "Non tutto e' stato salvato", false);
             };
+        }
+
+        /// <summary>
+        /// Le finestre della chiusura: (testo, titolo, domanda) e torna vero per
+        /// chiudere. Una domanda Si'/No parte da No; altrimenti e' un avviso con OK.
+        /// Le prove la sostituiscono con una funzione che risponde senza aprire niente.
+        /// </summary>
+        internal Func<string, string, bool, bool> FinestraDiChiusura;
+
+        bool MostraFinestraDiChiusura(string testo, string titolo, bool domanda)
+        {
+            if (!domanda)
+            {
+                MessageBox.Show(this, testo, titolo, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return true;
+            }
+            return MessageBox.Show(this, testo, titolo, MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
         /// <summary>

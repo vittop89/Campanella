@@ -301,6 +301,16 @@ namespace Campanella
             Tema.Applica(lblDati);
         }
 
+        /// <summary>
+        /// Porta in vista la parte dei dati nel Drive, con Applica: sta in cima alla
+        /// pagina. Ci arriva la chiusura quando un altro computer ha cambiato il file.
+        /// </summary>
+        public void MostraSezioneDati()
+        {
+            AutoScrollPosition = new Point(0, 0);
+            btnApplicaDati.Focus();
+        }
+
         void AbilitaDati()
         {
             bool drive = rbDatiDrive.Checked;
