@@ -49,6 +49,7 @@ function nuovoMondo(opzioni) {
     spostamentoRotto: false,
     collegamentoRottoPerVolte: 0,
     pause: 0,
+    tutte: [],                                        // ogni risposta mai data, per contare quelle perse
     fogli: new Map(),
     file: new Map()
   };
@@ -98,16 +99,51 @@ function nuovoMondo(opzioni) {
     }
   }
 
+  /**
+   * Una scheda del foglio: la prima colonna delle risposte e' il momento in cui
+   * sono arrivate. Google lo scrive al secondo (qui arrotondato, il caso piu'
+   * scomodo: una risposta delle 10:00:00,700 diventa 10:00:01).
+   */
+  class Scheda {
+    constructor(nome) { this.nome = nome; this.intestazione = false; this.tempi = []; this.modulo = null; }
+    get righe() { return (this.intestazione ? 1 : 0) + this.tempi.length; }
+    aggiungi(risposta) { this.tempi.push(Math.round(risposta.tempo / 1000) * 1000); }
+  }
+
   class Foglio {
     constructor(nome, cartella) {
       this.id = id('foglio'); this.nome = nome;
-      this.schede = [{ nome: 'Foglio1', righe: 0, modulo: null }];      // quella vuota che Google crea sempre
+      this.schede = [new Scheda('Foglio1')];                            // quella vuota che Google crea sempre
       m.fogli.set(this.id, this);
       new File(nome, FOGLI_GOOGLE, cartella || m.radice, this.id);
     }
     getId() { return this.id; }
     getUrl() { return 'https://docs.example/spreadsheets/d/' + this.id; }
-    getSheets() { return this.schede.map(s => ({ getLastRow: () => s.righe, getName: () => s.nome })); }
+    getSheets() {
+      return this.schede.map(s => ({
+        getLastRow: () => s.righe,
+        getLastColumn: () => (s.righe > 0 ? 1 : 0),
+        getName: () => s.nome,
+        getRange(r, c, nr, nc) {
+          return {
+            getValues() {
+              const fuori = [];
+              for (let i = 0; i < nr; i++) {
+                const riga = [];
+                for (let k = 0; k < nc; k++) {
+                  const n = r + i - (s.intestazione ? 2 : 1);      // l'indice nei tempi
+                  if (c + k !== 1) riga.push('');
+                  else if (s.intestazione && r + i === 1) riga.push('Informazioni cronologiche');
+                  else riga.push(n >= 0 && n < s.tempi.length ? new Date(s.tempi[n]) : '');
+                }
+                fuori.push(riga);
+              }
+              return fuori;
+            }
+          };
+        }
+      }));
+    }
     righeDiRisposte() { return Math.max(0, ...this.schede.map(s => s.righe - 1)); }
   }
 
@@ -122,8 +158,12 @@ function nuovoMondo(opzioni) {
     rispondi(n) {
       if (!this.aperto) throw new Error('il modulo e\' chiuso');
       for (let i = 0; i < n; i++) {
-        this.risposte.push({});
-        if (this.destinazione) this.destinazione.scheda.righe++;
+        // ogni risposta ha il suo momento, con i millesimi (Google Moduli li tiene)
+        m.risposteDate = (m.risposteDate || 0) + 1;
+        const tempo = m.adesso + m.risposteDate * 1000 + (m.risposteDate * 337) % 1000;
+        const risposta = { tempo, getTimestamp: () => new Date(tempo) };
+        this.risposte.push(risposta); m.tutte.push(risposta);
+        if (this.destinazione) this.destinazione.scheda.aggiungi(risposta);
       }
     }
     getDestinationType() {
@@ -142,7 +182,9 @@ function nuovoMondo(opzioni) {
       m.collegamenti++;
       if (this.destinazione) this.destinazione.scheda.modulo = null;
       // Google aggiunge una scheda nuova e ci ricopia tutte le risposte che il modulo ha gia'
-      const scheda = { nome: 'Risposte del modulo ' + foglio.schede.length, righe: 1 + this.risposte.length, modulo: this.id };
+      const scheda = new Scheda('Risposte del modulo ' + foglio.schede.length);
+      scheda.intestazione = true; scheda.modulo = this.id;
+      for (const risposta of this.risposte) scheda.aggiungi(risposta);
       foglio.schede.push(scheda);
       this.destinazione = { foglio, scheda };
     }
@@ -163,6 +205,29 @@ function nuovoMondo(opzioni) {
   m.radice = new Cartella('Il mio Drive', null);
   m.form = new Modulo(opzioni.titolo || 'Recuperi');
   m.Cartella = Cartella; m.File = File; m.Foglio = Foglio; m.Modulo = Modulo;
+
+  /** Un foglio di un anno passato con n righe di risposte, arrivate piu' di un anno fa. */
+  m.foglioVecchio = function (nome, percorso, n) {
+    const f = new Foglio(nome, m.cartella(percorso));
+    const s = new Scheda('Risposte del modulo 1');
+    s.intestazione = true;
+    for (let i = 0; i < n; i++) s.tempi.push(m.adesso - 400 * 24 * 3600 * 1000 + i * 60000);
+    f.schede.push(s);
+    return f;
+  };
+
+  /** Le risposte date che non stanno piu' da nessuna parte: ne' nel modulo, ne' in un foglio. */
+  m.perse = function () {
+    const righe = new Map();
+    for (const f of m.fogli.values()) for (const s of f.schede) for (const t of s.tempi) righe.set(t, (righe.get(t) || 0) + 1);
+    let n = 0;
+    for (const r of m.tutte) {
+      if (m.form.risposte.indexOf(r) >= 0) continue;
+      const t = Math.round(r.tempo / 1000) * 1000;
+      if (righe.get(t) > 0) righe.set(t, righe.get(t) - 1); else n++;
+    }
+    return n;
+  };
 
   /** Le cartelle che il PC ha gia' caricato: 'A.S. 2026-27/RECUPERI'. */
   m.cartella = function (percorso) {
@@ -232,22 +297,27 @@ function nuovoMondo(opzioni) {
         getAuthorizationStatus: () => (m.permessiMancanti ? 'REQUIRED' : 'NOT_REQUIRED')
       }),
       newTrigger(funzione) {
-        const t = { funzione };
+        const t = { funzione, uid: 'trigger-' + (m.prossimoId++) };
         const orologio = {
           at() { throw new Error('at(data) dipende dal fuso dell\'editor: serve atDate + inTimezone'); },
           atDate(anno, mese, giorno) { t.anno = anno; t.mese = mese; t.giorno = giorno; return orologio; },
+          after(ms) { t.dopo = ms; return orologio; },
           inTimezone(fuso) { t.fuso = fuso; return orologio; },
           create() { m.trigger.push(t); return t; }
         };
         return { timeBased: () => orologio };
       },
-      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, _rif: t })),
+      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, getUniqueId: () => t.uid, _rif: t })),
       deleteTrigger(t) { const i = m.trigger.indexOf(t._rif); if (i >= 0) m.trigger.splice(i, 1); }
     },
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: k => (m.proprieta.has(k) ? m.proprieta.get(k) : null),
-        setProperty: (k, v) => { m.proprieta.set(k, v); }
+        setProperty: (k, v) => {
+          // come quelle vere: un valore sta in circa 9 KB, oltre Google rifiuta di salvarlo
+          if (Buffer.byteLength(String(v), 'utf8') > 9 * 1024) throw new Error('Argument too large: value');
+          m.proprieta.set(k, String(v));
+        }
       })
     },
     LockService: { getUserLock: () => ({ tryLock: () => !m.lockOccupato, releaseLock() {} }) },
@@ -326,6 +396,7 @@ if (process.argv[2]) {
     !/GmailApp|MailApp|UrlFetchApp|CalendarApp|DocumentApp/.test(generato));
   const anteprima = c.MODULO_1_anteprima();
   verifica('l\'anteprima non tocca niente', m.fogliCreati === 0 && m.trigger.length === 0 && m.collegamenti === 0);
+  verifica('l\'anteprima dice la versione dello script', /Script: Campanella \d+\.\d+\.\d+ /.test(anteprima));
   verifica('l\'anteprima nomina il foglio', anteprima.indexOf(c.MODULO.nomeFoglio.replace('{anno}', '2026-27')) >= 0 ||
     c.MODULO.anno !== 'auto');
   c.MODULO_2_prepara(); c.MODULO_2_prepara();
@@ -357,6 +428,9 @@ titolo('ANTEPRIMA SU UN DRIVE VUOTO: non deve toccare niente');
   const c = carica(m);
   const t = c.MODULO_1_anteprima();
   verifica('dice l\'anno giusto (19 settembre 2026 -> 2026-27)', t.indexOf('2026-27') >= 0);
+  const versione = /var _MODULO_VERSIONE\s*=\s*'([^']+)'/.exec(motore)[1];
+  verifica('dice la versione dello script (' + versione + '), per sapere se va reincollato',
+    t.indexOf('Script: Campanella ' + versione + ' ') >= 0);
   verifica('dice che le cartelle sono da creare', t.indexOf('da creare: Il mio Drive / A.S. 2026-27') >= 0 &&
     t.indexOf('da creare: Il mio Drive / A.S. 2026-27 / RECUPERI') >= 0);
   verifica('nessuna cartella, nessun foglio, nessun collegamento, nessuna chiusura, niente ricordato',
@@ -491,6 +565,100 @@ titolo('DUE ANNI DI FILA: prepara, risposte, chiusura, anno nuovo con la spunta'
   verifica('anno 2: chiusura programmata per la fine del 31/08/2028',
     m.trigger.length === 1 && m.trigger[0].anno === 2028 && m.trigger[0].mese === 9 && m.trigger[0].giorno === 1);
   verifica('ricorda tutti e due gli anni', Object.keys(memoria(m).fogli).length === 2);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DUE RISPOSTE NELLO STESSO SECONDO, E NEL FOGLIO NE RESTA UNA');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(3);                      // la seconda e la terza, nel foglio, cadono nello stesso secondo
+  const tempi = primo.schede[1].tempi;
+  verifica('(nel foglio due righe hanno lo stesso momento)', tempi[1] === tempi[2]);
+  tempi.splice(2, 1);                                                    // qualcuno ne cancella una
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  c.MODULO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.MODULO_2_prepara();
+  verifica('una riga del foglio vale per una risposta sola: NON le toglie',
+    m.form.risposte.length === 3 && t.indexOf('NON le tolgo: 1 non le ritrovo') >= 0);
+}
+
+titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(200);
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  c.MODULO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.MODULO_2_prepara();
+  verifica('(anno 2: le 200 dell\'anno prima tolte dal modulo, stanno nel loro foglio)',
+    m.form.risposte.length === 0 && primo.righeDiRisposte() === 200);
+  const secondo = m.form.destinazione.foglio;
+  m.form.rispondi(50);
+  c.MODULO_ANNULLA();
+  m.form.rispondi(10);                                         // aperto, ma non scrive in nessun foglio
+  const t = c.MODULO_2_prepara();
+  verifica('60 risposte, 10 in nessun foglio: NON le toglie, anche se il foglio vecchio ha 200 righe',
+    m.form.risposte.length === 60 && t.indexOf('NON le tolgo') >= 0);
+  verifica('e il foglio dell\'anno, ricollegato, le riceve tutte',
+    m.form.destinazione.foglio.id === secondo.id && secondo.righeDiRisposte() === 60);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: LA CHIUSURA DI FINE ANNO NON RIESCE');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  // l'anno prima il modulo scriveva in un foglio con 200 righe
+  const vecchio = m.foglioVecchio('Risposte Recuperi - A.S. 2025-26', 'A.S. 2025-26/RECUPERI', 200);
+  m.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: m.form.id, fogli: { '2025-26': vecchio.id } }));
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(40);
+  const vera = m.form.setAcceptingResponses;
+  m.form.setAcceptingResponses = function (si) {
+    if (!si) throw new Error('Service error: Forms');              // anche al secondo tentativo
+    return vera.call(this, si);
+  };
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  const scattato = m.trigger[0];
+  const tc = c.MODULO_chiusura({ triggerUid: scattato.uid });
+  verifica('chiusura non riuscita: il modulo resta collegato al foglio dell\'anno',
+    m.form.destinazione !== null && m.form.destinazione.foglio.id === primo.id && tc.indexOf('Riprovo fra un\'ora') >= 0);
+  verifica('il trigger scattato se ne va, e al suo posto c\'e\' un tentativo fra un\'ora',
+    m.trigger.length === 1 && m.trigger[0] !== scattato && m.trigger[0].dopo === 60 * 60 * 1000);
+  m.form.rispondi(7);
+  verifica('le risposte arrivate dopo finiscono nel foglio', primo.righeDiRisposte() === 47);
+  m.form.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.MODULO_2_prepara();
+  verifica('anno 2: nessuna risposta persa (stanno tutte nel foglio del primo anno)',
+    m.perse() === 0 && primo.righeDiRisposte() === 47);
+
+  // com'erano lasciate le cose dallo script di prima: chiusura fallita, foglio scollegato lo stesso
+  const v = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  v.cartella('A.S. 2026-27/RECUPERI');
+  const vv = v.foglioVecchio('Risposte Recuperi - A.S. 2025-26', 'A.S. 2025-26/RECUPERI', 200);
+  v.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: v.form.id, fogli: { '2025-26': vv.id } }));
+  const cv = carica(v, { config: { svuotaRisposte: true } });
+  cv.MODULO_2_prepara();
+  v.form.rispondi(40);
+  v.form.removeDestination();                                     // scollegato, ma ancora aperto
+  v.form.rispondi(7);                                             // queste stanno solo nel modulo
+  v.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const tv = cv.MODULO_2_prepara();
+  verifica('47 risposte, 7 solo nel modulo: NON le toglie, anche se il foglio di due anni fa ha 200 righe',
+    v.form.risposte.length === 47 && tv.indexOf('NON le tolgo: 7 non le ritrovo') >= 0);
+  verifica('nessuna risposta persa', v.perse() === 0);
 }
 
 titolo('ANNO NUOVO CON LA SPUNTA, ma il foglio vecchio non ha piu\' tutte le righe');
@@ -501,7 +669,7 @@ titolo('ANNO NUOVO CON LA SPUNTA, ma il foglio vecchio non ha piu\' tutte le rig
   c.MODULO_2_prepara();
   const primo = m.form.destinazione.foglio;
   m.form.rispondi(6);
-  primo.schede[1].righe = 3;                                   // qualcuno ha cancellato delle righe dal foglio
+  primo.schede[1].tempi.splice(2);                             // qualcuno ha cancellato delle righe dal foglio
   m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
   c.MODULO_chiusura();
   m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
@@ -555,13 +723,13 @@ titolo('ANNO E GIORNO DI CHIUSURA');
 {
   const m = nuovoMondo();
   const c = carica(m);
-  verifica('31 agosto -> ancora l\'anno vecchio', c._moduloAnno('2026-08-31') === '2025-26');
-  verifica('1 settembre -> anno nuovo', c._moduloAnno('2026-09-01') === '2026-27');
-  verifica('gennaio -> stesso anno scolastico', c._moduloAnno('2027-01-10') === '2026-27');
-  verifica('cambio di secolo: 2099-00', c._moduloAnno('2099-10-01') === '2099-00');
+  verifica('31 agosto -> ancora l\'anno vecchio', c._moduloAnno_('2026-08-31') === '2025-26');
+  verifica('1 settembre -> anno nuovo', c._moduloAnno_('2026-09-01') === '2026-27');
+  verifica('gennaio -> stesso anno scolastico', c._moduloAnno_('2027-01-10') === '2026-27');
+  verifica('cambio di secolo: 2099-00', c._moduloAnno_('2099-10-01') === '2099-00');
 
   const notte = nuovoMondo({ adesso: '2026-08-31T22:30:00Z' });     // in Italia e' gia' il primo settembre
-  verifica('l\'anno si calcola con l\'ora italiana, non con quella dell\'editor', carica(notte)._moduloAnno() === '2026-27');
+  verifica('l\'anno si calcola con l\'ora italiana, non con quella dell\'editor', carica(notte)._moduloAnno_() === '2026-27');
 
   const sbagliato = nuovoMondo();
   const e1 = lancia(() => carica(sbagliato, { config: { anno: '2026-28' } }).MODULO_1_anteprima());
@@ -570,6 +738,10 @@ titolo('ANNO E GIORNO DI CHIUSURA');
   verifica('31/02 non esiste: si ferma', e2.indexOf('non esiste') >= 0);
   const e3 = lancia(() => carica(nuovoMondo(), { config: { chiusura: 'fine agosto' } }).MODULO_1_anteprima());
   verifica('chiusura scritta a parole: si ferma e dice come scriverla', e3.indexOf('giorno/mese') >= 0);
+  const bisestile = nuovoMondo({ adesso: '2027-09-10T10:00:00+02:00' });   // 2027-28: febbraio 2028 ha il 29
+  const e4 = lancia(() => carica(bisestile, { config: { chiusura: '29/02' } }).MODULO_2_prepara());
+  verifica('29/02 anche in un anno bisestile: si ferma prima di toccare niente, come Campanella',
+    e4.indexOf('non c\'e\' tutti gli anni') >= 0 && bisestile.fogliCreati === 0 && bisestile.trigger.length === 0);
 
   const senza = nuovoMondo();
   const t = carica(senza, { config: { chiusura: '' } }).MODULO_2_prepara();
@@ -638,9 +810,9 @@ titolo('CASI STORTI');
   const copia = nuovoMondo();
   copia.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: 'modulo-originale', fogli: { '2026-27': 'foglio-di-un-altro' } }));
   const cc = carica(copia);
-  verifica('copia di un modulo: non eredita i fogli dell\'originale', Object.keys(cc._moduloMemoria(copia.form).fogli).length === 0);
+  verifica('copia di un modulo: non eredita i fogli dell\'originale', Object.keys(cc._moduloMemoria_(copia.form).fogli).length === 0);
   copia.proprieta.set('CAMPANELLA_MODULO', '{rotto');
-  verifica('memoria illeggibile: riparte da zero senza rompersi', Object.keys(cc._moduloMemoria(copia.form).fogli).length === 0);
+  verifica('memoria illeggibile: riparte da zero senza rompersi', Object.keys(cc._moduloMemoria_(copia.form).fogli).length === 0);
 }
 
 // ---- 9b. passare il comando al foglio di controllo ------------------------------------
@@ -662,6 +834,181 @@ titolo('PASSARE IL COMANDO AL FOGLIO DI CONTROLLO');
   verifica('e da qui si puo\' riprendere il comando', m.trigger.length === 1 && m.fogliCreati === 1);
 }
 
+// ---- 9c. rieseguito a meta' anno ---------------------------------------------------------------
+titolo('PREPARA RIESEGUITO A META\' ANNO: quello che e\' successo dopo resta');
+{
+  const m = nuovoMondo();
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m);
+  c.MODULO_2_prepara();
+  m.form.aperto = false;                                          // chiuso a mano, da Google Moduli
+  const t = c.MODULO_2_prepara();
+  verifica('un modulo chiuso a mano non viene riaperto, e lo dice',
+    m.form.aperto === false && t.indexOf('l\'ha chiuso qualcuno') >= 0);
+
+  // la chiusura del 30/06 e' scattata; a luglio si riesegue
+  const g = nuovoMondo();
+  g.cartella('A.S. 2026-27/RECUPERI');
+  const cg = carica(g, { config: { chiusura: '30/06' } });
+  cg.MODULO_2_prepara();
+  const suo = g.form.destinazione.foglio;
+  g.form.rispondi(3);
+  g.adesso = new Date('2027-07-01T00:05:00+02:00').getTime();
+  cg.MODULO_chiusura({ triggerUid: g.trigger[0].uid });
+  verifica('(chiuso e scollegato dalla sua chiusura)', g.form.aperto === false && g.form.destinazione === null);
+  g.adesso = new Date('2027-07-05T09:00:00+02:00').getTime();
+  const schede = suo.schede.length;
+  const tg = cg.MODULO_2_prepara();
+  verifica('chiusura gia\' scattata: non lo ricollega (niente scheda con le risposte doppie)',
+    g.form.destinazione === null && suo.schede.length === schede);
+  verifica('e non lo riapre, e dice perche\'', g.form.aperto === false && tg.indexOf('e\' finito il 30/06/2027') >= 0);
+  const tg2 = carica(g, { config: { chiusura: '31/07' } }).MODULO_2_prepara();
+  verifica('anche se intanto il giorno di chiusura e\' stato spostato',
+    g.form.aperto === false && g.form.destinazione === null && tg2.indexOf('gia\' scattata') >= 0);
+  g.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  cg.MODULO_2_prepara();
+  verifica('l\'anno dopo si riapre, con un foglio nuovo', g.form.aperto === true && g.form.destinazione.foglio.id !== suo.id);
+
+  // scollegato a mano durante l'anno
+  const s = nuovoMondo();
+  s.cartella('A.S. 2026-27/RECUPERI');
+  const cs = carica(s);
+  cs.MODULO_2_prepara();
+  const suoS = s.form.destinazione.foglio;
+  s.form.rispondi(3);
+  s.form.removeDestination();
+  const schedeS = suoS.schede.length;
+  const ts = cs.MODULO_2_prepara();
+  verifica('scollegato a mano: non lo ricollega (Google ricopierebbe le risposte), e lo dice',
+    s.form.destinazione === null && suoS.schede.length === schedeS && ts.indexOf('Non lo ricollego') >= 0);
+  cs.MODULO_ANNULLA();
+  s.form.aperto = false;
+  cs.MODULO_2_prepara();
+  verifica('dopo Annulla si prepara da capo: ricollega e riapre',
+    s.form.destinazione !== null && s.form.destinazione.foglio.id === suoS.id && s.form.aperto === true);
+
+  // una riapertura che non riesce: la volta dopo ci riprova
+  const r = nuovoMondo();
+  r.cartella('A.S. 2026-27/RECUPERI');
+  r.form.aperto = false;
+  const vera = r.form.setAcceptingResponses;
+  r.form.setAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  const cr = carica(r);
+  cr.MODULO_2_prepara();
+  r.form.setAcceptingResponses = vera;
+  cr.MODULO_2_prepara();
+  verifica('riapertura non riuscita: la volta dopo lo riapre', r.form.aperto === true);
+
+  // memoria di una versione di prima (solo i fogli): foglio gia' usato, modulo chiuso
+  const v = nuovoMondo();
+  v.cartella('A.S. 2026-27/RECUPERI');
+  const cv = carica(v);
+  cv.MODULO_2_prepara();
+  v.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: v.form.id, fogli: memoria(v).fogli }));
+  v.form.aperto = false;
+  const tv = cv.MODULO_2_prepara();
+  verifica('memoria di prima, foglio gia\' usato: non lo riapre, senza dare la colpa a nessuno',
+    v.form.aperto === false && tv.indexOf('versione di prima') >= 0 && tv.indexOf('l\'ha chiuso qualcuno') < 0);
+
+  // memoria di prima, con un foglio mai collegato (una preparazione rotta a meta')
+  const w = nuovoMondo();
+  const cartella = w.cartella('A.S. 2026-27/RECUPERI');
+  w.form.aperto = false;
+  const intatto = new w.Foglio('Risposte Recuperi - A.S. 2026-27', cartella);
+  w.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: w.form.id, fogli: { '2026-27': intatto.id } }));
+  carica(w).MODULO_2_prepara();
+  verifica('memoria di prima, foglio mai collegato: lo collega e riapre il modulo',
+    w.form.destinazione !== null && w.form.destinazione.foglio.id === intatto.id && w.form.aperto === true);
+}
+
+// ---- 9d. la chiusura --------------------------------------------------------------------------
+titolo('LA CHIUSURA: LOCK, TENTATIVI, MEMORIA');
+{
+  const m = nuovoMondo();
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m);
+  c.MODULO_2_prepara();
+  const scattato = m.trigger[0];
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  m.lockOccupato = true;                                          // "Prepara l'anno nuovo" sta lavorando
+  const t = c.MODULO_chiusura({ triggerUid: scattato.uid });
+  verifica('lock occupato: adesso non tocca niente', m.form.aperto === true && m.form.destinazione !== null &&
+    t.indexOf('riprovo fra un\'ora') >= 0);
+  verifica('e al posto del trigger scattato ce n\'e\' uno fra un\'ora',
+    m.trigger.length === 1 && m.trigger[0] !== scattato && m.trigger[0].dopo === 60 * 60 * 1000);
+  m.lockOccupato = false;
+  m.adesso += 60 * 60 * 1000;
+  c.MODULO_chiusura({ triggerUid: m.trigger[0].uid });
+  verifica('al tentativo dopo chiude, e non resta nessun trigger', m.form.aperto === false && m.trigger.length === 0);
+  verifica('la chiusura resta segnata per il suo anno', memoria(m).chiusi['2026-27'] === '2027-08-31' && !memoria(m).scadenza);
+
+  // Google continua a non chiudere il modulo: un giorno di tentativi
+  const f = nuovoMondo();
+  f.cartella('A.S. 2026-27/RECUPERI');
+  const cf = carica(f);
+  cf.MODULO_2_prepara();
+  f.form.setAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  f.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  let uid = f.trigger[0].uid;
+  for (let i = 0; i < 24; i++) {
+    cf.MODULO_chiusura({ triggerUid: uid });
+    uid = f.trigger[f.trigger.length - 1].uid;
+    f.adesso += 60 * 60 * 1000;
+  }
+  verifica('24 chiusure fallite di fila: i trigger non si accumulano (ne resta uno)',
+    f.trigger.length === 1 && f.trigger[0].dopo === 60 * 60 * 1000);
+  verifica('e il modulo resta collegato al suo foglio', f.form.destinazione !== null);
+
+  // un tentativo rimasto indietro, dopo che l'anno nuovo e' gia' stato preparato
+  const n = nuovoMondo();
+  n.cartella('A.S. 2026-27/RECUPERI');
+  const cn = carica(n);
+  cn.MODULO_2_prepara();
+  n.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  cn.MODULO_2_prepara();                                          // il 2027-28, chiusura il 31/08/2028
+  const tn = cn.MODULO_chiusura();
+  verifica('prima della sua scadenza non chiude niente', n.form.aperto === true && n.form.destinazione !== null &&
+    tn.indexOf('oggi non chiudo niente') >= 0 && n.trigger.length === 1);
+
+  // il trigger puo' scattare qualche minuto prima della mezzanotte
+  const q = nuovoMondo();
+  q.cartella('A.S. 2026-27/RECUPERI');
+  const cq = carica(q);
+  cq.MODULO_2_prepara();
+  q.adesso = new Date('2027-08-31T23:50:00+02:00').getTime();
+  cq.MODULO_chiusura({ triggerUid: q.trigger[0].uid });
+  verifica('scattato alle 23:50 del giorno di chiusura: chiude lo stesso', q.form.aperto === false && q.form.destinazione === null);
+
+  // una chiusura programmata da una versione di prima: in memoria non c'e' la scadenza
+  const o = nuovoMondo();
+  o.cartella('A.S. 2026-27/RECUPERI');
+  const co = carica(o);
+  co.MODULO_2_prepara();
+  o.proprieta.set('CAMPANELLA_MODULO', JSON.stringify({ modulo: o.form.id, fogli: memoria(o).fogli }));
+  o.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  co.MODULO_chiusura();
+  verifica('chiusura di una versione di prima: chiude, e si segna l\'anno giusto',
+    o.form.aperto === false && memoria(o).chiusi['2026-27'] === '2027-08-31');
+}
+
+// ---- 9e. tanti anni di fila ---------------------------------------------------------------------
+titolo('TRENT\'ANNI DI FILA: LA MEMORIA RESTA SOTTO IL TETTO DI GOOGLE');
+{
+  const m = nuovoMondo({ adesso: '2026-09-02T10:00:00+02:00' });
+  const c = carica(m);
+  let errori = 0;
+  for (let a = 2026; a < 2056; a++) {
+    m.adesso = new Date(a + '-09-02T10:00:00+02:00').getTime();
+    if (c.MODULO_2_prepara().indexOf('FATTO') < 0) errori++;
+    m.form.rispondi(2);
+    m.adesso = new Date((a + 1) + '-09-01T00:05:00+02:00').getTime();
+    c.MODULO_chiusura({ triggerUid: m.trigger[0] && m.trigger[0].uid });
+  }
+  const piuLunga = Math.max(...[...m.proprieta.values()].map(v => Buffer.byteLength(v, 'utf8')));
+  verifica('trenta preparazioni e trenta chiusure, tutte a buon fine', errori === 0 && m.fogliCreati === 30);
+  verifica('la memoria piu\' lunga sta sotto i 9 KB (' + piuLunga + ' byte)', piuLunga < 9 * 1024);
+}
+
 // ---- 10. il menu dentro il modulo -----------------------------------------------------------------
 titolo('IL MENU');
 {
@@ -679,6 +1026,12 @@ titolo('IL MENU');
   verifica('il messaggio finale arriva a lavoro fatto, non a meta\'', ultimo.collegamentiFinoAQui === 1 && ultimo.testo.indexOf('FATTO') >= 0);
   verifica('la conferma mostra anno e nome del foglio', m.avvisi[1].testo.indexOf('2026-27') >= 0 &&
     m.avvisi[1].testo.indexOf('Risposte Recuperi - A.S. 2026-27') >= 0);
+
+  verifica('senza svuotare la conferma dice che non cancella niente', m.avvisi[0].testo.indexOf('Non cancello niente') >= 0);
+  const sv = nuovoMondo({ risposteUi: ['NO'] });
+  carica(sv, { config: { svuotaRisposte: true } }).MODULO_menu_prepara();
+  verifica('con svuotaRisposte la conferma dice che le risposte vecchie le toglie, e non "Non cancello niente"',
+    sv.avvisi[0].testo.indexOf('Non cancello niente') < 0 && sv.avvisi[0].testo.indexOf('non si puo\' annullare') >= 0);
 
   const rotto = nuovoMondo({ risposteUi: ['YES'] });
   const cr = carica(rotto, { config: { chiusura: 'boh' } });

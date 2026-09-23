@@ -11,6 +11,9 @@
  * quelli di mock_moduli.js: collegare un foglio ci ricopia tutte le risposte
  * che il modulo ha ancora, getDestinationId() senza destinazione lancia un
  * errore, un modulo non pubblicato non si riapre.
+ *
+ * Non dipende dal fuso del PC: il foglio finto sta nel fuso della scuola, e
+ * test/prova_moduli.ps1 lo fa girare anche con TZ=Asia/Tokyo e America/New_York.
  */
 
 'use strict';
@@ -19,7 +22,9 @@ const path = require('path');
 const vm = require('vm');
 
 const radice = path.join(__dirname, '..');
-const motore = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Pannello.gs'), 'utf8').replace(/\r\n/g, '\n');
+// PANNELLO_MOTORE: una copia del motore da provare al posto di quello vero (test/mutazioni_pannello.js)
+const fileMotore = process.env.PANNELLO_MOTORE || path.join(radice, 'src', 'risorse', 'Pannello.gs');
+const motore = fs.readFileSync(fileMotore, 'utf8').replace(/\r\n/g, '\n');
 const INIZIO_CONFIG = '// >>> CONFIGURAZIONE >>>';
 const FINE_CONFIG = '// <<< CONFIGURAZIONE <<<';
 const FOGLI_GOOGLE = 'application/vnd.google-apps.spreadsheet';
@@ -36,6 +41,18 @@ const CONFIG_BASE = {
     { modulo: 'Uscite', cartella: '', foglio: 'Risposte Uscite - A.S. {anno}', chiusura: '30/06', svuota: false }
   ]
 };
+
+// Il foglio finto sta nel fuso della scuola, come quello vero: una data scritta in
+// una cella vale dalla mezzanotte di Roma. Niente fuso del PC che fa girare le prove.
+function annoARoma(ms) {
+  return parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric' }).format(new Date(ms)), 10);
+}
+function mezzanotteARoma(anno, mese, giorno) {
+  const utc = Date.UTC(anno, mese - 1, giorno);
+  const ore = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(utc)).find(x => x.type === 'hour').value;
+  return new Date(utc - parseInt(ore, 10) * 3600 * 1000);       // a mezzanotte UTC a Roma e' l'una o le due
+}
 
 // ---------------------------------------------------------------------------
 //  IL MONDO FINTO
@@ -57,11 +74,15 @@ function nuovoMondo(opzioni) {
     permessiMancanti: false,
     lockOccupato: false,
     menu: null,
+    risposteDate: 0,
+    tutte: [],                                        // ogni risposta mai data, per contare quelle perse
     moduli: new Map(),
     fogli: new Map(),
     file: new Map()
   };
-  const id = p => p + (m.prossimoId++) + 'xxxxxxxxxxxxxxxxxxxxxx';
+  // lunghi come quelli veri (44 caratteri): contano per il tetto delle proprieta'
+  const id = p => (p + (m.prossimoId++)).padEnd(44, 'x');
+  const momento = r => new Date(Math.round(r.tempo / 1000) * 1000);
 
   class Iteratore {
     constructor(e) { this.e = e.slice(); this.i = 0; }
@@ -170,7 +191,7 @@ function nuovoMondo(opzioni) {
       if (typeof v === 'string' && this.formati.get(r + ',' + c) === '@') this.scrittoComeTesto.add(r + ',' + c);
       if (typeof v === 'string' && this.formati.get(r + ',' + c) !== '@') {
         const g = /^(\d{1,2})\/(\d{1,2})$/.exec(v);
-        if (g) v = new Date(new Date(m.adesso).getFullYear(), parseInt(g[2], 10) - 1, parseInt(g[1], 10));
+        if (g) v = mezzanotteARoma(annoARoma(m.adesso), parseInt(g[2], 10), parseInt(g[1], 10));
         // e una stringa che comincia con = + - il foglio la legge come formula
         else if (/^[=+\-]/.test(v)) v = '#ERROR!';
       }
@@ -313,10 +334,17 @@ function nuovoMondo(opzioni) {
     getTitle() { return this.titolo; }
     getUrl() { return this.file.getUrl(); }
     getResponses() { return this.risposte.slice(); }
+    /**
+     * Ogni risposta ha il suo momento, con i millesimi; nella prima colonna del
+     * foglio Google lo scrive al secondo (qui arrotondato, il caso piu' scomodo).
+     */
     rispondi(n) {
       for (let i = 0; i < n; i++) {
-        this.risposte.push({});
-        if (this.destinazione) this.destinazione.scheda.scrivi(this.destinazione.scheda.getLastRow(), 0, 'risposta');
+        m.risposteDate++;
+        const tempo = m.adesso + m.risposteDate * 1000 + (m.risposteDate * 337) % 1000;
+        const risposta = { tempo, getTimestamp: () => new Date(tempo) };
+        this.risposte.push(risposta); m.tutte.push(risposta);
+        if (this.destinazione) this.destinazione.scheda.scrivi(this.destinazione.scheda.getLastRow(), 0, momento(risposta));
       }
     }
     getDestinationType() {
@@ -333,7 +361,7 @@ function nuovoMondo(opzioni) {
       m.collegamenti++;
       const scheda = foglio.insertSheet('Risposte del modulo ' + foglio.schede.length);
       scheda.scrivi(0, 0, 'Informazioni cronologiche');
-      for (let i = 0; i < this.risposte.length; i++) scheda.scrivi(i + 1, 0, 'risposta');
+      for (let i = 0; i < this.risposte.length; i++) scheda.scrivi(i + 1, 0, momento(this.risposte[i]));
       this.destinazione = { foglio, scheda };
     }
     removeDestination() { this.destinazione = null; }
@@ -352,6 +380,26 @@ function nuovoMondo(opzioni) {
 
   m.radice = new Cartella('Il mio Drive', null);
   m.Cartella = Cartella; m.File = File; m.Modulo = Modulo; m.FoglioDiCalcolo = FoglioDiCalcolo;
+
+  /** Le risposte date che non stanno piu' da nessuna parte: ne' in un modulo, ne' in un foglio. */
+  m.perse = function () {
+    const righe = new Map();
+    for (const f of m.fogli.values()) {
+      for (const s of f.schede) {
+        for (const riga of s.celle) {
+          const v = riga && riga[0];
+          if (v instanceof Date) righe.set(v.getTime(), (righe.get(v.getTime()) || 0) + 1);
+        }
+      }
+    }
+    let n = 0;
+    for (const r of m.tutte) {
+      if ([...m.moduli.values()].some(x => x.risposte.indexOf(r) >= 0)) continue;
+      const t = momento(r).getTime();
+      if (righe.get(t) > 0) righe.set(t, righe.get(t) - 1); else n++;
+    }
+    return n;
+  };
   m.pannello = new FoglioDiCalcolo('Campanella - Moduli', null);     // il foglio in cui gira lo script
 
   m.cartella = function (percorso) {
@@ -393,6 +441,7 @@ function nuovoMondo(opzioni) {
     FormApp: {
       DestinationType: { SPREADSHEET: 'SPREADSHEET' },
       openById(idModulo) {
+        m.adesso += m.costoApertura || 0;             // per le prove sul tempo: ogni modulo costa qualche secondo
         const f = m.moduli.get(idModulo);
         if (!f) throw new Error('Modulo non trovato: ' + idModulo);
         return f;
@@ -427,7 +476,7 @@ function nuovoMondo(opzioni) {
       requireAllScopes() { m.permessiChiesti = (m.permessiChiesti || 0) + 1; },
       getAuthorizationInfo: () => ({ getAuthorizationStatus: () => (m.permessiMancanti ? 'REQUIRED' : 'NOT_REQUIRED') }),
       newTrigger(funzione) {
-        const t = { funzione };
+        const t = { funzione, uid: 'trigger-' + (m.prossimoId++) };
         const o = {
           at() { throw new Error('at(data) dipende dal fuso del progetto: serve atDate + inTimezone'); },
           atDate(a, me, g) { t.anno = a; t.mese = me; t.giorno = g; return o; },
@@ -437,13 +486,19 @@ function nuovoMondo(opzioni) {
         };
         return { timeBased: () => o };
       },
-      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, _rif: t })),
+      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, getUniqueId: () => t.uid, _rif: t })),
       deleteTrigger(t) { const i = m.trigger.indexOf(t._rif); if (i >= 0) m.trigger.splice(i, 1); }
     },
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: k => (m.proprieta.has(k) ? m.proprieta.get(k) : null),
-        setProperty: (k, v) => { m.proprieta.set(k, v); }
+        getProperties: () => { const fuori = {}; for (const [k, v] of m.proprieta) fuori[k] = v; return fuori; },
+        getKeys: () => [...m.proprieta.keys()],
+        setProperty: (k, v) => {
+          // come quelle vere: un valore sta in circa 9 KB, oltre Google rifiuta di salvarlo
+          if (Buffer.byteLength(String(v), 'utf8') > 9 * 1024) throw new Error('Argument too large: value');
+          m.proprieta.set(k, String(v));
+        }
       })
     },
     LockService: { getUserLock: () => ({ tryLock: () => !m.lockOccupato, releaseLock() {} }) },
@@ -476,6 +531,15 @@ function carica(mondo, opzioni) {
   const contesto = vm.createContext(mondo.sandbox);
   vm.runInContext(codice, contesto, { filename: 'Pannello.gs' });
   return contesto;
+}
+
+/** La memoria dello script, con i fogli di tutti gli anni (stanno in proprieta' a parte). */
+function ricordo(m) {
+  const r = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  for (const [k, v] of m.proprieta) {
+    if (k.indexOf('CAMPANELLA_PANNELLO_FOGLI_') === 0) Object.assign(r.fogli, JSON.parse(v));
+  }
+  return r;
 }
 
 /** Legge la scheda del pannello come la vede l'utente. */
@@ -981,6 +1045,80 @@ for (const nuovo of ['31/07', '']) {
     m.uscite.aperto === false && ricordo.chiusi[m.uscite.id + '|2026-27'] === '2027-06-30' && t.indexOf('Riprovo') >= 0);
 }
 
+// Google continua a non chiudere un modulo: un giorno intero di tentativi
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  m.uscite.setAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  let scattato = m.trigger.find(x => x.mese === 7);
+  for (let i = 0; i < 24; i++) {
+    c.PANNELLO_chiusura({ triggerUid: scattato.uid });
+    scattato = m.trigger[m.trigger.length - 1];
+    m.adesso += 60 * 60 * 1000;
+  }
+  verifica('24 chiusure fallite di fila: i trigger non si accumulano (quello del 31/08 e un tentativo)',
+    m.trigger.length === 2 && m.trigger.filter(x => x.dopo === 60 * 60 * 1000).length === 1 &&
+    m.trigger.some(x => x.mese === 9 && x.giorno === 1));
+}
+
+// la chiusura scatta mentre "Prepara l'anno nuovo" sta lavorando
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const scattato = m.trigger.find(x => x.mese === 7);
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  m.lockOccupato = true;
+  const t = c.PANNELLO_chiusura({ triggerUid: scattato.uid });
+  verifica('lock occupato: la chiusura non tocca niente adesso', m.uscite.aperto === true &&
+    m.uscite.destinazione !== null && t.indexOf('riprovo fra un\'ora') >= 0);
+  verifica('e al posto del trigger scattato c\'e\' un tentativo fra un\'ora',
+    m.trigger.indexOf(scattato) < 0 && m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  m.lockOccupato = false;
+  m.adesso += 60 * 60 * 1000;
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.dopo).uid });
+  verifica('al tentativo dopo chiude, e resta solo la chiusura del 31/08',
+    m.uscite.aperto === false && m.trigger.length === 1 && m.trigger[0].mese === 9);
+}
+
+// una riga che non riesce a prepararsi tiene la sua chiusura programmata
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const recuperi = m.recuperi;
+  m.moduli.delete(recuperi.id);                                  // per un momento Google non lo apre
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('(la riga di Recuperi non riesce)', t.indexOf('PROBLEMA') >= 0 && scheda(m)[0][7].indexOf('problema') === 0);
+  verifica('ma la sua chiusura del 31/08 resta programmata',
+    m.trigger.length === 2 && m.trigger.some(x => x.anno === 2027 && x.mese === 9 && x.giorno === 1));
+  m.moduli.set(recuperi.id, recuperi);
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 9).uid });
+  verifica('e quando scatta, il modulo si chiude', recuperi.aperto === false && recuperi.destinazione === null);
+}
+
+// una chiusura gia' scaduta e non riuscita resta da riprovare anche dopo "Prepara"
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const vera = m.uscite.setAcceptingResponses;
+  m.uscite.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return vera.call(this, si); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 7).uid });
+  m.adesso = new Date('2027-07-01T00:40:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();                                    // intanto qualcuno riesegue la preparazione
+  verifica('la preparazione rieseguita non butta via il tentativo della chiusura non riuscita',
+    m.trigger.some(x => x.dopo === 60 * 60 * 1000) && m.trigger.some(x => x.mese === 9));
+  m.uscite.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-07-01T01:40:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.dopo).uid });
+  verifica('e al tentativo dopo Uscite si chiude', m.uscite.aperto === false && m.uscite.destinazione === null);
+}
+
 // un foglio creato con Google in inglese
 {
   const m = nuovoMondo();
@@ -1057,11 +1195,11 @@ titolo('IL LINK DEL MODULO');
 {
   const m = nuovoMondo();
   const c = carica(m);
-  verifica('link dell\'editor', c._panIdModulo('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
-  verifica('id incollato da solo', c._panIdModulo('1AbCdEfGhIjKlMnOpQrStUvWxYz012345') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
-  verifica('link per chi risponde: rifiutato', c._panIdModulo('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform') === '');
-  verifica('link corto di condivisione: rifiutato', c._panIdModulo('https://forms.gle/abc123') === '');
-  verifica('vuoto', c._panIdModulo('') === '' && c._panIdModulo('   ') === '');
+  verifica('link dell\'editor', c._panIdModulo_('https://docs.google.com/forms/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  verifica('id incollato da solo', c._panIdModulo_('1AbCdEfGhIjKlMnOpQrStUvWxYz012345') === '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  verifica('link per chi risponde: rifiutato', c._panIdModulo_('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform') === '');
+  verifica('link corto di condivisione: rifiutato', c._panIdModulo_('https://forms.gle/abc123') === '');
+  verifica('vuoto', c._panIdModulo_('') === '' && c._panIdModulo_('   ') === '');
 
   const p = mondoPronto();
   p.m.pannello.getSheetByName('Moduli').getRange(3, 2).setValue('https://docs.google.com/forms/d/e/1FAIpQLSd1234567890abcdefghijklmn/viewform');
@@ -1078,6 +1216,9 @@ titolo('ANTEPRIMA E PREPARAZIONE');
   const t = c.PANNELLO_3_anteprima();
   verifica('l\'anteprima non tocca niente', m.fogliCreati === 0 && m.cartelleCreate === 0 && m.trigger.length === 0);
   verifica('elenca le due chiusure', t.indexOf('31/08/2027') >= 0 && t.indexOf('30/06/2027') >= 0);
+  const versione = /var _PAN_VERSIONE\s*=\s*'([^']+)'/.exec(motore)[1];
+  verifica('dice la versione dello script (' + versione + '), per sapere se va reincollato',
+    t.indexOf('Script: Campanella ' + versione + ' ') >= 0);
 
   const tp = c.PANNELLO_4_preparaAnno();
   verifica('crea un foglio per modulo', m.fogliCreati === 2);
@@ -1168,6 +1309,116 @@ titolo('DUE ANNI DI FILA');
   verifica('anno 2: il foglio nuovo comincia vuoto', m.recuperi.destinazione.foglio.righeDiRisposte() === 0);
   verifica('anno 2: i moduli riaprono', m.recuperi.aperto === true && m.uscite.aperto === true);
   verifica('anno 2: chiusure riprogrammate', m.trigger.length === 2 && m.trigger.some(x => x.anno === 2028));
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(200);
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('(anno 2: le 200 dell\'anno prima tolte dal modulo, stanno nel loro foglio)',
+    m.recuperi.risposte.length === 0 && primo.righeDiRisposte() === 200);
+  const secondo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(50);
+  c.PANNELLO_ANNULLA();
+  m.recuperi.rispondi(10);                                   // aperto, ma non scrive in nessun foglio
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('60 risposte, 10 in nessun foglio: NON le toglie, anche se il foglio vecchio ha 200 righe',
+    m.recuperi.risposte.length === 60 && t.indexOf('NON le tolgo') >= 0);
+  verifica('e il foglio dell\'anno, ricollegato, le riceve tutte',
+    m.recuperi.destinazione.foglio.id === secondo.id && secondo.righeDiRisposte() === 60);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: LA CHIUSURA DI FINE ANNO NON RIESCE');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(40);
+  const vera = m.recuperi.setAcceptingResponses;
+  m.recuperi.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return vera.call(this, si); };
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 9).uid });
+  verifica('chiusura non riuscita: resta collegato al foglio dell\'anno', m.recuperi.destinazione !== null &&
+    m.recuperi.destinazione.foglio.id === primo.id);
+  m.recuperi.rispondi(7);
+  verifica('le risposte arrivate dopo finiscono nel foglio', primo.righeDiRisposte() === 47);
+  m.recuperi.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('anno 2: nessuna risposta persa (stanno tutte nel foglio del primo anno)',
+    m.perse() === 0 && primo.righeDiRisposte() === 47);
+}
+
+titolo('SVUOTARE: UN MODULO SCOLLEGATO, CON RISPOSTE ARRIVATE SOLO LI\'');
+{
+  // come lasciava le cose una chiusura fallita di una versione di prima: scollegato ma aperto
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(40);
+  // e un foglio di due anni fa, con piu' righe di quante il modulo ne abbia
+  const vecchio = new m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2025-26', m.cartella('A.S. 2025-26/RECUPERI'));
+  const sv = vecchio.insertSheet('Risposte del modulo 1');
+  sv.scrivi(0, 0, 'Informazioni cronologiche');
+  for (let i = 0; i < 200; i++) sv.scrivi(i + 1, 0, new Date(m.adesso - 400 * 24 * 3600 * 1000 + i * 60000));
+  const r = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  r.fogli[m.recuperi.id + '|2025-26'] = vecchio.id;
+  m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));
+  m.recuperi.removeDestination();
+  m.recuperi.rispondi(7);                                    // queste stanno solo nel modulo
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('47 risposte, 7 solo nel modulo: NON le toglie, anche se il foglio di due anni fa ha 200 righe',
+    m.recuperi.risposte.length === 47 && t.indexOf('NON le tolgo: 7 non le ritrovo') >= 0 && primo.righeDiRisposte() === 40);
+  verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DUE RISPOSTE NELLO STESSO SECONDO, E NEL FOGLIO NE RESTA UNA');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(3);                  // la seconda e la terza, nel foglio, cadono nello stesso secondo
+  const suaScheda = m.recuperi.destinazione.scheda;
+  verifica('(nel foglio due righe hanno lo stesso momento)',
+    suaScheda.cella(2, 0).getTime() === suaScheda.cella(3, 0).getTime());
+  suaScheda.celle.splice(3, 1);                                           // qualcuno ne cancella una
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('una riga del foglio vale per una risposta sola: NON le toglie',
+    m.recuperi.risposte.length === 3 && t.indexOf('NON le tolgo: 1 non le ritrovo') >= 0 && primo.righeDiRisposte() === 2);
+}
+
+titolo('LA CONFERMA DICE IL VERO SULLO SVUOTARE');
+{
+  const p = mondoPronto();
+  p.m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);      // Recuperi: svuota
+  p.c.PANNELLO_4_preparaAnno();
+  const domanda = p.m.avvisi.filter(a => a.bottoni === 'YES_NO')[0].testo;
+  verifica('con una riga "Svuota" non dice "Non cancello niente", e dice che non si annulla',
+    domanda.indexOf('Non cancello niente') < 0 && domanda.indexOf('non si puo\' annullare') >= 0);
+  const q = mondoPronto();
+  q.c.PANNELLO_4_preparaAnno();
+  verifica('senza righe "Svuota" dice che non cancella niente',
+    q.m.avvisi.filter(a => a.bottoni === 'YES_NO')[0].testo.indexOf('Non cancello niente') >= 0);
 }
 
 // ---- 8. annulla ---------------------------------------------------------------------------
@@ -1295,11 +1546,84 @@ titolo('IL FOGLIO TROVATO PER NOME VIENE RICORDATO');
   const suo = new p.m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', p.m.cartella('A.S. 2026-27/RECUPERI'));
   p.c.PANNELLO_4_preparaAnno();
   verifica('lo usa senza crearne un altro', p.m.recuperi.destinazione.foglio.id === suo.id && p.m.fogliCreati === 1);
-  const ricordo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli;
-  verifica('e se lo segna come foglio dell\'anno', ricordo[p.m.recuperi.id + '|2026-27'] === suo.id);
+  const segnati = ricordo(p.m).fogli;
+  verifica('e se lo segna come foglio dell\'anno', segnati[p.m.recuperi.id + '|2026-27'] === suo.id);
   p.c.PANNELLO_5_controlla();
   verifica('cosi" Controlla" lo riconosce come suo',
     scheda(p.m)[0][7].indexOf('collegato al foglio di quest') === 0);
+}
+
+// ---- 8f. tanti moduli per tanti anni ----------------------------------------------------------
+titolo('25 MODULI PER 10 ANNI: LA MEMORIA RESTA SOTTO IL TETTO DI GOOGLE');
+{
+  const moduli = [];
+  for (let i = 1; i <= 25; i++) {
+    const n = ('0' + i).slice(-2);
+    moduli.push({ modulo: 'Modulo ' + n, cartella: 'MODULI', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+  }
+  const m = nuovoMondo();
+  for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+  const c = carica(m, { config: { moduli } });
+  c.PANNELLO_1_preparaIlFoglio();
+  c.PANNELLO_2_trovaIModuli();
+  let problemi = 0;
+  for (let a = 2026; a < 2036; a++) {
+    m.adesso = new Date(a + '-09-02T10:00:00+02:00').getTime();
+    const t = c.PANNELLO_4_preparaAnno();
+    if (t.indexOf('PROBLEMA') >= 0 || t.indexOf('Non ho potuto') >= 0) problemi++;
+    m.adesso = new Date((a + 1) + '-09-01T00:10:00+02:00').getTime();
+    c.PANNELLO_chiusura({ triggerUid: m.trigger.length ? m.trigger[0].uid : '' });
+  }
+  const piuLunga = Math.max(...[...m.proprieta.values()].map(v => Buffer.byteLength(v, 'utf8')));
+  verifica('dieci anni di preparazioni e chiusure senza problemi, un foglio per modulo e per anno',
+    problemi === 0 && m.fogliCreati === 250);
+  verifica('ogni proprieta\' sta sotto i 9 KB (la piu\' lunga: ' + piuLunga + ' byte)', piuLunga < 9 * 1024);
+  m.adesso = new Date('2035-09-10T10:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('rieseguito il decimo anno: nessun foglio in piu\', li ricorda tutti', m.fogliCreati === 250 &&
+    Object.keys(ricordo(m).fogli).length === 250);
+}
+
+// una memoria scritta da una versione di prima, con i fogli di tutti gli anni insieme
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const r = ricordo(p.m);
+  for (const k of [...p.m.proprieta.keys()]) p.m.proprieta.delete(k);
+  p.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));        // com'era prima: tutto in una
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('memoria di prima con tutti i fogli insieme: li riconosce e li divide per anno',
+    p.m.fogliCreati === 2 && JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli &&
+    Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli).length === 0 &&
+    Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO_FOGLI_2026-27'))).length === 2);
+}
+
+// ---- 8g. tante righe: il limite dei 6 minuti ---------------------------------------------------
+titolo('30 RIGHE LENTE: MI FERMO PRIMA DEI 6 MINUTI DI GOOGLE');
+{
+  const moduli = [];
+  for (let i = 1; i <= 30; i++) {
+    const n = ('0' + i).slice(-2);
+    moduli.push({ modulo: 'Modulo ' + n, cartella: '', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+  }
+  const m = nuovoMondo();
+  for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+  const c = carica(m, { config: { moduli } });
+  c.PANNELLO_1_preparaIlFoglio();
+  c.PANNELLO_2_trovaIModuli();
+  m.costoApertura = 15 * 1000;                                // ogni modulo: 15 secondi
+  const inizio = m.adesso;
+  const t = c.PANNELLO_4_preparaAnno();
+  const pronte = scheda(m).filter(r => r[7] === 'pronto per 2026-27').length;
+  verifica('si ferma prima dei 6 minuti (' + Math.round((m.adesso - inizio) / 1000) + ' s)', m.adesso - inizio <= 280 * 1000);
+  verifica('e dice che non ha finito, e cosa manca', t.indexOf('NON HO FINITO') >= 0 && t.indexOf('Da preparare ancora') >= 0);
+  verifica('le righe fatte sono nella scheda, le altre dicono di rieseguire', pronte > 0 && pronte < 30 &&
+    scheda(m).filter(r => String(r[7]).indexOf('tempo finito') >= 0).length === 30 - pronte);
+  verifica('le chiusure delle righe fatte sono programmate', m.trigger.length === 1);
+  const t2 = c.PANNELLO_4_preparaAnno();
+  verifica('rieseguito: riparte dalle righe mancanti e le finisce tutte',
+    scheda(m).every(r => r[7] === 'pronto per 2026-27') && t2.indexOf('FATTO') >= 0 && m.fogliCreati === 30);
+  verifica('e dice quali righe gia\' pronte non ha ricontrollato', t2.indexOf('non ricontrollate adesso') >= 0);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------
@@ -1343,6 +1667,13 @@ titolo('CASI STORTI');
   // meglio una riga ferma e da correggere che una fatta a meta'
   verifica('chiusura scritta a parole: problema solo su quella riga, prima di toccare niente',
     tb.indexOf('giorno/mese') >= 0 && brutto.m.fogliCreati === 1 && scheda(brutto.m)[1][7] === 'pronto per 2026-27');
+
+  const bis = mondoPronto({ adesso: '2027-09-10T10:00:00+02:00' });       // 2027-28: febbraio 2028 ha il 29
+  bis.m.pannello.getSheetByName('Moduli').getRange(2, 5).setValue('29/02');
+  const tbis = bis.c.PANNELLO_4_preparaAnno();
+  verifica('29/02 anche in un anno bisestile: problema su quella riga, come in Campanella',
+    tbis.indexOf('non c\'e\' tutti gli anni') >= 0 && String(scheda(bis.m)[0][7]).indexOf('problema') === 0 &&
+    bis.m.fogliCreati === 1);
 }
 
 // ---- 10. il menu ------------------------------------------------------------------------------
@@ -1372,6 +1703,7 @@ if (process.argv[2]) {
   verifica('ogni riga ha nome e nome del foglio', righe.every(r => String(r[0]) !== '' && String(r[3]).indexOf('{anno}') > 0));
   const t = c.PANNELLO_3_anteprima();
   verifica('l\'anteprima gira e chiede i link', t.indexOf('manca il link del modulo') >= 0);
+  verifica('e dice la versione dello script', /Script: Campanella \d+\.\d+\.\d+ /.test(t));
   verifica('e non ha toccato niente', m.fogliCreati === 0 && m.trigger.length === 0);
 }
 

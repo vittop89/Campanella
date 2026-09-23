@@ -26,10 +26,10 @@
  *      scollega il foglio, che resta fermo com'e'.
  *
  *  COSA NON FA
- *    Non cancella moduli, fogli, cartelle o risposte. Non manda email. Non
- *    condivide niente. Le risposte degli anni scorsi le toglie da un modulo
- *    solo se lo chiedi nella sua riga, e solo dopo aver verificato che stanno
- *    gia' in un foglio degli anni scorsi.
+ *    Non cancella moduli, fogli o cartelle. Non manda email. Non condivide
+ *    niente. Le risposte degli anni scorsi le toglie da un modulo solo se lo
+ *    chiedi nella sua riga, e solo dopo aver ritrovato ognuna, dal momento in
+ *    cui e' arrivata, in un foglio degli anni scorsi.
  *
  *  FUNZIONI  (dal menu Campanella, dentro il foglio)
  *    PANNELLO_1_preparaIlFoglio ... crea la scheda con le colonne e le righe
@@ -68,7 +68,9 @@ var PANNELLO = {
 var _PAN_VERSIONE   = '1.4.6';
 var _PAN_TRIGGER    = 'PANNELLO_chiusura';
 var _PAN_CHIAVE     = 'CAMPANELLA_PANNELLO';
+var _PAN_CHIAVE_FOGLI = 'CAMPANELLA_PANNELLO_FOGLI_';   // + anno: i fogli di quell'anno
 var _PAN_ISTRUZIONI = 'Istruzioni';       // la scheda che ricorda come si usa il foglio
+var _PAN_TEMPO      = 260 * 1000;         // oltre, "Prepara l'anno nuovo" si ferma: Google ferma gli script a 6 minuti
 
 // le colonne della scheda, nell'ordine
 var _PAN_COLONNE = [
@@ -103,21 +105,40 @@ function onOpen() {
 //  LE FUNZIONI
 // ===========================================================================
 function PANNELLO_1_preparaIlFoglio() {
-  return _panRacconta(_panUnoAllaVolta(function () { return _panPreparaIlFoglio(); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panPreparaIlFoglio_(); }));
 }
 
 function PANNELLO_2_trovaIModuli() {
-  return _panRacconta(_panUnoAllaVolta(function () { return _panTrovaIModuli(); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panTrovaIModuli_(); }));
 }
 
 function PANNELLO_3_anteprima() {
-  return _panRacconta(_panUnoAllaVolta(function () { return _panEsegui(false); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(false); }));
 }
 
 function PANNELLO_4_preparaAnno() {
-  if (!_panConferma('Preparo l\'anno scolastico ' + _panAnno() + ' per tutte le righe attive.\n\n' +
-                    'Non cancello niente. Procedo?')) return '';
-  return _panRacconta(_panUnoAllaVolta(function () { return _panEsegui(true); }));
+  if (!_panConferma_('Preparo l\'anno scolastico ' + _panAnno_() + ' per tutte le righe attive.\n\n' +
+                    (_panQualcunaDaSvuotare_()
+                      ? 'Nelle righe con "Svuota" tolgo dal modulo le risposte degli anni scorsi, ma solo se le ' +
+                        'ritrovo tutte, una per una, in un foglio vecchio: toglierle non si puo\' annullare. ' +
+                        'Fogli e cartelle non li cancello. Procedo?'
+                      : 'Non cancello niente. Procedo?'))) return '';
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(true); }));
+}
+
+/** C'e' una riga attiva con "Svuota"? Allora la conferma non puo' dire che non cancello niente. */
+function _panQualcunaDaSvuotare_() {
+  try {
+    var foglio = _panScheda_(false);
+    if (!foglio) return false;
+    var dati = _panLeggi_(foglio);
+    for (var i = 0; i < dati.righe.length; i++) {
+      if (dati.righe[i].attivo && dati.righe[i].svuota) return true;
+    }
+    return false;
+  } catch (e) {
+    return true;                                  // nel dubbio, la conferma lo dice
+  }
 }
 
 /**
@@ -127,23 +148,37 @@ function PANNELLO_4_preparaAnno() {
  * buttato nel cestino) restano indietro finche' non si guarda davvero.
  */
 function PANNELLO_5_controlla() {
-  return _panRacconta(_panUnoAllaVolta(function () { return _panControlla(); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panControlla_(); }));
 }
 
 function PANNELLO_ANNULLA() {
-  if (!_panConferma('Tolgo le chiusure programmate e scollego i fogli di quest\'anno.\n' +
+  if (!_panConferma_('Tolgo le chiusure programmate e scollego i fogli di quest\'anno.\n' +
                     'I fogli restano nel Drive con le risposte che contengono. Procedo?')) return '';
-  return _panRacconta(_panUnoAllaVolta(function () { return _panAnnulla(); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panAnnulla_(); }));
 }
 
 /** La chiama Google, da sola, finito un giorno di chiusura. */
-function PANNELLO_chiusura() {
+function PANNELLO_chiusura(e) {
+  // lo stesso lock del menu: una chiusura a meta' di "Prepara l'anno nuovo" richiuderebbe un
+  // modulo appena riaperto, e riscriverebbe la memoria. Se e' occupato riprovo fra un'ora
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(10000)) {
+    _panRiprogramma_(e);
+    var occupato = 'CHIUSURE DI FINE ANNO\n\nUn\'altra esecuzione e\' in corso: non tocco niente adesso, riprovo fra un\'ora.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  try { return _panChiudiScaduti_(e); }
+  finally { lock.releaseLock(); }
+}
+
+function _panChiudiScaduti_(e) {
   var righe = ['CHIUSURE DI FINE ANNO', ''];
-  var oggi = _panOggi();
-  var foglio = _panScheda(false);
+  var oggi = _panOggi_();
+  var foglio = _panScheda_(false);
   if (!foglio) { Logger.log('Non trovo la scheda ' + PANNELLO.scheda + '.'); return; }
-  var dati = _panLeggi(foglio);
-  var memoria = _panMemoria();
+  var dati = _panLeggi_(foglio);
+  var memoria = _panMemoria_();
   var fatte = 0;
   var riprovare = false;
 
@@ -163,7 +198,7 @@ function PANNELLO_chiusura() {
       // scrivo nella sua riga: questa funzione la chiama Google da sola, il
       // registro non lo legge nessuno
       righe.push(r.nome + ': non riesco ad aprirlo (' + (e2.message || e2) + '). Tolgo la sua scadenza.');
-      _panScriviStato(foglio, r, 'non si apre piu\' (cancellato?): chiusura saltata', null);
+      _panScriviStato_(foglio, r, 'non si apre piu\' (cancellato?): chiusura saltata', null);
       delete memoria.scadenze[r.id];
       continue;
     }
@@ -174,7 +209,7 @@ function PANNELLO_chiusura() {
       // risponde, il modulo resta collegato al foglio (le risposte tardive ci
       // arrivano lo stesso) e fra un'ora si riprova. Un modulo non pubblicato
       // non raccoglie risposte comunque: quello non lo riprovo per sempre.
-      try { _panRiprova(function () { form.setAcceptingResponses(false); }); } catch (e3) { /* lo guardo qui sotto */ }
+      try { _panRiprova_(function () { form.setAcceptingResponses(false); }); } catch (e3) { /* lo guardo qui sotto */ }
       var ancoraAperto = false;
       try { ancoraAperto = form.isAcceptingResponses(); } catch (e6) { ancoraAperto = false; }
       if (ancoraAperto) {
@@ -185,8 +220,8 @@ function PANNELLO_chiusura() {
         } catch (e7) { pubblicato = true; }
         if (pubblicato) throw new Error('il modulo accetta ancora risposte');
       }
-      if (_panDestinazione(form)) {
-        _panRiprova(function () { form.removeDestination(); });
+      if (_panDestinazione_(form)) {
+        _panRiprova_(function () { form.removeDestination(); });
         righe.push(r.nome + ': modulo chiuso, foglio scollegato.');
       } else {
         righe.push(r.nome + ': modulo chiuso (non era collegato a nessun foglio).');
@@ -194,24 +229,25 @@ function PANNELLO_chiusura() {
     } catch (e5) {
       var guasto = String(e5.message || e5);
       righe.push(r.nome + ': chiusura non riuscita (' + guasto + '). Riprovo fra un\'ora.');
-      _panScriviStato(foglio, r, 'chiusura non riuscita: ' + guasto, null);
+      _panScriviStato_(foglio, r, 'chiusura non riuscita: ' + guasto, null);
       riprovare = true;                               // la scadenza resta: ci riprovo
       continue;
     }
-    _panScriviStato(foglio, r, 'chiuso il ' + _panLeggibile(scadenza), null);
+    _panScriviStato_(foglio, r, 'chiuso il ' + _panLeggibile_(scadenza), null);
     delete memoria.scadenze[r.id];
     // il segno che per quell'anno la chiusura e' scattata: "Prepara l'anno nuovo"
     // rieseguito dopo non deve disfarla, qualunque giorno ci sia adesso nella cella.
     // L'anno dalla data, non da PANNELLO.anno: con l'anno fisso e il codice gia'
     // reincollato per l'anno dopo, PANNELLO.anno direbbe l'anno sbagliato
-    memoria.chiusi[r.id + '|' + _panAnnoDellaData(scadenza)] = scadenza;
+    memoria.chiusi[r.id + '|' + _panAnnoDellaData_(scadenza)] = scadenza;
     fatte++;
   }
-  _panRicorda(memoria);
-  _panTogliTriggerPassati(memoria);
-  // il trigger che mi ha chiamato non scatta piu': per le righe non riuscite
-  // ne programmo un altro, fra un'ora
-  if (riprovare) ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
+  _panRicorda_(memoria);
+  _panTogliTriggerPassati_(memoria);
+  // il trigger che mi ha chiamato non scatta piu', ma resterebbe in elenco: lo tolgo.
+  // Per le righe non riuscite ne programmo un altro, fra un'ora
+  if (riprovare) _panRiprogramma_(e);
+  else _panTogliScattato_(e);
   righe.push('');
   righe.push(fatte === 0 ? 'Niente da chiudere oggi.' : 'Chiusure fatte: ' + fatte + '.');
   var testo = righe.join('\n');
@@ -223,7 +259,7 @@ function PANNELLO_chiusura() {
 // ===========================================================================
 //  IL FOGLIO
 // ===========================================================================
-function _panPreparaIlFoglio() {
+function _panPreparaIlFoglio_() {
   var ss = SpreadsheetApp.getActive();
   var foglio = ss.getSheetByName(PANNELLO.scheda);
   var nuovo = false;
@@ -238,11 +274,11 @@ function _panPreparaIlFoglio() {
   // quest'anno, che poi lo script si ritrova come un data lunghissima.
   var quante = Math.max(foglio.getMaxRows(), 2);
   foglio.getRange(2, _PAN_C.CHIUSURA + 1, quante - 1, 1).setNumberFormat('@');
-  _panRaddrizzaChiusure(foglio);
+  _panRaddrizzaChiusure_(foglio);
 
   var righe = [];
   if (nuovo || foglio.getLastRow() < 2) {
-    var anno = _panAnno();
+    var anno = _panAnno_();
     for (var i = 0; i < (PANNELLO.moduli || []).length; i++) {
       var m = PANNELLO.moduli[i];
       var riga = [];
@@ -263,18 +299,18 @@ function _panPreparaIlFoglio() {
     }
   }
 
-  _panSpunte(foglio);
+  _panSpunte_(foglio);
 
-  var note = _panNoteColonne();
+  var note = _panNoteColonne_();
   for (var c = 0; c < note.length; c++) foglio.getRange(1, c + 1).setNote(note[c]);
 
   for (var k = 0; k < _PAN_COLONNE.length; k++) foglio.setColumnWidth(k + 1, k === _PAN_C.LINK ? 260 : 170);
 
-  var schede = _panOrdinaLeSchede(ss, foglio);
+  var schede = _panOrdinaLeSchede_(ss, foglio);
 
   return 'Scheda "' + PANNELLO.scheda + '" pronta' +
     (righe.length ? ', con ' + (righe.length === 1 ? 'una riga' : righe.length + ' righe') + ' di partenza' : '') + '.\n' +
-    _panRaccontaSchede(schede) + '\n\n' +
+    _panRaccontaSchede_(schede) + '\n\n' +
     'Adesso: incolla il link di ogni modulo nella colonna "Link del modulo", oppure usa\n' +
     '"Trova i moduli nel Drive" e li cerca lui dal nome. Poi "Anteprima".';
 }
@@ -293,8 +329,8 @@ function _panPreparaIlFoglio() {
  * versioni di prima le mettevano fino in fondo al foglio, tutte spente: qui le
  * tolgo.
  */
-function _panSpunte(foglio) {
-  var dati = _panLeggi(foglio);
+function _panSpunte_(foglio) {
+  var dati = _panLeggi_(foglio);
   var casella = SpreadsheetApp.newDataValidation().requireCheckbox().build();
   var ultima = 1;
   for (var i = 0; i < dati.righe.length; i++) {
@@ -315,14 +351,14 @@ function _panSpunte(foglio) {
 }
 
 /** Cosa va scritto in ogni colonna: finisce nelle note delle intestazioni e nelle istruzioni. */
-function _panNoteColonne() {
+function _panNoteColonne_() {
   var note = [];
   note[_PAN_C.NOME] = 'Il nome del modulo, come lo vedi in Google Moduli. Serve anche a cercarlo nel Drive.';
   note[_PAN_C.LINK] = 'Il link del modulo APERTO PER MODIFICARLO (.../forms/d/.../edit), non quello che dai agli studenti. Lo riempie anche "Trova i moduli nel Drive".';
   note[_PAN_C.CARTELLA] = 'Dentro la cartella dell\'anno. Vuota = direttamente nella cartella dell\'anno. Sottocartelle con la barra: RECUPERI/TRIMESTRE.';
   note[_PAN_C.FOGLIO] = '{anno} diventa l\'anno scolastico. Se un foglio con questo nome c\'e\' gia\', usa quello.';
   note[_PAN_C.CHIUSURA] = 'Giorno/mese, per esempio 31/08. Vuoto = nessuna chiusura automatica per questo modulo.';
-  note[_PAN_C.SVUOTA] = 'Toglie dal modulo le risposte degli anni scorsi, ma solo dopo aver controllato che stanno gia\' tutte in un foglio vecchio.';
+  note[_PAN_C.SVUOTA] = 'Toglie dal modulo le risposte degli anni scorsi, ma solo dopo averle ritrovate tutte, una per una, in un foglio vecchio.';
   note[_PAN_C.ATTIVO] = 'Togli la spunta per saltare questa riga.';
   note[_PAN_C.STATO] = 'Lo scrive lo script.';
   note[_PAN_C.URL] = 'Lo scrive lo script: il foglio delle risposte di quest\'anno.';
@@ -342,15 +378,15 @@ function _panNoteColonne() {
  * scheda tua, anche vuota ma rinominata, resta dov'e'. Restituisce i nomi
  * delle schede tolte.
  */
-function _panOrdinaLeSchede(ss, moduli) {
-  var istruzioni = _panScriviIstruzioni(ss);
+function _panOrdinaLeSchede_(ss, moduli) {
+  var istruzioni = _panScriviIstruzioni_(ss);
   var tolte = [];
   var schede = ss.getSheets();
   for (var i = 0; i < schede.length; i++) {
     var s = schede[i];
     var nome = s.getName();
     if (nome === moduli.getName() || nome === istruzioni.getName()) continue;
-    if (!_panSchedaDiPartenza(s)) continue;
+    if (!_panSchedaDiPartenza_(s)) continue;
     if (ss.getSheets().length <= 1) break;            // un foglio senza schede non esiste
     ss.deleteSheet(s);
     tolte.push(nome);                                 // il nome va letto prima: dopo la scheda non c'e' piu'
@@ -366,8 +402,8 @@ function _panOrdinaLeSchede(ss, moduli) {
   return { tolte: tolte, istruzioni: istruzioni.getName() };
 }
 
-/** Quello che _panOrdinaLeSchede ha fatto, da dire a chi ha eseguito. */
-function _panRaccontaSchede(esito) {
+/** Quello che _panOrdinaLeSchede_ ha fatto, da dire a chi ha eseguito. */
+function _panRaccontaSchede_(esito) {
   var t = 'Scheda "' + esito.istruzioni + '" aggiornata: li\' trovi come si usa il foglio.';
   if (esito.istruzioni !== _PAN_ISTRUZIONI) {
     t += '\nLa scheda "' + _PAN_ISTRUZIONI + '" che c\'era gia\' e\' tua: non l\'ho toccata.';
@@ -377,7 +413,7 @@ function _panRaccontaSchede(esito) {
 }
 
 /** La scheda che Google mette nel foglio nuovo, ancora intatta. */
-function _panSchedaDiPartenza(s) {
+function _panSchedaDiPartenza_(s) {
   if (!/^(Foglio|Sheet|Hoja|Feuille|Tabelle|Planilha|Folha|Blad|Arkusz)\s*\d+$/i.test(s.getName())) return false;
   if (s.getLastRow() > 0 || s.getLastColumn() > 0) return false;
   // getLastRow conta solo il contenuto delle celle: grafici, immagini,
@@ -400,11 +436,11 @@ function _panSchedaDiPartenza(s) {
  * alla versione dello script e alla configurazione di adesso. E' protetta con
  * il solo avviso: chi ci scrive dentro viene avvertito, ma non bloccato.
  */
-function _panScriviIstruzioni(ss) {
-  var s = _panSchedaIstruzioni(ss);
+function _panScriviIstruzioni_(ss) {
+  var s = _panSchedaIstruzioni_(ss);
   s.clear();
 
-  var righe = _panTestoIstruzioni();
+  var righe = _panTestoIstruzioni_();
   var valori = [];
   for (var i = 0; i < righe.length; i++) valori.push([righe[i]]);
   var blocco = s.getRange(1, 1, valori.length, 1);
@@ -414,7 +450,7 @@ function _panScriviIstruzioni(ss) {
   blocco.setValues(valori).setWrap(true).setVerticalAlignment('top');
   s.setColumnWidth(1, 860);
   for (var r = 0; r < righe.length; r++) {
-    if (_panEUnTitolo(righe[r])) s.getRange(r + 1, 1).setFontWeight('bold');
+    if (_panEUnTitolo_(righe[r])) s.getRange(r + 1, 1).setFontWeight('bold');
   }
   s.getRange(1, 1).setFontSize(13);
   try { s.setHiddenGridlines(true); } catch (e) { /* solo estetica */ }
@@ -431,23 +467,23 @@ function _panScriviIstruzioni(ss) {
  * scheda con quel nome c'e' gia' ed e' tua (un foglio condiviso con un collega,
  * degli appunti), non la tocco e uso "Istruzioni Campanella".
  */
-function _panSchedaIstruzioni(ss) {
+function _panSchedaIstruzioni_(ss) {
   var nomi = [_PAN_ISTRUZIONI, _PAN_ISTRUZIONI + ' Campanella'];
   for (var i = 0; i < nomi.length; i++) {
     var s = ss.getSheetByName(nomi[i]);
     if (!s) return ss.insertSheet(nomi[i]);
-    if (_panEUnaMia(s)) return s;
+    if (_panEUnaMia_(s)) return s;
   }
   for (var n = 2; ; n++) {
     var altro = _PAN_ISTRUZIONI + ' Campanella ' + n;
     var t = ss.getSheetByName(altro);
     if (!t) return ss.insertSheet(altro);
-    if (_panEUnaMia(t)) return t;
+    if (_panEUnaMia_(t)) return t;
   }
 }
 
 /** Una scheda che ha scritto lo script (o vuota): la posso riscrivere. */
-function _panEUnaMia(s) {
+function _panEUnaMia_(s) {
   if (s.getLastRow() === 0 && s.getLastColumn() === 0) return true;
   try {
     if (String(s.getRange(1, 1).getValue()).indexOf('CAMPANELLA - COME SI USA') === 0) return true;
@@ -461,14 +497,14 @@ function _panEUnaMia(s) {
   return false;
 }
 
-function _panEUnTitolo(riga) {
+function _panEUnTitolo_(riga) {
   var t = String(riga || '');
   return t.length > 3 && /[A-Z]/.test(t) && t === t.toUpperCase();
 }
 
 /** Il testo della scheda Istruzioni, una riga per cella. */
-function _panTestoIstruzioni() {
-  var note = _panNoteColonne();
+function _panTestoIstruzioni_() {
+  var note = _panNoteColonne_();
   // Qui niente valori calcolati oggi (l'anno di adesso, la cartella di adesso):
   // la scheda si riscrive solo con "Prepara il foglio" e "Prepara l'anno nuovo",
   // e fra una volta e l'altra quei valori invecchierebbero. Scrivo le regole.
@@ -517,9 +553,9 @@ function _panTestoIstruzioni() {
   return t;
 }
 
-function _panTrovaIModuli() {
-  var foglio = _panScheda(true);
-  var dati = _panLeggi(foglio);
+function _panTrovaIModuli_() {
+  var foglio = _panScheda_(true);
+  var dati = _panLeggi_(foglio);
   var righe = ['CERCO I MODULI NEL DRIVE', ''];
   var trovati = 0;
 
@@ -528,7 +564,7 @@ function _panTrovaIModuli() {
     if (!r.attivo) { righe.push((r.nome || '(riga ' + (r.indice + 2) + ')') + ': saltata, non ha la spunta "Attivo".'); continue; }
     if (r.id) { righe.push(r.nome + ': il link c\'e\' gia\'.'); continue; }
     if (!r.nome) continue;
-    var candidati = _panCercaModuli(r.nome);
+    var candidati = _panCercaModuli_(r.nome);
     if (candidati.length === 0) {
       righe.push(r.nome + ': non lo trovo nel Drive. Incolla il link a mano.');
     } else if (candidati.length > 1) {
@@ -539,8 +575,8 @@ function _panTrovaIModuli() {
       trovati++;
     }
   }
-  if (trovati > 0) _panScrivi(foglio, dati);
-  _panSpunte(foglio);                       // le righe aggiunte a mano prendono le loro caselle
+  if (trovati > 0) _panScrivi_(foglio, dati);
+  _panSpunte_(foglio);                       // le righe aggiunte a mano prendono le loro caselle
   righe.push('');
   righe.push(trovati === 0 ? 'Nessun link nuovo.' : 'Link riempiti: ' + trovati + '.');
   return righe.join('\n');
@@ -550,16 +586,18 @@ function _panTrovaIModuli() {
 // ===========================================================================
 //  IL LAVORO
 // ===========================================================================
-function _panEsegui(davvero) {
-  var foglio = _panScheda(true);
-  var dati = _panLeggi(foglio);
-  var anno = _panAnno();
+function _panEsegui_(davvero) {
+  var inizio = new Date().getTime();
+  var foglio = _panScheda_(true);
+  var dati = _panLeggi_(foglio);
+  var anno = _panAnno_();
   var righe = [];
   righe.push(davvero ? 'PREPARO L\'ANNO SCOLASTICO ' + anno
                      : 'ANTEPRIMA per l\'anno scolastico ' + anno + ' - non modifico niente.');
+  righe.push('Script: Campanella ' + _PAN_VERSIONE + ' (se Campanella e\' piu\' nuova, rigenera e reincolla il codice)');
   righe.push('');
 
-  if (davvero && !_panPermessiCompleti()) {
+  if (davvero && !_panPermessiCompleti_()) {
     righe.push('MANCA QUALCHE PERMESSO. Nella finestra di Google le spunte vanno lasciate tutte:');
     righe.push('riesegui e, quando Google lo chiede, concedi tutti i permessi. Non ho fatto niente.');
     return righe.join('\n');
@@ -568,19 +606,37 @@ function _panEsegui(davvero) {
   var attive = 0, fatte = 0, problemi = 0;
   var chiusure = {};
 
+  // Google ferma uno script dopo 6 minuti, e con tante righe ci si arriva. Mi fermo prima,
+  // a lavoro salvato. E comincio dalle righe ancora da preparare per quest'anno: se il tempo
+  // finisce, sono quelle gia' pronte ad aspettare, e rieseguendo si va sempre avanti.
+  var memoria = _panMemoria_();
+  var ordine = _panOrdine_(dati.righe, memoria, anno);
+  var daFare = [], giaPronte = [];                      // le righe che il tempo non ha raggiunto
   var spente = [];
-  for (var i = 0; i < dati.righe.length; i++) {
-    var r = dati.righe[i];
+  for (var i = 0; i < ordine.length; i++) {
+    var r = ordine[i];
     if (!r.attivo) { spente.push(r.nome || '(riga ' + (r.indice + 2) + ')'); continue; }
     attive++;
+    if (new Date().getTime() - inizio > _PAN_TEMPO) {
+      if (memoria.pronti[r.id + '|' + anno] === true) {
+        giaPronte.push(r.nome || '(riga ' + (r.indice + 2) + ')');
+      } else {
+        daFare.push(r.nome || '(riga ' + (r.indice + 2) + ')');
+        if (davvero) {
+          dati.valori[r.indice][_PAN_C.STATO] = 'da preparare: tempo finito, riesegui "Prepara l\'anno nuovo"';
+          dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso_();
+        }
+      }
+      continue;
+    }
     righe.push('--- ' + (r.nome || '(riga ' + (r.indice + 2) + ')'));
     try {
-      var esito = _panUnaRiga(r, anno, davvero, righe);
+      var esito = _panUnaRiga_(r, anno, davvero, righe);
       if (esito.chiusura) chiusure[esito.chiusura.testo] = esito.chiusura;
       if (davvero) {
         dati.valori[r.indice][_PAN_C.STATO] = esito.stato;
         if (esito.url) dati.valori[r.indice][_PAN_C.URL] = esito.url;
-        dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+        dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso_();
       }
       fatte++;
     } catch (e) {
@@ -588,7 +644,7 @@ function _panEsegui(davvero) {
       righe.push('  PROBLEMA: ' + guaio);
       if (davvero) {
         dati.valori[r.indice][_PAN_C.STATO] = 'problema: ' + guaio;
-        dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+        dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso_();
       }
       problemi++;
     }
@@ -597,28 +653,44 @@ function _panEsegui(davvero) {
   if (spente.length) {
     righe.push('--- senza la spunta "Attivo", saltate: ' + spente.join(', '));
   }
+  if (daFare.length || giaPronte.length) {
+    righe.push('--- TEMPO FINITO: Google ferma gli script dopo 6 minuti, e mi sono fermato prima.');
+    if (daFare.length) {
+      righe.push('    ' + (davvero ? 'Da preparare ancora: ' : 'Non guardate: ') + daFare.join(', ') + '.');
+      righe.push('    Riesegui "' + (davvero ? 'Prepara l\'anno nuovo' : 'Anteprima') + '": riparte da queste.');
+    }
+    if (giaPronte.length) {
+      righe.push('    Gia\' pronte per quest\'anno, non ricontrollate adesso: ' + giaPronte.join(', ') + '.');
+    }
+  }
   if (attive === 0) {
     righe.push('Nessuna riga attiva: metti la spunta in "Attivo" alle righe da preparare.');
     return righe.join('\n');
   }
   if (davvero) {
-    _panScrivi(foglio, dati);
-    _panProgrammaChiusure(chiusure, righe);
+    _panScrivi_(foglio, dati);
+    var sospese = _panChiusureInSospeso_(dati.righe);
+    _panProgrammaChiusure_(sospese.date, righe, sospese.riprova);
     // le righe aggiunte durante l'anno prendono le caselle, e la scheda
     // Istruzioni si riallinea allo script appena incollato: chi usa solo
     // questa voce non deve ricordarsi di rifare "Prepara il foglio"
     try {
-      _panSpunte(foglio);
+      _panSpunte_(foglio);
       righe.push('');
-      righe.push(_panRaccontaSchede(_panOrdinaLeSchede(SpreadsheetApp.getActive(), foglio)));
+      righe.push(_panRaccontaSchede_(_panOrdinaLeSchede_(SpreadsheetApp.getActive(), foglio)));
     } catch (e4) {
       righe.push('(non sono riuscito a sistemare le schede: ' + (e4.message || e4) + ')');
     }
   } else {
-    _panElencaChiusure(chiusure, righe);
+    _panElencaChiusure_(chiusure, righe);
   }
 
   righe.push('');
+  if (davvero && daFare.length) {
+    righe.push('NON HO FINITO. Righe preparate: ' + fatte + (problemi ? ', con problemi: ' + problemi : '') +
+               ', da preparare ancora: ' + daFare.length + '. Riesegui "Prepara l\'anno nuovo".');
+    return righe.join('\n');
+  }
   righe.push(davvero
     ? 'FATTO. Righe preparate: ' + fatte + (problemi ? ', con problemi: ' + problemi : '') + '.'
     : 'Se ti convince: menu Campanella -> "Prepara l\'anno nuovo".');
@@ -628,15 +700,26 @@ function _panEsegui(davvero) {
   return righe.join('\n');
 }
 
+/** Le righe nell'ordine in cui lavorarle: prima quelle attive non ancora pronte per quest'anno. */
+function _panOrdine_(righeScheda, memoria, anno) {
+  var prima = [], dopo = [];
+  for (var i = 0; i < righeScheda.length; i++) {
+    var r = righeScheda[i];
+    if (r.attivo && memoria.pronti[r.id + '|' + anno] !== true) prima.push(r);
+    else dopo.push(r);
+  }
+  return prima.concat(dopo);
+}
+
 /** Una riga: cartella, foglio, collegamento, riapertura. Torna stato, url e chiusura da programmare. */
-function _panUnaRiga(r, anno, davvero, righe) {
+function _panUnaRiga_(r, anno, davvero, righe) {
   if (!r.id) {
     if (r.link) throw new Error('il link non e\' quello giusto: serve il modulo aperto per modificarlo (.../forms/d/.../edit)');
     throw new Error('manca il link del modulo');
   }
   var form = FormApp.openById(r.id);
-  var nomeFoglio = _panNome(r.foglio || ('Risposte ' + r.nome + ' - A.S. {anno}'), anno);
-  var memoria = _panMemoria();
+  var nomeFoglio = _panNome_(r.foglio || ('Risposte ' + r.nome + ' - A.S. {anno}'), anno);
+  var memoria = _panMemoria_();
   var chiave = r.id + '|' + anno;
 
   // Una riga gia' preparata per quest'anno. Rieseguire "Prepara l'anno nuovo" a
@@ -655,38 +738,38 @@ function _panUnaRiga(r, anno, davvero, righe) {
     // 1.4.6 il segno non c'e', e allora guardo la data della cella.
     var finitoIl = memoria.chiusi[chiave] || '';
     var nellaCella = null;
-    if ((r.chiusura || '').replace(/\s/g, '') !== '') nellaCella = _panGiornoChiusura(r.chiusura, anno);
-    if (!finitoIl && giaPreparata && nellaCella && _panOggi() > nellaCella.testo) finitoIl = nellaCella.testo;
+    if ((r.chiusura || '').replace(/\s/g, '') !== '') nellaCella = _panGiornoChiusura_(r.chiusura, anno);
+    if (!finitoIl && giaPreparata && nellaCella && _panOggi_() > nellaCella.testo) finitoIl = nellaCella.testo;
     if (finitoIl) {
       var ancoraAperto = false;
       try { ancoraAperto = form.isAcceptingResponses(); } catch (e0) { ancoraAperto = false; }
-      righe.push('  l\'anno ' + anno + ' per questo modulo e\' finito il ' + _panLeggibile(finitoIl) +
+      righe.push('  l\'anno ' + anno + ' per questo modulo e\' finito il ' + _panLeggibile_(finitoIl) +
                  ': non lo ricollego e non lo riapro.');
       if (nellaCella && nellaCella.testo !== finitoIl) {
         righe.push('  (in "Chiusura" adesso c\'e\' il ' + nellaCella.leggibile + ', ma per quest\'anno la chiusura ' +
                    'e\' gia\' scattata: se va riaperto, riaprilo da Google Moduli -> Risposte)');
       }
       if (ancoraAperto) righe.push('  (risulta ancora aperto: se va chiuso, chiudilo da Google Moduli)');
-      return { stato: ancoraAperto ? 'aperto oltre la chiusura del ' + _panLeggibile(finitoIl)
-                                   : 'chiuso il ' + _panLeggibile(finitoIl),
+      return { stato: ancoraAperto ? 'aperto oltre la chiusura del ' + _panLeggibile_(finitoIl)
+                                   : 'chiuso il ' + _panLeggibile_(finitoIl),
                url: '', chiusura: null, riapertura: '' };
     }
   }
 
   // --- la cartella ---------------------------------------------------------
-  var dest = _panCartella(r.cartella, anno, davvero, righe);
+  var dest = _panCartella_(r.cartella, anno, davvero, righe);
 
   // --- il foglio -----------------------------------------------------------
   var idFoglio = null;
   var foglioDiQuestAnno = false;          // il foglio preparato gia' prima di questa volta
   var trovatoPerNome = false;             // trovato per nome, non ancora segnato in memoria
-  if (memoria.fogli[chiave] && _panApribile(memoria.fogli[chiave]) && !_panNelCestino(memoria.fogli[chiave])) {
+  if (memoria.fogli[chiave] && _panApribile_(memoria.fogli[chiave]) && !_panNelCestino_(memoria.fogli[chiave])) {
     idFoglio = memoria.fogli[chiave];
     foglioDiQuestAnno = true;
     righe.push('  foglio: c\'e\' gia\', e\' quello creato da qui.');
   }
   if (!idFoglio && dest.cartella) {
-    idFoglio = _panFoglioPerNome(dest.cartella, nomeFoglio);
+    idFoglio = _panFoglioPerNome_(dest.cartella, nomeFoglio);
     if (idFoglio) {
       righe.push('  foglio: "' + nomeFoglio + '" esiste gia\'. Uso quello, senza doppioni.');
       // Me lo segno solo quando il modulo ci scrive davvero (qui sotto): se il
@@ -701,12 +784,12 @@ function _panUnaRiga(r, anno, davvero, righe) {
   // quello che vorrei io, adotto quello: creargliene un altro vorrebbe dire due
   // fogli per lo stesso anno e le risposte spezzate in due.
   if (!idFoglio) {
-    var giaCollegato = _panDestinazione(form);
-    if (giaCollegato && _panNomeDiUnFile(giaCollegato) === nomeFoglio) {
+    var giaCollegato = _panDestinazione_(form);
+    if (giaCollegato && _panNomeDiUnFile_(giaCollegato) === nomeFoglio) {
       idFoglio = giaCollegato;
       righe.push('  foglio: il modulo scrive gia\' in "' + nomeFoglio + '". Uso quello: non ne creo un altro.');
       righe.push('  (lo ha preparato lo script dentro il modulo? vedi "se il modulo ha gia\' lo script")');
-      if (davvero) { memoria.fogli[chiave] = idFoglio; _panRicorda(memoria); }
+      if (davvero) { memoria.fogli[chiave] = idFoglio; _panRicorda_(memoria); }
     }
   }
   if (!idFoglio) {
@@ -715,11 +798,11 @@ function _panUnaRiga(r, anno, davvero, righe) {
     } else {
       idFoglio = SpreadsheetApp.create(nomeFoglio).getId();
       memoria.fogli[chiave] = idFoglio;
-      _panRicorda(memoria);
+      _panRicorda_(memoria);
       righe.push('  foglio: creato "' + nomeFoglio + '".');
       if (dest.cartella) {
         try {
-          if (_panMetti(idFoglio, dest.cartella)) righe.push('  messo in: ' + dest.percorso);
+          if (_panMetti_(idFoglio, dest.cartella)) righe.push('  messo in: ' + dest.percorso);
         } catch (e) {
           righe.push('  NON sono riuscito a spostarlo (' + (e.message || e) + '): e\' nella radice del Drive.');
         }
@@ -731,18 +814,18 @@ function _panUnaRiga(r, anno, davvero, righe) {
   // Una riga ereditata da una versione di prima, il cui foglio non e' mai stato
   // collegato: quella preparazione si e' fermata prima del collegamento, e
   // quindi anche prima della riapertura. La tratto come mai fatta.
-  if (giaPreparata === 'da prima' && (!foglioDiQuestAnno || !_panGiaCollegatoUnaVolta(idFoglio))) {
+  if (giaPreparata === 'da prima' && (!foglioDiQuestAnno || !_panGiaCollegatoUnaVolta_(idFoglio))) {
     giaPreparata = false;
   }
 
-  var collegatoA = _panDestinazione(form);
+  var collegatoA = _panDestinazione_(form);
   var quante = form.getResponses().length;
   var scollegatoAMano = false;
   if (idFoglio !== null && collegatoA === idFoglio) {
     righe.push('  collegamento: gia\' fatto, non lo tocco.');
     // il foglio trovato per nome e' davvero quello in cui scrive: adesso me lo segno
-    if (davvero && trovatoPerNome) { memoria.fogli[chiave] = idFoglio; _panRicorda(memoria); }
-  } else if (foglioDiQuestAnno && !memoria.annullati[chiave] && _panGiaCollegatoUnaVolta(idFoglio)) {
+    if (davvero && trovatoPerNome) { memoria.fogli[chiave] = idFoglio; _panRicorda_(memoria); }
+  } else if (foglioDiQuestAnno && !memoria.annullati[chiave] && _panGiaCollegatoUnaVolta_(idFoglio)) {
     // Il foglio di quest'anno ha gia' la sua scheda di risposte: e' stato
     // collegato, e adesso il modulo non ci scrive piu'. L'ha scollegato
     // qualcuno. Ricollegarlo farebbe ricopiare a Google tutte le risposte in
@@ -754,26 +837,26 @@ function _panUnaRiga(r, anno, davvero, righe) {
     righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va');
     righe.push('  ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
   } else {
-    if (quante > 0) _panRisposteVecchie(form, r, quante, collegatoA, idFoglio, memoria, davvero, righe);
+    if (quante > 0) _panRisposteVecchie_(form, r, quante, collegatoA, idFoglio, memoria, davvero, righe);
     if (davvero) {
-      _panRiprova(function () { form.setDestination(FormApp.DestinationType.SPREADSHEET, idFoglio); });
+      _panRiprova_(function () { form.setDestination(FormApp.DestinationType.SPREADSHEET, idFoglio); });
       righe.push('  collegamento: fatto.');
       if (memoria.annullati[chiave]) delete memoria.annullati[chiave];
       if (trovatoPerNome) memoria.fogli[chiave] = idFoglio;
-      _panRicorda(memoria);
+      _panRicorda_(memoria);
     } else {
       righe.push('  collegamento: da fare' + (collegatoA ? ' (adesso scrive in un altro foglio, che resta com\'e\')' : '') + '.');
     }
   }
 
   // --- riapertura -------------------------------------------------------------
-  var riapertura = _panRiapri(form, davvero, righe, giaPreparata);
+  var riapertura = _panRiapri_(form, davvero, righe, giaPreparata);
 
   // --- la chiusura ------------------------------------------------------------
   var chiusura = null;
   if ((r.chiusura || '').replace(/\s/g, '') !== '') {
-    chiusura = _panGiornoChiusura(r.chiusura, anno);
-    if (chiusura && _panOggi() > chiusura.testo) {
+    chiusura = _panGiornoChiusura_(r.chiusura, anno);
+    if (chiusura && _panOggi_() > chiusura.testo) {
       righe.push('  chiusura: il ' + chiusura.leggibile + ' e\' gia\' passato, non la programmo.');
       chiusura = null;
     } else if (chiusura) {
@@ -795,7 +878,7 @@ function _panUnaRiga(r, anno, davvero, righe) {
     if (riapertura !== 'non pubblicato' && riapertura !== 'lasciato chiuso, da prima') {
       memoria.pronti[chiave] = true;
     }
-    _panRicorda(memoria);
+    _panRicorda_(memoria);
   }
 
   var ma = [];
@@ -811,7 +894,7 @@ function _panUnaRiga(r, anno, davvero, righe) {
   };
 }
 
-function _panRisposteVecchie(form, r, quante, collegatoA, idFoglio, memoria, davvero, righe) {
+function _panRisposteVecchie_(form, r, quante, collegatoA, idFoglio, memoria, davvero, righe) {
   if (!r.svuota) {
     righe.push('  risposte gia\' nel modulo: ' + quante + '. Collegandolo, Google le ricopia nel foglio dell\'anno.');
     righe.push('  (per cominciare pulito, spunta "Svuota" in questa riga)');
@@ -824,13 +907,14 @@ function _panRisposteVecchie(form, r, quante, collegatoA, idFoglio, memoria, dav
     var id = memoria.fogli[k];
     if (id && id !== idFoglio && candidati.indexOf(id) < 0) candidati.push(id);
   }
-  var alSicuro = null;
-  for (var i = 0; i < candidati.length && !alSicuro; i++) {
-    if (_panRigheDiRisposte(candidati[i]) >= quante) alSicuro = candidati[i];
-  }
-  if (!alSicuro) {
-    righe.push('  risposte gia\' nel modulo: ' + quante + '. NON le tolgo: non trovo un foglio vecchio');
-    righe.push('  che le contenga tutte, e toglierle sarebbe cancellarle.');
+  // contare le righe non basta: un foglio vecchio puo' averne tante e non avere
+  // quelle arrivate dopo, solo nel modulo. Le cerco una per una.
+  var alSicuro = _panRisposteAlSicuro_(form, candidati);
+  if (alSicuro.mancano > 0) {
+    righe.push('  risposte gia\' nel modulo: ' + quante + '. NON le tolgo: ' +
+               (alSicuro.mancano === quante ? 'non le ritrovo' : alSicuro.mancano + ' non le ritrovo') +
+               ' in nessun foglio vecchio');
+    righe.push('  (le cerco una per una, dal momento in cui sono arrivate), e toglierle sarebbe cancellarle.');
     return;
   }
   if (davvero) { form.deleteAllResponses(); righe.push('  risposte vecchie: ' + quante + ', tolte dal modulo (restano nel foglio vecchio).'); }
@@ -843,7 +927,7 @@ function _panRisposteVecchie(form, r, quante, collegatoA, idFoglio, memoria, dav
  * quest'anno invece no: un modulo chiuso a meta' anno l'ha chiuso qualcuno,
  * apposta, e rieseguire "Prepara l'anno nuovo" non deve riaprirlo.
  */
-function _panRiapri(form, davvero, righe, giaPreparata) {
+function _panRiapri_(form, davvero, righe, giaPreparata) {
   var aperto = true;
   try { aperto = form.isAcceptingResponses(); } catch (e) { aperto = true; }
   if (aperto) return 'aperto';
@@ -868,16 +952,16 @@ function _panRiapri(form, davvero, righe, giaPreparata) {
   if (!davvero) { righe.push('  il modulo e\' chiuso: verrebbe riaperto.'); return 'da riaprire'; }
   // Se non si riapre, la riga NON deve risultare pronta: lo faccio sapere con
   // un errore, che finisce nella riga, e la volta dopo si riprova tutto.
-  _panRiprova(function () { form.setAcceptingResponses(true); });
+  _panRiprova_(function () { form.setAcceptingResponses(true); });
   righe.push('  il modulo era chiuso: riaperto.');
   return 'riaperto';
 }
 
-function _panControlla() {
-  var foglio = _panScheda(true);
-  var dati = _panLeggi(foglio);
-  var anno = _panAnno();
-  var memoria = _panMemoria();
+function _panControlla_() {
+  var foglio = _panScheda_(true);
+  var dati = _panLeggi_(foglio);
+  var anno = _panAnno_();
+  var memoria = _panMemoria_();
   var righe = ['COME SONO MESSI ADESSO  (anno ' + anno + ')', ''];
   var guai = 0;
 
@@ -894,12 +978,12 @@ function _panControlla() {
         stato = 'non lo trovo: cancellato, o non e\' piu\' tuo';
         delete memoria.scadenze[r.id];
         guai++;
-      } else if (_panNelCestino(r.id)) {
+      } else if (_panNelCestino_(r.id)) {
         stato = 'e\' nel cestino del Drive';
         delete memoria.scadenze[r.id];
         guai++;
       } else {
-        var dove = _panDestinazione(form);
+        var dove = _panDestinazione_(form);
         var atteso = memoria.fogli[r.id + '|' + anno];
         if (!dove) stato = 'non collegato a nessun foglio';
         else if (atteso && dove === atteso) stato = 'collegato al foglio di quest\'anno';
@@ -914,12 +998,12 @@ function _panControlla() {
       }
     }
     dati.valori[r.indice][_PAN_C.STATO] = stato;
-    dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+    dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso_();
     righe.push((r.nome || '(riga ' + (r.indice + 2) + ')') + ': ' + stato);
   }
 
-  _panScrivi(foglio, dati);
-  _panRicorda(memoria);
+  _panScrivi_(foglio, dati);
+  _panRicorda_(memoria);
   righe.push('');
   righe.push(dati.righe.length === 0
     ? 'Nella scheda non c\'e\' nessuna riga.'
@@ -928,17 +1012,17 @@ function _panControlla() {
   return righe.join('\n');
 }
 
-function _panAnnulla() {
-  var foglio = _panScheda(true);
-  var dati = _panLeggi(foglio);
-  var anno = _panAnno();
-  var memoria = _panMemoria();
+function _panAnnulla_() {
+  var foglio = _panScheda_(true);
+  var dati = _panLeggi_(foglio);
+  var anno = _panAnno_();
+  var memoria = _panMemoria_();
   var righe = ['ANNULLO quello che ho fatto per l\'anno ' + anno + '.', ''];
 
-  var tolti = _panTogliTrigger();
+  var tolti = _panTogliTrigger_();
   righe.push(tolti > 0 ? 'Chiusure programmate: ' + tolti + ' tolte.' : 'Chiusure programmate: non ce n\'erano.');
   memoria.scadenze = {};
-  _panRicorda(memoria);
+  _panRicorda_(memoria);
   righe.push('');
 
   for (var i = 0; i < dati.righe.length; i++) {
@@ -953,20 +1037,20 @@ function _panAnnulla() {
     memoria.annullati[r.id + '|' + anno] = true;
     var form = null;
     try { form = FormApp.openById(r.id); } catch (e) { righe.push(r.nome + ': non riesco ad aprirlo.'); continue; }
-    var collegatoA = _panDestinazione(form);
+    var collegatoA = _panDestinazione_(form);
     if (idFoglio && collegatoA === idFoglio) {
-      _panRiprova(function () { form.removeDestination(); });
+      _panRiprova_(function () { form.removeDestination(); });
       righe.push(r.nome + ': foglio scollegato (resta nel Drive).');
       dati.valori[r.indice][_PAN_C.STATO] = 'scollegato';
-      dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+      dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso_();
     } else if (collegatoA) {
       righe.push(r.nome + ': scrive in un foglio che non ho collegato io, non lo tocco.');
     } else {
       righe.push(r.nome + ': non e\' collegato a nessun foglio.');
     }
   }
-  _panRicorda(memoria);
-  _panScrivi(foglio, dati);
+  _panRicorda_(memoria);
+  _panScrivi_(foglio, dati);
   righe.push('');
   righe.push('Non ho cancellato niente: fogli e cartelle restano dove sono.');
   return righe.join('\n');
@@ -976,7 +1060,7 @@ function _panAnnulla() {
 // ===========================================================================
 //  LA SCHEDA: LEGGERE E SCRIVERE
 // ===========================================================================
-function _panScheda(obbligatoria) {
+function _panScheda_(obbligatoria) {
   var foglio = SpreadsheetApp.getActive().getSheetByName(PANNELLO.scheda);
   if (!foglio && obbligatoria) {
     throw new Error('Non trovo la scheda "' + PANNELLO.scheda + '". Esegui prima "Prepara il foglio".');
@@ -984,7 +1068,7 @@ function _panScheda(obbligatoria) {
   return foglio;
 }
 
-function _panLeggi(foglio) {
+function _panLeggi_(foglio) {
   var ultima = foglio.getLastRow();
   var valori = (ultima < 2) ? [] : foglio.getRange(2, 1, ultima - 1, _PAN_COLONNE.length).getValues();
   var righe = [];
@@ -997,10 +1081,10 @@ function _panLeggi(foglio) {
       indice:   i,
       nome:     nome,
       link:     link,
-      id:       _panIdModulo(link),
+      id:       _panIdModulo_(link),
       cartella: String(v[_PAN_C.CARTELLA] || '').replace(/^\s+|\s+$/g, ''),
       foglio:   String(v[_PAN_C.FOGLIO] || '').replace(/^\s+|\s+$/g, ''),
-      chiusura: _panChiusura(v[_PAN_C.CHIUSURA]),
+      chiusura: _panChiusura_(v[_PAN_C.CHIUSURA]),
       svuota:   v[_PAN_C.SVUOTA] === true,
       attivo:   v[_PAN_C.ATTIVO] !== false
     });
@@ -1014,15 +1098,15 @@ function _panLeggi(foglio) {
  * data vera: qui la riporto a giorno/mese. L'anno di quella data non serve:
  * quello giusto lo decide l'anno scolastico.
  */
-function _panChiusura(valore) {
+function _panChiusura_(valore) {
   if (valore && typeof valore.getMonth === 'function') {
-    return Utilities.formatDate(valore, _panFuso(), 'dd/MM');
+    return Utilities.formatDate(valore, _panFuso_(), 'dd/MM');
   }
   return String(valore || '').replace(/\s/g, '');
 }
 
 /** Rimette come testo le chiusure che il foglio aveva trasformato in date. */
-function _panRaddrizzaChiusure(foglio) {
+function _panRaddrizzaChiusure_(foglio) {
   var ultima = foglio.getLastRow();
   if (ultima < 2) return 0;
   var intervallo = foglio.getRange(2, _PAN_C.CHIUSURA + 1, ultima - 1, 1);
@@ -1031,7 +1115,7 @@ function _panRaddrizzaChiusure(foglio) {
   for (var i = 0; i < valori.length; i++) {
     var v = valori[i][0];
     if (v && typeof v.getMonth === 'function') {
-      valori[i][0] = _panChiusura(v);
+      valori[i][0] = _panChiusura_(v);
       cambiate++;
     }
   }
@@ -1039,15 +1123,15 @@ function _panRaddrizzaChiusure(foglio) {
   return cambiate;
 }
 
-function _panScrivi(foglio, dati) {
+function _panScrivi_(foglio, dati) {
   if (dati.valori.length === 0) return;
   foglio.getRange(2, 1, dati.valori.length, _PAN_COLONNE.length).setValues(dati.valori);
 }
 
-function _panScriviStato(foglio, r, stato, url) {
+function _panScriviStato_(foglio, r, stato, url) {
   foglio.getRange(r.indice + 2, _PAN_C.STATO + 1).setValue(stato);
   if (url) foglio.getRange(r.indice + 2, _PAN_C.URL + 1).setValue(url);
-  foglio.getRange(r.indice + 2, _PAN_C.QUANDO + 1).setValue(_panAdesso());
+  foglio.getRange(r.indice + 2, _PAN_C.QUANDO + 1).setValue(_panAdesso_());
 }
 
 /**
@@ -1055,7 +1139,7 @@ function _panScriviStato(foglio, r, stato, url) {
  * e un id incollato da solo; rifiuta quello per chi risponde (.../forms/d/e/...),
  * che e' un altro identificativo e non si puo' aprire.
  */
-function _panIdModulo(link) {
+function _panIdModulo_(link) {
   var s = String(link || '').replace(/^\s+|\s+$/g, '');
   if (s === '') return '';
   if (s.indexOf('/forms/d/e/') >= 0) return '';           // link per chi risponde: non va bene
@@ -1069,16 +1153,16 @@ function _panIdModulo(link) {
 // ===========================================================================
 //  PEZZI
 // ===========================================================================
-function _panFuso() { return String(PANNELLO.fusoOrario || 'Europe/Rome'); }
+function _panFuso_() { return String(PANNELLO.fusoOrario || 'Europe/Rome'); }
 
-function _panOggi() { return Utilities.formatDate(new Date(), _panFuso(), 'yyyy-MM-dd'); }
+function _panOggi_() { return Utilities.formatDate(new Date(), _panFuso_(), 'yyyy-MM-dd'); }
 
-function _panAdesso() { return Utilities.formatDate(new Date(), _panFuso(), 'dd/MM/yyyy HH:mm'); }
+function _panAdesso_() { return Utilities.formatDate(new Date(), _panFuso_(), 'dd/MM/yyyy HH:mm'); }
 
-function _panAnno(oggi) {
+function _panAnno_(oggi) {
   var a = String(PANNELLO.anno === undefined || PANNELLO.anno === null ? 'auto' : PANNELLO.anno).replace(/\s/g, '');
   if (a === '' || a.toLowerCase() === 'auto') {
-    var t = oggi || _panOggi();
+    var t = oggi || _panOggi_();
     var annoT = parseInt(t.substring(0, 4), 10), meseT = parseInt(t.substring(5, 7), 10);
     var inizio = (meseT >= 9) ? annoT : annoT - 1;
     return inizio + '-' + ('0' + ((inizio + 1) % 100)).slice(-2);
@@ -1091,23 +1175,25 @@ function _panAnno(oggi) {
 }
 
 /** "2027-08-31" diventa "31/08/2027". */
-function _panLeggibile(testo) {
+function _panLeggibile_(testo) {
   var p = String(testo || "").split("-");
   return (p.length === 3) ? p[2] + "/" + p[1] + "/" + p[0] : String(testo || "");
 }
 
-function _panNome(modello, anno) {
+function _panNome_(modello, anno) {
   return String(modello || '').split('{anno}').join(anno).replace(/^\s+|\s+$/g, '');
 }
 
-function _panDue(n) { return ('0' + n).slice(-2); }
+function _panDue_(n) { return ('0' + n).slice(-2); }
 
-function _panGiornoChiusura(chiusura, anno) {
+function _panGiornoChiusura_(chiusura, anno) {
   var c = String(chiusura || '').replace(/\s/g, '');
   if (c === '') return null;
   var m = /^(\d{1,2})\/(\d{1,2})$/.exec(c);
   if (!m) throw new Error('la chiusura "' + c + '" non e\' nella forma giorno/mese, per esempio 31/08');
   var giorno = parseInt(m[1], 10), mese = parseInt(m[2], 10);
+  // la stessa regola di Campanella e dello script nel modulo: una chiusura che salta tre anni su quattro no
+  if (mese === 2 && giorno === 29) throw new Error('il giorno di chiusura "' + c + '" non c\'e\' tutti gli anni: scegli 28/02 o 01/03');
   var inizio = parseInt(anno.substring(0, 4), 10);
   var annoData = (mese >= 9) ? inizio : inizio + 1;
   var prova = new Date(Date.UTC(annoData, mese - 1, giorno));
@@ -1116,30 +1202,64 @@ function _panGiornoChiusura(chiusura, anno) {
   }
   var dopo = new Date(Date.UTC(annoData, mese - 1, giorno + 1));
   return {
-    testo:     annoData + '-' + _panDue(mese) + '-' + _panDue(giorno),
-    leggibile: _panDue(giorno) + '/' + _panDue(mese) + '/' + annoData,
+    testo:     annoData + '-' + _panDue_(mese) + '-' + _panDue_(giorno),
+    leggibile: _panDue_(giorno) + '/' + _panDue_(mese) + '/' + annoData,
+    scatta:    { anno: dopo.getUTCFullYear(), mese: dopo.getUTCMonth() + 1, giorno: dopo.getUTCDate() }
+  };
+}
+
+/**
+ * Le chiusure da programmare, prese dalla memoria a lavoro finito: una per ogni
+ * data diversa delle righe attive. Non solo quelle preparate adesso: una riga che
+ * non e' riuscita, o che non e' stata guardata, tiene la chiusura che aveva. Una
+ * chiusura gia' scaduta e non ancora riuscita si riprova fra un'ora.
+ */
+function _panChiusureInSospeso_(righeScheda) {
+  var memoria = _panMemoria_();
+  var oggi = _panOggi_();
+  var fuori = { date: {}, riprova: false };
+  for (var i = 0; i < righeScheda.length; i++) {
+    var r = righeScheda[i];
+    if (!r.attivo || !r.id) continue;
+    var s = memoria.scadenze[r.id];
+    if (!s) continue;
+    if (s >= oggi) fuori.date[s] = _panScadenza_(s);
+    else fuori.riprova = true;
+  }
+  return fuori;
+}
+
+/** Il giorno di chiusura "2027-08-31" come serve per programmarlo: scatta il giorno dopo. */
+function _panScadenza_(testo) {
+  var p = String(testo).split('-');
+  var dopo = new Date(Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10) + 1));
+  return {
+    testo:     String(testo),
+    leggibile: _panLeggibile_(testo),
     scatta:    { anno: dopo.getUTCFullYear(), mese: dopo.getUTCMonth() + 1, giorno: dopo.getUTCDate() }
   };
 }
 
 /** Una chiusura programmata per ogni data diversa: quando scatta, chiude le righe scadute. */
-function _panProgrammaChiusure(chiusure, righe) {
-  _panTogliTrigger();
+function _panProgrammaChiusure_(chiusure, righe, riprova) {
+  _panTogliTrigger_();
   var quante = 0;
   for (var k in chiusure) {
     var g = chiusure[k];
     ScriptApp.newTrigger(_PAN_TRIGGER).timeBased()
       .atDate(g.scatta.anno, g.scatta.mese, g.scatta.giorno)
-      .inTimezone(_panFuso())
+      .inTimezone(_panFuso_())
       .create();
     quante++;
   }
+  if (riprova) ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
   righe.push('');
   righe.push(quante === 0 ? 'Chiusure programmate: nessuna.'
                           : 'Chiusure programmate: ' + quante + ' (una per ogni data diversa).');
+  if (riprova) righe.push('Una chiusura gia\' scaduta non e\' ancora riuscita: la riprovo fra un\'ora.');
 }
 
-function _panElencaChiusure(chiusure, righe) {
+function _panElencaChiusure_(chiusure, righe) {
   var elenco = [];
   for (var k in chiusure) elenco.push(chiusure[k].leggibile);
   righe.push('');
@@ -1147,7 +1267,7 @@ function _panElencaChiusure(chiusure, righe) {
                                  : 'Chiusure da programmare: ' + elenco.join(', ') + '.');
 }
 
-function _panTogliTrigger() {
+function _panTogliTrigger_() {
   var tolti = 0;
   var tutti = ScriptApp.getProjectTriggers();
   for (var i = 0; i < tutti.length; i++) {
@@ -1157,12 +1277,27 @@ function _panTogliTrigger() {
 }
 
 /** Quando non resta piu' nessuna scadenza, tolgo le chiusure programmate. */
-function _panTogliTriggerPassati(memoria) {
+function _panTogliTriggerPassati_(memoria) {
   for (var k in memoria.scadenze) return;              // ne resta almeno una: non tocco niente
-  _panTogliTrigger();
+  _panTogliTrigger_();
 }
 
-function _panPermessiCompleti() {
+/** Il trigger che mi ha chiamato non scatta piu': lo tolgo, e ne programmo uno fra un'ora. */
+function _panRiprogramma_(e) {
+  _panTogliScattato_(e);
+  ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
+}
+
+/** Toglie dall'elenco il trigger che ha lanciato questa esecuzione: scattato, resterebbe li'. */
+function _panTogliScattato_(e) {
+  if (!e || !e.triggerUid) return;
+  var tutti = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < tutti.length; i++) {
+    if (String(tutti[i].getUniqueId()) === String(e.triggerUid)) { ScriptApp.deleteTrigger(tutti[i]); return; }
+  }
+}
+
+function _panPermessiCompleti_() {
   try {
     if (typeof ScriptApp.requireAllScopes === 'function') ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
   } catch (e) { /* da un menu puo' non essere disponibile */ }
@@ -1172,14 +1307,14 @@ function _panPermessiCompleti() {
   } catch (e2) { return true; }
 }
 
-function _panDestinazione(form) {
+function _panDestinazione_(form) {
   try {
     if (form.getDestinationType() !== FormApp.DestinationType.SPREADSHEET) return null;
     return form.getDestinationId() || null;
   } catch (e) { return null; }
 }
 
-function _panRiprova(f) {
+function _panRiprova_(f) {
   try { return f(); }
   catch (e) { Utilities.sleep(2000); return f(); }
 }
@@ -1189,7 +1324,7 @@ function _panRiprova(f) {
  * creato dallo script nasce con una scheda sola, vuota; collegandolo, Google
  * ci aggiunge la scheda delle risposte, che resta anche quando lo scolleghi.
  */
-function _panGiaCollegatoUnaVolta(idFoglio) {
+function _panGiaCollegatoUnaVolta_(idFoglio) {
   try {
     var schede = SpreadsheetApp.openById(idFoglio).getSheets();
     if (schede.length > 1) return true;
@@ -1198,26 +1333,68 @@ function _panGiaCollegatoUnaVolta(idFoglio) {
 }
 
 /** L'anno scolastico a cui appartiene un giorno "2027-06-30": dal primo settembre, l'anno dopo. */
-function _panAnnoDellaData(testo) {
+function _panAnnoDellaData_(testo) {
   var y = parseInt(String(testo).substring(0, 4), 10), mese = parseInt(String(testo).substring(5, 7), 10);
   var inizio = (mese >= 9) ? y : y - 1;
   return inizio + '-' + ('0' + ((inizio + 1) % 100)).slice(-2);
 }
 
-function _panApribile(idFoglio) {
+function _panApribile_(idFoglio) {
   try { SpreadsheetApp.openById(idFoglio); return true; } catch (e) { return false; }
 }
 
-function _panRigheDiRisposte(idFoglio) {
+/**
+ * Quante risposte del modulo NON stanno in nessuno dei fogli candidati, e i
+ * fogli in cui stanno le altre. Ogni risposta la cerco per il momento in cui
+ * e' arrivata: Google lo scrive nella prima colonna (Informazioni
+ * cronologiche), al secondo. Una riga del foglio vale per una risposta sola.
+ */
+function _panRisposteAlSicuro_(form, candidati) {
+  var righe = {};                                      // secondo -> i fogli che hanno una riga di quel secondo
+  for (var i = 0; i < candidati.length; i++) {
+    var tempi = _panTempiNelFoglio_(candidati[i]);
+    for (var k = 0; k < tempi.length; k++) {
+      var s = String(Math.floor(tempi[k] / 1000));
+      if (!righe.hasOwnProperty(s)) righe[s] = [];
+      righe[s].push(candidati[i]);
+    }
+  }
+  var risposte = form.getResponses();
+  var secondi = [];
+  for (var q = 0; q < risposte.length; q++) secondi.push(Math.floor(risposte[q].getTimestamp().getTime() / 1000));
+  secondi.sort(function (a, b) { return a - b; });     // in ordine: ognuna prende la riga libera piu' vicina
+  var mancano = 0, fogli = [];
+  for (var r = 0; r < secondi.length; r++) {
+    var t = secondi[r];
+    // il foglio puo' avere il secondo arrotondato per eccesso: guardo anche quello dopo
+    var chiave = null;
+    if (righe.hasOwnProperty(String(t)) && righe[String(t)].length > 0) chiave = String(t);
+    else if (righe.hasOwnProperty(String(t + 1)) && righe[String(t + 1)].length > 0) chiave = String(t + 1);
+    if (chiave === null) { mancano++; continue; }
+    var id = righe[chiave].pop();
+    if (fogli.indexOf(id) < 0) fogli.push(id);
+  }
+  return { mancano: mancano, fogli: fogli };
+}
+
+/** I momenti (in millisecondi) scritti nella prima colonna di ogni scheda del foglio. */
+function _panTempiNelFoglio_(idFoglio) {
+  var fuori = [];
   try {
     var schede = SpreadsheetApp.openById(idFoglio).getSheets();
-    var massimo = 0;
     for (var i = 0; i < schede.length; i++) {
-      var righe = schede[i].getLastRow() - 1;
-      if (righe > massimo) massimo = righe;
+      var ultima = schede[i].getLastRow();
+      if (ultima < 2) continue;
+      var valori = schede[i].getRange(2, 1, ultima - 1, 1).getValues();
+      for (var k = 0; k < valori.length; k++) {
+        var v = valori[k][0];
+        if (v && typeof v.getTime === 'function' && !isNaN(v.getTime())) fuori.push(v.getTime());
+      }
     }
-    return massimo;
-  } catch (e) { return -1; }
+  } catch (e) {
+    // un foglio che non si apre non tiene al sicuro niente
+  }
+  return fuori;
 }
 
 /**
@@ -1231,16 +1408,29 @@ function _panRigheDiRisposte(idFoglio) {
  * e un foglio dell'anno vuol dire una riga preparata, quindi lo ricavo da li'.
  * Dei due tengo solo l'anno in corso: sono gli unici che servono, e le
  * proprieta' dello script hanno un tetto di 9 KB per valore.
+ * Per lo stesso tetto i fogli, che crescono ogni anno, stanno ognuno nella
+ * proprieta' del suo anno (_PAN_CHIAVE_FOGLI + anno). Una memoria scritta prima
+ * li ha tutti insieme: la leggo com'e', e la prossima volta li divido.
  */
-function _panMemoria() {
+function _panMemoria_() {
   var anno = null;
-  try { anno = _panAnno(); } catch (e0) { anno = null; }
+  try { anno = _panAnno_(); } catch (e0) { anno = null; }
   var vuota = { fogli: {}, scadenze: {}, pronti: {}, chiusi: {}, annullati: {} };
   try {
-    var testo = PropertiesService.getScriptProperties().getProperty(_PAN_CHIAVE);
+    var tutte = PropertiesService.getScriptProperties().getProperties();
+    var testo = tutte[_PAN_CHIAVE];
     if (!testo) return vuota;
     var m = JSON.parse(testo);
     if (!m || typeof m !== "object" || !m.fogli || typeof m.fogli !== "object") return vuota;
+    for (var chiave in tutte) {
+      if (!tutte.hasOwnProperty(chiave) || chiave.indexOf(_PAN_CHIAVE_FOGLI) !== 0) continue;
+      try {
+        var diUnAnno = JSON.parse(tutte[chiave]);
+        for (var f in diUnAnno) {
+          if (diUnAnno.hasOwnProperty(f) && !m.fogli.hasOwnProperty(f)) m.fogli[f] = diUnAnno[f];
+        }
+      } catch (e1) { /* un anno illeggibile: come se non ci fosse */ }
+    }
     if (!m.scadenze || typeof m.scadenze !== "object") m.scadenze = {};
     if (!m.pronti || typeof m.pronti !== "object") {
       // ereditate: so che il foglio c'era, non se la riga era finita. 'da prima'
@@ -1251,15 +1441,15 @@ function _panMemoria() {
     if (!m.chiusi || typeof m.chiusi !== "object") m.chiusi = {};
     if (!m.annullati || typeof m.annullati !== "object") m.annullati = {};
     if (anno) {
-      m.pronti = _panSoloAnno(m.pronti, anno);
-      m.chiusi = _panSoloAnno(m.chiusi, anno);
-      m.annullati = _panSoloAnno(m.annullati, anno);
+      m.pronti = _panSoloAnno_(m.pronti, anno);
+      m.chiusi = _panSoloAnno_(m.chiusi, anno);
+      m.annullati = _panSoloAnno_(m.annullati, anno);
     }
     return m;
   } catch (e) { return vuota; }
 }
 
-function _panSoloAnno(mappa, anno) {
+function _panSoloAnno_(mappa, anno) {
   var fuori = {};
   for (var k in mappa) {
     if (mappa.hasOwnProperty(k) && k.slice(-(anno.length + 1)) === '|' + anno) fuori[k] = mappa[k];
@@ -1267,11 +1457,29 @@ function _panSoloAnno(mappa, anno) {
   return fuori;
 }
 
-function _panRicorda(memoria) {
-  PropertiesService.getScriptProperties().setProperty(_PAN_CHIAVE, JSON.stringify(memoria));
+function _panRicorda_(memoria) {
+  var props = PropertiesService.getScriptProperties();
+  var anni = {};
+  for (var k in memoria.fogli) {
+    if (!memoria.fogli.hasOwnProperty(k)) continue;
+    var anno = k.substring(k.lastIndexOf('|') + 1);
+    if (!anni.hasOwnProperty(anno)) anni[anno] = {};
+    anni[anno][k] = memoria.fogli[k];
+  }
+  var scritte = null;
+  for (var a in anni) {
+    if (!anni.hasOwnProperty(a)) continue;
+    var testo = JSON.stringify(anni[a]);
+    if (scritte === null) scritte = props.getProperties();
+    if (scritte[_PAN_CHIAVE_FOGLI + a] !== testo) props.setProperty(_PAN_CHIAVE_FOGLI + a, testo);   // solo gli anni cambiati
+  }
+  var resto = {};
+  for (var c in memoria) if (memoria.hasOwnProperty(c)) resto[c] = memoria[c];
+  resto.fogli = {};                                    // stanno nelle proprieta' dei loro anni
+  props.setProperty(_PAN_CHIAVE, JSON.stringify(resto));
 }
 
-function _panUnoAllaVolta(f) {
+function _panUnoAllaVolta_(f) {
   var lock = LockService.getUserLock();
   if (!lock.tryLock(5000)) return 'Un\'altra esecuzione e\' ancora in corso: aspetta che finisca.';
   try {
@@ -1285,7 +1493,7 @@ function _panUnoAllaVolta(f) {
   } finally { lock.releaseLock(); }
 }
 
-function _panConferma(domanda) {
+function _panConferma_(domanda) {
   try {
     var ui = SpreadsheetApp.getUi();
     return ui.alert('Campanella', domanda, ui.ButtonSet.YES_NO) === ui.Button.YES;
@@ -1294,7 +1502,7 @@ function _panConferma(domanda) {
   }
 }
 
-function _panRacconta(testo) {
+function _panRacconta_(testo) {
   try {
     var ui = SpreadsheetApp.getUi();
     ui.alert('Campanella', testo, ui.ButtonSet.OK);
@@ -1306,7 +1514,7 @@ function _panRacconta(testo) {
 // ===========================================================================
 //  DRIVE
 // ===========================================================================
-function _panFigli(iteratore) {
+function _panFigli_(iteratore) {
   var fuori = [];
   while (iteratore.hasNext()) {
     var x = iteratore.next();
@@ -1316,7 +1524,7 @@ function _panFigli(iteratore) {
   return fuori;
 }
 
-function _panCercaModuli(nome) {
+function _panCercaModuli_(nome) {
   var fuori = [];
   var it = DriveApp.getFilesByName(nome);
   while (it.hasNext()) {
@@ -1326,8 +1534,8 @@ function _panCercaModuli(nome) {
   return fuori;
 }
 
-function _panCartella(percorso, anno, crea, righe) {
-  var nomi = [_panNome(PANNELLO.cartellaAnno || 'A.S. {anno}', anno)];
+function _panCartella_(percorso, anno, crea, righe) {
+  var nomi = [_panNome_(PANNELLO.cartellaAnno || 'A.S. {anno}', anno)];
   var pezzi = String(percorso || '').split(/[\\\/]+/);
   for (var i = 0; i < pezzi.length; i++) {
     var p = pezzi[i].replace(/^\s+|\s+$/g, '');
@@ -1338,7 +1546,7 @@ function _panCartella(percorso, anno, crea, righe) {
   for (var k = 0; k < nomi.length; k++) {
     testo += ' / ' + nomi[k];
     if (corrente === null) continue;
-    var trovate = _panFigli(corrente.getFoldersByName(nomi[k]));
+    var trovate = _panFigli_(corrente.getFoldersByName(nomi[k]));
     if (trovate.length === 0) {
       if (crea) { corrente = corrente.createFolder(nomi[k]); righe.push('  creata la cartella: ' + testo); }
       else { corrente = null; righe.push('  cartella da creare: ' + testo); }
@@ -1350,15 +1558,15 @@ function _panCartella(percorso, anno, crea, righe) {
   return { cartella: corrente, percorso: testo };
 }
 
-function _panFoglioPerNome(cartella, nome) {
-  var trovati = _panFigli(cartella.getFilesByName(nome));
+function _panFoglioPerNome_(cartella, nome) {
+  var trovati = _panFigli_(cartella.getFilesByName(nome));
   for (var i = 0; i < trovati.length; i++) {
     if (trovati[i].getMimeType() === MimeType.GOOGLE_SHEETS) return trovati[i].getId();
   }
   return null;
 }
 
-function _panMetti(idFoglio, cartella) {
+function _panMetti_(idFoglio, cartella) {
   var file = DriveApp.getFileById(idFoglio);
   var genitori = file.getParents();
   while (genitori.hasNext()) { if (genitori.next().getId() === cartella.getId()) return false; }
@@ -1366,10 +1574,10 @@ function _panMetti(idFoglio, cartella) {
   return true;
 }
 
-function _panNelCestino(idFoglio) {
+function _panNelCestino_(idFoglio) {
   try { return DriveApp.getFileById(idFoglio).isTrashed(); } catch (e) { return true; }
 }
 
-function _panNomeDiUnFile(idFile) {
+function _panNomeDiUnFile_(idFile) {
   try { return DriveApp.getFileById(idFile).getName(); } catch (e) { return ''; }
 }
