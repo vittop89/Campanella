@@ -77,6 +77,8 @@ static class ProvaStato
                 case "sposta-fallito": SpostaFallito(); break;
                 case "torna-locale": TornaLocale(); break;
                 case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
+                case "cambiato-dopo-l-avvio": CambiatoDopoLAvvio(); break;
+                case "cambiato-e-spostato": CambiatoESpostato(); break;
                 case "chiavi-sconosciute": ChiaviSconosciute(); break;
                 case "nome-calendario": NomeCalendario(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
@@ -370,6 +372,104 @@ static class ProvaStato
         Verifica("e lo dice", errore != "");
     }
 
+    // il file dei dati letto all'avvio, poi cambiato da un altro computer: il
+    // portatile rimasto aperto non lo riporta alla sua copia, anche senza modifiche
+    static void CambiatoDopoLAvvio()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato s = Carica();
+        s.Salva();
+        Verifica("il file letto all'avvio si salva", s.UltimoErrore == "" &&
+            Nomi(Json(FileDati(c))).Contains("ROSSI MARIO"));
+
+        // niente di nuovo: il file ha gia' quello che si scriverebbe
+        DateTime vecchia = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(FileDati(c), vecchia);
+        s.Salva();
+        Verifica("se il file e' gia' uguale non lo riscrive", s.UltimoErrore == "" &&
+            File.GetLastWriteTimeUtc(FileDati(c)) == vecchia);
+
+        // un altro computer aggiunge una persona, e il Drive porta qui il file
+        string altroPc = ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"),
+                                        Persona("VERDI ANNA", "anna.verdi@scuola.example")));
+        Scrivi(FileDati(c), altroPc);
+        s.Salva();
+        Verifica("senza modifiche qui il file cambiato altrove resta com'e'", Leggi(FileDati(c)) == altroPc);
+        Verifica("UltimoErrore lo annota", s.UltimoErrore != "");
+        Verifica("senza modifiche qui non c'e' niente da dire alla chiusura", Testo(s, "DaAvvisare") == "");
+        Verifica("nelle Impostazioni diventa un file da usare o sostituire",
+            !s.DatiGiaLetti(FileDati(c)) && Pieno(Testo(s, "ErroreDati")));
+
+        s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        s.Salva();
+        Verifica("neanche con un elenco cambiato qui", Leggi(FileDati(c)) == altroPc);
+        Verifica("e allora avvisa", Pieno(Testo(s, "DaAvvisare")));
+
+        // un computer gia' aggiornato a un formato piu' recente riscrive il file
+        string n = Cartella("Nuovo");
+        ScriviImpostazioni(true, n, null);
+        Scrivi(FileDati(n), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato t = Carica();
+        Dictionary<string, object> p = Persona("ROSSI MARIO", "mario.rossi@scuola.example");
+        p["campoNuovo"] = new object[] { "1A", "2B" };
+        Dictionary<string, object> futuro = DatiCon(p);
+        futuro["formato"] = 2;
+        string recente = ToJson(futuro);
+        Scrivi(FileDati(n), recente);
+        t.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        t.Salva();
+        Verifica("un file riscritto in un formato piu' recente non torna a quello vecchio",
+            Leggi(FileDati(n)) == recente);
+        Verifica("e l'avviso dice che e' di una versione piu' recente",
+            (Testo(t, "DaAvvisare") ?? "").Contains("versione piu' recente"));
+    }
+
+    // una copia cambiata da un altro computer dopo l'avvio non si cancella
+    // spostando i dati: dentro c'e' qualcosa che qui non si e' mai visto
+    static void CambiatoESpostato()
+    {
+        string altroPc = ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"),
+                                        Persona("VERDI ANNA", "anna.verdi@scuola.example")));
+        string errore;
+
+        // tornando accanto al programma
+        string a = Cartella("A");
+        ScriviImpostazioni(true, a, null);
+        Scrivi(FileDati(a), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato s = Carica();
+        Scrivi(FileDati(a), altroPc);
+        bool ok = s.SpostaDati(false, "", out errore);
+        Verifica("tornando accanto al programma i dati si salvano li'", !s.DatiNelDrive &&
+            Nomi(Json(Impostazioni())).Contains("ROSSI MARIO"));
+        Verifica("ma il file cambiato altrove resta nel Drive, e lo dice",
+            Leggi(FileDati(a)) == altroPc && !ok && errore != "");
+
+        // cambiando cartella dentro il Drive
+        string b = Cartella("B"), c = Cartella("C");
+        ScriviImpostazioni(true, b, null);
+        Scrivi(FileDati(b), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato t = Carica();
+        Scrivi(FileDati(b), altroPc);
+        ok = t.SpostaDati(true, c, out errore);
+        Verifica("cambiando cartella i dati vanno in quella nuova", Nomi(Json(FileDati(c))).Contains("ROSSI MARIO"));
+        Verifica("ma la copia cambiata altrove resta, e lo dice",
+            Leggi(FileDati(b)) == altroPc && !ok && errore != "");
+
+        // scegliendo di usare il file che c'e' gia' in un'altra cartella
+        string e = Cartella("E"), f = Cartella("F");
+        ScriviImpostazioni(true, e, null);
+        Scrivi(FileDati(e), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Scrivi(FileDati(f), ToJson(DatiCon(Persona("NERI PAOLA", "paola.neri@scuola.example"))));
+        Stato u = Carica();
+        Scrivi(FileDati(e), altroPc);
+        object[] arg = { f, null };
+        object r = Chiama(u, "UsaDatiDelDrive", arg);
+        Verifica("usando l'altro file, la copia cambiata altrove resta, e lo dice",
+            Leggi(FileDati(e)) == altroPc && r is bool && !(bool)r && Pieno(arg[1] as string));
+    }
+
     // A-51: numero di formato e chiavi sconosciute conservate
     static void ChiaviSconosciute()
     {
@@ -590,6 +690,8 @@ $casi = @(
     'sposta-fallito'
     'torna-locale'
     'torna-locale-illeggibile'
+    'cambiato-dopo-l-avvio'
+    'cambiato-e-spostato'
     'chiavi-sconosciute'
     'nome-calendario'
     'andata-e-ritorno'

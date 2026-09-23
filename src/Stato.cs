@@ -366,7 +366,10 @@ namespace Campanella
         /// </summary>
         public string ErroreImpostazioni = "";
 
-        /// <summary>Lo stesso per il file dei dati nel Drive: c'era, ma non si e' potuto leggere.</summary>
+        /// <summary>
+        /// Lo stesso per il file dei dati nel Drive: c'era, ma non si e' potuto
+        /// leggere; oppure, dopo l'avvio, l'ha cambiato un altro computer.
+        /// </summary>
         public string ErroreDati = "";
 
         /// <summary>
@@ -381,6 +384,12 @@ namespace Campanella
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
         string datiLetti = "";
+        // quel file com'era quando questa sessione l'ha letto o scritto, per
+        // accorgersi se poi l'ha cambiato un altro computer; null = l'utente ha
+        // scelto di sostituirlo, qualunque cosa ci sia
+        byte[] datiSulDisco = null;
+        // un altro computer ha cambiato il file dei dati dopo l'avvio
+        bool datiCambiatiFuori = false;
         // L'utente ha scelto di usare il file dei dati gia' nel Drive: lo si legge
         // al prossimo avvio, e fino ad allora quello che c'e' in memoria non ci va.
         bool datiDaRileggere = false;
@@ -474,18 +483,44 @@ namespace Campanella
         /// scritto) in questa sessione, o se non c'e'. Uno comparso dopo l'avvio,
         /// uno che all'avvio non si leggeva o uno di una versione piu' recente
         /// puo' avere dati che qui non ci sono: sovrascriverlo li cancellerebbe,
-        /// anche sugli altri computer. Torna vero se l'ha scritto.
+        /// anche sugli altri computer. Lo stesso per il file letto qui, se dopo
+        /// l'ha cambiato un altro computer. Torna vero se nel Drive adesso ci sono
+        /// i dati di questa sessione (scritti, o gia' uguali).
         /// </summary>
         bool SalvaDatiNelDrive(JavaScriptSerializer ser, UTF8Encoding utf8)
         {
             string dati = PercorsoDati();
             try
             {
+                Dictionary<string, object> d = Dati();
+                foreach (KeyValuePair<string, object> kv in altroDati)
+                    if (!d.ContainsKey(kv.Key)) d[kv.Key] = kv.Value;
+                d["formato"] = Formato;
+                byte[] testo = utf8.GetBytes(ser.Serialize(d));
+
                 bool nostro = StessoPercorso(dati, datiLetti);
+                if (nostro && File.Exists(dati))
+                {
+                    byte[] ora = File.ReadAllBytes(dati);
+                    // c'e' gia' quello che scriverei: niente da riscrivere
+                    if (Uguali(ora, testo)) { datiSulDisco = ora; return true; }
+                    if (datiSulDisco != null && !Uguali(ora, datiSulDisco))
+                    {
+                        // l'ha cambiato un altro computer dopo che qui l'ho letto (o
+                        // scritto): da adesso e' come un file comparso dopo l'avvio,
+                        // e nelle Impostazioni si sceglie se usarlo o sostituirlo
+                        datiLetti = "";
+                        datiSulDisco = null;
+                        datiCambiatiFuori = true;
+                        ErroreDati = PercheCambiato(ora);
+                        nostro = false;
+                    }
+                }
                 if (!nostro && File.Exists(dati))
                 {
                     string perche = (ErroreDati != "") ? ErroreDati : "e' comparso dopo l'avvio e non l'ho letto";
-                    bool dire = (ErroreDati != "") || DatiCambiati();
+                    // cambiato altrove, ma qui niente di nuovo: non si perde niente
+                    bool dire = (ErroreDati != "" && !datiCambiatiFuori) || DatiCambiati();
                     Problema("dati nel Drive non salvati: non sovrascrivo " + dati + ", che " + perche,
                         !dire ? "" :
                         "Il file dei dati nel Drive\n\n" + dati + "\n\n" + perche + ". Per non perdere " +
@@ -508,14 +543,11 @@ namespace Campanella
                 if (string.IsNullOrEmpty(radice) || !Directory.Exists(radice))
                     throw new Exception("non trovo la cartella del Drive (" + radice + ")");
                 Directory.CreateDirectory(cartella);
-                Dictionary<string, object> d = Dati();
-                foreach (KeyValuePair<string, object> kv in altroDati)
-                    if (!d.ContainsKey(kv.Key)) d[kv.Key] = kv.Value;
-                d["formato"] = Formato;
                 // scritto sul posto, non sostituito: nel Drive un file nuovo
                 // perderebbe la cronologia delle versioni, che e' il modo di recuperarlo
-                File.WriteAllText(dati, ser.Serialize(d), utf8);
+                File.WriteAllBytes(dati, testo);
                 datiLetti = dati;
+                datiSulDisco = testo;
                 return true;
             }
             catch (Exception ex)
@@ -580,6 +612,41 @@ namespace Campanella
         {
             string ora = FotoDati();
             return datiAllAvvio == null || ora == null || ora != datiAllAvvio;
+        }
+
+        static bool Uguali(byte[] a, byte[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        // i byte di un file come li legge File.ReadAllText: con o senza BOM
+        static string TestoDi(byte[] contenuto)
+        {
+            using (StreamReader l = new StreamReader(new MemoryStream(contenuto), Encoding.UTF8, true))
+                return l.ReadToEnd();
+        }
+
+        /// <summary>Vero se il file c'e' ed e' ancora com'era (null: non si sa com'era).</summary>
+        static bool Intatto(string percorso, byte[] comEra)
+        {
+            if (comEra == null) return false;
+            try { return File.Exists(percorso) && Uguali(File.ReadAllBytes(percorso), comEra); }
+            catch (Exception) { return false; }
+        }
+
+        // perche' non si sovrascrive il file dei dati cambiato da un altro computer
+        static string PercheCambiato(byte[] contenuto)
+        {
+            try
+            {
+                Dictionary<string, object> d = DaJson(TestoDi(contenuto));
+                int formato = (d != null) ? Int(d, "formato", 0) : 0;
+                if (formato > Formato) return PiuRecente(formato);
+            }
+            catch (Exception) { /* a meta' o rovinato: vale lo stesso motivo */ }
+            return "e' stato cambiato da un altro computer dopo l'avvio";
         }
 
         /// <summary>Vero se questo file dei dati e' quello letto (o scritto) in questa sessione.</summary>
@@ -828,6 +895,7 @@ namespace Campanella
                 {
                     // dati letti a meta': il file da cui venivano non si sovrascrive
                     datiLetti = "";
+                    datiSulDisco = null;
                     if (DatiNelDrive) { if (ErroreDati == "") ErroreDati = "non si legge (" + ex.Message + ")"; }
                     else if (ErroreImpostazioni == "") ErroreImpostazioni = "non si legge (" + ex.Message + ")";
                 }
@@ -846,12 +914,15 @@ namespace Campanella
         {
             string dati = PercorsoDati();
             Dictionary<string, object> d = null;
+            byte[] contenuto = null;
             try
             {
                 if (!File.Exists(dati)) DatiNonTrovati = true;
                 else
                 {
-                    d = LeggiJson(dati);
+                    // letto una volta sola: quello che si ricorda e' proprio quello che si usa
+                    contenuto = File.ReadAllBytes(dati);
+                    d = DaJson(TestoDi(contenuto));
                     if (d == null) ErroreDati = "e' vuoto";
                 }
             }
@@ -868,7 +939,7 @@ namespace Campanella
             if (formato > Formato) ErroreDati = PiuRecente(formato);
             LeggiDati(d);
             altroDati = Sconosciute(d, false);
-            if (ErroreDati == "") datiLetti = dati;
+            if (ErroreDati == "") { datiLetti = dati; datiSulDisco = contenuto; }
         }
 
         static string PiuRecente(int formato)
@@ -900,7 +971,11 @@ namespace Campanella
         /// <summary>Un file JSON con un oggetto dentro. Null se e' vuoto; eccezione se non si legge.</summary>
         static Dictionary<string, object> LeggiJson(string percorso)
         {
-            string testo = File.ReadAllText(percorso, Encoding.UTF8);
+            return DaJson(File.ReadAllText(percorso, Encoding.UTF8));
+        }
+
+        static Dictionary<string, object> DaJson(string testo)
+        {
             if (testo.Trim() == "") return null;
             JavaScriptSerializer ser = new JavaScriptSerializer();
             ser.MaxJsonLength = 60 * 1024 * 1024;
@@ -1020,6 +1095,7 @@ namespace Campanella
             bool eraNelDrive = DatiNelDrive;
             string eraCartella = CartellaDati;
             string eraLetti = datiLetti;
+            byte[] eraSulDisco = datiSulDisco;
             string vecchio = DatiNelDrive ? PercorsoDati() : null;
 
             DatiNelDrive = nelDrive;
@@ -1037,6 +1113,7 @@ namespace Campanella
                     return false;
                 }
                 datiLetti = nuovo;     // scelto dall'utente: qui si puo' scrivere
+                if (!cera || sostituisci) datiSulDisco = null;
             }
 
             Salva();
@@ -1049,17 +1126,21 @@ namespace Campanella
                 DatiNelDrive = eraNelDrive;
                 CartellaDati = eraCartella;
                 datiLetti = eraLetti;
+                datiSulDisco = eraSulDisco;
                 Salva();
                 return false;
             }
 
             if (vecchio != null && !StessoPercorso(vecchio, nuovo) && File.Exists(vecchio))
             {
-                // si cancella solo il file che questa sessione ha letto: quello che
-                // c'e' dentro e' appena stato scritto nel posto nuovo
+                // si cancella solo il file che questa sessione ha letto, e com'era
+                // allora: quello che c'e' dentro e' appena stato scritto nel posto nuovo
                 if (!StessoPercorso(vecchio, eraLetti))
                     errore = "dati salvati, ma non tolgo " + vecchio + ": qui non si e' potuto leggere, " +
                              "e non cancello quello che non ho letto. Controllalo e, se non serve, cancellalo tu";
+                else if (!Intatto(vecchio, eraSulDisco))
+                    errore = "dati salvati, ma non tolgo " + vecchio + ": dopo l'avvio l'ha cambiato un altro " +
+                             "computer, e quelle modifiche qui non ci sono. Controllalo e, se non serve, cancellalo tu";
                 else
                 {
                     try { File.Delete(vecchio); }
@@ -1096,6 +1177,7 @@ namespace Campanella
             bool eraNelDrive = DatiNelDrive;
             string eraCartella = CartellaDati;
             string eraLetti = datiLetti;
+            byte[] eraSulDisco = datiSulDisco;
             string vecchio = DatiNelDrive ? PercorsoDati() : null;
             DatiNelDrive = true;
             CartellaDati = c;
@@ -1110,11 +1192,19 @@ namespace Campanella
                 Salva();
                 return false;
             }
-            // la copia di prima, se era un altro file del Drive letto qui, non resta in giro
-            if (vecchio != null && !StessoPercorso(vecchio, file) && StessoPercorso(vecchio, eraLetti))
+            // la copia di prima, se era un altro file del Drive letto qui, non resta in
+            // giro; ma se dopo l'avvio l'ha cambiata un altro computer non la cancello
+            if (vecchio != null && !StessoPercorso(vecchio, file) && StessoPercorso(vecchio, eraLetti) &&
+                File.Exists(vecchio))
             {
-                try { if (File.Exists(vecchio)) File.Delete(vecchio); }
-                catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
+                if (!Intatto(vecchio, eraSulDisco))
+                    errore = "impostazioni salvate, ma non tolgo " + vecchio + ": dopo l'avvio l'ha cambiato " +
+                             "un altro computer. Controllalo e, se non serve, cancellalo tu";
+                else
+                {
+                    try { File.Delete(vecchio); }
+                    catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
+                }
             }
             return errore == "";
         }
