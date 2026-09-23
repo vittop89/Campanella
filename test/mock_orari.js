@@ -545,6 +545,12 @@ const comuni = [...nomiGlobali(posta)].filter(n => nomiOrari.has(n));
 verifica('Orari.gs e Organizzazione_Gmail.gs non hanno nomi globali in comune' +
   (comuni.length ? ' (' + comuni.join(', ') + ')' : ''), comuni.length === 0);
 verifica('Orari.gs non ridefinisce CONFIG', !nomiOrari.has('CONFIG'));
+// per Apps Script una funzione che finisce con "_" e' privata: non compare
+// nel menu Esegui, dove si lancerebbe senza il lock
+const interneVisibili = [...nomiOrari].filter(n =>
+  typeof contesto[n] === 'function' && !/^ORARI_/.test(n) && !/_$/.test(n));
+verifica('le funzioni interne finiscono con "_"' +
+  (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''), interneVisibili.length === 0);
 ['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
  'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
   verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));

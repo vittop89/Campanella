@@ -49,7 +49,7 @@ var _ORARI_TAG_VALORE    = 'orario';
 //  1 - ANTEPRIMA
 // ===========================================================================
 function ORARI_1_anteprima() {
-  var d = _orariDati();
+  var d = _orariDati_();
   var righe = [];
   righe.push('ANTEPRIMA - non viene mandato niente.');
   righe.push('Orari.gs versione ' + _ORARI_VERSIONE);
@@ -57,11 +57,11 @@ function ORARI_1_anteprima() {
   righe.push('Periodo: ' + (d.periodo || '(non indicato)'));
   righe.push('Docenti nel file: ' + d.docenti.length);
   righe.push('Giorni: ' + d.giorni.join(' ') + '   Ore al giorno: ' + d.ore);
-  righe.push('Destinatario: ' + _mioIndirizzoOrari() + ' (solo tu)');
-  righe.push('Etichetta dei messaggi mandati: "' + _orariNomeEtichetta() + '", se esiste');
+  righe.push('Destinatario: ' + _mioIndirizzoOrari_() + ' (solo tu)');
+  righe.push('Etichetta dei messaggi mandati: "' + _orariNomeEtichetta_() + '", se esiste');
   righe.push('');
 
-  var elenco = _daMandare(d);
+  var elenco = _daMandare_(d);
   righe.push('Email da mandare: ' + elenco.length + ' (una per docente con almeno un\'ora)');
   righe.push('Ancora disponibili oggi: ' + MailApp.getRemainingDailyQuota());
   if (d.classi && d.classi.length) righe.push('Orari delle classi pronti: ' + d.classi.length);
@@ -77,7 +77,7 @@ function ORARI_1_anteprima() {
     righe.push('A:       ' + primo.a);
     righe.push('Oggetto: ' + primo.oggetto);
     righe.push('');
-    righe.push(_testoSemplice(primo.griglia, d));
+    righe.push(_testoSemplice_(primo.griglia, d));
   } else {
     righe.push('(niente da mandare)');
   }
@@ -96,7 +96,7 @@ function ORARI_1_anteprima() {
 //  riparte da li'. Lo stesso vale per gli orari delle classi (passo 3).
 // ===========================================================================
 function ORARI_2_invia(e) {
-  return _orariConLock('docenti', e);
+  return _orariConLock_('docenti', e);
 }
 
 function ORARI_ANNULLA_invio() {
@@ -113,8 +113,8 @@ function ORARI_ANNULLA_invio() {
     var prop = PropertiesService.getUserProperties();
     prop.deleteProperty(_ORARI_CHIAVE);
     prop.deleteProperty(_ORARI_CHIAVE_CLASSI);
-    _togliTriggerOrari(_ORARI_TRIGGER);
-    _togliTriggerOrari(_ORARI_TRIGGER_CLASSI);
+    _togliTriggerOrari_(_ORARI_TRIGGER);
+    _togliTriggerOrari_(_ORARI_TRIGGER_CLASSI);
   } finally {
     lock.releaseLock();
   }
@@ -129,51 +129,51 @@ function ORARI_ANNULLA_invio() {
 //  3 - ORARI DELLE CLASSI (sempre e solo a te)
 // ===========================================================================
 function ORARI_3_inviaOrariClassi(e) {
-  return _orariConLock('classi', e);
+  return _orariConLock_('classi', e);
 }
 
 // --- pezzi dell'invio -------------------------------------------------------
 /** Dove si ricorda il punto e quale funzione riprende, per docenti o classi. */
-function _orariLavoro(tipo) {
+function _orariLavoro_(tipo) {
   return (tipo === 'classi')
     ? { chiave: _ORARI_CHIAVE_CLASSI, funzione: _ORARI_TRIGGER_CLASSI }
     : { chiave: _ORARI_CHIAVE, funzione: _ORARI_TRIGGER };
 }
 
-function _orariConLock(tipo, e) {
-  var lavoro = _orariLavoro(tipo);
+function _orariConLock_(tipo, e) {
+  var lavoro = _orariLavoro_(tipo);
   var lock = LockService.getUserLock();
   if (!lock.tryLock(5000)) {
     // il lock e' lo stesso della Posta: se c'e' un invio a meta', non lo
     // lascio fermo, ma lo riprogrammo fra un minuto
     var aMeta = PropertiesService.getUserProperties().getProperty(lavoro.chiave);
-    if (aMeta) _programmaRipresaOrari(lavoro.funzione);
+    if (aMeta) _programmaRipresaOrari_(lavoro.funzione);
     var occupato = 'Un altro invio (o il riordino della posta) e\' ancora in corso: ' +
       (aMeta ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
     Logger.log(occupato);
     return occupato;
   }
-  try { return _orariInvia(tipo, e); }
+  try { return _orariInvia_(tipo, e); }
   finally { lock.releaseLock(); }
 }
 
-function _orariInvia(tipo, e) {
-  var lavoro = _orariLavoro(tipo);
-  var d = _orariDati();
+function _orariInvia_(tipo, e) {
+  var lavoro = _orariLavoro_(tipo);
+  var d = _orariDati_();
   var prop = PropertiesService.getUserProperties();
   var salvato = prop.getProperty(lavoro.chiave);
 
   // una ripresa programmata che non trova il punto salvato non ricomincia
   // da capo: l'invio e' gia' finito, oppure e' stato annullato
   if (e && e.triggerUid && !salvato) {
-    _togliTriggerOrari(lavoro.funzione);
+    _togliTriggerOrari_(lavoro.funzione);
     var niente = 'Niente da riprendere: l\'invio e\' gia\' finito, oppure e\' stato annullato.';
     Logger.log(niente);
     return niente;
   }
 
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
-  var elenco = (tipo === 'classi') ? _classiDaMandare(d) : _daMandare(d);
+  var elenco = (tipo === 'classi') ? _classiDaMandare_(d) : _daMandare_(d);
   var stato = JSON.parse(salvato || '{"i":0,"mandati":0}');
 
   if (MailApp.getRemainingDailyQuota() <= 0) {
@@ -199,8 +199,8 @@ function _orariInvia(tipo, e) {
       MailApp.sendEmail({
         to: m.a,
         subject: m.oggetto,
-        body: _testoSemplice(m.griglia, d),
-        htmlBody: _html(m.titolo, m.griglia, d),
+        body: _testoSemplice_(m.griglia, d),
+        htmlBody: _html_(m.titolo, m.griglia, d),
         name: 'Orari'
       });
       stato.mandati++;
@@ -214,7 +214,7 @@ function _orariInvia(tipo, e) {
 
   if (interrotto) {
     prop.setProperty(lavoro.chiave, JSON.stringify(stato));
-    _programmaRipresaOrari(lavoro.funzione);
+    _programmaRipresaOrari_(lavoro.funzione);
     var parziale = 'Tempo massimo raggiunto: mandati ' + stato.mandati + ' su ' +
       elenco.length + '. Riprende da solo fra un minuto.';
     Logger.log(parziale);
@@ -222,15 +222,15 @@ function _orariInvia(tipo, e) {
   }
 
   prop.deleteProperty(lavoro.chiave);
-  _togliTriggerOrari(lavoro.funzione);
+  _togliTriggerOrari_(lavoro.funzione);
 
   var fine;
   if (tipo === 'classi') {
-    _etichettaInviati(d.oggettoClasse || 'Orario classe {classe}');
+    _etichettaInviati_(d.oggettoClasse || 'Orario classe {classe}');
     fine = 'FATTO: mandati ' + stato.mandati + ' orari di classe su ' + elenco.length +
-      ', tutti a ' + _mioIndirizzoOrari() + '.';
+      ', tutti a ' + _mioIndirizzoOrari_() + '.';
   } else {
-    _etichettaInviati(d.oggettoDocente || 'Orario {docente}');
+    _etichettaInviati_(d.oggettoDocente || 'Orario {docente}');
     fine = 'FATTO: mandati ' + stato.mandati + ' messaggi su ' + elenco.length + '.\n' +
       'Li trovi nella tua Posta in arrivo: cerca il cognome per ritrovare l\'orario di un collega.';
   }
@@ -246,18 +246,18 @@ function _orariInvia(tipo, e) {
 //  portano un contrassegno, cosi' ORARI_ANNULLA_calendario toglie solo loro.
 // ===========================================================================
 function ORARI_4_calendario() {
-  var d = _orariDati();
-  var c = _orariCalendarioConfig(d);
-  var doc = _orariDocente(d, c.docente);
-  var inizio = _orariData(c.inizio);
-  var fine = _orariData(c.fine);
+  var d = _orariDati_();
+  var c = _orariCalendarioConfig_(d);
+  var doc = _orariDocente_(d, c.docente);
+  var inizio = _orariData_(c.inizio);
+  var fine = _orariData_(c.fine);
   if (!inizio || !fine) throw new Error('Le date di inizio e fine vanno scritte come aaaa-mm-gg.');
   if (fine < inizio) throw new Error('La data di fine viene prima di quella di inizio.');
 
   var fineGiornata = new Date(fine.getTime());
   fineGiornata.setHours(23, 59, 59, 0);
 
-  var cal = _orariTrovaCalendario(c.nome);
+  var cal = _orariTrovaCalendario_(c.nome);
   var creato = false;
   if (!cal) {
     cal = CalendarApp.createCalendar(c.nome, {
@@ -266,7 +266,7 @@ function ORARI_4_calendario() {
     creato = true;
   } else {
     // rieseguire sopra un orario gia' messo raddoppierebbe ogni lezione
-    var gia = _orariNostri(cal, inizio, fineGiornata).length;
+    var gia = _orariNostri_(cal, inizio, fineGiornata).length;
     if (gia) {
       throw new Error('Nel calendario "' + c.nome + '" ci sono gia\' ' + gia + ' serie di eventi ' +
         'messe da Campanella fra il ' + c.inizio + ' e il ' + c.fine + ': rimettendole, ogni ' +
@@ -281,21 +281,21 @@ function ORARI_4_calendario() {
 
   var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fineGiornata);
 
-  var blocchi = _orariBlocchi(doc.celle, d);
+  var blocchi = _orariBlocchi_(doc.celle, d);
   var fatti = 0, saltati = 0;
   for (var b = 0; b < blocchi.length; b++) {
     var blocco = blocchi[b];
-    var giornoSettimana = _orariGiornoSettimana(d.giorni[blocco.giorno]);
+    var giornoSettimana = _orariGiornoSettimana_(d.giorni[blocco.giorno]);
     if (giornoSettimana < 0) { saltati++; continue; }
 
-    var primo = _orariPrimoGiorno(inizio, giornoSettimana);
+    var primo = _orariPrimoGiorno_(inizio, giornoSettimana);
     if (primo > fine) { saltati++; continue; }   // il periodo non contiene quel giorno
 
-    var da = _orariOraDel(primo, c.inizioOre, blocco.oraDa, c.minutiOra, false);
-    var a  = _orariOraDel(primo, c.inizioOre, blocco.oraA,  c.minutiOra, true);
+    var da = _orariOraDel_(primo, c.inizioOre, blocco.oraDa, c.minutiOra, false);
+    var a  = _orariOraDel_(primo, c.inizioOre, blocco.oraA,  c.minutiOra, true);
 
     var serie = cal.createEventSeries(blocco.testo, da, a, ricorrenza);
-    serie.setDescription(_orariDescrizione(doc.nome, blocco, d));
+    serie.setDescription(_orariDescrizione_(doc.nome, blocco, d));
     serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
     fatti++;
   }
@@ -310,19 +310,19 @@ function ORARI_4_calendario() {
 }
 
 function ORARI_ANNULLA_calendario() {
-  var d = _orariDati();
-  var c = _orariCalendarioConfig(d);
-  var cal = _orariTrovaCalendario(c.nome);
+  var d = _orariDati_();
+  var c = _orariCalendarioConfig_(d);
+  var cal = _orariTrovaCalendario_(c.nome);
   if (!cal) {
     var niente = 'Non c\'e\' nessun calendario chiamato "' + c.nome + '": niente da togliere.';
     Logger.log(niente);
     return niente;
   }
-  var inizio = _orariData(c.inizio) || new Date(2000, 0, 1);
-  var fine = _orariData(c.fine) || new Date(2100, 0, 1);
+  var inizio = _orariData_(c.inizio) || new Date(2000, 0, 1);
+  var fine = _orariData_(c.fine) || new Date(2100, 0, 1);
   fine.setHours(23, 59, 59, 0);
 
-  var nostri = _orariNostri(cal, inizio, fine);
+  var nostri = _orariNostri_(cal, inizio, fine);
   for (var i = 0; i < nostri.length; i++) {
     if (nostri[i].serie) nostri[i].serie.deleteEventSeries();
     else nostri[i].evento.deleteEvent();
@@ -335,7 +335,7 @@ function ORARI_ANNULLA_calendario() {
 
 // --- pezzi del calendario ---------------------------------------------------
 /** Gli eventi messi da Campanella nel periodo: una voce per ogni serie, o per l'evento singolo. */
-function _orariNostri(cal, inizio, fine) {
+function _orariNostri_(cal, inizio, fine) {
   var eventi = cal.getEvents(inizio, fine);
   var serieViste = {};
   var fuori = [];
@@ -362,7 +362,7 @@ function _orariNostri(cal, inizio, fine) {
   return fuori;
 }
 
-function _orariCalendarioConfig(d) {
+function _orariCalendarioConfig_(d) {
   var c = d.calendario;
   if (!c || !c.docente) {
     throw new Error('In DatiOrari.gs non c\'e\' la parte "calendario".\n' +
@@ -380,26 +380,26 @@ function _orariCalendarioConfig(d) {
   };
 }
 
-function _orariDocente(d, nome) {
-  var chiave = _orariChiave(nome);
+function _orariDocente_(d, nome) {
+  var chiave = _orariChiave_(nome);
   for (var i = 0; i < d.docenti.length; i++)
-    if (_orariChiave(d.docenti[i].nome) === chiave) return d.docenti[i];
+    if (_orariChiave_(d.docenti[i].nome) === chiave) return d.docenti[i];
   for (var k = 0; k < d.docenti.length; k++)
-    if (_orariChiave(d.docenti[k].nome).indexOf(chiave) === 0) return d.docenti[k];
+    if (_orariChiave_(d.docenti[k].nome).indexOf(chiave) === 0) return d.docenti[k];
   throw new Error('Nel tabellone non trovo il nome "' + nome + '".');
 }
 
-function _orariChiave(s) {
+function _orariChiave_(s) {
   return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function _orariTrovaCalendario(nome) {
+function _orariTrovaCalendario_(nome) {
   var trovati = CalendarApp.getCalendarsByName(nome);
   return (trovati && trovati.length) ? trovati[0] : null;
 }
 
 /** "2026-09-14" -> Date a mezzanotte, nel fuso dello script. null se non e' una data. */
-function _orariData(s) {
+function _orariData_(s) {
   var m = String(s || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (!m) return null;
   var giorno = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
@@ -407,8 +407,8 @@ function _orariData(s) {
 }
 
 /** Nome del giorno come sta in DatiOrari.gs -> 0 = domenica ... 6 = sabato. */
-function _orariGiornoSettimana(nome) {
-  var n = _orariChiave(nome);
+function _orariGiornoSettimana_(nome) {
+  var n = _orariChiave_(nome);
   var nomi = ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'];
   for (var i = 0; i < nomi.length; i++) if (n.indexOf(nomi[i]) === 0) return i;
   var corti = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
@@ -417,7 +417,7 @@ function _orariGiornoSettimana(nome) {
 }
 
 /** Il primo giorno >= inizio che cade nel giorno della settimana dato. */
-function _orariPrimoGiorno(inizio, giornoSettimana) {
+function _orariPrimoGiorno_(inizio, giornoSettimana) {
   var g = new Date(inizio.getTime());
   var salto = (giornoSettimana - g.getDay() + 7) % 7;
   g.setDate(g.getDate() + salto);
@@ -425,7 +425,7 @@ function _orariPrimoGiorno(inizio, giornoSettimana) {
 }
 
 /** Data e ora dell'inizio (o della fine, se `fine`) dell'ora di lezione n (1 = prima). */
-function _orariOraDel(giorno, inizioOre, n, minutiOra, fine) {
+function _orariOraDel_(giorno, inizioOre, n, minutiOra, fine) {
   var hhmm = inizioOre[Math.min(n, inizioOre.length) - 1] || '08:00';
   var parti = String(hhmm).split(':');
   var t = new Date(giorno.getTime());
@@ -437,12 +437,12 @@ function _orariOraDel(giorno, inizioOre, n, minutiOra, fine) {
 }
 
 /** Ore consecutive della stessa classe nello stesso giorno: un blocco solo. */
-function _orariBlocchi(celle, d) {
+function _orariBlocchi_(celle, d) {
   var blocchi = [];
   for (var g = 0; g < d.giorni.length; g++) {
     var aperto = null;
     for (var o = 0; o < d.ore; o++) {
-      var v = _mostraCella(_cella(celle, d, g, o));
+      var v = _mostraCella_(_cella_(celle, d, g, o));
       if (v === 'a disposizione') v = 'A disposizione';
       if (aperto && v && v === aperto.testo && aperto.oraA === o) { aperto.oraA = o + 1; continue; }
       if (!v) { aperto = null; continue; }
@@ -453,7 +453,7 @@ function _orariBlocchi(celle, d) {
   return blocchi;
 }
 
-function _orariDescrizione(docente, blocco, d) {
+function _orariDescrizione_(docente, blocco, d) {
   var ore = (blocco.oraDa === blocco.oraA)
     ? blocco.oraDa + 'a ora'
     : 'dalla ' + blocco.oraDa + 'a alla ' + blocco.oraA + 'a ora';
@@ -466,12 +466,12 @@ function _orariDescrizione(docente, blocco, d) {
 // ===========================================================================
 //  COSTRUZIONE DEI MESSAGGI
 // ===========================================================================
-function _daMandare(d) {
-  var mio = _mioIndirizzoOrari();
+function _daMandare_(d) {
+  var mio = _mioIndirizzoOrari_();
   var fuori = [];
   for (var i = 0; i < d.docenti.length; i++) {
     var doc = d.docenti[i];
-    if (_conteggioOre(doc.celle) === 0) continue;
+    if (_conteggioOre_(doc.celle) === 0) continue;
     fuori.push({
       a: mio,
       nome: doc.nome,
@@ -485,13 +485,13 @@ function _daMandare(d) {
   return fuori;
 }
 
-function _classiDaMandare(d) {
+function _classiDaMandare_(d) {
   if (!d.classi || !d.classi.length) {
     throw new Error('In DatiOrari.gs non ci sono gli orari delle classi.\n' +
       'Nell\'applicazione, nella pagina Orari, spunta "Prepara anche gli orari ' +
       'delle classi" e rigenera i dati.');
   }
-  var mio = _mioIndirizzoOrari();
+  var mio = _mioIndirizzoOrari_();
   var fuori = [];
   for (var i = 0; i < d.classi.length; i++) {
     var c = d.classi[i];
@@ -508,51 +508,51 @@ function _classiDaMandare(d) {
   return fuori;
 }
 
-function _conteggioOre(celle) {
+function _conteggioOre_(celle) {
   var n = 0;
   for (var i = 0; i < celle.length; i++) if (celle[i]) n++;
   return n;
 }
 
-function _cella(celle, d, giorno, ora) {
+function _cella_(celle, d, giorno, ora) {
   var i = giorno * d.ore + ora;
   return (i < celle.length) ? (celle[i] || '') : '';
 }
 
-function _mostraCella(v) {
+function _mostraCella_(v) {
   if (!v) return '';
   var s = String(v).trim().toUpperCase();
   if (s === 'D' || s === 'DISP' || s === 'DISP.' || s === 'DISPOSIZIONE') return 'a disposizione';
   return String(v).trim();
 }
 
-function _html(titolo, celle, d) {
+function _html_(titolo, celle, d) {
   var s = [];
   s.push('<div style="font-family:Segoe UI,Roboto,Arial,sans-serif;color:#202124">');
-  s.push('<h2 style="margin:0 0 4px 0;font-size:18px">' + _fuga(titolo) + '</h2>');
-  if (d.periodo) s.push('<div style="color:#5f6368;margin-bottom:14px">' + _fuga(d.periodo) + '</div>');
+  s.push('<h2 style="margin:0 0 4px 0;font-size:18px">' + _fuga_(titolo) + '</h2>');
+  if (d.periodo) s.push('<div style="color:#5f6368;margin-bottom:14px">' + _fuga_(d.periodo) + '</div>');
 
   s.push('<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:13px">');
-  s.push('<tr><th style="' + _stileTh() + '">Ora</th>');
+  s.push('<tr><th style="' + _stileTh_() + '">Ora</th>');
   for (var g = 0; g < d.giorni.length; g++)
-    s.push('<th style="' + _stileTh() + '">' + _fuga(d.giorni[g]) + '</th>');
+    s.push('<th style="' + _stileTh_() + '">' + _fuga_(d.giorni[g]) + '</th>');
   s.push('</tr>');
 
   for (var o = 0; o < d.ore; o++) {
     s.push('<tr>');
-    s.push('<td style="' + _stileTd() + 'font-weight:600;text-align:center;background:#f8f9fa">' +
+    s.push('<td style="' + _stileTd_() + 'font-weight:600;text-align:center;background:#f8f9fa">' +
            (o + 1) + '</td>');
     for (var gg = 0; gg < d.giorni.length; gg++) {
-      var v = _mostraCella(_cella(celle, d, gg, o));
+      var v = _mostraCella_(_cella_(celle, d, gg, o));
       var vuota = (v === '');
-      s.push('<td style="' + _stileTd() + (vuota ? 'background:#fcfcfd' : '') + '">' +
-             (vuota ? '&nbsp;' : _fuga(v)) + '</td>');
+      s.push('<td style="' + _stileTd_() + (vuota ? 'background:#fcfcfd' : '') + '">' +
+             (vuota ? '&nbsp;' : _fuga_(v)) + '</td>');
     }
     s.push('</tr>');
   }
   s.push('</table>');
 
-  if (d.nota) s.push('<p style="color:#5f6368;margin-top:16px">' + _fuga(d.nota) + '</p>');
+  if (d.nota) s.push('<p style="color:#5f6368;margin-top:16px">' + _fuga_(d.nota) + '</p>');
   s.push('<p style="color:#9aa0a6;font-size:11px;margin-top:18px">' +
          'Messaggio preparato automaticamente. Se qualcosa non torna, ' +
          'l\'orario ufficiale resta quello pubblicato dalla scuola.</p>');
@@ -560,37 +560,37 @@ function _html(titolo, celle, d) {
   return s.join('');
 }
 
-function _stileTh() {
+function _stileTh_() {
   return 'border:1px solid #dadce0;padding:6px 10px;background:#e8f0fe;text-align:center;';
 }
 
-function _stileTd() {
+function _stileTd_() {
   return 'border:1px solid #dadce0;padding:6px 10px;white-space:nowrap;';
 }
 
-function _testoSemplice(celle, d) {
+function _testoSemplice_(celle, d) {
   var righe = [];
   var intest = 'Ora  ';
-  for (var g = 0; g < d.giorni.length; g++) intest += _riempi(d.giorni[g], 16);
+  for (var g = 0; g < d.giorni.length; g++) intest += _riempi_(d.giorni[g], 16);
   righe.push(intest);
   righe.push(new Array(intest.length + 1).join('-'));
   for (var o = 0; o < d.ore; o++) {
-    var r = _riempi(String(o + 1), 5);
+    var r = _riempi_(String(o + 1), 5);
     for (var gg = 0; gg < d.giorni.length; gg++)
-      r += _riempi(_mostraCella(_cella(celle, d, gg, o)) || '-', 16);
+      r += _riempi_(_mostraCella_(_cella_(celle, d, gg, o)) || '-', 16);
     righe.push(r);
   }
   if (d.nota) { righe.push(''); righe.push(d.nota); }
   return righe.join('\n');
 }
 
-function _riempi(s, n) {
+function _riempi_(s, n) {
   s = String(s == null ? '' : s);
   while (s.length < n) s += ' ';
   return s;
 }
 
-function _fuga(s) {
+function _fuga_(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -599,7 +599,7 @@ function _fuga(s) {
 // ===========================================================================
 //  UTILITA'
 // ===========================================================================
-function _orariDati() {
+function _orariDati_() {
   if (typeof ORARI === 'undefined') {
     throw new Error('Manca il file "DatiOrari.gs".\n' +
       'Nell\'applicazione Campanella, pagina Orari, premi "Copia negli appunti" con ' +
@@ -611,7 +611,7 @@ function _orariDati() {
   return ORARI;
 }
 
-function _mioIndirizzoOrari() {
+function _mioIndirizzoOrari_() {
   var e = '';
   try { e = Session.getActiveUser().getEmail(); } catch (err) { e = ''; }
   // in un trigger getActiveUser puo' tornare vuoto: allora vale l'utente
@@ -629,7 +629,7 @@ function _mioIndirizzoOrari() {
  * delle etichette, se c'e'. Configurazione.gs sta nello stesso progetto; se
  * manca, l'etichetta e' "Orari" e basta.
  */
-function _orariNomeEtichetta() {
+function _orariNomeEtichetta_() {
   var prefisso = '';
   if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.prefissoEtichette) {
     prefisso = String(CONFIG.prefissoEtichette).replace(/\/+$/, '');
@@ -638,8 +638,8 @@ function _orariNomeEtichetta() {
 }
 
 /** Se esiste l'etichetta degli orari, la metto ai messaggi appena mandati a me con quell'oggetto. */
-function _etichettaInviati(oggetto) {
-  var nome = _orariNomeEtichetta();
+function _etichettaInviati_(oggetto) {
+  var nome = _orariNomeEtichetta_();
   try {
     var etichetta = GmailApp.getUserLabelByName(nome);
     if (!etichetta) {
@@ -654,12 +654,12 @@ function _etichettaInviati(oggetto) {
   }
 }
 
-function _programmaRipresaOrari(funzione) {
-  _togliTriggerOrari(funzione);
+function _programmaRipresaOrari_(funzione) {
+  _togliTriggerOrari_(funzione);
   ScriptApp.newTrigger(funzione).timeBased().after(60 * 1000).create();
 }
 
-function _togliTriggerOrari(funzione) {
+function _togliTriggerOrari_(funzione) {
   var t = ScriptApp.getProjectTriggers();
   for (var i = 0; i < t.length; i++)
     if (t[i].getHandlerFunction() === funzione) ScriptApp.deleteTrigger(t[i]);
