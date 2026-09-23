@@ -22,6 +22,8 @@ test/Configurazione_prova.gs
 !test/DatiOrari_esempio.gs
 personale*
 documenti/
+# l'esportazione dei filtri di Gmail (Posta, passo 4): i filtri veri, con indirizzi
+mailFilters*.xml
 
 # --- roba di sistema -------------------------------------------------------
 Thumbs.db

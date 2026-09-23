@@ -457,6 +457,212 @@ try {
     }
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI CHE HAI GIA'' IN GMAIL: IL FILE ESPORTATO'
+    # un'esportazione inventata, con la forma di quelle vere (Gmail ->
+    # Impostazioni -> Filtri e indirizzi bloccati -> Esporta): etichette
+    # inventate, indirizzi @scuola.example
+    $tFiltri = $asm.GetType('Campanella.FiltriGmail')
+    $tDaTogliere = $asm.GetType('Campanella.FiltroDaTogliere')
+    Verifica "c'e' il lettore dei filtri esportati da Gmail (FiltriGmail)" ($null -ne $tFiltri -and $null -ne $tDaTogliere)
+    if ($null -ne $tFiltri -and $null -ne $tDaTogliere) {
+        $esempioXml = Join-Path $qui 'filtri_gmail_esempio.xml'
+        $mLeggi = $tFiltri.GetMethod('Leggi', $FS, $null, [Type[]]@([string]), $null)
+        function LeggiFiltri($testo) { return ,@($mLeggi.Invoke($null, @([string]$testo))) }
+        function ErroreDi($testo) {
+            try { [void](LeggiFiltri $testo); return '' } catch { return $_.Exception.GetBaseException().Message }
+        }
+        # "Etichetta{chiave=valore,...}" con le chiavi in ordine
+        function Descrivi($f) {
+            $coppie = @($f.Criteri.Keys | Sort-Object { $_ } -CaseSensitive | ForEach-Object { "$_=" + $f.Criteri[$_] })
+            return $f.Etichetta + '{' + ($coppie -join ',') + '}'
+        }
+        $filtri = @($tFiltri.GetMethod('LeggiFile', $FS).Invoke($null, @([string]$esempioXml)))
+        $etichette = @($filtri | ForEach-Object { $_.Etichetta })
+        Verifica "legge tutti i filtri del file, nell'ordine ($($filtri.Count))" (
+            $filtri.Count -eq 14 -and $etichette[0] -eq 'Colleghi' -and $etichette[13] -eq 'Colleghi/Docenti')
+        Verifica "i criteri con i nomi del servizio Gmail API: hasTheWord -> query" (
+            (Descrivi $filtri[0]) -eq 'Colleghi{query=from:(anna.bianchi@scuola.example OR carlo.verdi@scuola.example)}')
+        Verifica "sizeOperator e sizeUnit senza size non sono un criterio, e non sono 'altro'" ($filtri[0].Altre.Count -eq 0)
+        Verifica "doesNotHaveTheWord -> negatedQuery, e i si'/no" (
+            (Descrivi $filtri[5]) -eq 'Progetti Erasmus{excludeChats=true,hasAttachment=true,negatedQuery=bozza,to=erasmus@scuola.example}')
+        Verifica "la dimensione in byte, come la vuole Gmail: 5 MB piu' grande" (
+            (Descrivi $filtri[8]) -eq 'Allegati grandi{size=5242880,sizeComparison=larger}')
+        Verifica "virgolette e barre arrivano tali e quali" (
+            $filtri[12].Etichetta -eq 'Riunioni "urgenti"' -and $filtri[12].Criteri['query'] -eq '"consiglio di classe" OR riunione \ verbale')
+        Verifica "un filtro senza etichetta si legge lo stesso" ($filtri[6].Etichetta -eq '' -and $filtri[6].Criteri['from'] -eq 'notifiche@servizio.example')
+        Verifica "una proprieta' che Campanella non conosce resta, con il suo valore" (
+            $filtri[7].Altre.Count -eq 1 -and $filtri[7].Altre[0].Key -eq 'nuovaOpzione' -and $filtri[7].Altre[0].Value -eq 'si' -and
+            (Descrivi $filtri[7]) -eq 'Sindacato{query=assemblea}')
+        $mAzioni = $tFiltri.GetMethod('DescriviAzioni', $FS)
+        $mCriteri = $tFiltri.GetMethod('DescriviCriteri', $FS)
+        $azioni = @($filtri | ForEach-Object { [string]$mAzioni.Invoke($null, @($_.PSObject.BaseObject)) })
+        Write-Host "          $($azioni[10])  |  $($azioni[11])  |  $($azioni[6])"
+        Verifica "le azioni dette a parole: archivia" ($azioni[1] -match 'archivia' -and $azioni[0] -eq '')
+        Verifica "e le altre: stella, importante, inoltro, categoria, spam, cestino, letto" (
+            $azioni[10] -match 'stella' -and $azioni[10] -match 'importante' -and $azioni[10] -match 'inoltra a vice@scuola\.example' -and
+            $azioni[11] -match 'Promozioni' -and $azioni[11] -match 'spam' -and $azioni[6] -match 'cestino' -and $azioni[6] -match 'letto')
+        $criteriErasmus = [string]$mCriteri.Invoke($null, @($filtri[5].Criteri))
+        Verifica "e i criteri detti a parole ($criteriErasmus)" (
+            $criteriErasmus -match 'a: erasmus@scuola\.example' -and $criteriErasmus -match 'senza le parole: bozza' -and
+            $criteriErasmus -match 'con allegato' -and [string]$mCriteri.Invoke($null, @($filtri[8].Criteri)) -match '5 MB')
+        $da = $filtri[1].GetType().GetMethod('DaTogliere').Invoke($filtri[1], @())
+        Verifica "un filtro diventa la voce da togliere: etichetta e criteri" (
+            $null -ne $da -and $da.Etichetta -eq 'Circolari' -and $da.Criteri.Count -eq 1 -and $da.Criteri['subject'] -eq 'circolare')
+        Verifica "uno senza etichetta no" ($null -eq $filtri[6].GetType().GetMethod('DaTogliere').Invoke($filtri[6], @()))
+
+        # un file sbagliato: un messaggio chiaro, in italiano
+        $vuoto = ErroreDi ''
+        $troncato = ErroreDi "<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'><entry><apps:property"
+        $altroXml = ErroreDi '<html><body>Filtri</body></html>'
+        $conEntita = ErroreDi ("<?xml version='1.0'?><!DOCTYPE feed [<!ENTITY x SYSTEM 'file:///c:/windows/win.ini'>]>" +
+                               "<feed xmlns='http://www.w3.org/2005/Atom'><entry><x>&x;</x></entry></feed>")
+        Write-Host "          $vuoto"
+        Write-Host "          $troncato"
+        Write-Host "          $altroXml"
+        Verifica "un file vuoto lo dice" ($vuoto -match '^Il file e'' vuoto')
+        Verifica "un file rovinato o a meta' lo dice, e dice di esportarlo di nuovo" (
+            $troncato -match '^Il file non si legge' -and $troncato -match 'Esporta di nuovo')
+        Verifica "un XML qualsiasi non e' un'esportazione dei filtri" ($altroXml -match 'non e'' l''esportazione dei filtri di Gmail')
+        Verifica "un file con un DOCTYPE (e un'entita' esterna) non si apre" ($conEntita -match '^Il file non si legge')
+        $senzaFiltri = LeggiFiltri "<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'><title>Mail Filters</title></feed>"
+        Verifica "un'esportazione senza filtri e' vuota, non un errore" ($senzaFiltri.Count -eq 0 -and (ErroreDi "<feed xmlns='http://www.w3.org/2005/Atom'/>") -eq '')
+
+        # -------------------------------------------------------------------
+        Intestazione 'I FILTRI CHE HAI GIA'' IN GMAIL: UGUALI, SIMILI O TUOI'
+        $mConfronta = $tFiltri.GetMethod('Confronta', $FS)
+        $c4 = NuovoStato
+        Imposta $c4 'Dominio' 'scuola.example'
+        Imposta $c4 'Prefisso' ''
+        Imposta $c4 'Dirigenza' 'preside@scuola.example'
+        Imposta $c4 'Segreteria' 'segreteria@scuola.example'
+        AggiungiPersona $c4 'BIANCHI ANNA' 'DOCENTE' 'anna.bianchi@scuola.example' $true
+        AggiungiPersona $c4 'VERDI CARLO' 'ASSISTENTE AMMINISTRATIVO' 'carlo.verdi@scuola.example' $true
+        function Somiglia($etichetta, $stato) {
+            $x = $mConfronta.Invoke($null, @([string]$etichetta, $stato))
+            return $x.Tipo + '|' + $x.Regola
+        }
+        $attese = @(
+            'uguale|Colleghi', 'uguale|Circolari', 'simile|Genitori', 'simile|Studenti', 'tuo|', 'tuo|', 'senza|',
+            'simile|Sindacati', 'tuo|', 'simile|Registro elettronico', 'uguale|Dirigenza', 'uguale|Newsletter', 'tuo|',
+            'uguale|Colleghi/Docenti')
+        $diversi = @()
+        for ($i = 0; $i -lt $filtri.Count; $i++) {
+            $e = Somiglia $filtri[$i].Etichetta $c4
+            if ($e -ne $attese[$i]) { $diversi += "$($filtri[$i].Etichetta): $e invece di $($attese[$i])" }
+        }
+        Verifica "uguale all'etichetta di una regola accesa, simile per una parola o un sinonimo, o tuo$(if ($diversi.Count) { ': no ' + ($diversi -join '; ') })" (
+            $diversi.Count -eq 0)
+        $famiglie = $mConfronta.Invoke($null, @([string]'Famiglie', $c4))
+        $alunni = $mConfronta.Invoke($null, @([string]'Alunni', $c4))
+        Verifica "a parole: '$($famiglie.Testo())', '$($alunni.Testo())'" (
+            $famiglie.Testo() -eq 'simile a Genitori (regola spenta)' -and $alunni.Testo() -eq 'simile a Studenti' -and
+            ($mConfronta.Invoke($null, @([string]'Circolari', $c4))).Testo() -eq 'uguale a una regola di Campanella (Circolari)')
+        Verifica "senza badare alle maiuscole, e una parola al plurale e' la stessa (Circolare, Sindacato)" (
+            (Somiglia 'circolari' $c4) -eq 'uguale|Circolari' -and (Somiglia 'Circolare urgente' $c4) -eq 'simile|Circolari')
+        Verifica "le parole corte e quelle generiche non bastano (Ora, Varie)" (
+            (Somiglia 'Ora' $c4) -eq 'tuo|' -and (Somiglia 'Varie' $c4) -eq 'tuo|')
+        Imposta $c4 'Prefisso' 'Scuola'
+        Verifica "con il gruppo: uguale solo il nome intero, Scuola/Colleghi; Colleghi da solo e' simile" (
+            (Somiglia 'Scuola/Colleghi' $c4) -eq 'uguale|Scuola/Colleghi' -and (Somiglia 'Colleghi' $c4) -eq 'simile|Scuola/Colleghi' -and
+            (Somiglia 'scuola/colleghi/docenti' $c4) -eq 'uguale|Scuola/Colleghi/Docenti')
+        Imposta $c4 'Prefisso' ''
+        $senzaPersone = NuovoStato
+        Imposta $senzaPersone 'Prefisso' ''
+        Verifica "una regola spuntata ma spenta nella configurazione (Colleghi senza elenco) non e' uguale" (
+            (Somiglia 'Colleghi' $senzaPersone) -eq 'simile|Colleghi' -and
+            ($mConfronta.Invoke($null, @([string]'Colleghi', $senzaPersone))).Testo() -eq 'simile a Colleghi (regola spenta)')
+
+        # -------------------------------------------------------------------
+        Intestazione 'I FILTRI DA TOGLIERE NELLA CONFIGURAZIONE'
+        $tListaFiltri = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tDaTogliere)
+        function Scegli($stato, $quali) {
+            $lista = [Activator]::CreateInstance($tListaFiltri)
+            foreach ($f in $quali) { $lista.Add($f.GetType().GetMethod('DaTogliere').Invoke($f, @())) }
+            Imposta $stato 'FiltriDaTogliere' $lista
+        }
+        $g = NuovoStato
+        Imposta $g 'Prefisso' ''
+        AggiungiPersona $g 'BIANCHI ANNA' 'DOCENTE' 'anna.bianchi@scuola.example' $true
+        $senzaFiltri = Genera $g $true
+        Verifica "senza filtri scelti la configurazione non ne parla" (-not $senzaFiltri.Contains('filtriDaTogliere'))
+        $impSenza = [string]$mImpronta.Invoke($null, @($g))
+        Scegli $g @($filtri[0], $filtri[5], $filtri[8], $filtri[12])
+        $testoF = Genera $g $true
+        $fileF = Join-Path $temporanea 'Configurazione_filtri.gs'
+        Scrivi $fileF $testoF
+        $lettaF = LeggiConfigurazione $fileF
+        $voci = @($lettaF.CONFIG.filtriDaTogliere)
+        Verifica "la configurazione si carica e definisce solo CONFIG" ($null -ne $lettaF.CONFIG -and $lettaF.altri.Count -eq 0)
+        Verifica "con i filtri scelti, uno per voce: etichetta e criteri" (
+            $voci.Count -eq 4 -and $voci[0].etichetta -eq 'Colleghi' -and
+            $voci[0].criteri.query -eq 'from:(anna.bianchi@scuola.example OR carlo.verdi@scuola.example)')
+        Verifica "i si'/no come veri booleani, gli altri come testo" (
+            $voci[1].criteri.hasAttachment -is [bool] -and $voci[1].criteri.hasAttachment -and $voci[1].criteri.excludeChats -eq $true -and
+            $voci[1].criteri.to -eq 'erasmus@scuola.example' -and $voci[1].criteri.negatedQuery -eq 'bozza')
+        Verifica "la dimensione come numero, con il confronto" (
+            $voci[2].criteri.size -eq 5242880 -and $voci[2].criteri.size -isnot [string] -and $voci[2].criteri.sizeComparison -eq 'larger')
+        Verifica "virgolette e barre arrivano identiche" (
+            $voci[3].etichetta -eq 'Riunioni "urgenti"' -and $voci[3].criteri.query -eq '"consiglio di classe" OR riunione \ verbale')
+        $impCon = [string]$mImpronta.Invoke($null, @($g))
+        Verifica "i filtri scelti cambiano l'impronta" ($impCon -ne $impSenza -and $testoF.Contains('impronta: "' + $impCon + '"') -and
+            (Genera $g $false).Contains('impronta: "' + $impCon + '"'))
+        $listaG = Leggi $g 'FiltriDaTogliere'
+        $togliUno = $listaG[3]
+        $listaG.RemoveAt(3)
+        Verifica "anche uno solo in meno" (([string]$mImpronta.Invoke($null, @($g))) -ne $impCon)
+        $listaG.Add($togliUno)
+        Verifica "rimesso, torna quella di prima" (([string]$mImpronta.Invoke($null, @($g))) -eq $impCon)
+        Imposta $g 'FiltriDaTogliere' $null
+        Verifica "e senza elenco (null) la configurazione e' quella senza filtri" ((Genera $g $true) -eq $senzaFiltri)
+
+        # lo script vero, con la configurazione generata: toglie proprio quei
+        # filtri, e non uno uguale con un criterio in piu'. Cosi' un nome di
+        # criterio scritto diverso da una parte sola si vede subito
+        $togliJs = Join-Path $temporanea 'togli.js'
+        Scrivi $togliJs @'
+const vm = require('vm'), fs = require('fs');
+const etichette = [], filtri = [], tolti = [], proprieta = {};
+const contesto = vm.createContext({
+  GmailApp: { search: () => [], getUserLabelByName: () => null },
+  PropertiesService: { getUserProperties: () => ({ getProperty: k => proprieta[k] || null, setProperty: (k, v) => { proprieta[k] = v; } }) },
+  Session: { getActiveUser: () => ({ getEmail: () => 'docente@scuola.example' }), getScriptTimeZone: () => 'Europe/Rome' },
+  Utilities: { formatDate: () => '20260923' },
+  LockService: { getUserLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+  MailApp: { sendEmail: () => {} },
+  Logger: { log: () => {} },
+  Gmail: { Users: {
+    Labels: { list: () => ({ labels: etichette }) },
+    Settings: { Filters: {
+      list: () => ({ filter: JSON.parse(JSON.stringify(filtri)) }),
+      remove: (u, id) => { tolti.push(id); filtri.splice(filtri.findIndex(f => f.id === id), 1); }
+    } }
+  } }
+});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto, { filename: 'Configurazione.gs' });
+vm.runInContext(fs.readFileSync(process.argv[3], 'utf8'), contesto, { filename: 'Organizzazione_Gmail.gs' });
+contesto.CONFIG.provaSenzaModifiche = false;
+contesto.CONFIG.filtriDaTogliere.forEach((v, i) => {
+  etichette.push({ id: 'Label_' + i, name: v.etichetta, type: 'user' });
+  filtri.push({ id: 'F' + i, criteria: JSON.parse(JSON.stringify(v.criteri)), action: { addLabelIds: ['Label_' + i] } });
+});
+filtri.push({ id: 'INPIU', criteria: Object.assign({ hasAttachment: true }, contesto.CONFIG.filtriDaTogliere[0].criteri),
+              action: { addLabelIds: ['Label_0'] } });
+const anteprima = contesto.PASSO_1_anteprima();
+contesto.EXTRA_togliFiltri();
+process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
+  riga: anteprima.split('\n').filter(r => r.indexOf('da togliere') >= 0) }));
+'@
+        Scegli $g @($filtri[0], $filtri[5], $filtri[8], $filtri[12])
+        Scrivi $fileF (Genera $g $false)
+        $esitoTogli = (& node $togliJs $fileF $motore) | ConvertFrom-Json
+        Verifica "lo script toglie i quattro filtri scelti ($(@($esitoTogli.tolti) -join ', '))" (
+            (@($esitoTogli.tolti) -join ',') -eq 'F0,F1,F2,F3')
+        Verifica "e non quello con un criterio in piu'" ((@($esitoTogli.restano) -join ',') -eq 'INPIU')
+        Verifica "PASSO_1_anteprima dice quanti sono e con quale funzione si tolgono" (
+            @($esitoTogli.riga).Count -eq 1 -and $esitoTogli.riga[0] -eq '4 filtri di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).')
+    }
+
+    # -----------------------------------------------------------------------
     Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'
     $strano = NuovoStato
     $a_capo = [string][char]0x2028

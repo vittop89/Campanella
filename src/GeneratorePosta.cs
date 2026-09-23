@@ -29,8 +29,9 @@ namespace Campanella
 
         /// <summary>
         /// Il testo di Configurazione.gs. Legge dallo Stato il dominio, gli
-        /// indirizzi particolari, il personale, le regole e le opzioni (Periodo,
-        /// Ore, Report, EscludiInviata); "quando" finisce nell'intestazione.
+        /// indirizzi particolari, il personale, le regole, le opzioni (Periodo,
+        /// Ore, Report, EscludiInviata) e i filtri di Gmail da togliere;
+        /// "quando" finisce nell'intestazione.
         /// </summary>
         public static string Configurazione(Stato s, bool prova, DateTime quando)
         {
@@ -229,9 +230,70 @@ namespace Campanella
                                             ColoriEtichette.DelRuolo(coloreColleghi, nome, s.ColoriRuoli)));
 
             sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
-            sb.AppendLine("  ]");
+            List<string> filtri = FiltriJs(s.FiltriDaTogliere);
+            sb.AppendLine("  ]" + (filtri.Count > 0 ? "," : ""));
+            if (filtri.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("  // ---- i filtri di Gmail da togliere (EXTRA_togliFiltri) ---------------");
+                sb.AppendLine("  //  Scelti in Campanella (Posta, passo 4) fra quelli che avevi gia'. Lo");
+                sb.AppendLine("  //  script toglie solo il filtro che ha proprio questi criteri, nessuno in");
+                sb.AppendLine("  //  piu', e mette proprio questa etichetta, dopo averne scritto una copia");
+                sb.AppendLine("  //  nel registro. Serve il servizio Gmail API.");
+                sb.AppendLine("  filtriDaTogliere: [");
+                sb.AppendLine(string.Join("," + Environment.NewLine, filtri.ToArray()));
+                sb.AppendLine("  ]");
+            }
             sb.AppendLine("};");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Le voci di filtriDaTogliere, una per filtro scelto: l'etichetta e i
+        /// criteri con i nomi del servizio Gmail API, i si'/no come true e la
+        /// dimensione come numero, come li da' il servizio. Una voce che non
+        /// si capisce tutta (FiltroDaTogliere.Da) non si scrive, e una ripetuta
+        /// si scrive una volta.
+        /// </summary>
+        static List<string> FiltriJs(List<FiltroDaTogliere> scelti)
+        {
+            List<string> fuori = new List<string>(), chiavi = new List<string>();
+            if (scelti == null) return fuori;
+            foreach (FiltroDaTogliere scelto in scelti)
+            {
+                if (scelto == null) continue;
+                List<KeyValuePair<string, object>> grezzi = new List<KeyValuePair<string, object>>();
+                foreach (KeyValuePair<string, string> kv in scelto.Criteri)
+                    grezzi.Add(new KeyValuePair<string, object>(kv.Key, kv.Value));
+                FiltroDaTogliere f = FiltroDaTogliere.Da(scelto.Etichetta, grezzi);
+                if (f == null || chiavi.Contains(f.Chiave())) continue;
+                chiavi.Add(f.Chiave());
+
+                // prima i criteri che Gmail conosce, nel loro ordine, poi gli altri
+                List<string> nomi = new List<string>(), altri = new List<string>();
+                foreach (string n in FiltroDaTogliere.NomiCriteri) if (f.Criteri.ContainsKey(n)) nomi.Add(n);
+                foreach (string n in f.Criteri.Keys) if (!nomi.Contains(n)) altri.Add(n);
+                altri.Sort(StringComparer.Ordinal);
+                nomi.AddRange(altri);
+                List<string> criteri = new List<string>();
+                foreach (string n in nomi)
+                {
+                    string v = f.Criteri[n];
+                    // i nomi sono solo lettere e cifre (FiltroDaTogliere.Valore): vanno scritti cosi'
+                    if (n == "hasAttachment" || n == "excludeChats") criteri.Add(n + ": true");
+                    else if (n == "size") criteri.Add(n + ": " + v);
+                    else criteri.Add(n + ": \"" + AnalisiOrario.Js(v) + "\"");
+                }
+                fuori.Add("    { etichetta: \"" + AnalisiOrario.Js(f.Etichetta) + "\"," + Environment.NewLine +
+                          "      criteri:   { " + string.Join(", ", criteri.ToArray()) + " } }");
+            }
+            return fuori;
+        }
+
+        /// <summary>Quanti filtri di Gmail da togliere finiscono nella configurazione.</summary>
+        public static int FiltriDaTogliere(Stato s)
+        {
+            return FiltriJs(s.FiltriDaTogliere).Count;
         }
 
         /// <summary>

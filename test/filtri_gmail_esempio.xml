@@ -1,0 +1,152 @@
+<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+	<title>Mail Filters</title>
+	<id>tag:mail.google.com,2008:filters:z0000000000000000001*0000000000000000001</id>
+	<updated>2026-09-20T08:15:00Z</updated>
+	<author>
+		<name>Docente Inventato</name>
+		<email>docente@scuola.example</email>
+	</author>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000001*0000000000000000001</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(anna.bianchi@scuola.example OR carlo.verdi@scuola.example)'/>
+		<apps:property name='label' value='Colleghi'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000002*0000000000000000002</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='subject' value='circolare'/>
+		<apps:property name='label' value='Circolari'/>
+		<apps:property name='shouldArchive' value='true'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000003*0000000000000000003</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='from' value='@famiglie.example'/>
+		<apps:property name='label' value='Famiglie'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000004*0000000000000000004</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:@studenti.scuola.example'/>
+		<apps:property name='label' value='Alunni'/>
+		<apps:property name='shouldMarkAsRead' value='true'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000005*0000000000000000005</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='{prenotazione biglietto}'/>
+		<apps:property name='label' value='Viaggi'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000006*0000000000000000006</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='to' value='erasmus@scuola.example'/>
+		<apps:property name='doesNotHaveTheWord' value='bozza'/>
+		<apps:property name='hasAttachment' value='true'/>
+		<apps:property name='excludeChats' value='true'/>
+		<apps:property name='label' value='Progetti Erasmus'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000007*0000000000000000007</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='from' value='notifiche@servizio.example'/>
+		<apps:property name='shouldMarkAsRead' value='true'/>
+		<apps:property name='shouldTrash' value='true'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000008*0000000000000000008</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='assemblea'/>
+		<apps:property name='label' value='Sindacato'/>
+		<apps:property name='nuovaOpzione' value='si'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000009*0000000000000000009</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='size' value='5'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+		<apps:property name='label' value='Allegati grandi'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000010*0000000000000000010</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='from' value='noreply@registro.example'/>
+		<apps:property name='label' value='ClasseViva'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000011*0000000000000000011</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='from' value='preside@scuola.example'/>
+		<apps:property name='label' value='Dirigenza'/>
+		<apps:property name='shouldStar' value='true'/>
+		<apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+		<apps:property name='forwardTo' value='vice@scuola.example'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000012*0000000000000000012</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='unsubscribe'/>
+		<apps:property name='label' value='Newsletter'/>
+		<apps:property name='smartLabelToApply' value='^smartlabel_promo'/>
+		<apps:property name='shouldNeverSpam' value='true'/>
+		<apps:property name='shouldNeverMarkAsImportant' value='true'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000013*0000000000000000013</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='&quot;consiglio di classe&quot; OR riunione \ verbale'/>
+		<apps:property name='label' value='Riunioni &quot;urgenti&quot;'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000014*0000000000000000014</id>
+		<updated>2026-09-20T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='from' value='@scuola.example'/>
+		<apps:property name='label' value='Colleghi/Docenti'/>
+	</entry>
+</feed>
