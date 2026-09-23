@@ -58,6 +58,19 @@ static class ProvaStato
             switch (caso)
             {
                 case "nuovo": Nuovo(); break;
+                case "dati-mancanti": DatiMancanti(); break;
+                case "dati-mancanti-e-nuovi": DatiMancantiENuovi(); break;
+                case "dati-troncati":
+                    DatiIlleggibili("{\"personale\":[{\"nome\":\"BIANCHI ANNA\",\"email\":\"anna.bian", "troncato");
+                    break;
+                case "dati-non-json": DatiIlleggibili("questo non e' JSON {", "non JSON"); break;
+                case "dati-vuoti": DatiIlleggibili("", "vuoto"); break;
+                case "dati-bloccati": DatiBloccati(); break;
+                case "impostazioni-illeggibili": ImpostazioniIlleggibili(); break;
+                case "impostazioni-vuote": ImpostazioniVuote(); break;
+                case "scrittura-atomica": ScritturaAtomica(); break;
+                case "sposta-su-esistente": SpostaSuEsistente(); break;
+                case "usa-esistente": UsaEsistente(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
@@ -82,6 +95,183 @@ static class ProvaStato
         Verifica("Percorso() sta nella cartella di prova", Stato.Percorso() == Impostazioni());
         Stato c = Stato.Carica();
         Verifica("senza campanella.json, nella cartella di prova, Carica non cerca il Drive", c.Drive == "");
+    }
+
+    // A-1: il file dei dati non c'e' all'avvio (Drive non ancora sincronizzato)
+    static void DatiMancanti()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        Verifica("file assente: DatiNonTrovati", s.DatiNonTrovati);
+        Verifica("file assente: non e' un errore di lettura", Testo(s, "ErroreDati") == "");
+        s.Salva();
+        Verifica("senza modifiche non crea un file dei dati vuoto", !File.Exists(FileDati(c)));
+
+        // il Drive finisce di sincronizzare mentre Campanella e' aperta
+        string vero = ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example")));
+        Scrivi(FileDati(c), vero);
+        s.Salva();
+        Verifica("il file comparso dopo l'avvio non viene sovrascritto", Leggi(FileDati(c)) == vero);
+        Verifica("senza modifiche non c'e' niente da dire alla chiusura", Testo(s, "DaAvvisare") == "");
+
+        s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        s.Salva();
+        Verifica("neanche con un elenco cambiato in questa sessione", Leggi(FileDati(c)) == vero);
+        Verifica("e allora l'utente viene avvisato", Pieno(Testo(s, "DaAvvisare")));
+        Verifica("UltimoErrore lo annota", s.UltimoErrore != "");
+    }
+
+    // il file manca, ma l'utente scrive un elenco: alla chiusura il file nasce
+    static void DatiMancantiENuovi()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        s.Salva();
+        Verifica("un elenco scritto adesso finisce nel Drive", File.Exists(FileDati(c)) &&
+            Nomi(Json(FileDati(c))).Contains("ROSSI MARIO"));
+        Verifica("e campanella.json resta senza elenco", !Json(Impostazioni()).ContainsKey("personale"));
+    }
+
+    // A-1: il file dei dati c'e' ma non si legge
+    static void DatiIlleggibili(string contenuto, string come)
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), contenuto);
+        Stato s = Carica();
+        Verifica(come + ": non lo scambia per un file assente", !s.DatiNelDrive || !s.DatiNonTrovati);
+        Verifica(come + ": dice perche' non l'ha letto", Pieno(Testo(s, "ErroreDati")));
+        s.Salva();
+        Verifica(come + ": Salva non lo sovrascrive", Leggi(FileDati(c)) == contenuto);
+        Verifica(come + ": UltimoErrore lo annota", s.UltimoErrore != "");
+        Verifica(come + ": l'utente viene avvisato", Pieno(Testo(s, "DaAvvisare")));
+    }
+
+    // A-1: il file e' bloccato mentre Campanella parte, e sbloccato alla chiusura
+    static void DatiBloccati()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        string contenuto = ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example")));
+        Scrivi(FileDati(c), contenuto);
+        Stato s;
+        using (FileStream f = new FileStream(FileDati(c), FileMode.Open, FileAccess.Read, FileShare.None))
+            s = Carica();
+        Verifica("bloccato: non lo scambia per un file assente", !s.DatiNonTrovati);
+        Verifica("bloccato: dice perche' non l'ha letto", Pieno(Testo(s, "ErroreDati")));
+        s.Salva();
+        Verifica("sbloccato alla chiusura: non lo sostituisce con un elenco vuoto", Leggi(FileDati(c)) == contenuto);
+        Verifica("e avvisa", Pieno(Testo(s, "DaAvvisare")));
+    }
+
+    // A-1: campanella.json illeggibile non viene sostituito in silenzio
+    static void ImpostazioniIlleggibili()
+    {
+        string rotto = "{\"temaScuro\":false,\"personale\":[{\"nome\":\"ROSSI MARIO\",\"email\":\"mario.ro";
+        Scrivi(Impostazioni(), rotto);
+        Stato s = Carica();
+        Verifica("dice perche' non ha letto campanella.json", Pieno(Testo(s, "ErroreImpostazioni")));
+        s.Salva();
+        Verifica("campanella.json illeggibile non viene sostituito", Leggi(Impostazioni()) == rotto);
+        Verifica("l'utente viene avvisato", Pieno(Testo(s, "DaAvvisare")));
+        Verifica("nessuna copia lasciata accanto", SoloAttesi());
+        File.Delete(Impostazioni());
+        s.Salva();
+        Verifica("tolto il file rotto, Salva ne scrive uno nuovo", File.Exists(Impostazioni()) &&
+            Json(Impostazioni()) != null && s.UltimoErrore == "");
+    }
+
+    // un campanella.json vuoto non ha niente da perdere: si riparte da zero
+    static void ImpostazioniVuote()
+    {
+        Scrivi(Impostazioni(), "");
+        Stato s = Carica();
+        Verifica("vuoto: nessun errore", Testo(s, "ErroreImpostazioni") == "");
+        s.Salva();
+        Verifica("vuoto: Salva lo riscrive", s.UltimoErrore == "" && Json(Impostazioni()) != null);
+    }
+
+    // R-1.4: campanella.json passa da un .tmp e non lascia copie
+    static void ScritturaAtomica()
+    {
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["personale"] = Elenco(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        ScriviImpostazioni(false, "", altro);
+        Scrivi(Impostazioni() + ".tmp", "resto di un salvataggio interrotto");
+        Stato s = Carica();
+        Verifica("legge l'elenco", s.Personale.Count == 1);
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Verifica("il file e' JSON con l'elenco", Nomi(Json(Impostazioni())).Contains("ROSSI MARIO"));
+        Verifica("non resta campanella.json.tmp", !File.Exists(Impostazioni() + ".tmp"));
+        Verifica("nessuna copia .bak o altro accanto", SoloAttesi());
+
+        string prima = Leggi(Impostazioni());
+        File.SetAttributes(Impostazioni(), FileAttributes.ReadOnly);
+        try
+        {
+            s.Personale.Clear();
+            s.Salva();
+            Verifica("in sola lettura lo dice", s.UltimoErrore != "");
+            Verifica("in sola lettura il file resta intero", Leggi(Impostazioni()) == prima);
+            Verifica("e non lascia il .tmp", !File.Exists(Impostazioni() + ".tmp"));
+        }
+        finally { File.SetAttributes(Impostazioni(), FileAttributes.Normal); }
+    }
+
+    // A-1: spostare i dati nel Drive dove c'e' gia' un file non lo sovrascrive
+    static void SpostaSuEsistente()
+    {
+        string c = Cartella("Campanella");
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["personale"] = Elenco(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        ScriviImpostazioni(false, "", altro);
+        string delDrive = ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example")));
+        Scrivi(FileDati(c), delDrive);
+        Stato s = Carica();
+
+        string errore;
+        bool ok = s.SpostaDati(true, c, out errore);
+        Verifica("non sposta sopra un file che non ha letto, e lo dice", !ok && errore != "");
+        Verifica("il file del Drive resta com'era", Leggi(FileDati(c)) == delDrive);
+        Verifica("i dati restano accanto al programma", !s.DatiNelDrive &&
+            Nomi(Json(Impostazioni())).Contains("ROSSI MARIO"));
+
+        object[] a = { true, c, true, null };
+        object r = Chiama(s, "SpostaDati", a);
+        Verifica("se l'utente conferma lo sostituisce", r is bool && (bool)r);
+        Verifica("adesso il file del Drive ha l'elenco di questo computer",
+            Nomi(Json(FileDati(c))).Contains("ROSSI MARIO"));
+        Verifica("e campanella.json resta senza elenco", !Json(Impostazioni()).ContainsKey("personale"));
+    }
+
+    // l'utente sceglie di usare il file che c'e' gia' nel Drive
+    static void UsaEsistente()
+    {
+        string c = Cartella("Campanella");
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["personale"] = Elenco(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        ScriviImpostazioni(false, "", altro);
+        string delDrive = ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example")));
+        Scrivi(FileDati(c), delDrive);
+        Stato s = Carica();
+
+        object[] a = { c, null };
+        object r = Chiama(s, "UsaDatiDelDrive", a);
+        Verifica("usa il file che c'e'", r is bool && (bool)r);
+        Verifica("senza toccarlo", Leggi(FileDati(c)) == delDrive);
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Verifica("campanella.json passa al Drive e perde l'elenco di prima",
+            Vero(imp, "datiNelDrive") && !imp.ContainsKey("personale"));
+        s.Salva();   // la chiusura prima del riavvio: in memoria c'e' ancora l'elenco di prima
+        Verifica("il salvataggio prima del riavvio non riscrive il file del Drive", Leggi(FileDati(c)) == delDrive);
+        Verifica("e non avvisa di niente", Testo(s, "DaAvvisare") == "");
+        Stato t = Carica();
+        Verifica("al riavvio l'elenco e' quello del Drive",
+            t.Personale.Count == 1 && t.Personale[0].Nome == "BIANCHI ANNA");
     }
 
     // quello che si salva si rilegge uguale
@@ -237,6 +427,17 @@ static class ProvaStato
 
 $casi = @(
     'nuovo'
+    'dati-mancanti'
+    'dati-mancanti-e-nuovi'
+    'dati-troncati'
+    'dati-non-json'
+    'dati-vuoti'
+    'dati-bloccati'
+    'impostazioni-illeggibili'
+    'impostazioni-vuote'
+    'scrittura-atomica'
+    'sposta-su-esistente'
+    'usa-esistente'
     'andata-e-ritorno'
 )
 

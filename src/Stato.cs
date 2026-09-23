@@ -158,9 +158,9 @@ namespace Campanella
         public string CodiceStatoPosta = "";     // incollato dall'utente
 
         // ---- cartelle (generatore anno scolastico) --------------------------
-        // Vuoto finche' Carica non lo cerca sul computer o non lo legge dal
-        // file: un "new Stato()" non deve andare a frugare nelle unita', e una
-        // prova non deve finire nel Drive vero.
+        // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
+        // salvato, non lo cerca sul computer: un "new Stato()" non deve andare
+        // a frugare nelle unita', e una prova non deve finire nel Drive vero.
         public string Drive = "";
         public string Anno = "";                 // vuoto = quello calcolato dalla data
         public string Classi = "";
@@ -351,8 +351,38 @@ namespace Campanella
         /// <summary>Perche' l'ultimo salvataggio non e' riuscito. Vuoto se e' andato bene.</summary>
         public string UltimoErrore = "";
 
+        /// <summary>
+        /// Quello che l'ultimo salvataggio ha lasciato indietro apposta, per non
+        /// rovinare un file che non ha letto, o perche' il Drive non c'era: va
+        /// detto all'utente con un avviso, non solo scritto nelle Impostazioni.
+        /// Vuoto se non c'e' niente da dire.
+        /// </summary>
+        public string DaAvvisare = "";
+
         /// <summary>Vero se, con i dati nel Drive, il file dei dati non era li' all'avvio.</summary>
         public bool DatiNonTrovati = false;
+
+        /// <summary>
+        /// Perche' all'avvio campanella.json c'era ma non si e' potuto usare
+        /// (illeggibile, o bloccato da un altro programma). Finche' non e'
+        /// vuoto quel file non si sovrascrive: dentro c'e' qualcosa che qui non si vede.
+        /// </summary>
+        public string ErroreImpostazioni = "";
+
+        /// <summary>Lo stesso per il file dei dati nel Drive: c'era, ma non si e' potuto leggere.</summary>
+        public string ErroreDati = "";
+
+        // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
+        // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
+        string datiLetti = "";
+        // L'utente ha scelto di usare il file dei dati gia' nel Drive: lo si legge
+        // al prossimo avvio, e fino ad allora quello che c'e' in memoria non ci va.
+        bool datiDaRileggere = false;
+        // campanella.json contiene l'elenco del personale (dati accanto al
+        // programma, o un passaggio al Drive non ancora riuscito)
+        bool datiNelFileLocale = false;
+        // i dati appena caricati, come testo: se non cambiano non c'e' niente da scrivere
+        string datiAllAvvio = null;
 
         /// <summary>
         /// Prova davvero a scrivere nella cartella dell'eseguibile, con un file
@@ -393,37 +423,165 @@ namespace Campanella
             // non deve far cadere l'applicazione mentre lavori. Il motivo
             // pero' lo tengo in UltimoErrore, e le Impostazioni lo mostrano.
             UltimoErrore = "";
+            DaAvvisare = "";
             JavaScriptSerializer ser = new JavaScriptSerializer();
             ser.MaxJsonLength = 60 * 1024 * 1024;
             UTF8Encoding utf8 = new UTF8Encoding(false);
 
+            // prima i dati nel Drive: se non si possono scrivere, l'elenco che
+            // sta ancora in campanella.json non deve sparire anche da li'
+            bool datiScritti = DatiNelDrive && !datiDaRileggere && SalvaDatiNelDrive(ser, utf8);
+            bool conDati = !DatiNelDrive || (!datiScritti && !datiDaRileggere && datiNelFileLocale);
+
             Dictionary<string, object> r = Impostazioni();
-            if (!DatiNelDrive)
+            if (conDati)
                 foreach (KeyValuePair<string, object> kv in Dati()) r[kv.Key] = kv.Value;
 
-            try { File.WriteAllText(Percorso(), ser.Serialize(r), utf8); }
-            catch (Exception ex) { UltimoErrore = ex.Message; }
-
-            if (!DatiNelDrive) return;
-
-            // i dati personali vanno nel Drive: nel file accanto all'eseguibile
-            // non ne resta traccia. Se il Drive non e' montato non invento
-            // cartelle altrove: le impostazioni si salvano, i dati aspettano.
+            string p = Percorso();
             try
             {
-                string dati = PercorsoDati();
+                if (ErroreImpostazioni != "" && File.Exists(p))
+                {
+                    Problema("impostazioni non salvate: " + p + " " + ErroreImpostazioni,
+                        "Il file delle impostazioni\n\n" + p + "\n\n" + ErroreImpostazioni + ". " +
+                        "Per non perdere quello che contiene non l'ho sovrascritto, quindi quello " +
+                        "che hai cambiato adesso non e' stato salvato.\n\n" +
+                        "Se quel file non ti serve piu', cancellalo e riapri Campanella: " +
+                        "ripartira' dai valori di partenza.");
+                    return;
+                }
+                ScriviSostituendo(p, ser.Serialize(r), utf8);
+                ErroreImpostazioni = "";
+                datiNelFileLocale = conDati;
+            }
+            catch (Exception ex) { Problema(ex.Message, ""); }
+        }
+
+        /// <summary>
+        /// Scrive campanella-dati.json nel Drive, ma solo se e' il file letto (o
+        /// scritto) in questa sessione, o se non c'e'. Uno comparso dopo l'avvio,
+        /// o uno che all'avvio non si leggeva, puo' avere dati che qui non ci
+        /// sono: sovrascriverlo li cancellerebbe, anche sugli altri computer.
+        /// Torna vero se l'ha scritto.
+        /// </summary>
+        bool SalvaDatiNelDrive(JavaScriptSerializer ser, UTF8Encoding utf8)
+        {
+            string dati = PercorsoDati();
+            try
+            {
+                bool nostro = StessoPercorso(dati, datiLetti);
+                if (!nostro && File.Exists(dati))
+                {
+                    string perche = (ErroreDati != "") ? ErroreDati : "e' comparso dopo l'avvio e non l'ho letto";
+                    bool dire = (ErroreDati != "") || DatiCambiati();
+                    Problema("dati nel Drive non salvati: non sovrascrivo " + dati + ", che " + perche,
+                        !dire ? "" :
+                        "Il file dei dati nel Drive\n\n" + dati + "\n\n" + perche + ". Per non perdere " +
+                        "quello che contiene non l'ho sovrascritto: le modifiche di adesso all'elenco del " +
+                        "personale, agli indirizzi e agli orari non sono state salvate.\n\n" +
+                        "Se il Drive stava ancora sincronizzando, riapri Campanella fra qualche minuto. " +
+                        "Altrimenti, in Impostazioni, premi Applica accanto alla cartella dei dati: " +
+                        "potrai scegliere se usare quel file o sostituirlo.");
+                    return false;
+                }
+                // mancava gia' all'avvio e non e' cambiato niente: non creo un file
+                // nuovo in un Drive che forse non ha ancora finito di sincronizzare
+                if (!nostro && DatiNonTrovati && !DatiCambiati()) return false;
+
+                // i dati personali vanno nel Drive: nel file accanto all'eseguibile
+                // non ne resta traccia. Se il Drive non e' montato non invento
+                // cartelle altrove: le impostazioni si salvano, i dati aspettano.
                 string cartella = Path.GetDirectoryName(dati);
                 string radice = Path.GetDirectoryName(cartella);
                 if (string.IsNullOrEmpty(radice) || !Directory.Exists(radice))
                     throw new Exception("non trovo la cartella del Drive (" + radice + ")");
                 Directory.CreateDirectory(cartella);
-                File.WriteAllText(dati, ser.Serialize(Dati()), utf8);
+                Dictionary<string, object> d = Dati();
+                // scritto sul posto, non sostituito: nel Drive un file nuovo
+                // perderebbe la cronologia delle versioni, che e' il modo di recuperarlo
+                File.WriteAllText(dati, ser.Serialize(d), utf8);
+                datiLetti = dati;
+                return true;
             }
             catch (Exception ex)
             {
-                UltimoErrore = (UltimoErrore == "" ? "" : UltimoErrore + "; ") +
-                               "dati nel Drive non salvati: " + ex.Message;
+                Problema("dati nel Drive non salvati: " + ex.Message,
+                    !DatiCambiati() ? "" :
+                    "Non sono riuscito a salvare nel Drive l'elenco del personale, gli indirizzi e " +
+                    "gli orari (" + ex.Message + "): le modifiche di adesso non sono state salvate.");
+                return false;
             }
+        }
+
+        /// <summary>Annota un problema del salvataggio: per le Impostazioni e, se serve, per un avviso.</summary>
+        void Problema(string tecnico, string perUtente)
+        {
+            UltimoErrore = (UltimoErrore == "" ? "" : UltimoErrore + "; ") + tecnico;
+            if (perUtente != "") DaAvvisare = (DaAvvisare == "" ? "" : DaAvvisare + "\n\n") + perUtente;
+        }
+
+        /// <summary>
+        /// Scrive un file senza passare da un momento in cui e' a meta': prima un
+        /// .tmp accanto, poi lo scambio. Nessuna copia .bak: sarebbe un'altra
+        /// copia dei dati personali, in un posto che nessuno ha dichiarato.
+        /// </summary>
+        static void ScriviSostituendo(string percorso, string testo, Encoding codifica)
+        {
+            string tmp = percorso + ".tmp";
+            try
+            {
+                File.WriteAllText(tmp, testo, codifica);
+                if (!File.Exists(percorso)) File.Move(tmp, percorso);
+                else
+                {
+                    try { File.Replace(tmp, percorso, null); }
+                    catch (IOException)
+                    {
+                        // certi dischi (chiavette, cartelle di rete) non sanno fare
+                        // lo scambio: allora si scrive sopra, come si e' sempre fatto
+                        File.Copy(tmp, percorso, true);
+                    }
+                }
+            }
+            finally
+            {
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            }
+        }
+
+        // i dati come testo, per capire se in questa sessione sono cambiati
+        string FotoDati()
+        {
+            try
+            {
+                JavaScriptSerializer ser = new JavaScriptSerializer();
+                ser.MaxJsonLength = 60 * 1024 * 1024;
+                return ser.Serialize(Dati());
+            }
+            catch { return null; }
+        }
+
+        bool DatiCambiati()
+        {
+            string ora = FotoDati();
+            return datiAllAvvio == null || ora == null || ora != datiAllAvvio;
+        }
+
+        /// <summary>Vero se questo file dei dati e' quello letto (o scritto) in questa sessione.</summary>
+        public bool DatiGiaLetti(string percorso)
+        {
+            return StessoPercorso(percorso, datiLetti);
+        }
+
+        public static bool StessoPercorso(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            try
+            {
+                return string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'),
+                                     StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return string.Equals(a, b, StringComparison.OrdinalIgnoreCase); }
         }
 
         /// <summary>Le impostazioni: niente che riguardi altre persone.</summary>
@@ -532,15 +690,13 @@ namespace Campanella
         public static Stato Carica()
         {
             Stato s = new Stato();
-            // il Drive di partenza, se il file non ne ha uno; nelle prove no
-            if (string.IsNullOrEmpty(CartellaDiProva)) s.Drive = DriveDiDefault();
+            Dictionary<string, object> r = null;
             try
             {
-                string p = Percorso();
-                if (!File.Exists(p)) return s;
-
-                Dictionary<string, object> r = LeggiJson(p);
-                if (r == null) return s;
+                // assente o vuoto: si parte da zero. Illeggibile: si parte da zero
+                // lo stesso, ma quel file non si sovrascrive (ErroreImpostazioni)
+                r = s.ApriImpostazioni(Percorso());
+                if (r == null) return s.FineCarica(null);
 
                 s.TemaScuro = Bool(r, "temaScuro", true);
                 s.ConsensoVersione = Int(r, "consensoVersione", 0);
@@ -598,36 +754,113 @@ namespace Campanella
                         catch { s.SpunteInstallazione.Add(false); }
                     }
                 }
-
-                // i dati personali: dal Drive se cosi' e' stato scelto,
-                // altrimenti dallo stesso file (com'era nelle versioni precedenti)
-                if (s.DatiNelDrive)
-                {
-                    string dati = s.PercorsoDati();
-                    if (File.Exists(dati))
-                    {
-                        Dictionary<string, object> d = LeggiJson(dati);
-                        if (d != null) s.LeggiDati(d);
-                    }
-                    else
-                    {
-                        s.DatiNonTrovati = true;
-                        // se il file accanto all'exe li ha ancora (cambio di
-                        // modalita' non completato), meglio non perderli
-                        s.LeggiDati(r);
-                    }
-                }
-                else s.LeggiDati(r);
             }
-            catch { /* file illeggibile: si riparte dai valori di partenza */ }
-            return s;
+            catch (Exception ex)
+            {
+                // un valore che non si capisce: quel file non lo sovrascrivo
+                if (s.ErroreImpostazioni == "") s.ErroreImpostazioni = "non si legge (" + ex.Message + ")";
+            }
+            return s.FineCarica(r);
         }
 
+        /// <summary>
+        /// Legge campanella.json. Null se non c'e' o e' vuoto: si parte da zero.
+        /// Se c'e' ma non si legge lo annota in ErroreImpostazioni, e Salva non
+        /// lo sovrascrivera'.
+        /// </summary>
+        Dictionary<string, object> ApriImpostazioni(string p)
+        {
+            Dictionary<string, object> r;
+            try
+            {
+                if (!File.Exists(p)) return null;
+                r = LeggiJson(p);
+            }
+            catch (Exception ex)
+            {
+                ErroreImpostazioni = "non si legge (" + ex.Message + ")";
+                return null;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// L'ultima parte di Carica: il Drive, se non ce n'e' uno salvato; i dati
+        /// personali, dal Drive se cosi' e' stato scelto, altrimenti dallo stesso
+        /// file (com'era nelle versioni precedenti); una fotografia dei dati
+        /// appena letti, per sapere poi se sono cambiati.
+        /// </summary>
+        Stato FineCarica(Dictionary<string, object> r)
+        {
+            if ((r == null || !r.ContainsKey("drive")) && string.IsNullOrEmpty(CartellaDiProva))
+                Drive = DriveDiDefault();
+            if (r != null)
+            {
+                try
+                {
+                    datiNelFileLocale = r.ContainsKey("personale") || r.ContainsKey("regole") || r.ContainsKey("lezioni");
+                    if (DatiNelDrive) CaricaDatiDelDrive(r);
+                    else LeggiDati(r);
+                }
+                catch (Exception ex)
+                {
+                    // dati letti a meta': il file da cui venivano non si sovrascrive
+                    datiLetti = "";
+                    if (DatiNelDrive) { if (ErroreDati == "") ErroreDati = "non si legge (" + ex.Message + ")"; }
+                    else if (ErroreImpostazioni == "") ErroreImpostazioni = "non si legge (" + ex.Message + ")";
+                }
+            }
+            datiAllAvvio = FotoDati();
+            return this;
+        }
+
+        /// <summary>
+        /// I dati personali dal file nel Drive. Distingue il file che non c'e'
+        /// (Drive non ancora sincronizzato: DatiNonTrovati) da quello che c'e' ma
+        /// non si legge (ErroreDati): in nessuno dei due casi quel file verra'
+        /// sovrascritto con quello che c'e' in memoria.
+        /// </summary>
+        void CaricaDatiDelDrive(Dictionary<string, object> r)
+        {
+            string dati = PercorsoDati();
+            Dictionary<string, object> d = null;
+            try
+            {
+                if (!File.Exists(dati)) DatiNonTrovati = true;
+                else
+                {
+                    d = LeggiJson(dati);
+                    if (d == null) ErroreDati = "e' vuoto";
+                }
+            }
+            catch (Exception ex) { ErroreDati = "non si legge (" + ex.Message + ")"; d = null; }
+
+            if (d == null)
+            {
+                // se il file accanto all'exe li ha ancora (cambio di
+                // modalita' non completato), meglio non perderli
+                LeggiDati(r);
+                return;
+            }
+            LeggiDati(d);
+            datiLetti = dati;
+        }
+
+        /// <summary>Un file JSON con un oggetto dentro. Null se e' vuoto; eccezione se non si legge.</summary>
         static Dictionary<string, object> LeggiJson(string percorso)
         {
+            string testo = File.ReadAllText(percorso, Encoding.UTF8);
+            if (testo.Trim() == "") return null;
             JavaScriptSerializer ser = new JavaScriptSerializer();
             ser.MaxJsonLength = 60 * 1024 * 1024;
-            return ser.DeserializeObject(File.ReadAllText(percorso, Encoding.UTF8)) as Dictionary<string, object>;
+            object o;
+            // il messaggio del lettore JSON ripete il contenuto del file, cioe'
+            // anche i dati personali: non va in giro negli avvisi
+            try { o = ser.DeserializeObject(testo); }
+            catch { throw new InvalidDataException("non e' JSON valido, forse e' rimasto a meta'"); }
+            Dictionary<string, object> r = o as Dictionary<string, object>;
+            if (r == null) throw new InvalidDataException("non contiene un oggetto JSON");
+            return r;
         }
 
         void LeggiDati(Dictionary<string, object> r)
@@ -703,14 +936,37 @@ namespace Campanella
         /// <summary>
         /// Cambia dove stanno i dati personali. Tornando ai dati accanto
         /// all'eseguibile, il file nel Drive viene cancellato: non ha senso
-        /// lasciarne due copie che poi divergono.
+        /// lasciarne due copie che poi divergono. Un file dei dati che c'e' gia'
+        /// nella cartella nuova non si sostituisce: per quello serve
+        /// sostituisci = vero, cioe' che l'utente l'abbia detto.
         /// </summary>
         public bool SpostaDati(bool nelDrive, string cartella, out string errore)
         {
+            return SpostaDati(nelDrive, cartella, false, out errore);
+        }
+
+        public bool SpostaDati(bool nelDrive, string cartella, bool sostituisci, out string errore)
+        {
             errore = "";
+            bool eraNelDrive = DatiNelDrive;
+            string eraCartella = CartellaDati;
             string vecchio = DatiNelDrive ? PercorsoDati() : null;
+
             DatiNelDrive = nelDrive;
             CartellaDati = nelDrive ? (cartella ?? "").Trim() : CartellaDati;
+            if (nelDrive)
+            {
+                string nuovo = PercorsoDati();
+                if (File.Exists(nuovo) && !StessoPercorso(nuovo, datiLetti) && !sostituisci)
+                {
+                    DatiNelDrive = eraNelDrive;
+                    CartellaDati = eraCartella;
+                    errore = "in " + nuovo + " c'e' gia' un file dei dati: non lo sostituisco senza chiedere";
+                    return false;
+                }
+                datiLetti = nuovo;     // scelto dall'utente: qui si puo' scrivere
+            }
+
             Salva();
             if (UltimoErrore != "") { errore = UltimoErrore; return false; }
             if (!nelDrive && vecchio != null)
@@ -719,6 +975,46 @@ namespace Campanella
                 catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
             }
             return errore == "";
+        }
+
+        /// <summary>
+        /// Usa il file dei dati che c'e' gia' nel Drive (scritto da un altro
+        /// computer, o appena sincronizzato) invece di sostituirlo. Le pagine
+        /// aperte hanno ancora i dati di prima, quindi da qui alla chiusura quel
+        /// file non si scrive: Campanella va riaperta, e allora lo legge.
+        /// </summary>
+        public bool UsaDatiDelDrive(string cartella, out string errore)
+        {
+            errore = "";
+            string c = (cartella ?? "").Trim();
+            string file = Path.Combine(c, NomeFileDati);
+            try
+            {
+                Dictionary<string, object> d = LeggiJson(file);
+                if (d == null) throw new InvalidDataException("e' vuoto");
+            }
+            catch (Exception ex)
+            {
+                errore = "non riesco a usare " + file + ": " + ex.Message;
+                return false;
+            }
+
+            bool eraNelDrive = DatiNelDrive;
+            string eraCartella = CartellaDati;
+            DatiNelDrive = true;
+            CartellaDati = c;
+            datiDaRileggere = true;
+            Salva();
+            if (UltimoErrore != "")
+            {
+                errore = UltimoErrore;
+                DatiNelDrive = eraNelDrive;
+                CartellaDati = eraCartella;
+                datiDaRileggere = false;
+                Salva();
+                return false;
+            }
+            return true;
         }
 
         // ===================================================================
