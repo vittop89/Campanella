@@ -149,6 +149,8 @@ namespace Campanella
                 "    una sola materia\r\n\r\n" +
                 "4Ar\r\n" +
                 "    senza materie: solo la cartella della classe\r\n\r\n" +
+                "Fra le materie va bene anche il punto e virgola (1A: Matematica; Fisica), " +
+                "ma ogni classe va su una riga sua.\r\n\r\n" +
                 "Per ogni classe crea anche RECUPERI\\TRIMESTRE e RECUPERI\\PENTAMESTRE, " +
                 "con le stesse materie dentro.");
             txtClassi = Tema.CasellaMulti(0, y + 22, 880, 96,
@@ -1001,8 +1003,10 @@ namespace Campanella
             if (perClasse.Count > 0)
                 log.Add("Modelli da copiare in ogni classe: " + perClasse.Count);
 
+            // una classe per riga: il punto e virgola separa solo le materie
+            // ("1A: Matematica; Fisica"), mai le classi
             List<string> classi = new List<string>();
-            foreach (string riga in (classiText ?? "").Split(new char[] { '\r', '\n', ';' }))
+            foreach (string riga in (classiText ?? "").Split(new char[] { '\r', '\n' }))
             {
                 string r = riga.Trim();
                 if (r != "") classi.Add(r);
@@ -1052,6 +1056,14 @@ namespace Campanella
                 if (nomeClasse == "" || nomeClasse.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 {
                     errori.Add("Classe non valida: [" + c + "]");
+                    continue;
+                }
+                // "1A; 2B" o "1A, 2B" su una riga sola: sono due classi scritte di
+                // seguito, non una classe con quel nome. Meglio dirlo che creare
+                // nel Drive una cartella "1A; 2B" che poi resta li'.
+                if (nomeClasse.IndexOfAny(new char[] { ';', ',' }) >= 0)
+                {
+                    errori.Add("Classe non valida: [" + c + "]: una classe per riga, le materie dopo i due punti");
                     continue;
                 }
 
