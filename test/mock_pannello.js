@@ -1063,6 +1063,36 @@ for (const nuovo of ['31/07', '']) {
     m.trigger.some(x => x.mese === 9 && x.giorno === 1));
 }
 
+// Google non risponde ne' alla chiusura ne' alla domanda "accetti risposte?": nel dubbio il
+// modulo e' aperto, resta collegato e fra un'ora si riprova
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const suo = m.uscite.destinazione.foglio;
+  m.uscite.rispondi(5);
+  const veraChiudi = m.uscite.setAcceptingResponses, veroStato = m.uscite.isAcceptingResponses;
+  m.uscite.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return veraChiudi.call(this, si); };
+  m.uscite.isAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 7).uid });
+  const r1 = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  verifica('chiusura e controllo falliti tutti e due: la riga dice "chiusura non riuscita", non "chiuso"',
+    String(scheda(m)[1][7]).indexOf('chiusura non riuscita') === 0);
+  verifica('e il modulo resta collegato, con la sua scadenza e un tentativo fra un\'ora',
+    m.uscite.destinazione !== null && m.uscite.destinazione.foglio.id === suo.id &&
+    r1.scadenze[m.uscite.id] !== undefined && r1.chiusi[m.uscite.id + '|2026-27'] === undefined &&
+    m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  m.uscite.rispondi(3);
+  verifica('le risposte arrivate intanto finiscono nel foglio dell\'anno', suo.righeDiRisposte() === 8);
+  m.uscite.setAcceptingResponses = veraChiudi;
+  m.uscite.isAcceptingResponses = veroStato;
+  m.adesso = new Date('2027-07-01T01:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: (m.trigger.find(x => x.dopo) || {}).uid });
+  verifica('al tentativo dopo si chiude davvero', m.uscite.aperto === false && m.uscite.destinazione === null &&
+    String(scheda(m)[1][7]).indexOf('chiuso il 30/06/2027') === 0);
+}
+
 // la chiusura scatta mentre "Prepara l'anno nuovo" sta lavorando
 {
   const p = mondoPronto();

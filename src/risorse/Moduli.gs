@@ -151,7 +151,9 @@ function _moduloChiudi_(e) {
   try { _moduloRiprova_(function () { form.setAcceptingResponses(false); }); }
   catch (e1) { guasto = String(e1.message || e1); }  // lo guardo qui sotto
   var ancoraAperto = false;
-  try { ancoraAperto = form.isAcceptingResponses(); } catch (e2) { ancoraAperto = false; }
+  // se Google non risponde nemmeno a questo, conta la chiusura: non riuscita, il modulo e'
+  // da trattare come aperto (resta collegato e si riprova), non da scollegare
+  try { ancoraAperto = form.isAcceptingResponses(); } catch (e2) { ancoraAperto = (guasto !== ''); }
   if (ancoraAperto) {
     // un modulo non pubblicato non raccoglie risposte comunque: quello non lo riprovo per sempre
     var pubblicato = true;

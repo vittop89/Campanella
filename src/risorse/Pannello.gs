@@ -215,9 +215,12 @@ function _panChiudiScaduti_(e) {
       // risponde, il modulo resta collegato al foglio (le risposte tardive ci
       // arrivano lo stesso) e fra un'ora si riprova. Un modulo non pubblicato
       // non raccoglie risposte comunque: quello non lo riprovo per sempre.
-      try { _panRiprova_(function () { form.setAcceptingResponses(false); }); } catch (e3) { /* lo guardo qui sotto */ }
+      var chiusuraFallita = false;
+      try { _panRiprova_(function () { form.setAcceptingResponses(false); }); } catch (e3) { chiusuraFallita = true; }
       var ancoraAperto = false;
-      try { ancoraAperto = form.isAcceptingResponses(); } catch (e6) { ancoraAperto = false; }
+      // se Google non risponde nemmeno a questo, conta la chiusura: non riuscita, il modulo e'
+      // da trattare come aperto (resta collegato e si riprova), non da scollegare
+      try { ancoraAperto = form.isAcceptingResponses(); } catch (e6) { ancoraAperto = chiusuraFallita; }
       if (ancoraAperto) {
         var pubblicato = true;
         try {

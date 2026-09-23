@@ -1021,6 +1021,37 @@ titolo('LA CHIUSURA: LOCK, TENTATIVI, MEMORIA');
     tt13.indexOf('FATTO') >= 0 && t13.form.aperto === true && t13.form.destinazione !== null &&
     t13.form.destinazione.foglio.id !== suo13.id &&
     t13.form.destinazione.foglio.nome === 'Risposte Recuperi - A.S. 2027-28');
+
+  // Google non risponde ne' alla chiusura ne' alla domanda "accetti risposte?": nel dubbio il
+  // modulo e' aperto. Resta collegato, l'anno non si segna chiuso, e fra un'ora si riprova
+  const z = nuovoMondo();
+  z.cartella('A.S. 2026-27/RECUPERI');
+  const cz = carica(z);
+  cz.MODULO_2_prepara();
+  const suoZ = z.form.destinazione.foglio;
+  z.form.rispondi(5);
+  const veraChiudiZ = z.form.setAcceptingResponses, veroStatoZ = z.form.isAcceptingResponses;
+  z.form.setAcceptingResponses = function (si) {
+    if (!si) throw new Error('Service error: Forms');
+    return veraChiudiZ.call(this, si);
+  };
+  z.form.isAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  z.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  const tz = cz.MODULO_chiusura({ triggerUid: z.trigger[0].uid });
+  verifica('chiusura e controllo falliti tutti e due: resta collegato, l\'anno non e\' chiuso, riprova fra un\'ora',
+    z.form.destinazione !== null && z.form.destinazione.foglio.id === suoZ.id &&
+    tz.indexOf('Riprovo fra un\'ora') >= 0 && tz.indexOf('non accetta piu\'') < 0 &&
+    memoria(z).chiusi['2026-27'] === undefined &&
+    z.trigger.length === 1 && z.trigger[0].dopo === 60 * 60 * 1000);
+  z.form.rispondi(3);
+  verifica('e le risposte arrivate intanto finiscono nel foglio dell\'anno', suoZ.righeDiRisposte() === 8);
+  z.form.setAcceptingResponses = veraChiudiZ;
+  z.form.isAcceptingResponses = veroStatoZ;
+  z.adesso += 60 * 60 * 1000;
+  cz.MODULO_chiusura({ triggerUid: (z.trigger[0] || {}).uid });
+  verifica('al tentativo dopo si chiude, e l\'anno resta segnato',
+    z.form.aperto === false && z.form.destinazione === null && z.trigger.length === 0 &&
+    memoria(z).chiusi['2026-27'] === '2027-08-31');
 }
 
 // ---- 9e. tanti anni di fila ---------------------------------------------------------------------
