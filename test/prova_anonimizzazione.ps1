@@ -1,7 +1,9 @@
 <#
     prova_anonimizzazione.ps1 - verifica il client di rizzo-pii dentro
     Campanella (JSON, multipart, intestazioni, ripristino) contro il finto
-    servizio di test\finto_rizzo.py.
+    servizio di test\finto_rizzo.py. Verifica anche che:
+      - un indirizzo fuori dal computer venga rifiutato subito.
+    Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
 #>
@@ -119,6 +121,56 @@ Cordiali saluti, Anna Verdi
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
 
+    Write-Host "`n=== SOLO SU QUESTO COMPUTER ===" -ForegroundColor Cyan
+    $locale = $t.GetMethod('IndirizzoLocale')
+    $casi = [ordered]@{
+        'http://127.0.0.1:5005'            = $true
+        'http://localhost:5005'            = $true
+        'https://LOCALHOST:5005'           = $true
+        'http://127.8.9.10:5005'           = $true
+        'http://[::1]:5005'                = $true
+        'http://192.0.2.1:5005'            = $false
+        'http://localhost.example.org:5005'= $false
+        'http://127.0.0.1.example.org'     = $false
+        'http://127.0.0.1:5005@192.0.2.1'  = $false
+        'ftp://127.0.0.1:5005'             = $false
+        '127.0.0.1:5005'                   = $false
+        ''                                 = $false
+    }
+    foreach ($k in $casi.Keys) {
+        $ok = ($locale.Invoke($null, [object[]]@($k)) -eq $casi[$k])
+        Verifica ("{0,-36} {1}" -f "'$k'", $(if ($casi[$k]) { 'accettato' } else { 'rifiutato' })) $ok
+    }
+
+    # un indirizzo riservato alla documentazione: nessuno risponde, e con il
+    # vecchio codice la salute aspettava fino al timeout
+    $d = [Activator]::CreateInstance($t)
+    $d.Indirizzo = 'http://192.0.2.1:5005'
+    $d.TimeoutMs = 2000        # col vecchio codice qui partiva davvero una connessione
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    $s3 = $d.Salute()
+    $cronometro.Stop()
+    Write-Host "  risposta in $($cronometro.ElapsedMilliseconds) ms: $($s3.Messaggio -replace "`n", ' ')"
+    Verifica 'non e'' pronto'                        (-not $s3.Pronto)
+    Verifica 'lo dice in meno di un secondo'         ($cronometro.ElapsedMilliseconds -lt 1000)
+    Verifica 'spiega che deve stare sul computer'    ($s3.Messaggio -like '*questo computer*')
+    $lanciata = $false
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $argTesto = New-Object 'object[]' 2
+        $argTesto[0] = 'Colloquio con Anna Verdi.'
+        [void]$t.GetMethod('TestoAnonimo', [type[]]@([string], [int].MakeByRefType())).Invoke($d, $argTesto)
+    } catch { $lanciata = $true }
+    $cronometro.Stop()
+    Verifica 'il testo non parte verso fuori'        ($lanciata -and $cronometro.ElapsedMilliseconds -lt 1000)
+    $uscita3 = Join-Path $temp 'puliti3'
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    $e7 = $d.Anonimizza($pdf, (Join-Path $uscita3 'circolare.pdf'))
+    $cronometro.Stop()
+    Verifica 'il file non parte verso fuori' `
+        ($e7.Saltato -and $cronometro.ElapsedMilliseconds -lt 1000 -and
+         -not (Test-Path (Join-Path $uscita3 'circolare.pdf')))
+
     Write-Host "`n=== SERVIZIO SPENTO ===" -ForegroundColor Cyan
     # una porta dove non c'e' davvero nessuno: se ne cerco una fissa, basta un
     # avanzo di una prova precedente per far fallire questa senza colpa
@@ -138,4 +190,5 @@ Cordiali saluti, Anna Verdi
 }
 finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+    Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

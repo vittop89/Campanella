@@ -822,16 +822,18 @@ namespace Campanella
             Tema.TitoloAiuto(this, "rizzo-pii e aggiornamenti", 0, y,
                 "rizzo-pii e aggiornamenti",
                 "rizzo-pii e' il programma che riconosce i dati personali per lo strumento " +
-                "Privacy: gira sul tuo computer, all'indirizzo qui sotto.\r\n\r\n" +
+                "Privacy: gira sul tuo computer, all'indirizzo qui sotto. Un indirizzo che " +
+                "porta fuori dal computer viene rifiutato.\r\n\r\n" +
                 "L'applicazione non si collega a internet da sola: il controllo degli " +
                 "aggiornamenti parte solo quando premi il pulsante.");
             y += 30;
 
             Controls.Add(Tema.Testo1("Indirizzo del servizio", 0, y + 5, 0, Tema.Normale, Ruolo.Tenue));
-            txtAnon = Tema.Casella(150, y, 260, "http://127.0.0.1:5005");
+            txtAnon = Tema.Casella(150, y, 260, Stato.AnonIndirizzoDiDefault);
             txtAnon.TextChanged += delegate { S.AnonIndirizzo = txtAnon.Text.Trim(); };
             Controls.Add(txtAnon);
-            Controls.Add(Tema.Testo1("Cambialo solo se hai messo rizzo-pii su un'altra porta.",
+            Controls.Add(Tema.Testo1("Cambialo solo se hai messo rizzo-pii su un'altra porta: " +
+                                     "deve restare su questo computer.",
                                      422, y + 5, 420, Tema.Piccolo, Ruolo.Tenue));
             y += 40;
 
@@ -1072,7 +1074,7 @@ namespace Campanella
         Anonimizzatore Servizio()
         {
             Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : "http://127.0.0.1:5005")
+            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
                           .Trim().TrimEnd('/');
             return a;
         }

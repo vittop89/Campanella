@@ -313,7 +313,7 @@ namespace Campanella
         Anonimizzatore Servizio()
         {
             Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : "http://127.0.0.1:5005")
+            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
                           .Trim().TrimEnd('/');
             return a;
         }

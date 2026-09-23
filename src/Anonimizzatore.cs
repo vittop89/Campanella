@@ -13,8 +13,10 @@
 //      POST /pdf       file=@x.pdf  -> il PDF anonimizzato, in binario
 //
 //  Niente esce dal computer: il servizio e' in ascolto solo su localhost e
-//  il modello sta su disco. Se rizzo-pii non e' avviato, qui non succede
-//  niente: l'applicazione lo dice e si ferma.
+//  il modello sta su disco. Qui lo si fa anche rispettare: un indirizzo che
+//  non punta a questo computer viene rifiutato prima di mandare qualcosa
+//  (vedi Url). Se rizzo-pii non e' avviato, qui non succede niente:
+//  l'applicazione lo dice e si ferma.
 // ===========================================================================
 
 using System;
@@ -48,7 +50,7 @@ namespace Campanella
 
     class Anonimizzatore
     {
-        public string Indirizzo = "http://127.0.0.1:5005";
+        public string Indirizzo = Stato.AnonIndirizzoDiDefault;
         public bool ConDizionario = false;     // false = anonimizzazione definitiva
         public int TimeoutMs = 300000;         // la CPU su un PDF lungo se la prende comoda
 
@@ -58,12 +60,12 @@ namespace Campanella
         public SaluteAnonimizzatore Salute()
         {
             SaluteAnonimizzatore s = new SaluteAnonimizzatore();
+            // un indirizzo fuori dal computer non si prova nemmeno: risposta subito
+            if (UriLocale(Indirizzo + "/health") == null) { s.Messaggio = NonLocale(); return s; }
             try
             {
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Indirizzo + "/health");
+                HttpWebRequest req = Richiesta("/health", 4000);
                 req.Method = "GET";
-                req.Timeout = 4000;
-                req.ReadWriteTimeout = 4000;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
@@ -171,7 +173,7 @@ namespace Campanella
         public byte[] PdfAnonimo(string percorso, out int redazioni, out int residui)
         {
             redazioni = 0; residui = 0;
-            HttpWebRequest req = Multipart(Indirizzo + "/pdf", percorso);
+            HttpWebRequest req = Multipart("/pdf", percorso);
             using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
             {
                 redazioni = Intero(resp.Headers["X-PII-Redactions"]);
@@ -211,11 +213,9 @@ namespace Campanella
             corpo["include_mapping"] = ConDizionario ? "true" : "false";
             byte[] dati = Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(corpo));
 
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Indirizzo + "/analyze");
+            HttpWebRequest req = Richiesta("/analyze", TimeoutMs);
             req.Method = "POST";
             req.ContentType = "application/json; charset=utf-8";
-            req.Timeout = TimeoutMs;
-            req.ReadWriteTimeout = TimeoutMs;
             req.ContentLength = dati.Length;
             using (Stream s = req.GetRequestStream()) s.Write(dati, 0, dati.Length);
 
@@ -263,15 +263,66 @@ namespace Campanella
             return testo;
         }
 
+        // ===================================================================
+        //  SOLO SU QUESTO COMPUTER
+        //  Testi, file e dizionario vanno soltanto a un servizio che gira qui:
+        //  http o https verso localhost, 127.0.0.0/8 o ::1. Qualunque altro
+        //  indirizzo (un refuso, o un server di altri) viene rifiutato prima
+        //  di aprire una connessione.
+        // ===================================================================
+        /// <summary>Vero se l'indirizzo punta a questo computer.</summary>
+        public static bool IndirizzoLocale(string indirizzo)
+        {
+            return UriLocale(indirizzo) != null;
+        }
+
+        static Uri UriLocale(string indirizzo)
+        {
+            Uri u;
+            if (!Uri.TryCreate((indirizzo ?? "").Trim(), UriKind.Absolute, out u)) return null;
+            if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return null;
+            if (u.UserInfo != "") return null;      // "http://127.0.0.1@altrove" non inganna
+            string host = u.DnsSafeHost;            // senza le parentesi di [::1]
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return u;
+            IPAddress ip;
+            if (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)) return u;
+            return null;
+        }
+
+        string NonLocale()
+        {
+            return "L'indirizzo di rizzo-pii deve essere su questo computer (localhost, 127.0.0.1 " +
+                   "o [::1]), per esempio " + Stato.AnonIndirizzoDiDefault + ".\n\n" +
+                   "\"" + Indirizzo + "\" non lo e': i testi da ripulire non devono uscire dal " +
+                   "computer, quindi non lo uso. Correggilo in Impostazioni.";
+        }
+
+        /// <summary>L'indirizzo di una funzione del servizio. Se non e' su
+        /// questo computer lancia un'eccezione: niente parte.</summary>
+        Uri Url(string funzione)
+        {
+            Uri u = UriLocale(Indirizzo + funzione);
+            if (u == null) throw new InvalidOperationException(NonLocale());
+            return u;
+        }
+
+        HttpWebRequest Richiesta(string funzione, int timeout)
+        {
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Url(funzione));
+            req.Proxy = null;                   // il servizio e' qui: nessun proxy in mezzo
+            req.AllowAutoRedirect = false;      // e nessun rinvio verso un altro indirizzo
+            req.Timeout = timeout;
+            req.ReadWriteTimeout = timeout;
+            return req;
+        }
+
         // -------------------------------------------------------------------
-        HttpWebRequest Multipart(string url, string percorso)
+        HttpWebRequest Multipart(string funzione, string percorso)
         {
             string confine = "----campanella" + DateTime.Now.Ticks.ToString("x");
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            HttpWebRequest req = Richiesta(funzione, TimeoutMs);
             req.Method = "POST";
             req.ContentType = "multipart/form-data; boundary=" + confine;
-            req.Timeout = TimeoutMs;
-            req.ReadWriteTimeout = TimeoutMs;
             byte[] contenuto = File.ReadAllBytes(percorso);
             StringBuilder testa = new StringBuilder();
             testa.Append("--").Append(confine).Append("\r\n");
