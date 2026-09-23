@@ -966,14 +966,6 @@ namespace Campanella
             return p;
         }
 
-        Panel NuovaPagina(string titolo)
-        {
-            Panel p = new Panel();
-            p.AutoScroll = true;
-            p.Controls.Add(Tema.Testo1(titolo, 0, 6, 0, Tema.Sezione, Ruolo.Sezione));
-            return p;
-        }
-
         // ===================================================================
         //  PERSONALE
         // ===================================================================
