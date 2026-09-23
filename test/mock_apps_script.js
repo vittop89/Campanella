@@ -722,6 +722,32 @@ verifica('nessuna conversazione ha piu\' le etichette dello strumento',
 // quella degli orari dei docenti e quella degli orari delle classi
 trigger.push({ fn: 'ORARI_2_invia', tipo: 'dopo', valore: 60000 });
 trigger.push({ fn: 'ORARI_3_inviaOrariClassi', tipo: 'dopo', valore: 60000 });
+{
+  // un riordino, uno smistamento o un invio degli orari sta lavorando e tiene
+  // il blocco: arrivato al tempo massimo riprogrammerebbe la sua ripresa
+  // subito dopo. ANNULLA_automazione non tocca niente e non dice di aver spento.
+  const primaDelBlocco = trigger.map(t => t.fn).join(', ');
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  const occupata = contesto.ANNULLA_automazione();
+  LockService.getUserLock = bloccoVero;
+  verifica('con il blocco preso ANNULLA_automazione non toglie nessun trigger (' + primaDelBlocco + ')',
+    trigger.length >= 2 && trigger.map(t => t.fn).join(', ') === primaDelBlocco);
+  verifica('e dice di riprovare fra un minuto, senza dire di aver spento qualcosa',
+    occupata.indexOf('riprova fra un minuto') >= 0 && !/spenta|Fermata/.test(occupata));
+
+  // un errore mentre toglie i trigger non lascia il blocco preso
+  let presi = 0, lasciati = 0;
+  LockService.getUserLock = () => ({ tryLock: () => { presi++; return true; }, releaseLock: () => { lasciati++; } });
+  const cancellaVera = ScriptApp.deleteTrigger;
+  ScriptApp.deleteTrigger = () => { throw new Error('Service invoked too many times'); };
+  let errore = null;
+  try { contesto.ANNULLA_automazione(); } catch (e) { errore = e; }
+  ScriptApp.deleteTrigger = cancellaVera;
+  LockService.getUserLock = bloccoVero;
+  verifica('ANNULLA_automazione prende il blocco, e lo lascia anche se togliere un trigger fallisce',
+    errore !== null && presi === 1 && lasciati === 1);
+}
 const spenta = contesto.ANNULLA_automazione();
 console.log(spenta);
 verifica('nessun trigger residuo, nemmeno le riprese degli orari' +

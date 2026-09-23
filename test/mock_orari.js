@@ -567,6 +567,38 @@ const spenta = contesto.ANNULLA_automazione();
 verifica('ANNULLA_automazione della Posta le toglie tutte' +
   (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
 verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
+{
+  // Un invio degli orari delle classi sta lavorando e tiene il blocco: al
+  // tempo massimo riprogramma la sua ripresa e lo lascia. ANNULLA_automazione
+  // deve aspettarlo e togliere anche quella ripresa, non toglierla prima.
+  trigger.length = 0;
+  let inCorso = true;
+  const finisceLInvio = () => {
+    if (!inCorso) return;
+    inCorso = false;
+    trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
+  };
+  const bloccoVero = LockService.getUserLock;
+  // chi aspetta il blocco (tryLock con un'attesa) lo trova libero quando l'invio finisce
+  LockService.getUserLock = () => ({
+    tryLock: ms => { if (inCorso && ms > 0) finisceLInvio(); return !inCorso; },
+    releaseLock: () => {}
+  });
+  contesto.ANNULLA_automazione();
+  finisceLInvio();   // se nessuno ha aspettato il blocco, l'invio finisce adesso
+  LockService.getUserLock = bloccoVero;
+  verifica('ANNULLA_automazione aspetta l\'invio in corso e toglie anche la ripresa che ha appena programmato' +
+    (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
+
+  // l'invio non finisce entro l'attesa: niente di tolto, e lo dice
+  trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
+  lockOccupato = true;
+  const occupata = contesto.ANNULLA_automazione();
+  lockOccupato = false;
+  verifica('con un invio che non finisce, ANNULLA_automazione non toglie niente e dice di riprovare',
+    trigger.length === 1 && /riprova fra un minuto/.test(occupata) && !/spenta|Fermata/.test(occupata));
+  trigger.length = 0;
+}
 
 intestazione('RISULTATO');
 const saltate = SEZIONI.filter(s => sezioniFatte.indexOf(s) < 0);

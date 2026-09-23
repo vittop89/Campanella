@@ -627,13 +627,29 @@ function EXTRA_codiceStato() {
 //  ANNULLA
 // ===========================================================================
 function ANNULLA_automazione() {
-  _rimuoviTrigger_(_TRIGGER_ORARIO);
-  _rimuoviTrigger_(_TRIGGER_RIPRESA);
-  // Orari.gs sta nello stesso progetto e anche le sue riprese (orari dei
-  // docenti e orari delle classi) sono attivita' programmate: spegnere
-  // l'automazione vuol dire spegnere tutto
-  var orari = _rimuoviTrigger_(_TRIGGER_ORARI) + _rimuoviTrigger_(_TRIGGER_ORARI_CLASSI);
-  var testo = 'Automazione spenta. Le etichette gia\' applicate restano dove sono.' +
+  // lo stesso blocco del riordino e degli invii degli orari: un'esecuzione in
+  // corso, arrivata al tempo massimo, riprogrammerebbe la sua ripresa subito
+  // dopo che l'ho tolta. Aspetto che finisca, poi tolgo quello che ha lasciato.
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    // senza il blocco non tocco niente, e non dico di aver spento qualcosa
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento o un invio degli ' +
+                   'orari) sta lavorando proprio adesso: riprova fra un minuto. Non ho ancora spento niente.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var orari = 0;
+  try {
+    _rimuoviTrigger_(_TRIGGER_ORARIO);
+    _rimuoviTrigger_(_TRIGGER_RIPRESA);
+    // Orari.gs sta nello stesso progetto e anche le sue riprese (orari dei
+    // docenti e orari delle classi) sono attivita' programmate: spegnere
+    // l'automazione vuol dire spegnere tutto
+    orari = _rimuoviTrigger_(_TRIGGER_ORARI) + _rimuoviTrigger_(_TRIGGER_ORARI_CLASSI);
+  } finally {
+    lock.releaseLock();
+  }
+  var testo ='Automazione spenta. Le etichette gia\' applicate restano dove sono.' +
               (orari ? '\nFermata anche la ripresa dell\'invio degli orari: se serve, riesegui ' +
                        'ORARI_2_invia (o ORARI_3_inviaOrariClassi, per gli orari delle classi), ' +
                        'che riparte da dove era arrivato.' : '');
