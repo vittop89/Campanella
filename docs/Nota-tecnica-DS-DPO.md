@@ -148,8 +148,9 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   `ORARI_4_calendario`, che crea o usa un calendario con il nome scelto e vi
   inserisce gli eventi del proprio orario, marcati con un contrassegno, e
   `ORARI_ANNULLA_calendario`, che rimuove solo quelli.
-- **Gmail API** (servizio avanzato), solo se il docente sceglie di creare i
-  filtri nativi di Gmail (passo facoltativo).
+- **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
+  facoltativo): per creare i filtri nativi di Gmail e per dare alle etichette
+  dello script i colori scelti in Campanella.
 
 Questo script non richiede: accesso al Drive, accesso a servizi esterni,
 accesso a dati di altri utenti del dominio.

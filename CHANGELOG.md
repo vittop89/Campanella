@@ -1,5 +1,59 @@
 # Changelog
 
+## 1.5.3 — 23 September 2026
+
+Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs
+again).
+
+**Posta: label colours**
+
+- Step 4: every label has a colour, the one it will have in Gmail. Next to
+  the selected rule, "Colore in Gmail" shows it and "Cambia..." opens Gmail's
+  own palette (Gmail accepts no other colour, for the background or the
+  text), each colour with the text colour that reads best, plus "nessun
+  colore" to leave the label Gmail grey. The built-in rules start with a
+  colour each, all different: red Dirigenza, orange Segreteria, yellow
+  Circolari, teal Registro elettronico, blue Colleghi, green Studenti, dark
+  grey Ministero e USR, purple Sindacati, mint Formazione e corsi, pink Orari,
+  grey Newsletter, brown Genitori. A rule you add gets the first colour no
+  label uses yet.
+- With the role sub-labels on (step 3), Colleghi/Docenti,
+  Colleghi/Amministrativi and the others get shades of the Colleghi colour,
+  always the same shade for the same role, and follow it when it changes.
+  "Cambia..." on Colleghi also sets each of them by hand, "nessun colore"
+  included; small squares next to the Colleghi colour show them. With no
+  colour on Colleghi they have none, unless set by hand. By default no two
+  labels share a colour.
+- Rules saved by 1.5.2 or earlier have no colour: when Campanella starts, the
+  built-in ones get theirs (recognised by name, or by source for Dirigenza,
+  Segreteria and the electronic register, even when renamed) and your own
+  rules the first free ones. A "nessun colore" you choose stays that way. A
+  colour written by hand in campanella.json that Gmail would refuse becomes
+  no colour. The settings files move to format 2, so an older Campanella
+  does not overwrite them (it would lose the colours) and says it needs
+  updating.
+- Configurazione.gs carries each colour (`colore: { sfondo, testo }`, on the
+  rules and on the role sub-labels): a changed colour changes the
+  fingerprint.
+- The script applies the colours through the optional "Gmail API" advanced
+  service, the same one as the native Gmail filters. With the service on,
+  the labels it creates (PASSO_2, PASSO_3 and the hourly sorting) are born
+  with their colour; without it they are created as before and PASSO_2 says
+  how to add the service. Two new functions colour the labels that already
+  exist: EXTRA_coloraEtichette colours the labels with no colour and those
+  the script created, and leaves alone a colour you gave by hand to a label
+  you already had; EXTRA_coloraTutteLeEtichette recolours those too, and says
+  so. Both use the same lock as the sorting (if a run is still working they
+  ask you to retry in a minute), change nothing in test mode (they list what
+  would change), skip and report a colour Gmail does not accept, never touch
+  the label of a rule without a colour and never delete a label; without the
+  service they explain how to add it.
+- PASSO_1_anteprima adds one line under the fingerprint: how many labels
+  have a colour, and whether the Gmail API service is there to apply them.
+- Guided installation: the last, optional card is now about the Gmail API
+  service, for the colours and for the native filters. "Aiuto e problemi"
+  has an entry for labels that stay grey.
+
 ## 1.5.2 — 23 September 2026
 
 No script to paste again: only the application changes.

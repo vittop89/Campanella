@@ -187,6 +187,23 @@ POSTA - riordinare la casella
    Con le sottoetichette dei ruoli accese, un avviso sotto le regole dice
    quali hanno gli stessi mittenti di un ruolo (Dirigenza e
    Colleghi/Dirigenza): ogni messaggio prenderebbe tutte e due le etichette.
+   Ogni etichetta ha anche un colore, quello che avra' in Gmail: accanto
+   alla regola scelta c'e' "Colore in Gmail", e "Cambia..." apre la
+   tavolozza di Gmail (Gmail non accetta altri colori), con "nessun colore"
+   per lasciarla grigia. Le regole di partenza hanno ognuna il suo colore,
+   tutti diversi; una regola nuova prende il primo colore libero. Per
+   Colleghi, con le sottoetichette dei ruoli accese, "Cambia..." sceglie
+   anche i colori delle sottoetichette (i quadratini accanto): di partenza
+   sono sfumature del colore di Colleghi e lo seguono quando cambia, ma
+   ognuna si puo' scegliere a mano.
+   I colori li mette il servizio Gmail API, da aggiungere nell'editor dello
+   script (l'ottavo passo dell'installazione guidata): con il servizio le
+   etichette nascono gia' colorate. Per quelle che ci sono gia' esegui
+   EXTRA_coloraEtichette: colora quelle senza colore e quelle create dallo
+   script, e lascia com'e' il colore che avevi dato tu a un'etichetta che
+   c'era gia'. EXTRA_coloraTutteLeEtichette ricolora anche quelle. In
+   modalita' prova le due funzioni dicono soltanto che cosa cambierebbero;
+   le etichette delle regole senza colore non le toccano mai.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
@@ -196,7 +213,9 @@ POSTA - riordinare la casella
    senza modalita' prova (da incollare al posto di quella di prima) e spegne
    anche la spunta "Modalita' prova" del passo 4, cosi' le copie successive
    non rimettono lo script in prova. Il passo 5 dice sempre se la
-   configurazione che copi e' in prova o agisce davvero.
+   configurazione che copi e' in prova o agisce davvero. L'ottavo,
+   facoltativo, aggiunge il servizio Gmail API: serve ai colori delle
+   etichette e ai filtri veri di Gmail.
    L'anteprima (PASSO_1_anteprima) dice per ogni regola quante conversazioni
    prenderanno l'etichetta e, se l'etichetta c'e' gia' in Gmail, quante ce
    l'hanno e se l'ha creata lo script o c'era gia'. "500+" vuol dire almeno
@@ -204,7 +223,9 @@ POSTA - riordinare la casella
    per esteso (indirizzi o domini, anche quelli di partenza) che non trova
    niente c'e' un consiglio: controlla gli indirizzi (spesso quello del
    registro elettronico: guarda il mittente vero di una notifica). In fondo
-   elenca le regole che mettono due etichette agli stessi messaggi.
+   elenca le regole che mettono due etichette agli stessi messaggi. Sotto
+   l'impronta una riga dice quante etichette hanno un colore e se il
+   servizio Gmail API c'e' per metterli.
 
 
 CARTELLE - il nuovo anno scolastico
@@ -393,7 +414,8 @@ dell'anno, che restano nel Drive.
 Due cose restano a mano: i filtri veri di Gmail (se li hai creati con
 EXTRA_creaFiltriGmail) si cancellano da Gmail > Impostazioni > Filtri e
 indirizzi bloccati; i messaggi che una regola ha segnato come letti restano
-letti. Alla fine, se vuoi, revoca l'accesso agli script da
+letti. I colori dati alle etichette restano: si cambiano da Gmail. Alla
+fine, se vuoi, revoca l'accesso agli script da
 https://myaccount.google.com/permissions.
 
 
