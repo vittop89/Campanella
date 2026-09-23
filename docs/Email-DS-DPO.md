@@ -25,7 +25,8 @@ dettaglio funzionamento, dati coinvolti e autorizzazioni; in sintesi:
   (dirigenza, segreteria, circolari, colleghi, studenti…), crea sul mio Drive
   le cartelle dell'anno scolastico, mi invia — al mio stesso indirizzo — le
   griglie orarie dei docenti ricavate dal tabellone già distribuito, e inserisce
-  il mio orario nel mio Google Calendar;
+  il mio orario nel mio Google Calendar[; se usi i moduli Google: ogni anno
+  crea il foglio delle risposte dei miei moduli e a fine anno li chiude];
 - **dove gira**: dentro il mio account Google Workspace istituzionale, tramite
   uno script Google Apps Script che autorizzo ed eseguo io stesso. Il codice
   non contatta servizi esterni, non trasmette dati a terzi e non condivide
@@ -36,12 +37,18 @@ dettaglio funzionamento, dati coinvolti e autorizzazioni; in sintesi:
 - **cosa non fa**: non cancella messaggi né file, non invia messaggi ad altre
   persone (le uniche email partono verso il mio stesso indirizzo), non tratta
   dati di studenti o famiglie per finalità diverse da quelle già proprie della
-  corrispondenza istituzionale;
+  corrispondenza istituzionale[; se attivi lo svuotamento dei moduli: le
+  risposte degli anni precedenti le toglie dal modulo solo su mia richiesta,
+  e solo dopo averle ritrovate una per una in un foglio degli anni
+  precedenti];
 - **dati di colleghi**: per distinguere i messaggi dei colleghi da quelli degli
   studenti lo strumento usa l'elenco del personale (nominativo, ruolo e
   indirizzo istituzionale), che conservo [nella cartella del Drive
   istituzionale / esclusivamente nel mio account] e che cancellerò quando non
-  sarà più necessario;
+  sarà più necessario. Quando devo scrivere a una categoria di colleghi, lo
+  stesso elenco mi serve a prepararne gli indirizzi: lo strumento li mette
+  negli appunti e apre in Gmail un messaggio vuoto, che scrivo e invio io con
+  gli indirizzi in copia nascosta;
 - **strumento per l'IA**: lo stesso programma include una funzione che
   rimuove localmente, sul mio computer e senza collegamento in rete, i dati
   personali da un testo prima di sottoporlo a un assistente di intelligenza

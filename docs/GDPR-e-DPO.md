@@ -103,15 +103,17 @@ trattamento: sei dentro il perimetro della scuola, con le sue regole.
 
 | Strumento | Cosa fa | Dove girano i dati | Cosa resta sul computer |
 |---|---|---|---|
-| **Posta** | crea etichette Gmail e le applica ai messaggi; archivia (reversibile) solo dove lo chiedi; niente cancellazioni | dentro il tuo account Google, con uno script Apps Script che vedi e autorizzi tu | il dominio della scuola, gli indirizzi di dirigenza e segreteria, l'elenco del personale |
-| **Cartelle** | crea cartelle nel Drive sincronizzato e ci copia i tuoi modelli | sul tuo Drive | l'elenco delle classi |
+| **Posta** | crea etichette Gmail e le applica ai messaggi; archivia (reversibile) solo dove lo chiedi; niente cancellazioni. «Scrivere a un gruppo» mette negli appunti gli indirizzi di una categoria di colleghi e apre in Gmail un messaggio vuoto: lo scrivi e lo invii tu, con gli indirizzi in Ccn | dentro il tuo account Google, con uno script Apps Script che vedi e autorizzi tu | il dominio della scuola, gli indirizzi di dirigenza e segreteria, l'elenco del personale |
+| **Cartelle** | crea cartelle nel Drive sincronizzato e ci copia i tuoi modelli. Per i moduli Google prepara uno script (dentro il modulo, o un foglio di controllo per più moduli) che ogni anno crea il foglio delle risposte e a fine anno chiude il modulo; le risposte degli anni scorsi le toglie dal modulo solo se lo chiedi, dopo averle ritrovate una per una in un foglio vecchio | sul tuo Drive; moduli e fogli delle risposte dentro il tuo account Google | l'elenco delle classi |
 | **Orari** | legge il tabellone Excel; lo script ti manda per email l'orario di ogni docente **solo a te** e mette il **tuo** orario su Google Calendar | dentro il tuo account (Gmail e Calendar) | i cognomi e l'orario del tabellone; nessun indirizzo |
-| **Privacy** | toglie i dati personali da testi e file con rizzo-pii, un modello che gira sul tuo computer | sul tuo computer, senza rete | i file che scegli di ripulire, e le copie pulite |
+| **Privacy** | toglie i dati personali da testi e file con rizzo-pii, un modello che gira sul tuo computer | sul tuo computer, senza rete: Campanella parla con rizzo-pii solo a un indirizzo di questo computer | i file che scegli di ripulire, e le copie pulite |
 
 Lo script non chiama servizi esterni (nessun `UrlFetchApp`), non cancella
 messaggi, manda email soltanto al tuo stesso indirizzo. L'eseguibile non
-raccoglie statistiche e si collega a internet solo quando premi il pulsante
-per cercare o scaricare rizzo-pii.
+raccoglie statistiche e si collega a internet solo quando premi un
+pulsante: «Cerca aggiornamenti», che chiede a GitHub l'ultima versione di
+Campanella e di rizzo-pii senza scaricare niente, oppure «Scarica e
+installa rizzo-pii».
 
 **Il punto che merita attenzione è l'ultima colonna.** L'elenco del personale
 (nomi, ruoli, indirizzi di colleghi) e gli orari con i cognomi sono dati
@@ -143,9 +145,12 @@ lett. c) ed f) GDPR).
    resta tua.
 4. **Conservazione.** Un file sul computer non scade da solo (art. 5, par. 1,
    lett. e). Quando l'elenco del personale non ti serve più, svuotalo.
-5. **Gli invii massivi.** Campanella non scrive a nessun altro. Se un giorno
-   volessi mandare qualcosa a tutti i colleghi, quello è un trattamento nuovo
-   per iniziativa personale: prima la scuola.
+5. **Gli invii massivi.** Campanella non scrive a nessun altro. «Scrivere a
+   un gruppo» non manda niente: ti prepara gli indirizzi di una categoria di
+   colleghi negli appunti e un messaggio vuoto in Gmail, e il messaggio lo
+   scrivi e lo invii tu. Se un giorno volessi mandare qualcosa a tutti i
+   colleghi, quello è un trattamento nuovo per iniziativa personale: prima la
+   scuola.
 
 ## Cosa fare in pratica
 
