@@ -661,6 +661,53 @@ intestazione('FILTRI VERI DI GMAIL');
   verifica('un filtro non riuscito finisce fra quelli che restano allo script',
     /tranne [^\n]*Scuola\/Colleghi/.test(t4));
   delete contesto.Gmail;
+
+  // Un filtro creato da EXTRA_creaFiltriGmail e poi scelto in Campanella fra
+  // quelli da togliere: EXTRA_togliFiltri lo toglie, e EXTRA_creaFiltriGmail
+  // non deve rifarlo, se no le due funzioni si disfano a vicenda a ogni giro.
+  {
+    const veri = [];
+    let prossimo = 1;
+    contesto.Gmail = { Users: {
+      Labels: { list: () => ({ labels: [...etichette.keys()].map(n => ({ name: n, id: 'id:' + n, type: 'user' })) }) },
+      Settings: { Filters: {
+        list: () => (veri.length ? { filter: JSON.parse(JSON.stringify(veri)) } : {}),
+        create: f => { const c = JSON.parse(JSON.stringify(f)); c.id = 'C' + (prossimo++); veri.push(c); return c; },
+        remove: (u, id) => {
+          const i = veri.findIndex(f => f.id === id);
+          if (i < 0) throw new Error('Requested entity was not found.');
+          veri.splice(i, 1);
+        }
+      } }
+    } };
+    const sceltiPrima = contesto.CONFIG.filtriDaTogliere;
+    delete contesto.CONFIG.filtriDaTogliere;
+    contesto.EXTRA_creaFiltriGmail();
+    const quanti = veri.length;
+    const scelto = veri[0];
+    const nome = scelto ? scelto.action.addLabelIds[0].replace(/^id:/, '') : '';
+    const uguale = f => f.action.addLabelIds[0] === scelto.action.addLabelIds[0] &&
+      JSON.stringify(f.criteria) === JSON.stringify(scelto.criteria);
+    verifica('EXTRA_creaFiltriGmail crea i filtri delle regole (' + quanti + ', il primo per ' + nome + ')',
+      quanti > 0 && nome !== '');
+    contesto.CONFIG.filtriDaTogliere = [{ etichetta: nome, criteri: JSON.parse(JSON.stringify(scelto.criteria)) }];
+    let tt = contesto.EXTRA_togliFiltri();
+    verifica('scelto fra quelli da togliere, EXTRA_togliFiltri lo toglie, e solo lui',
+      veri.length === quanti - 1 && !veri.some(uguale) && /Filtri di Gmail tolti adesso: 1\n/.test(tt));
+    tt = contesto.EXTRA_creaFiltriGmail();
+    console.log(tt);
+    verifica('EXTRA_creaFiltriGmail non lo rifa\'', veri.length === quanti - 1 && !veri.some(uguale));
+    verifica('e lo dice, con l\'etichetta, fra quelle che Gmail non smista da solo',
+      new RegExp('Non creati, perche\' in Campanella li hai scelti fra i filtri da togliere \\(EXTRA_togliFiltri\\): ' +
+                 nome.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&')).test(tt) &&
+      new RegExp('tranne [^\\n]*' + nome.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&')).test(tt));
+    tt = contesto.EXTRA_togliFiltri();
+    verifica('e EXTRA_togliFiltri, rieseguita, non trova niente da togliere',
+      veri.length === quanti - 1 && /Filtri di Gmail tolti adesso: 0\n/.test(tt) && /Gia' tolti prima/.test(tt));
+    contesto.CONFIG.filtriDaTogliere = sceltiPrima;
+    if (sceltiPrima === undefined) delete contesto.CONFIG.filtriDaTogliere;
+    delete contesto.Gmail;
+  }
 }
 
 intestazione('ELENCO DEL PERSONALE VUOTO');
@@ -1817,6 +1864,7 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
     /Non riusciti: 1\n  - Viaggi[^\n]*Backend Error/.test(t) && /Filtri di Gmail tolti adesso: 1\n/.test(t));
   verifica('senza il riepilogo per email non manda niente', posta.length === postaDopo);
   verifica('ancora una volta, etichette e messaggi intatti', fotoEtichette() === etichettePrima && fotoPosta() === postaPrima);
+
 
   // --- niente scelto in Campanella ----------------------------------------------
   delete contesto.CONFIG.filtriDaTogliere;

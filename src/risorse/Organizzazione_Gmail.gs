@@ -887,13 +887,19 @@ function EXTRA_creaFiltriGmail() {
   }
   PASSO_2_creaEtichette();
 
-  var idEtichette = {};
+  var idEtichette = {}, perId = {};
   var lista = Gmail.Users.Labels.list('me').labels || [];
-  for (var i = 0; i < lista.length; i++) idEtichette[lista[i].name] = lista[i].id;
+  for (var i = 0; i < lista.length; i++) {
+    idEtichette[lista[i].name] = lista[i].id;
+    perId[lista[i].id] = { nome: String(lista[i].name), sistema: lista[i].type === 'system' };
+  }
 
   var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
-  var creati = [], saltati = [], falliti = [], alloScript = [], vecchi = [];
+  var creati = [], saltati = [], falliti = [], alloScript = [], vecchi = [], daTogliere = [];
   var regole = _regoleAttive_(cfg);
+  // i filtri scelti in Campanella per EXTRA_togliFiltri non si creano: se no
+  // quella funzione li toglierebbe e questa li rifarebbe, un giro dopo l'altro
+  var scelti = _vociFiltri_(cfg).buone;
 
   for (var r = 0; r < regole.length; r++) {
     var regola = regole[r];
@@ -924,8 +930,12 @@ function EXTRA_creaFiltriGmail() {
 
     var criteri = _criteriFiltro_(cfg, regola);
     for (var c = 0; c < criteri.length; c++) {
-      if (_filtroGiaPresente_(esistenti, criteri[c], id)) { saltati.push(nome); continue; }
       var azione = { addLabelIds: [id] };
+      if (_fraIScelti_(scelti, { criteria: criteri[c], action: azione }, perId)) {
+        if (daTogliere.indexOf(nome) < 0) daTogliere.push(nome);
+        continue;
+      }
+      if (_filtroGiaPresente_(esistenti, criteri[c], id)) { saltati.push(nome); continue; }
       var togli = [];
       if (regola.archivia)       togli.push('INBOX');
       if (regola.segnaComeLette) togli.push('UNREAD');
@@ -939,12 +949,16 @@ function EXTRA_creaFiltriGmail() {
     }
   }
 
-  // le regole che Gmail non smistera' da solo: quelle lasciate allo script e
-  // quelle il cui filtro non si e' riusciti a creare
+  // le regole che Gmail non smistera' da solo: quelle lasciate allo script,
+  // quelle il cui filtro non si e' riusciti a creare e quelle con un filtro
+  // scelto fra quelli da togliere
   var tranne = alloScript.slice();
   for (var f = 0; f < falliti.length; f++) {
     var chi = falliti[f].split(': ')[0];
     if (tranne.indexOf(chi) < 0) tranne.push(chi);
+  }
+  for (var d = 0; d < daTogliere.length; d++) {
+    if (tranne.indexOf(daTogliere[d]) < 0) tranne.push(daTogliere[d]);
   }
   var testo = (vecchi.length
                 ? 'ATTENZIONE: c\'e\' ancora un filtro di una versione di prima che mette questa ' +
@@ -955,6 +969,12 @@ function EXTRA_creaFiltriGmail() {
               'Filtri creati: ' + creati.length +
               '\nFiltri gia\' presenti (saltati): ' + saltati.length +
               (falliti.length ? '\nNon riusciti:\n  - ' + falliti.join('\n  - ') : '') +
+              (daTogliere.length
+                ? '\nNon creati, perche\' in Campanella li hai scelti fra i filtri da togliere ' +
+                  '(EXTRA_togliFiltri): ' + daTogliere.join(', ') +
+                  '\n  (se li rivuoi, togli la spunta in Campanella, Posta, passo 4, "Filtri che hai gia\' ' +
+                  'in Gmail...", copia di nuovo la configurazione e riesegui questa funzione)'
+                : '') +
               (alloScript.length
                 ? '\nSenza filtro, restano allo smistamento dello script: ' + alloScript.join(', ') +
                   '\n  (escludono le etichette delle altre regole, e un filtro di Gmail non lo sa fare:' +
@@ -1373,6 +1393,18 @@ function _dimensione_(byte) {
   if (n % 1048576 === 0) return (n / 1048576) + ' MB';
   if (n % 1024 === 0) return (n / 1024) + ' KB';
   return n + ' byte';
+}
+
+/**
+ * Vero se il filtro (criteri e azione, come lo creerebbe
+ * EXTRA_creaFiltriGmail) e' una delle voci di filtriDaTogliere: stessa
+ * etichetta e proprio gli stessi criteri (_stessoFiltro_).
+ */
+function _fraIScelti_(voci, filtro, etichette) {
+  for (var i = 0; i < voci.length; i++) {
+    if (_stessoFiltro_(filtro, voci[i], etichette)) return true;
+  }
+  return false;
 }
 
 /**
