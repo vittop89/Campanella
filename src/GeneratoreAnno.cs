@@ -73,6 +73,9 @@ namespace Campanella
 
         RisultatoGenerazione res;
         string cartellaAnno = "";
+        // le cartelle gia' contate in questo giro: ognuna conta una volta sola,
+        // fra quelle create o fra quelle che c'erano gia'
+        Dictionary<string, bool> contate = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         // ===================================================================
         /// <summary>
@@ -85,6 +88,7 @@ namespace Campanella
             List<string> gruppi, List<string> struttura, string extraText)
         {
             res = new RisultatoGenerazione();
+            contate = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             anno = (anno ?? "").Trim();
             if (anno == "") throw new Exception("Manca l'anno scolastico (per esempio 2026-27).");
             string radice = (drive ?? "").Trim().TrimEnd('\\');
@@ -300,7 +304,7 @@ namespace Campanella
             {
                 if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
                 if (perClasse.Contains(f)) continue;     // gia' copiato dentro ogni classe
-                Directory.CreateDirectory(dest);
+                if (!Cartella(dest)) return;
                 string df = Path.Combine(dest, Path.GetFileName(f));
                 if (CopiaFile(f, df, "Copia di " + nome + "\\" + Path.GetFileName(f)))
                     Riga("  copiato: " + nome + "\\" + Path.GetFileName(f));
@@ -308,6 +312,8 @@ namespace Campanella
 
             foreach (string sd in Directory.GetDirectories(g))
             {
+                // la cartella del gruppo si conta qui, non fra gli elementi della sottocartella
+                if (!Cartella(dest)) return;
                 int prima = res.Creati;
                 CopiaCartella(sd, Path.Combine(dest, Path.GetFileName(sd)), google,
                               Path.GetFileName(sd) + "\\");
@@ -326,7 +332,7 @@ namespace Campanella
                 if (gf.EndsWith(".gform", StringComparison.OrdinalIgnoreCase)) moduli.Add(gf);
                 else documenti.Add(gf);
             }
-            Directory.CreateDirectory(dest);
+            if (!Cartella(dest)) return;
             List<string> righe = new List<string>();
             if (documenti.Count > 0)
             {
@@ -452,7 +458,8 @@ namespace Campanella
 
         // -------------------------------------------------------------------
         /// <summary>
-        /// Crea la cartella se manca e la conta. Falso se non c'e' e non si
+        /// Crea la cartella se manca e la conta, con le cartelle madri che
+        /// mancano: ognuna una volta sola per giro. Falso se non c'e' e non si
         /// riesce a crearla (il motivo va fra gli errori).
         /// </summary>
         bool Cartella(string percorso)
@@ -465,9 +472,23 @@ namespace Campanella
                     Errore("Cartella fuori da \"" + Path.GetFileName(cartellaAnno) + "\", non la creo: " + percorso);
                     return false;
                 }
-                if (Directory.Exists(percorso)) { res.GiaPresenti++; return true; }
-                Directory.CreateDirectory(percorso);
-                res.Creati++;
+                // si scende dalla cartella dell'anno un pezzo alla volta: cosi'
+                // anche le madri create di passaggio (RECUPERI\PENTAMESTRE per la
+                // prima classe) finiscono nel conto
+                string d = Path.GetFullPath(cartellaAnno).TrimEnd('\\');
+                string resto = Path.GetFullPath(percorso).Substring(d.Length + 1);
+                foreach (string parte in resto.Split(new char[] { '\\' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    d = Path.Combine(d, parte);
+                    if (contate.ContainsKey(d)) continue;
+                    if (Directory.Exists(d)) res.GiaPresenti++;
+                    else
+                    {
+                        Directory.CreateDirectory(d);
+                        res.Creati++;
+                    }
+                    contate[d] = true;
+                }
                 return true;
             }
             catch (Exception ex)

@@ -103,6 +103,10 @@ try {
     # --- 3. i conti: creati e gia' presenti -----------------------------------------
     Write-Host "`nI CONTI" -ForegroundColor Cyan
     Verifica "primo giro: tutto creato adesso ($($r1.Creati))"  ($r1.Creati -gt 20 -and $r1.GiaPresenti -eq 0)
+    # contano anche le cartelle nate di passaggio (RECUPERI, RECUPERI\PENTAMESTRE)
+    # e quelle dei gruppi: il conto e' quello che c'e' davvero nel Drive
+    $sotto = @(Get-ChildItem -LiteralPath $anno -Recurse -Force).Count
+    Verifica "il conto e' quello vero: $sotto elementi sotto 'A.S. 2026-27', piu' la cartella stessa" ($r1.Creati -eq $sotto + 1)
 
     # l'utente scrive nella nota del gruppo: il secondo giro non deve toccarla
     $mia = (Leggi $notaVerifiche) + "`r`nTraccia duplicata il 3/9 - M.R.`r`n"
