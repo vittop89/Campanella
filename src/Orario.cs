@@ -435,9 +435,10 @@ namespace Campanella
         public static string GeneraDatiGs(RisultatoOrario o, Stato s, bool includiClassi)
         {
             StringBuilder sb = new StringBuilder();
+            string periodo = TestoCommento(o.Periodo);
             sb.AppendLine("/* =========================================================================");
             sb.AppendLine("   DATI DEGLI ORARI - generati il " + DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
-            sb.AppendLine("   " + (o.Periodo != "" ? o.Periodo : "periodo non indicato"));
+            sb.AppendLine("   " + (periodo != "" ? periodo : "periodo non indicato"));
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
             sb.AppendLine("   tabellone. Niente indirizzi: le email arrivano tutte a te.");
@@ -535,6 +536,19 @@ namespace Campanella
         {
             return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
                             .Replace("\r", "").Replace("\n", "\\n");
+        }
+
+        /// <summary>
+        /// Un testo letto dal file dell'utente, pronto per stare dentro un
+        /// commento /* ... */ dello script: spazi e a capo (compresi U+2028 e
+        /// U+2029) diventano uno spazio solo, e "*/" non chiude piu' il
+        /// commento. Senza, una cella del tabellone diventerebbe codice.
+        /// </summary>
+        public static string TestoCommento(string s)
+        {
+            string t = Regex.Replace(s ?? "", @"[\s\u0085  ]+", " ").Trim();
+            while (t.Contains("*/")) t = t.Replace("*/", "* /");
+            return t;
         }
     }
 }

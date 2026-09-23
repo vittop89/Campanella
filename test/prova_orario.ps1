@@ -7,13 +7,20 @@
 
     I controlli sono scritti in modo da valere per tutti e due: contano
     minimi, non numeri esatti.
+
+    Poi prova il generatore di DatiOrari.gs con tabelloni inventati, scritti
+    in una cartella temporanea che alla fine viene tolta.
 #>
 param(
-    [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv')
+    [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv'),
+    # di partenza quello compilato da build.ps1
+    [string]$Exe = ''
 )
 
 $ErrorActionPreference = 'Stop'
-$exe = Join-Path (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)) 'dist\Campanella.exe'
+$qui = Split-Path -Parent $MyInvocation.MyCommand.Path
+$exe = $Exe
+if ($exe -eq '') { $exe = Join-Path (Split-Path -Parent $qui) 'dist\Campanella.exe' }
 Add-Type -AssemblyName System.Windows.Forms
 $asm = [System.Reflection.Assembly]::LoadFrom($exe)
 
@@ -105,6 +112,100 @@ for ($h = 0; $h -lt $o.OrePerGiorno -and -not $trovata; $h++) {
         $trovata = $true
     }
 }
+
+# ---------------------------------------------------------------------------
+#  DA QUI IN POI: tabelloni inventati, in una cartella temporanea
+# ---------------------------------------------------------------------------
+$tmp  = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-orario-' + [Guid]::NewGuid().ToString('N'))
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+
+function NuovoStato {
+    # new Stato() punta di partenza al Drive vero del PC: lo porto subito
+    # nella cartella temporanea, e con i dati accanto non scrive nel Drive
+    $s = [Activator]::CreateInstance($asm.GetType('Campanella.Stato'))
+    $s.Drive = $tmp
+    $s.CartellaDati = $tmp
+    $s.DatiNelDrive = $false
+    $s
+}
+
+function AnalizzaFile($percorso) {
+    $f = $tXlsx.GetMethod('Leggi', $FS).Invoke($null, @([string]$percorso))
+    $tAn.GetMethod('Analizza', $FS).Invoke($null, @($f[0]))
+}
+
+function GeneraDati($o, $s, [bool]$classi) {
+    # PowerShell incarta gli oggetti in PSObject: la reflection vuole quelli veri
+    $a = New-Object 'object[]' 3
+    $a[0] = $o.PSObject.BaseObject
+    $a[1] = $s.PSObject.BaseObject
+    $a[2] = $classi
+    $tAn.GetMethod('GeneraDatiGs', $FS).Invoke($null, $a)
+}
+
+function ScriviCsv($nome, $righe) {
+    $p = Join-Path $tmp $nome
+    [System.IO.File]::WriteAllText($p, ($righe -join "`r`n"), $utf8)
+    $p
+}
+
+New-Item -ItemType Directory -Path $tmp | Out-Null
+try {
+    # --- una cella del tabellone non deve diventare codice (A-2) -----------
+    Write-Host "`nDATIORARI.GS: IL PERIODO RESTA UN COMMENTO" -ForegroundColor Cyan
+    $verificaVm = Join-Path $tmp 'verifica_vm.js'
+    [System.IO.File]::WriteAllText($verificaVm, @'
+// carica DatiOrari.gs in un contesto vuoto: deve nascere soltanto ORARI,
+// con il periodo scritto com'era nel tabellone
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const atteso = fs.readFileSync(process.argv[3], 'utf8');
+console.log(JSON.stringify({
+  nomi: Object.keys(contesto),
+  periodo: !!contesto.ORARI && contesto.ORARI.periodo === atteso
+}));
+'@, $utf8)
+
+    $l = [string][char]0x2028
+    $p = [string][char]0x2029
+    $periodi = @(
+        'Orario dal 14/09 */ var INIETTATO = 1; /* fine',
+        ('Orario dal 14/09' + $l + '*/ INIETTATO = 2; //' + $p + 'INIETTATO = 3; /*'),
+        'Orario dal 14/09 **/ INIETTATO = 4; /*'
+    )
+    $n = 0
+    foreach ($periodo in $periodi) {
+        $n++
+        $csv = ScriviCsv "iniettato$n.csv" @(
+            'TABELLONE DOCENTI;;;;;;',
+            ('"' + $periodo + '";;;;;;'),
+            ';LUN;;MAR;;MER;',
+            ';1;2;1;2;1;2',
+            'ROSSI;1A;1A;;2B;3C;',
+            'VERDI;;2B;1A;;;3C'
+        )
+        $o = AnalizzaFile $csv
+        $s = NuovoStato
+        $s.CalDocente = 'ROSSI'
+        $gs = GeneraDati $o $s $true
+        $fileGs = Join-Path $tmp "DatiOrari_iniettato$n.gs"
+        $fileAtteso = Join-Path $tmp "periodo$n.txt"
+        [System.IO.File]::WriteAllText($fileGs, $gs, $utf8)
+        [System.IO.File]::WriteAllText($fileAtteso, $periodo, $utf8)
+        Verifica "caso $n`: il periodo e' letto dalla cella" ($o.Periodo -eq $periodo)
+        $esito = & node $verificaVm $fileGs $fileAtteso
+        if ($LASTEXITCODE -ne 0 -or -not $esito) {
+            Verifica "caso $n`: DatiOrari.gs si carica senza errori" $false
+            continue
+        }
+        $r = ($esito | Select-Object -Last 1) | ConvertFrom-Json
+        Verifica "caso $n`: nel contesto nasce soltanto ORARI ($(@($r.nomi) -join ', '))" ((@($r.nomi) -join ',') -eq 'ORARI')
+        Verifica "caso $n`: il periodo resta intatto nei dati" ($r.periodo -eq $true)
+    }
+}
+finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
 if ($fallimenti -eq 0) { Write-Host "`nTutte le prove superate." -ForegroundColor Green }
 else { Write-Host "`nPROVE FALLITE: $fallimenti" -ForegroundColor Red; exit 1 }
