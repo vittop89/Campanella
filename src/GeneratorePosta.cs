@@ -183,8 +183,12 @@ namespace Campanella
             sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   \u00b7   @DOMINIO@ = tutto il dominio");
             if (gruppi.Count > 0)
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
+            sb.AppendLine("  //  colore = sfondo e testo dell'etichetta in Gmail, dalla tavolozza di Gmail:");
+            sb.AppendLine("  //  li mette il servizio Gmail API (EXTRA_coloraEtichette).");
             sb.AppendLine("  regole: [");
 
+            // le sottoetichette dei ruoli: sfumature del colore di Colleghi, o scelte a mano
+            string coloreColleghi = ColoriEtichette.DeiColleghi(s.Regole);
             List<string> blocchi = new List<string>();
             for (int i = 0; i < s.Regole.Count; i++)
             {
@@ -210,6 +214,10 @@ namespace Campanella
                     b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
                 if (r.Archivia) b.AppendLine("      archivia:  true,");
                 if (r.SegnaComeLette) b.AppendLine("      segnaComeLette: true,");
+                // solo un colore che Gmail accetta: uno scritto a mano che non va
+                // non arriva allo script (nessun colore, come "" e come null)
+                string colore = ColoriEtichette.Pulito(r.Colore);
+                if (colore != "") b.AppendLine("      colore:    " + ColoreJs(colore) + ",");
                 b.AppendLine("      nota:      \"" + AnalisiOrario.Js(SoloUnaRiga(r.Descrizione)) + "\"");
                 b.Append("    }");
                 blocchi.Add(b.ToString());
@@ -218,11 +226,13 @@ namespace Campanella
                 // chi ci finisce dentro e' un sottoinsieme di quella regola
                 if (gruppi.Count > 0 && colleghi == r.Etichetta)
                     foreach (string nome in CategoriePresenti(gruppi))
-                        blocchi.Add(BloccoRuolo(r.Etichetta, nome, gruppi[nome].Count));
+                        blocchi.Add(BloccoRuolo(r.Etichetta, nome, gruppi[nome].Count,
+                                                ColoriEtichette.DelRuolo(coloreColleghi, nome, s.ColoriRuoli)));
             }
             if (gruppi.Count > 0 && !ColleghiInElenco(s.Regole))
                 foreach (string nome in CategoriePresenti(gruppi))
-                    blocchi.Add(BloccoRuolo(colleghi, nome, gruppi[nome].Count));
+                    blocchi.Add(BloccoRuolo(colleghi, nome, gruppi[nome].Count,
+                                            ColoriEtichette.DelRuolo(coloreColleghi, nome, s.ColoriRuoli)));
 
             sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
             sb.AppendLine("  ]");
@@ -386,18 +396,45 @@ namespace Campanella
             return fuori;
         }
 
-        static string BloccoRuolo(string baseEtichetta, string categoria, int quanti)
+        static string BloccoRuolo(string baseEtichetta, string categoria, int quanti, string colore)
         {
             StringBuilder b = new StringBuilder();
             b.AppendLine("    {");
             b.AppendLine("      attiva:    true,");
             b.AppendLine("      etichetta: \"" + AnalisiOrario.Js(baseEtichetta + "/" + categoria) + "\",");
             b.AppendLine("      da:        [\"@GRUPPO:" + AnalisiOrario.Js(categoria) + "@\"],");
+            colore = ColoriEtichette.Pulito(colore);
+            if (colore != "") b.AppendLine("      colore:    " + ColoreJs(colore) + ",");
             b.AppendLine("      nota:      \"" + AnalisiOrario.Js(categoria + ": " + quanti +
                          (quanti == 1 ? " indirizzo" : " indirizzi") +
                          " dall'elenco del personale.") + "\"");
             b.Append("    }");
             return b.ToString();
+        }
+
+        /// <summary>Un colore valido come lo legge lo script: { sfondo: "#cc3a21", testo: "#ffffff" }.</summary>
+        static string ColoreJs(string colore)
+        {
+            return "{ sfondo: \"" + ColoriEtichette.Sfondo(colore) + "\", testo: \"" +
+                   ColoriEtichette.TestoDi(colore) + "\" }";
+        }
+
+        /// <summary>
+        /// Quante etichette della configurazione hanno un colore: le regole
+        /// accese e le sottoetichette dei ruoli che nasceranno. Per il riepilogo
+        /// del passo 5.
+        /// </summary>
+        public static int EtichetteColorate(Stato s)
+        {
+            int n = 0;
+            foreach (Regola r in s.Regole)
+                if (r.Attiva && ColoriEtichette.Pulito(r.Colore) != "") n++;
+            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo
+                ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            string colleghi = ColoriEtichette.DeiColleghi(s.Regole);
+            foreach (string c in CategoriePresenti(gruppi))
+                if (ColoriEtichette.DelRuolo(colleghi, c, s.ColoriRuoli) != "") n++;
+            return n;
         }
 
         static string ListaJs(List<string> valori)

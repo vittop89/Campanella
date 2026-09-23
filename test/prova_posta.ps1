@@ -11,7 +11,9 @@
     che la configurazione generata sia quella d'esempio che il banco usa da
     solo, e che nomi strani non possano uscire da stringhe e commenti;
     l'impronta della configurazione e le regole che si doppiano con le
-    sottoetichette dei ruoli, e che l'anteprima dello script veda le stesse.
+    sottoetichette dei ruoli, e che l'anteprima dello script veda le stesse;
+    i colori delle etichette (la tavolozza di Gmail, i colori di partenza,
+    le sfumature dei ruoli) e che arrivino giusti nella configurazione.
 
     Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
     Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
@@ -313,6 +315,116 @@ try {
     $iSind = [array]::FindIndex($righeE, [Predicate[string]]{ param($r) $r -match '^  Sindacati ' })
     Verifica "il consiglio sugli indirizzi anche sotto i domini di partenza (Sindacati)" (
         $iSind -ge 0 -and $righeE[$iSind + 1].Trim().StartsWith('nessun messaggio da questi mittenti: controlla gli indirizzi'))
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I COLORI DELLE ETICHETTE'
+    # la tavolozza (ColoriEtichette, in Stato.cs) e quello che il generatore
+    # ne scrive: il colore di ogni regola e quello dei blocchi dei ruoli
+    $tColori = $asm.GetType('Campanella.ColoriEtichette')
+    Verifica "c'e' la tavolozza dei colori (ColoriEtichette)" ($null -ne $tColori)
+    if ($null -ne $tColori) {
+        function Colori($metodo, $argomenti) { return $tColori.GetMethod($metodo, $FS).Invoke($null, $argomenti) }
+        $ammessiCs = @($tColori.GetField('Ammessi', $FS).GetValue($null))
+        $blocco = [regex]::Match((Get-Content -Raw $motore), '(?s)var _COLORI_GMAIL = \[(.*?)\];').Groups[1].Value
+        $ammessiGs = @([regex]::Matches($blocco, "'(#[0-9a-f]{6})'") | ForEach-Object { $_.Groups[1].Value })
+        Verifica "Campanella e lo script accettano gli stessi colori di Gmail ($($ammessiCs.Count))" (
+            $ammessiCs.Count -eq 102 -and (($ammessiCs | Sort-Object) -join ',') -eq (($ammessiGs | Sort-Object) -join ','))
+        Verifica "valido: sfondo e testo dalla tavolozza di Gmail" ([bool](Colori 'Valido' @([string]'#16a766/#000000')))
+        Verifica "non valido: un valore fuori tavolozza, un colore solo, parole, niente" (
+            -not (Colori 'Valido' @([string]'#123456/#ffffff')) -and -not (Colori 'Valido' @([string]'#16a766')) -and
+            -not (Colori 'Valido' @([string]'verde/nero')) -and -not (Colori 'Valido' @([string]'')))
+        Verifica "Pulito sistema maiuscole e spazi, e fa di un colore sbagliato nessun colore" (
+            (Colori 'Pulito' @([string]' #16A766 / #000000 ')) -eq '#16a766/#000000' -and
+            (Colori 'Pulito' @([string]'#123456/#ffffff')) -eq '' -and (Colori 'Pulito' @($null)) -eq '')
+        $tavolozza = @(Colori 'Tavolozza' @())
+        $male = @($tavolozza | Where-Object {
+            $p = ([string]$_).Split('/')
+            -not (Colori 'Valido' @([string]$_)) -or (Colori 'Contrasto' @([string]$p[0], [string]$p[1])) -lt 4.5 })
+        Verifica "la tavolozza del passo 4 ($($tavolozza.Count) colori): tutti ammessi da Gmail, con un testo che si legge" (
+            $tavolozza.Count -ge 60 -and $male.Count -eq 0 -and (@($tavolozza | Sort-Object -Unique)).Count -eq $tavolozza.Count)
+
+        # le regole di partenza: un colore ciascuna, tutti diversi, anche dalle
+        # sfumature che le sottoetichette dei ruoli prendono da Colleghi
+        $partenza = $tStato.GetMethod('RegoleDiDefault', $FS).Invoke($null, @())
+        $categorie = @($tStato.GetField('Categorie', $FS).GetValue($null))
+        $colleghi = [string](@($partenza | Where-Object { $_.Etichetta -eq 'Colleghi' })[0].Colore)
+        $ruoli = @($categorie | ForEach-Object { [string](Colori 'DelRuolo' @($colleghi, [string]$_, $null)) })
+        $fuori = @($partenza | Where-Object { $tavolozza -notcontains [string]$_.Colore } | ForEach-Object { $_.Etichetta })
+        $sfondi = @($partenza | ForEach-Object { ([string]$_.Colore).Split('/')[0] }) + @($ruoli | ForEach-Object { $_.Split('/')[0] })
+        Verifica "ogni regola di partenza ha un colore della tavolozza$(if ($fuori.Count) { ' (non: ' + ($fuori -join ', ') + ')' })" (
+            $partenza.Count -ge 12 -and $fuori.Count -eq 0)
+        Verifica "e nessuno si ripete, sottoetichette dei ruoli comprese ($($sfondi.Count) colori)" (
+            (@($sfondi | Sort-Object -Unique)).Count -eq $sfondi.Count -and $sfondi -notcontains '')
+        Verifica "le sottoetichette: sfumature del blu di Colleghi, dalla piu' chiara, nell'ordine delle categorie" (
+            ($ruoli -join ' ') -eq '#c9daf8/#000000 #a4c2f4/#000000 #6d9eeb/#000000 #3c78d8/#000000 #285bac/#ffffff')
+
+        function ColoriNellaConfigurazione($stato) {
+            $f = Join-Path $temporanea 'Configurazione_colori.gs'
+            Scrivi $f (Genera $stato $true)
+            $mappa = @{}
+            foreach ($r in (LeggiConfigurazione $f).CONFIG.regole) {
+                $mappa[$r.etichetta] = if ($r.colore) { $r.colore.sfondo + '/' + $r.colore.testo } else { '' }
+            }
+            return $mappa
+        }
+        $k = NuovoStato
+        AggiungiPersona $k 'ROSSI MARIO' 'DOCENTE' 'mario.rossi@scuola-esempio.edu.it' $true
+        AggiungiPersona $k 'DE LUCA ANNA' 'ASSISTENTE AMMINISTRATIVO' 'anna.deluca@scuola-esempio.edu.it' $true
+        $testoK = Genera $k $true
+        Verifica "nella configurazione il colore e' { sfondo, testo }" (
+            $testoK.Contains('      colore:    { sfondo: "#cc3a21", testo: "#ffffff" },'))
+        $m = ColoriNellaConfigurazione $k
+        Verifica "ogni regola porta il suo colore" (
+            $m['Dirigenza'] -eq '#cc3a21/#ffffff' -and $m['Colleghi'] -eq '#4a86e8/#000000' -and $m['Newsletter'] -eq '#999999/#000000')
+        Verifica "e le sottoetichette dei ruoli le sfumature di Colleghi" (
+            $m['Colleghi/Docenti'] -eq '#a4c2f4/#000000' -and $m['Colleghi/Amministrativi'] -eq '#6d9eeb/#000000')
+        $regoleK = Leggi $k 'Regole'
+        $colleghiK = @($regoleK | Where-Object { $_.Etichetta -eq 'Colleghi' })[0]
+        $colleghiK.Colore = '#a479e2/#000000'
+        $m = ColoriNellaConfigurazione $k
+        Verifica "cambiando il colore di Colleghi le sottoetichette lo seguono (viola)" (
+            $m['Colleghi'] -eq '#a479e2/#000000' -and $m['Colleghi/Docenti'] -eq '#d0bcf1/#000000' -and
+            $m['Colleghi/Amministrativi'] -eq '#b694e8/#000000')
+        Imposta $k 'ColoriRuoli' (New-Object 'System.Collections.Generic.Dictionary[string,string]')
+        $ruoliK = Leggi $k 'ColoriRuoli'
+        $ruoliK['Docenti'] = '#fb4c2f/#000000'
+        $ruoliK['Amministrativi'] = ''
+        $m = ColoriNellaConfigurazione $k
+        Verifica "un colore scelto a mano per un ruolo vince sulla sfumatura" ($m['Colleghi/Docenti'] -eq '#fb4c2f/#000000')
+        Verifica "e nessun colore scelto a mano: il blocco resta senza colore" ($m['Colleghi/Amministrativi'] -eq '')
+        [void]$ruoliK.Remove('Amministrativi')
+        $colleghiK.Colore = ''
+        $m = ColoriNellaConfigurazione $k
+        Verifica "Colleghi senza colore: sottoetichette senza colore, tranne quella scelta a mano" (
+            $m['Colleghi'] -eq '' -and $m['Colleghi/Amministrativi'] -eq '' -and $m['Colleghi/Docenti'] -eq '#fb4c2f/#000000')
+        $colleghiK.Colore = '#4a86e8/#000000'
+        $regoleK[2].Colore = '#123456/#ffffff'
+        Verifica "un colore fuori tavolozza (scritto a mano) non arriva allo script" ((ColoriNellaConfigurazione $k)['Circolari'] -eq '')
+        $regoleK[2].Colore = $null
+        Verifica "nemmeno un colore mai scelto" ((ColoriNellaConfigurazione $k)['Circolari'] -eq '')
+
+        # i colori sono nella configurazione: cambiarli cambia l'impronta
+        $regoleK[2].Colore = '#fad165/#000000'
+        $prima = [string]$mImpronta.Invoke($null, @($k))
+        $regoleK[2].Colore = '#fcda83/#000000'
+        Verifica "il colore di una regola cambia l'impronta" (([string]$mImpronta.Invoke($null, @($k))) -ne $prima)
+        $regoleK[2].Colore = '#fad165/#000000'
+        Verifica "rimesso com'era, torna quella di prima" (([string]$mImpronta.Invoke($null, @($k))) -eq $prima)
+        $ruoliK['Docenti'] = '#e66550/#000000'
+        Verifica "anche il colore di una sottoetichetta" (([string]$mImpronta.Invoke($null, @($k))) -ne $prima)
+        $ruoliK['Docenti'] = '#fb4c2f/#000000'
+        $ruoliK['Tecnici'] = '#cc3a21/#ffffff'
+        Verifica "ma non quello di un ruolo che nell'elenco non c'e' (nessuna sottoetichetta)" (
+            ([string]$mImpronta.Invoke($null, @($k))) -eq $prima)
+        $colleghiK.Colore = '#16a766/#000000'
+        Verifica "e il colore di Colleghi, che muove anche le sfumature" (([string]$mImpronta.Invoke($null, @($k))) -ne $prima)
+
+        # il riepilogo del passo 5 conta le etichette colorate: regole accese e sottoetichette
+        $colleghiK.Colore = '#4a86e8/#000000'
+        $n = [int]$tGen.GetMethod('EtichetteColorate', $FS).Invoke($null, @($k))
+        $accese = @($regoleK | Where-Object { $_.Attiva -and [string]$_.Colore -ne '' }).Count
+        Verifica "il riepilogo conta regole accese e sottoetichette colorate ($n)" ($n -eq $accese + 2)
+    }
 
     # -----------------------------------------------------------------------
     Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'
