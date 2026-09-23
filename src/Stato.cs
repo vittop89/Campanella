@@ -356,6 +356,15 @@ namespace Campanella
         /// </summary>
         public string DaAvvisare = "";
 
+        /// <summary>
+        /// Vero se l'ultimo salvataggio ha lasciato fuori dal Drive le modifiche di
+        /// questa sessione ai dati personali perche' il file dei dati, dopo l'avvio,
+        /// l'ha cambiato (o ce l'ha messo) un altro computer. Chiudendo andrebbero
+        /// perse: finche' la finestra e' aperta, in Impostazioni Applica puo' ancora
+        /// sostituire quel file con i dati di adesso.
+        /// </summary>
+        public bool ModificheInConflitto = false;
+
         /// <summary>Vero se, con i dati nel Drive, il file dei dati non era li' all'avvio.</summary>
         public bool DatiNonTrovati = false;
 
@@ -449,6 +458,7 @@ namespace Campanella
             // pero' lo tengo in UltimoErrore, e le Impostazioni lo mostrano.
             UltimoErrore = "";
             DaAvvisare = "";
+            ModificheInConflitto = false;
             JavaScriptSerializer ser = new JavaScriptSerializer();
             ser.MaxJsonLength = 60 * 1024 * 1024;
             UTF8Encoding utf8 = new UTF8Encoding(false);
@@ -536,16 +546,26 @@ namespace Campanella
                 if (!nostro && File.Exists(dati))
                 {
                     string perche = (ErroreDati != "") ? ErroreDati : "e' comparso dopo l'avvio e non l'ho letto";
-                    // cambiato altrove, ma qui niente di nuovo: non si perde niente
-                    bool dire = (ErroreDati != "" && !datiCambiatiFuori) || DatiCambiati();
+                    // cambiato (o comparso) dopo l'avvio: e' il file di un altro computer.
+                    // Se qui non c'e' niente di nuovo non si perde niente
+                    bool altrove = datiCambiatiFuori || ErroreDati == "";
+                    bool cambiati = DatiCambiati();
+                    bool dire = (ErroreDati != "" && !datiCambiatiFuori) || cambiati;
+                    ModificheInConflitto = altrove && cambiati;
                     Problema("dati nel Drive non salvati: non sovrascrivo " + dati + ", che " + perche,
                         !dire ? "" :
                         "Il file dei dati nel Drive\n\n" + dati + "\n\n" + perche + ". Per non perdere " +
                         "quello che contiene non l'ho sovrascritto: le modifiche di adesso all'elenco del " +
                         "personale, agli indirizzi e agli orari non sono state salvate.\n\n" +
-                        "Se il Drive stava ancora sincronizzando, riapri Campanella fra qualche minuto. " +
-                        "Altrimenti, in Impostazioni, premi Applica accanto alla cartella dei dati: " +
-                        "potrai scegliere se usare quel file o sostituirlo.");
+                        (altrove
+                            // riaprendo si legge quel file: aspettare non serve
+                            ? "Riaprendo Campanella si carica il file dell'altro computer, senza le " +
+                              "modifiche di adesso. Per tenerle, finche' questa finestra e' aperta: in " +
+                              "Impostazioni premi Applica accanto alla cartella dei dati e scegli di " +
+                              "sostituire quel file. Dopo la chiusura non si puo' piu'."
+                            : "Se il Drive stava ancora sincronizzando, riapri Campanella fra qualche minuto. " +
+                              "Altrimenti, in Impostazioni, premi Applica accanto alla cartella dei dati: " +
+                              "potrai scegliere se usare quel file o sostituirlo."));
                     return false;
                 }
                 // mancava gia' all'avvio e non e' cambiato niente: non creo un file

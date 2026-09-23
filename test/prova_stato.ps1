@@ -79,6 +79,7 @@ static class ProvaStato
                 case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
                 case "cambiato-dopo-l-avvio": CambiatoDopoLAvvio(); break;
                 case "cambiato-e-spostato": CambiatoESpostato(); break;
+                case "conflitto-alla-chiusura": ConflittoAllaChiusura(); break;
                 case "scrittura-a-meta": ScritturaAMeta(); break;
                 case "chiavi-sconosciute": ChiaviSconosciute(); break;
                 case "nome-calendario": NomeCalendario(); break;
@@ -472,6 +473,68 @@ static class ProvaStato
             Leggi(FileDati(e)) == altroPc && r is bool && !(bool)r && Pieno(arg[1] as string));
     }
 
+    // S-1: un altro computer cambia il file dei dati e qui l'elenco e' cambiato.
+    // Il salvataggio della chiusura non lo sovrascrive e lo dice con
+    // ModificheInConflitto (il guscio chiede se chiudere lo stesso); l'avviso non
+    // consiglia di riaprire fra qualche minuto, che caricherebbe il file dell'altro
+    // computer. Applica > sostituisci, finche' la finestra e' aperta, tiene i dati.
+    static void ConflittoAllaChiusura()
+    {
+        string altroPc = ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"),
+                                        Persona("VERDI ANNA", "anna.verdi@scuola.example")));
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato s = Carica();
+        Scrivi(FileDati(c), altroPc);
+        s.Salva();
+        Verifica("cambiato altrove, ma qui niente di nuovo: nessun conflitto",
+            Testo(s, "ModificheInConflitto") == "False");
+
+        s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        s.Salva();
+        string avviso = Testo(s, "DaAvvisare") ?? "";
+        Verifica("con le modifiche di adesso il file dell'altro computer resta", Leggi(FileDati(c)) == altroPc);
+        Verifica("ed e' un conflitto con modifiche: il guscio chiede prima di chiudere",
+            Testo(s, "ModificheInConflitto") == "True");
+        Verifica("l'avviso non dice di riaprire fra qualche minuto",
+            Pieno(avviso) && !avviso.Contains("fra qualche minuto"));
+        Verifica("dice che riaprendo si carica il file dell'altro computer",
+            avviso.Contains("Riaprendo") && avviso.Contains("file dell'altro computer"));
+        Verifica("e che sostituirlo tiene i dati solo finche' la finestra e' aperta",
+            avviso.Contains("sostituire quel file") && avviso.Contains("finche' questa finestra"));
+
+        // l'utente resta, e in Impostazioni sceglie Applica > sostituisci
+        object[] a = { true, c, true, null };
+        object r = Chiama(s, "SpostaDati", a);
+        Verifica("sostituito: nel Drive ci sono i dati di adesso", r is bool && (bool)r &&
+            Nomi(Json(FileDati(c))).Contains("BIANCHI LUCA"));
+        s.Salva();
+        Verifica("e alla chiusura non c'e' piu' niente da chiedere",
+            Testo(s, "ModificheInConflitto") == "False" && Testo(s, "DaAvvisare") == "");
+
+        // un file comparso dopo l'avvio (il Drive non aveva finito) vale lo stesso
+        string n = Cartella("Comparso");
+        ScriviImpostazioni(true, n, null);
+        Stato t = Carica();
+        t.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        Scrivi(FileDati(n), altroPc);
+        t.Salva();
+        Verifica("anche un file comparso dopo l'avvio, con modifiche qui, e' un conflitto",
+            Leggi(FileDati(n)) == altroPc && Testo(t, "ModificheInConflitto") == "True" &&
+            !(Testo(t, "DaAvvisare") ?? "").Contains("fra qualche minuto"));
+
+        // un file che all'avvio non si leggeva: l'ha gia' detto l'avvio, non e' un conflitto
+        string b = Cartella("Rotto");
+        ScriviImpostazioni(true, b, null);
+        Scrivi(FileDati(b), "{\"personale\":[{\"nome\":\"ROSSI MA");
+        Stato u = Carica();
+        u.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        u.Salva();
+        Verifica("un file che all'avvio non si leggeva non e' un conflitto, ma avvisa",
+            Testo(u, "ModificheInConflitto") == "False" && Pieno(Testo(u, "DaAvvisare")));
+    }
+
     // S-1: la scrittura del file dei dati si ferma a meta' (qui un'altra maniglia
     // blocca il primo byte dopo la fine del file: la lettura passa, la scrittura
     // no). Quello che resta sul disco e' di questa sessione: il salvataggio dopo
@@ -816,6 +879,7 @@ $casi = @(
     'torna-locale-illeggibile'
     'cambiato-dopo-l-avvio'
     'cambiato-e-spostato'
+    'conflitto-alla-chiusura'
     'scrittura-a-meta'
     'chiavi-sconosciute'
     'nome-calendario'
