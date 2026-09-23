@@ -22,7 +22,9 @@
  *     letti, e basta;
  *   - del servizio Gmail API (solo Posta) si usano poche chiamate: elencare
  *     etichette e filtri, leggere e cambiare il colore di un'etichetta, creare
- *     un filtro. Cancellare un'etichetta no, in nessuna forma.
+ *     un filtro. Cancellare un'etichetta no, in nessuna forma: il servizio si
+ *     chiama solo per nome scritto con il punto (niente Labels['del' + 'ete']),
+ *     non si mette in una variabile, e patch cambia soltanto il colore.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
@@ -148,6 +150,33 @@ function primoArgomento(a) {
     else if (c === ',' && profondita === 0) return { testo: a.testo.slice(0, j), nudo: a.nudo.slice(0, j) };
   }
   return a;
+}
+
+/**
+ * Le chiavi di un oggetto scritto per esteso ({ a: 1, 'b': { c: 2 } }), con
+ * il loro valore: [{ chiave, valore: { testo, nudo } }]. null se non e' un
+ * oggetto scritto cosi' (una variabile, una chiamata) o se una chiave non si
+ * legge (calcolata, abbreviata, ...altro).
+ */
+function chiaviOggetto(a) {
+  const inizio = a.nudo.search(/\S/), fine = a.nudo.search(/\s*$/);
+  if (inizio < 0 || a.nudo[inizio] !== '{' || a.nudo[fine - 1] !== '}') return null;
+  const dentro = { testo: a.testo.slice(inizio + 1, fine - 1), nudo: a.nudo.slice(inizio + 1, fine - 1) };
+  const fuori = [];
+  let profondita = 0, da = 0;
+  for (let j = 0; j <= dentro.nudo.length; j++) {
+    const c = dentro.nudo[j];
+    if (c === '(' || c === '{' || c === '[') { profondita++; continue; }
+    if (c === ')' || c === '}' || c === ']') { profondita--; continue; }
+    if (j < dentro.nudo.length && (c !== ',' || profondita !== 0)) continue;
+    const pezzo = dentro.testo.slice(da, j), nudoPezzo = dentro.nudo.slice(da, j);
+    da = j + 1;
+    if (!pezzo.trim()) continue;                   // la virgola dopo l'ultima chiave
+    const k = /^\s*(['"]?)([A-Za-z_$][\w$]*)\1\s*:/.exec(pezzo);
+    if (!k) return null;
+    fuori.push({ chiave: k[2], valore: { testo: pezzo.slice(k[0].length), nudo: nudoPezzo.slice(k[0].length) } });
+  }
+  return fuori;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +306,31 @@ function controlla(nomeFile, sorgente) {
       fuori.push('servizio Gmail non ammesso: ' + nome + ' (riga ' + riga(m.index) + ')');
     }
   }
+  // l'elenco qui sopra guarda solo i nomi scritti con il punto: un nome
+  // calcolato (Labels['del' + 'ete'], Labels[op]) o il servizio messo in una
+  // variabile (var L = Gmail.Users.Labels; L[k]()) lo aggirerebbero
+  const calcolato = /\bGmail\b(?:\s*\.\s*[A-Za-z_$][\w$]*)*\s*\[/g;
+  while ((m = calcolato.exec(nudo))) {
+    fuori.push('servizio Gmail chiamato con un nome calcolato: ' + m[0].replace(/\s+/g, '') +
+               ' (riga ' + riga(m.index) + ')');
+  }
+  const valore = /(?:=|:|,|\(|\breturn)\s*(\bGmail\b(?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*[;,)}\]]/g;
+  while ((m = valore.exec(nudo))) {
+    fuori.push('servizio Gmail preso come valore: ' + m[1].replace(/\s+/g, '') +
+               ' (riga ' + riga(m.index) + ')');
+  }
+  // patch di un'etichetta: solo { color: { backgroundColor, textColor } }.
+  // Con altre chiavi potrebbe nasconderla (labelListVisibility) o rinominarla.
+  const patch = /\bGmail\s*\.\s*Users\s*\.\s*Labels\s*\.\s*patch\s*\(/g;
+  while ((m = patch.exec(nudo))) {
+    const corpo = chiaviOggetto(primoArgomento(argomenti(codice, nudo, m.index + m[0].length - 1)));
+    const colore = (corpo && corpo.length === 1 && corpo[0].chiave === 'color') ? chiaviOggetto(corpo[0].valore) : null;
+    const soloColore = !!colore && colore.length > 0 &&
+      colore.every(c => c.chiave === 'backgroundColor' || c.chiave === 'textColor');
+    if (!soloColore) {
+      fuori.push('Gmail.Users.Labels.patch cambia altro oltre al colore (riga ' + riga(m.index) + ')');
+    }
+  }
   return fuori;
 }
 
@@ -341,7 +395,7 @@ function provaDellaProva() {
     'Gmail.Users.Messages.batchDelete');
   // colorare un'etichetta si', cancellarla no: ne' dall'elenco dei servizi
   // Gmail ne' da quello delle cancellazioni
-  const cancellaEtichetta = sostituisci(posta, '_applicaColore_(inGmail[nome].id, colore);',
+  const cancellaEtichetta = sostituisci(posta, '_applicaColore_(inGmail[nome].id, colore, inGmail);',
     'Gmail.Users.Labels.remove(\'me\', inGmail[nome].id);');
   deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con il servizio Gmail viene trovata',
     cancellaEtichetta, 'servizio Gmail non ammesso: Gmail.Users.Labels.remove');
@@ -353,6 +407,33 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'anche chiamata per nome, Gmail.Users.Labels[\'delete\']',
     inserisci(posta, INIZIO, '\n  Gmail.Users.Labels[\'delete\'](\'me\', \'Label_1\');'),
     'cancellazione chiamata per nome fra parentesi quadre');
+  // un nome calcolato non lo legge nessuno: si ferma prima, a "Labels["
+  deveFallire('Organizzazione_Gmail.gs', 'e con il nome calcolato, Gmail.Users.Labels[\'del\' + \'ete\']',
+    inserisci(posta, INIZIO, '\n  Gmail.Users.Labels[\'del\' + \'ete\'](\'me\', \'Label_1\');'),
+    'servizio Gmail chiamato con un nome calcolato');
+  deveFallire('Organizzazione_Gmail.gs', 'o scritto in una variabile, Gmail.Users.Labels[op]',
+    inserisci(posta, INIZIO, '\n  var op = \'d\' + \'elete\'; Gmail.Users.Labels[op](\'me\', \'Label_1\');'),
+    'servizio Gmail chiamato con un nome calcolato');
+  deveFallire('Organizzazione_Gmail.gs', 'e il servizio messo in una variabile (var L = Gmail.Users.Labels)',
+    inserisci(posta, INIZIO, '\n  var L = Gmail.Users.Labels, k = \'remo\' + \'ve\'; L[k](\'me\', \'Label_1\');'),
+    'servizio Gmail preso come valore: Gmail.Users.Labels');
+  deveFallire('Organizzazione_Gmail.gs', 'anche tutto il servizio, passato a una funzione',
+    inserisci(posta, INIZIO, '\n  _pulisci_(Gmail);'), 'servizio Gmail preso come valore: Gmail');
+  // patch si', ma solo per il colore: nascondere o rinominare un'etichetta no
+  const COLORE = '{ color: { backgroundColor: sfondo, textColor: testo } }';
+  deveFallire('Organizzazione_Gmail.gs', 'un patch che nasconde l\'etichetta viene trovato',
+    sostituisci(posta, COLORE, '{ labelListVisibility: \'labelHide\', messageListVisibility: \'hide\' }'),
+    'Gmail.Users.Labels.patch cambia altro oltre al colore');
+  deveFallire('Organizzazione_Gmail.gs', 'e uno che la rinomina',
+    sostituisci(posta, COLORE, '{ name: \'Vecchie\' }'), 'Gmail.Users.Labels.patch cambia altro oltre al colore');
+  deveFallire('Organizzazione_Gmail.gs', 'anche se accanto al colore',
+    sostituisci(posta, COLORE, '{ color: { backgroundColor: sfondo, textColor: testo }, name: \'Vecchie\' }'),
+    'Gmail.Users.Labels.patch cambia altro oltre al colore');
+  deveFallire('Organizzazione_Gmail.gs', 'o dentro il colore',
+    sostituisci(posta, COLORE, '{ color: { backgroundColor: sfondo, textColor: testo, name: \'Vecchie\' } }'),
+    'Gmail.Users.Labels.patch cambia altro oltre al colore');
+  deveFallire('Organizzazione_Gmail.gs', 'e uno con un corpo che non si legge (una variabile)',
+    sostituisci(posta, COLORE, 'corpo'), 'Gmail.Users.Labels.patch cambia altro oltre al colore');
   deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con GmailApp (deleteLabel) viene trovata',
     inserisci(posta, INIZIO, '\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();'),
     'cancellazione non ammessa: deleteLabel');
