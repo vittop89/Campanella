@@ -39,6 +39,20 @@ namespace Campanella
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // Un errore che nessuno ha previsto non deve aprire la finestra di
+            // .NET, con la traccia dello stack e "Continua": basta dire cosa e'
+            // successo, in italiano, e se il programma puo' andare avanti.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += delegate(object o, System.Threading.ThreadExceptionEventArgs e)
+            {
+                MostraImprevisto(e.Exception, false);
+            };
+            AppDomain.CurrentDomain.UnhandledException += delegate(object o, UnhandledExceptionEventArgs e)
+            {
+                MostraImprevisto(e.ExceptionObject as Exception, e.IsTerminating);
+            };
+
             try
             {
                 Stato s = Stato.Carica();
@@ -87,6 +101,36 @@ namespace Campanella
                 MessageBox.Show("Errore imprevisto:\n\n" + ex.Message,
                     "Campanella", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        static bool mostrandoImprevisto = false;
+
+        /// <summary>
+        /// Il messaggio breve di un errore imprevisto. Uno alla volta: un errore
+        /// che si ripete (per esempio mentre si ridisegna una pagina) non deve
+        /// aprire una finestra sopra l'altra.
+        /// </summary>
+        static void MostraImprevisto(Exception ex, bool chiude)
+        {
+            if (mostrandoImprevisto) return;
+            mostrandoImprevisto = true;
+            try
+            {
+                MessageBox.Show(TestoImprevisto(ex, chiude), "Campanella", MessageBoxButtons.OK,
+                    chiude ? MessageBoxIcon.Error : MessageBoxIcon.Warning);
+            }
+            catch (Exception) { /* senza finestre (Windows in chiusura) non c'e' altro modo di dirlo */ }
+            finally { mostrandoImprevisto = false; }
+        }
+
+        static string TestoImprevisto(Exception ex, bool chiude)
+        {
+            string motivo = (ex != null && !string.IsNullOrEmpty(ex.Message)) ? ex.Message : "motivo sconosciuto";
+            return "Qualcosa non e' andato come previsto:\n\n" + motivo + "\n\n" +
+                   (chiude
+                        ? "Campanella deve chiudersi: quello che hai cambiato da quando l'hai " +
+                          "aperta potrebbe non essere salvato."
+                        : "Puoi continuare a lavorare. Se qualcosa non risponde, chiudi e riapri Campanella.");
         }
     }
 

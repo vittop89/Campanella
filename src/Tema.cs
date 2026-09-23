@@ -321,7 +321,7 @@ namespace Campanella
                 SetWindowPos(c.Handle, IntPtr.Zero, 0, 0, 0, 0,
                              SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             }
-            catch { /* Windows senza uxtheme, o senza tema scuro: pazienza */ }
+            catch (Exception) { /* Windows senza uxtheme, o senza tema scuro: pazienza */ }
         }
 
         // ===================================================================
@@ -671,7 +671,7 @@ namespace Campanella
                 using (Pen p = new Pen(Focused && !ReadOnly ? Tema.Accento : Tema.CampoBordo))
                     g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
             }
-            catch { }
+            catch (Exception) { /* casella in chiusura: il bordo torna al prossimo WM_NCPAINT */ }
             finally { ReleaseDC(Handle, hdc); }
         }
 
@@ -691,7 +691,7 @@ namespace Campanella
                     TextRenderer.DrawText(g, segnaposto, Font, r, Tema.Tenue, f);
                 }
             }
-            catch { }
+            catch (Exception) { /* solo il testo d'esempio: meglio non vederlo che far cadere la pagina */ }
         }
     }
 
