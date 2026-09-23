@@ -310,6 +310,32 @@ console.log(JSON.stringify({
     Verifica "i dati di una versione precedente si leggono ($($dopo.Lezioni.Count) lezioni)" ($dopo.Lezioni.Count -eq 2)
     Verifica "  ...con le colonne ricavate dai giorni ($(@($dopo.Giorni) -join ' '))" ((@($dopo.IndiciGiorni) -join ',') -eq '1,3')
     Verifica "  ...e ogni lezione sotto il suo giorno" (((Cella $dopo 'ROSSI' 1 1) -eq '1A') -and ((Cella $dopo 'ROSSI' 2 3) -eq '2B'))
+
+    # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------
+    # i banchi girano di solito su DatiOrari_esempio.gs, scritto a mano: qui
+    # il file lo scrive GeneraDatiGs, cosi' un nome cambiato da una parte
+    # sola non passa inosservato
+    Write-Host "`nDATIORARI.GS DEL GENERATORE VERO NEL BANCO DI ORARI.GS" -ForegroundColor Cyan
+    $o = AnalizzaFile $File
+    $s = NuovoStato
+    $s.OggettoOrari = 'Orario {docente}'
+    $s.OggettoOrariClasse = 'Orario classe {classe}'
+    $s.NotaOrari = 'Orario provvisorio: eventuali variazioni vengono comunicate per circolare.'
+    # il calendario per il primo docente con almeno un'ora di lezione
+    $s.CalDocente = [string]($o.Docenti() | Where-Object { $o.OreDi($_) -gt 0 } | Select-Object -First 1)
+    $s.CalNome = 'Orario di prova'
+    $s.CalInizio = '2026-09-14'
+    $s.CalFine = '2027-06-10'
+    $s.CalPrimaOra = '08:00'
+    $s.CalMinutiOra = 60
+    $s.CalOreInizio = '08:00, 09:00, 10:00, 11:10, 12:10, 13:10'
+    $s.CalColore = 'BLUE'
+    $generato = Join-Path $tmp 'DatiOrari_generato.gs'
+    [System.IO.File]::WriteAllText($generato, (GeneraDati $o $s $true), $utf8)
+    $uscita = & node (Join-Path $qui 'mock_orari.js') $generato
+    $esitoBanco = $LASTEXITCODE
+    $uscita | Where-Object { $_ -match 'FALLITO|PROVE FALLITE|Tutte le prove' } | ForEach-Object { Write-Host "          $_" }
+    Verifica "mock_orari.js passa con i dati scritti dal generatore ($(@($uscita | Where-Object { $_ -match '^\s+OK ' }).Count) controlli)" ($esitoBanco -eq 0)
 }
 finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
