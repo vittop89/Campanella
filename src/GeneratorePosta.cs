@@ -44,25 +44,30 @@ namespace Campanella
             sb.AppendLine("   Dopo ogni modifica salva con Ctrl+S.");
             sb.AppendLine("   ========================================================================= */");
             sb.AppendLine();
-            sb.Append(Corpo(s, prova, Impronta(s)));
+            sb.Append(Corpo(s, prova, Impronta(s), true));
             return sb.ToString();
         }
 
         /// <summary>
         /// L'impronta della configurazione: 8 cifre esadecimali (i primi 4 byte
-        /// dello SHA-1) di tutto CONFIG, tranne l'impronta stessa e
-        /// provaSenzaModifiche. Data e versione di Campanella stanno
-        /// nell'intestazione, e non contano. Cosi' le due copie del passo 6,
-        /// con e senza prova, hanno la stessa impronta, e una regola spenta o
-        /// un indirizzo cambiato la cambiano. PASSO_1_anteprima la stampa, e il
-        /// passo 5 mostra quella di adesso: se non sono uguali, la
-        /// configurazione incollata e' vecchia.
+        /// dello SHA-1) di tutto CONFIG senza i commenti, tranne l'impronta
+        /// stessa e provaSenzaModifiche. Data e versione di Campanella stanno
+        /// nell'intestazione, e non contano; nemmeno nomi e ruoli scritti
+        /// accanto agli indirizzi, che sono commenti e allo script non dicono
+        /// niente. Cosi' le due copie del passo 6, con e senza prova, hanno la
+        /// stessa impronta, e una regola spenta o un indirizzo cambiato la
+        /// cambiano. PASSO_1_anteprima la stampa, e il passo 5 mostra quella di
+        /// adesso: se non sono uguali, la configurazione incollata e' vecchia.
         /// </summary>
         public static string Impronta(Stato s)
         {
-            string testo = Corpo(s, false, null).Replace("\r\n", "\n");
+            // le righe fatte solo di commento vanno via qui; i commenti in fondo
+            // alle righe dei dati o non ci sono (commenti = false) o non cambiano
+            StringBuilder testo = new StringBuilder();
+            foreach (string riga in Corpo(s, false, null, false).Replace("\r\n", "\n").Split('\n'))
+                if (!riga.TrimStart().StartsWith("//")) testo.Append(riga).Append('\n');
             byte[] h;
-            using (SHA1 sha = SHA1.Create()) h = sha.ComputeHash(Encoding.UTF8.GetBytes(testo));
+            using (SHA1 sha = SHA1.Create()) h = sha.ComputeHash(Encoding.UTF8.GetBytes(testo.ToString()));
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < 4; i++) sb.Append(h[i].ToString("X2"));
             return sb.ToString();
@@ -70,9 +75,10 @@ namespace Campanella
 
         /// <summary>
         /// Il testo da "var CONFIG = {" alla fine. Senza impronta (null) manca
-        /// la sua riga: e' il testo su cui l'impronta si calcola.
+        /// la sua riga; senza commenti mancano nome e ruolo accanto agli
+        /// indirizzi del personale: e' il testo su cui l'impronta si calcola.
         /// </summary>
-        static string Corpo(Stato s, bool prova, string impronta)
+        static string Corpo(Stato s, bool prova, string impronta, bool commenti)
         {
             List<string> indirizzi = s.IndirizziPersonale();
             int mesi = MesiDelPeriodo(s.Periodo);
@@ -129,7 +135,7 @@ namespace Campanella
                 {
                     string virgola = (i < indirizzi.Count - 1) ? "," : " ";
                     string riga = "    \"" + AnalisiOrario.Js(indirizzi[i]) + "\"" + virgola;
-                    string commento = nota.ContainsKey(indirizzi[i]) ? nota[indirizzi[i]] : "";
+                    string commento = (commenti && nota.ContainsKey(indirizzi[i])) ? nota[indirizzi[i]] : "";
                     if (commento != "")
                     {
                         while (riga.Length < larghezza + 9) riga += " ";

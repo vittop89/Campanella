@@ -222,6 +222,21 @@ try {
         Imposta $s 'Dirigenza' 'vicepreside@scuola-esempio.edu.it'
         Verifica "anche un indirizzo cambiato" ((Impronta $s) -ne $imp)
         Imposta $s 'Dirigenza' 'preside@scuola-esempio.edu.it'
+        # nome e ruolo accanto a ogni indirizzo sono commenti: non cambiano
+        # quello che fa lo script, quindi nemmeno l'impronta
+        $rossi = (Leggi $s 'Personale')[0]
+        $tPersona.GetField('Nome', $FI).SetValue($rossi, 'ROSSI MARIO LUIGI')
+        Verifica "un nome scritto in un altro modo non la cambia" ((Impronta $s) -eq $imp)
+        $tPersona.GetField('Nome', $FI).SetValue($rossi, 'ROSSI MARIO')
+        $tPersona.GetField('Ruolo', $FI).SetValue($rossi, 'DOCENTE')
+        Verifica "nemmeno un ruolo scritto in un altro modo, ma sempre fra i Docenti" ((Impronta $s) -eq $imp)
+        $tPersona.GetField('Ruolo', $FI).SetValue($rossi, 'ASSISTENTE TECNICO')
+        Verifica "un ruolo di un altro gruppo si' (cambiano i gruppi)" ((Impronta $s) -ne $imp)
+        $tPersona.GetField('Ruolo', $FI).SetValue($rossi, 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO')
+        $tPersona.GetField('Email', $FI).SetValue($rossi, 'mario.rossi2@scuola-esempio.edu.it')
+        Verifica "e l'indirizzo di una persona anche" ((Impronta $s) -ne $imp)
+        $tPersona.GetField('Email', $FI).SetValue($rossi, 'mario.rossi@scuola-esempio.edu.it')
+        Verifica "rimesso tutto com'era, torna quella di prima" ((Impronta $s) -eq $imp)
     }
 
     # -----------------------------------------------------------------------
@@ -292,6 +307,12 @@ try {
         $uscita.Contains("`nConfigurazione: impronta $impE`n"))
     Verifica "e trova lo stesso doppione" (
         $piatta.Contains('- Dirigenza e Colleghi/Dirigenza: stessi mittenti, ogni messaggio prende tutte e due.'))
+    # la casella qui e' vuota: il consiglio sugli indirizzi va anche sotto i
+    # domini di partenza (Sindacati), come dicono CHANGELOG e ISTRUZIONI
+    $righeE = $uscita -split "`n"
+    $iSind = [array]::FindIndex($righeE, [Predicate[string]]{ param($r) $r -match '^  Sindacati ' })
+    Verifica "il consiglio sugli indirizzi anche sotto i domini di partenza (Sindacati)" (
+        $iSind -ge 0 -and $righeE[$iSind + 1].Trim().StartsWith('nessun messaggio da questi mittenti: controlla gli indirizzi'))
 
     # -----------------------------------------------------------------------
     Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'

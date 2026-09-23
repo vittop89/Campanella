@@ -31,6 +31,9 @@ class Thread {
     opzioni = opzioni || {};
     this.id = 'th' + (prossimoId++);
     this.from = from.toLowerCase();
+    // chi ha scritto nella conversazione: il primo mittente e quelli delle
+    // risposte (opzioni.mittenti). "from:" di Gmail li guarda tutti.
+    this.mittenti = [this.from].concat((opzioni.mittenti || []).map(m => String(m).toLowerCase()));
     this.subject = subject;
     this.body = body || '';
     this.labels = new Set();
@@ -107,7 +110,7 @@ function corrispondeToken(t, token) {
     case 'from':
       return valoriOr(valore).some(v => {
         v = v.toLowerCase();
-        return v.startsWith('@') ? t.from.endsWith(v) : t.from === v;
+        return t.mittenti.some(m => (v.startsWith('@') ? m.endsWith(v) : m === v));
       });
     case 'to':
       return valoriOr(valore).some(v => (t.to || '').toLowerCase().includes(v.toLowerCase()));
@@ -980,11 +983,21 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
 function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
 
 // La riga di una regola nella tabella dell'anteprima, divisa nelle colonne
-// (nome, da etichettare, gia' etichettate, in Gmail, archivia), o null.
+// (nome, da etichettare, gia' etichettate, in Gmail, archivia), o null. Un
+// nome troppo lungo per la colonna sta da solo, e i numeri vanno sotto.
 function colonneAnteprima(testo, nome) {
-  const r = testo.split('\n').find(x => x.indexOf('  ' + nome + ' ') === 0 &&
-                                        x.trim().split(/\s{2,}/)[0] === nome);
-  return r ? r.trim().split(/\s{2,}/) : null;
+  const righe = testo.split('\n');
+  const i = righe.findIndex(x => x.indexOf('  ' + nome) === 0 && x.trim().split(/\s{2,}/)[0] === nome);
+  if (i < 0) return null;
+  const c = righe[i].trim().split(/\s{2,}/);
+  return c.length > 1 ? c : [nome].concat((righe[i + 1] || '').trim().split(/\s{2,}/));
+}
+// La riga con i numeri di una regola: la sua, o quella sotto se il nome e' lungo.
+function rigaNumeri(testo, nome) {
+  const righe = testo.split('\n');
+  const i = righe.findIndex(x => x.indexOf('  ' + nome) === 0 && x.trim().split(/\s{2,}/)[0] === nome);
+  if (i < 0) return null;
+  return righe[i].trim() === nome ? righe[i + 1] : righe[i];
 }
 function stesseColonne(testo, nome, attese) {
   const c = colonneAnteprima(testo, nome);
@@ -1157,6 +1170,123 @@ const configDiPrima = contesto.CONFIG;
     contesto._doppioni_(cfgD, [vice, { attiva: true, etichetta: 'Presidenza', da: ['vice@' + S, preside] }])
       .join('') === 'Vicepresidenza e Presidenza: stessi mittenti, ogni messaggio prende tutte e due. ' +
       'Se ne vuoi una sola, spegni una delle due regole nel passo 4 di Campanella.');
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
+
+intestazione('ANTEPRIMA: PIU\' MITTENTI, NOMI LUNGHI, UN GRUPPO DELLA 1.4');
+{
+  const S = 'scuola.example';
+  indirizzoAttivo = 'docente@' + S;
+  function daCapo(cfg) {
+    casella.length = 0;
+    etichette.clear();
+    proprieta.clear();
+    trigger.length = 0;
+    orologio = 0;
+    contesto.CONFIG = cfg;
+  }
+  const persone = [];
+  for (let i = 0; i < 25; i++) persone.push('collega' + i + '@' + S);
+
+  // Una conversazione "rispondi a tutti" fra colleghi ha piu' mittenti. Con
+  // piu' di 20 persone la regola Colleghi fa piu' ricerche, e la stessa
+  // conversazione torna da due: il riordino la etichetta una volta sola, e
+  // l'anteprima deve contarla una volta sola.
+  daCapo({
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: '', provaSenzaModifiche: false,
+    soloUltimiMesi: 0, escludiPostaInviata: true, personale: persone,
+    regole: [{ attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] }]
+  });
+  verifica('(preparazione) con 25 persone la regola Colleghi fa due ricerche',
+    contesto._queryDellaRegola_(contesto.CONFIG, contesto.CONFIG.regole[0]).length === 2);
+  aggiungi(persone[0], 'Consiglio di classe', '', { mittenti: [persone[21]] });
+  aggiungi(persone[1], 'Scambio ora', '');
+  aggiungi(persone[22], 'Gita', '', { mittenti: [persone[3], persone[23]] });
+  const prima = colonneAnteprima(contesto.PASSO_1_anteprima(), 'Colleghi');
+  contesto.PASSO_3_riordinaPostaEsistente();
+  const fatte = casella.filter(t => t.labels.has('Colleghi')).length;
+  verifica('l\'anteprima conta una volta le conversazioni che tornano da due ricerche, come il ' +
+    'riordino (' + (prima && prima[1]) + ' e ' + fatte + ')',
+    fatte === 3 && !!prima && prima[1] === String(fatte));
+
+  // Nomi lunghi: con un gruppo come "Istituto Comprensivo" molti nomi passano
+  // i 30 caratteri. Le colonne restano allineate e le righe corte; un nome
+  // troppo lungo va su una riga sua, con i numeri sotto.
+  const G = 'Istituto Comprensivo/';
+  daCapo({
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: 'Istituto Comprensivo',
+    provaSenzaModifiche: true, soloUltimiMesi: 0, escludiPostaInviata: true,
+    personale: persone.slice(0, 3), gruppi: { Amministrativi: [persone[2]] },
+    regole: [
+      { attiva: true, etichetta: 'Dirigenza', da: ['preside@' + S] },
+      { attiva: true, etichetta: 'Registro elettronico', da: ['@registro.example'], archivia: true },
+      { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] },
+      { attiva: true, etichetta: 'Colleghi/Amministrativi', da: ['@GRUPPO:Amministrativi@'] },
+      { attiva: true, etichetta: 'Comunicazioni sindacali regionali', da: ['@sindacato.example'],
+        archivia: true }
+    ]
+  });
+  for (let i = 0; i < 12; i++) aggiungi('preside@' + S, 'Nota ' + i, '');
+  const voti = [];
+  for (let i = 0; i < 30; i++) voti.push(aggiungi('avvisi@registro.example', 'Voto ' + i, ''));
+  for (let i = 0; i < 7; i++) aggiungi(persone[i % 3], 'Riunione ' + i, '');
+  const assemblee = [];
+  for (let i = 0; i < 530; i++) assemblee.push(aggiungi('info@sindacato.example', 'Assemblea ' + i, ''));
+  // due etichette le ha gia' create lo script, e archiviano: le righe piu' larghe
+  GmailApp.createLabel(G + 'Registro elettronico').addToThreads(voti.slice(0, 10));
+  GmailApp.createLabel(G + 'Comunicazioni sindacali regionali').addToThreads(assemblee.slice(0, 20));
+  _memoriaCon([G + 'Registro elettronico', G + 'Comunicazioni sindacali regionali']);
+  const lunga = contesto.PASSO_1_anteprima();
+  console.log(lunga);
+  const righeL = lunga.split('\n');
+  const lunghe = righeL.filter(r => r.length > 100);
+  verifica('con nomi lunghi nessuna riga supera i 100 caratteri' +
+    (lunghe.length ? ': ' + lunghe[0].length + ' in "' + lunghe[0] + '"' : ''), lunghe.length === 0);
+  const testata = righeL.find(r => r.indexOf('  ETICHETTA') === 0) || '';
+  const fineDa = testata.indexOf('DA ETICHETTARE') + 'DA ETICHETTARE'.length;
+  const fineGia = testata.indexOf('GIA\' ETICHETTATE') + 'GIA\' ETICHETTATE'.length;
+  const nomi = ['Dirigenza', 'Registro elettronico', 'Colleghi', 'Colleghi/Amministrativi',
+                'Comunicazioni sindacali regionali'].map(n => G + n);
+  const storte = nomi.filter(n => {
+    const r = rigaNumeri(lunga, n) || '';
+    return !(/\S/.test(r.charAt(fineDa - 1)) && r.charAt(fineDa) === ' ' &&
+             /\S/.test(r.charAt(fineGia - 1)) && r.charAt(fineGia) === ' ');
+  });
+  verifica('e i numeri finiscono tutti sotto la fine della loro intestazione' +
+    (storte.length ? ' (non: ' + storte.join(', ') + ')' : ''), fineDa > 20 && storte.length === 0);
+  verifica('i nomi che ci stanno restano sulla riga dei numeri',
+    stesseColonne(lunga, G + 'Dirigenza', [G + 'Dirigenza', '12', '-', 'da creare']) &&
+    rigaNumeri(lunga, G + 'Dirigenza').indexOf('  ' + G + 'Dirigenza ') === 0);
+  verifica('quelli troppo lunghi hanno i numeri sotto, con tutte le colonne',
+    stesseColonne(lunga, G + 'Comunicazioni sindacali regionali', [G + 'Comunicazioni sindacali regionali',
+      '500+', '20', 'creata dallo script', '(archivia)']) &&
+    righeL.indexOf('  ' + G + 'Comunicazioni sindacali regionali') > 0);
+
+  // Con il gruppo "Scuola" (quello di partenza fino alla 1.4) le etichette le
+  // ha create lo script di allora, che non se lo segnava: "esisteva gia'"
+  // deve dirlo anche con il gruppo, non solo senza.
+  daCapo({
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: 'Scuola', provaSenzaModifiche: true,
+    soloUltimiMesi: 0, escludiPostaInviata: true, personale: persone.slice(0, 3),
+    regole: [
+      { attiva: true, etichetta: 'Dirigenza', da: ['preside@' + S] },
+      { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] }
+    ]
+  });
+  const dalPreside = [];
+  for (let i = 0; i < 5; i++) dalPreside.push(aggiungi('preside@' + S, 'Circolare ' + i, ''));
+  GmailApp.createLabel('Scuola/Dirigenza').addToThreads(dalPreside);
+  GmailApp.createLabel('Scuola/Colleghi');
+  const vecchio = contesto.PASSO_1_anteprima();
+  const piattaV = vecchio.replace(/\s+/g, ' ');
+  verifica('con il gruppo e senza memoria: "esisteva gia\'"',
+    stesseColonne(vecchio, 'Scuola/Dirigenza', ['Scuola/Dirigenza', '0', '5', 'esisteva gia\'']));
+  verifica('e la nota dice che puo\' averla creata una versione fino alla 1.4.6, e che ' +
+    'ANNULLA_etichettatura la svuota lo stesso',
+    piattaV.indexOf('ESISTEVA GIA\': l\'etichetta c\'era prima dello script (o l\'ha creata una ' +
+      'versione fino alla 1.4.6, che non se lo segnava).') >= 0 &&
+    piattaV.indexOf('sta dentro "Scuola", quindi ANNULLA_etichettatura la svuota comunque') >= 0);
 }
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;

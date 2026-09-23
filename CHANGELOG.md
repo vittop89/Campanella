@@ -9,12 +9,19 @@ again).
 
 - PASSO_1_anteprima shows, for each rule, how many conversations will get
   the label and, when the label is already in Gmail, how many have it now
-  and whether the script created it or it existed before ("esisteva gia'":
-  the script reuses it, ANNULLA_etichettatura leaves it alone,
-  ANNULLA_etichettaturaCompleta empties it). A label you had already filled
-  no longer looks nearly empty next to its sub-labels, and a count that hit
-  Gmail's limit of 500 per search shows as "500+" instead of an exact 500.
-  Columns are aligned and lines stay short in the execution log.
+  and whether the script created it or it existed before ("esisteva gia'",
+  also for labels made by the script up to 1.4.6, which did not note them:
+  the script reuses it; with no label group ANNULLA_etichettatura leaves it
+  alone and ANNULLA_etichettaturaCompleta empties it, while inside a group,
+  "Raggruppa sotto", ANNULLA_etichettatura empties it too, and the preview
+  says so). A label you had already filled no longer looks nearly empty next
+  to its sub-labels, and a count that hit Gmail's limit of 500 per search
+  shows as "500+" instead of an exact 500. A conversation found by more than
+  one of a rule's searches (a reply-all among colleagues, when the staff
+  list is split into searches of 20 addresses) counts once, as step 3
+  labels it once. Columns are aligned and lines stay within 100 characters
+  in the execution log: a label name too long for its column gets a line of
+  its own, with the numbers below.
 - The note saying every count is too high "because the labels do not exist
   yet" is gone. A rule that excludes other labels, such as Studenti, is
   called an overestimate only when an excluded rule still has conversations
@@ -26,12 +33,16 @@ again).
   preview says which rule to switch off in step 4 if you want only one.
   Colleghi with its role sub-labels, and a rule inside the whole staff list,
   are meant that way and are not listed.
-- A rule with addresses typed by hand that finds no message at all says so,
+- A rule whose senders are written out, addresses or domains (the built-in
+  ones included), and that finds no message at all says so under its row,
   and suggests checking the addresses (for the electronic register, the real
   sender of a notification).
 - Configurazione.gs carries a fingerprint of your choices ("impronta", 8
-  characters; test mode and the date do not count, so both copies of the
-  guided installation share it). The preview prints it and Posta step 5
+  characters; test mode, the date and the comments do not count, so both
+  copies of the guided installation share it; a name or a role spelled
+  differently in the staff list leaves it unchanged, a different address or
+  a role that moves to another group changes it). The preview prints it and
+  Posta step 5
   shows the current one: if they differ, the pasted configuration is older
   than the app (a rule you switched off is still on in the script) and must
   be copied again. A configuration without one was made by an earlier
@@ -46,7 +57,9 @@ again).
   tested headless in `prova_posta.ps1`, which also runs a generated
   configuration through the real preview. `mock_apps_script.js` adds an
   invented school with a hand-made label, a capped rule, a wrong register
-  address and the Dirigenza duplicate.
+  address and the Dirigenza duplicate; its fake conversations can have
+  several senders, and it checks long label names and a "Scuola" group left
+  by 1.4.
 
 ## 1.5.0 — 23 September 2026
 

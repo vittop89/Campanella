@@ -195,10 +195,11 @@ POSTA - riordinare la casella
    L'anteprima (PASSO_1_anteprima) dice per ogni regola quante conversazioni
    prenderanno l'etichetta e, se l'etichetta c'e' gia' in Gmail, quante ce
    l'hanno e se l'ha creata lo script o c'era gia'. "500+" vuol dire almeno
-   500: il conteggio si ferma li'. In fondo elenca le regole che mettono due
-   etichette agli stessi messaggi, e segnala quelle con indirizzi scritti a
-   mano che non trovano niente (spesso l'indirizzo del registro elettronico:
-   guarda il mittente vero di una notifica).
+   500: il conteggio si ferma li'. Sotto una regola con i mittenti scritti
+   per esteso (indirizzi o domini, anche quelli di partenza) che non trova
+   niente c'e' un consiglio: controlla gli indirizzi (spesso quello del
+   registro elettronico: guarda il mittente vero di una notifica). In fondo
+   elenca le regole che mettono due etichette agli stessi messaggi.
 
 
 CARTELLE - il nuovo anno scolastico

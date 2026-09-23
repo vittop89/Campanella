@@ -76,6 +76,7 @@ var _THREAD_INDIRIZZI       = 4000;  // tetto di EXTRA_elencaIndirizziScuola
 var _RIGHE_PER_SCRITTA      = 40;    // il registro taglia le scritte lunghe
 var _TETTO_ANTEPRIMA        = 500;   // PASSO_1 conta fino a qui per ricerca (massimo di Gmail)
 var _LARGHEZZA_RIGA         = 96;    // le note dell'anteprima vanno a capo qui
+var _LARGHEZZA_TABELLA      = 100;   // e le righe della sua tabella non vanno oltre
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
@@ -113,23 +114,36 @@ function PASSO_1_anteprima() {
   var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
   var create = _etichetteCreate_();
   var regole = _regoleAttive_(cfg);
-  var conti = [];
+  var conti = [], nomi = [], code = [];
   var totale = 0, totalePieno = false, giaDiPrima = false;
-  righe.push('  ' + _pad_('ETICHETTA', 30) + _aDestra_('DA ETICHETTARE', 15) +
-             _aDestra_('GIA\' ETICHETTATE', 18) + '  IN GMAIL');
+  // prima i conti, poi la tabella: la colonna dei nomi si allarga fin dove
+  // le righe restano corte (_colonnaNomi_)
   for (var i = 0; i < regole.length; i++) {
     var nome = _etichettaCompleta_(cfg, regole[i]);
     var c = _contaAnteprima_(cfg, regole[i], nome);
+    nomi.push(nome);
     conti.push(c);
     totale += c.nuove;
     if (c.pieno) totalePieno = true;
     var sua = create.indexOf(nome) >= 0;
     if (c.etichetta && !sua) giaDiPrima = true;
-    righe.push('  ' + _pad_(nome, 30) +
-               _aDestra_(c.rifiutata ? '?' : _numeroAnteprima_(c.nuove, c.pieno), 15) +
-               _aDestra_(c.etichetta ? _numeroAnteprima_(c.gia, c.giaPiena) : '-', 18) + '  ' +
-               (!c.etichetta ? 'da creare' : sua ? 'creata dallo script' : 'esisteva gia\'') +
-               (regole[i].archivia ? '  (archivia)' : ''));
+    code.push(_aDestra_(c.rifiutata ? '?' : _numeroAnteprima_(c.nuove, c.pieno), 15) +
+              _aDestra_(c.etichetta ? _numeroAnteprima_(c.gia, c.giaPiena) : '-', 18) + '  ' +
+              (!c.etichetta ? 'da creare' : sua ? 'creata dallo script' : 'esisteva gia\'') +
+              (regole[i].archivia ? '  (archivia)' : ''));
+  }
+  var colonna = _colonnaNomi_(nomi, code);
+  righe.push('  ' + _pad_('ETICHETTA', colonna) + _aDestra_('DA ETICHETTARE', 15) +
+             _aDestra_('GIA\' ETICHETTATE', 18) + '  IN GMAIL');
+  for (var r = 0; r < regole.length; r++) {
+    c = conti[r];
+    if (nomi[r].length + 2 > colonna) {
+      // un nome che non ci sta va su una riga sua, e i numeri sotto, in colonna
+      righe.push('  ' + nomi[r]);
+      righe.push('  ' + _pad_('', colonna) + code[r]);
+    } else {
+      righe.push('  ' + _pad_(nomi[r], colonna) + code[r]);
+    }
     if (c.rifiutata) {
       righe = righe.concat(_aCapo_('Gmail non accetta la ricerca di questa regola: controlla la ' +
         'ricerca avanzata (queryLibera). Il riordino la salta.', '      ', '      '));
@@ -148,10 +162,14 @@ function PASSO_1_anteprima() {
 
   if (giaDiPrima) {
     righe.push('');
+    // lo script si segna le etichette che crea solo dalla 1.5.0: quelle fatte
+    // prima (anche sotto "Scuola", il gruppo di partenza fino alla 1.4.0) qui
+    // risultano gia' esistenti, con il gruppo e senza
     righe = righe.concat(_aCapo_(prefisso
-      ? 'ESISTEVA GIA\': l\'etichetta c\'era prima dello script, che la riusa e ci aggiunge i suoi ' +
-        'messaggi. Sta dentro "' + prefisso + '", quindi ANNULLA_etichettatura la toglie da tutti ' +
-        'i messaggi, anche da quelli a cui l\'avevi messa tu.'
+      ? 'ESISTEVA GIA\': l\'etichetta c\'era prima dello script (o l\'ha creata una versione fino ' +
+        'alla 1.4.6, che non se lo segnava). Lo script la riusa e ci aggiunge i suoi messaggi; ' +
+        'sta dentro "' + prefisso + '", quindi ANNULLA_etichettatura la svuota comunque, anche ' +
+        'dai messaggi a cui l\'avessi messa tu.'
       : 'ESISTEVA GIA\': l\'etichetta c\'era prima dello script (o l\'ha creata una versione fino ' +
         'alla 1.4.6, che non se lo segnava). Lo script la riusa e ci aggiunge i suoi messaggi; ' +
         'ANNULLA_etichettatura non la svuota, ANNULLA_etichettaturaCompleta si\' (anche dai ' +
@@ -191,17 +209,26 @@ function PASSO_1_anteprima() {
  * l'etichetta (nuove), se l'etichetta c'e' gia' in Gmail e quante ce l'hanno
  * (gia). Ogni ricerca si ferma a _TETTO_ANTEPRIMA: "pieno" e "giaPiena"
  * dicono che il tetto e' stato toccato, e che il numero vero e' piu' alto.
+ * Con molti mittenti la regola fa piu' ricerche, e una conversazione con
+ * mittenti in due gruppi (un "rispondi a tutti" fra colleghi) torna da
+ * tutte e due: si conta una volta sola, come fa il PASSO_3 quando la etichetta.
  */
 function _contaAnteprima_(cfg, regola, nome) {
   var c = { nuove: 0, pieno: false, rifiutata: false, etichetta: false, gia: 0, giaPiena: false,
             senzaPosta: false };
   var queries = _queryDellaRegola_(cfg, regola);
+  var viste = {};
   for (var q = 0; q < queries.length; q++) {
     var trovate;
-    try { trovate = GmailApp.search(queries[q], 0, _TETTO_ANTEPRIMA).length; }
+    try { trovate = GmailApp.search(queries[q], 0, _TETTO_ANTEPRIMA); }
     catch (e) { c.rifiutata = true; continue; }     // come nel PASSO_3: la regola e' saltata
-    c.nuove += trovate;
-    if (trovate >= _TETTO_ANTEPRIMA) c.pieno = true;
+    if (trovate.length >= _TETTO_ANTEPRIMA) c.pieno = true;
+    for (var t = 0; t < trovate.length; t++) {
+      var id = trovate[t].getId();
+      if (viste[id]) continue;
+      viste[id] = true;
+      c.nuove++;
+    }
   }
   var etichetta = GmailApp.getUserLabelByName(nome);
   if (etichetta) {
@@ -209,8 +236,9 @@ function _contaAnteprima_(cfg, regola, nome) {
     c.gia = etichetta.getThreads(0, _TETTO_ANTEPRIMA).length;
     c.giaPiena = c.gia >= _TETTO_ANTEPRIMA;
   }
-  // indirizzi scritti a mano che non trovano niente, nemmeno fra i messaggi
-  // che hanno gia' l'etichetta: di solito sono sbagliati
+  // mittenti scritti per esteso (indirizzi o domini, anche quelli che
+  // Campanella propone di partenza) che non trovano niente, nemmeno fra i
+  // messaggi che hanno gia' l'etichetta: spesso sono sbagliati
   if (!c.nuove && !c.rifiutata && _indirizziScritti_(regola)) c.senzaPosta = _nessunMittente_(cfg, regola);
   return c;
 }
@@ -218,7 +246,7 @@ function _contaAnteprima_(cfg, regola, nome) {
 /** Un conteggio dell'anteprima: con il "+" quando una ricerca ha toccato il tetto. */
 function _numeroAnteprima_(n, pieno) { return String(n) + (pieno ? '+' : ''); }
 
-/** Vero se fra i mittenti c'e' un indirizzo (o un dominio) scritto a mano, non un segnaposto. */
+/** Vero se fra i mittenti c'e' un indirizzo (o un dominio) scritto per esteso, non un segnaposto. */
 function _indirizziScritti_(regola) {
   var da = regola.da || [];
   for (var i = 0; i < da.length; i++) {
@@ -386,6 +414,21 @@ function _aCapo_(testo, prima, dopo) {
   }
   righe.push(riga);
   return righe;
+}
+
+/**
+ * La larghezza della colonna dei nomi nella tabella dell'anteprima: almeno
+ * 30, o il nome piu' lungo con due spazi dopo, ma solo finche' la riga piu'
+ * larga (i numeri, "creata dallo script", "(archivia)") resta entro
+ * _LARGHEZZA_TABELLA. Un nome che non ci sta va su una riga sua.
+ */
+function _colonnaNomi_(nomi, code) {
+  var nome = 0, coda = 0;
+  for (var i = 0; i < nomi.length; i++) {
+    nome = Math.max(nome, nomi[i].length + 2);
+    coda = Math.max(coda, code[i].length);
+  }
+  return Math.max(30, Math.min(nome, _LARGHEZZA_TABELLA - 2 - coda));
 }
 
 /** Allinea a destra, per le colonne dei numeri. */
