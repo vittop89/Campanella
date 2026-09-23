@@ -9,7 +9,9 @@
     e fa girare Disinstallatore.TogliFile su cartelle finte, anche queste
     temporanee: nessuna installazione vera viene toccata, e non serve
     dist\Campanella.exe. Poi confronta i file delle impostazioni che toglie
-    l'installer C# con quelli che toglie installer\Campanella.iss.
+    l'installer C# con quelli che toglie installer\Campanella.iss, e sul
+    testo di Campanella.iss (ISCC non serve) controlla che l'installazione
+    Inno tolga la voce dell'installer C# rimasta nella stessa cartella.
 
     Prova anche quali cartelle il disinstallatore accetta (anche senza
     Campanella.exe, purche' ci sia lui) e cosa fa con l'installazione Inno
@@ -214,6 +216,42 @@ try {
     Write-Host "  Inno: $($daInno -join ', ')"
     Write-Host "  C#:   $($daCs -join ', ')"
     Verifica "Inno Setup e l'installer C# tolgono le stesse impostazioni" (($daInno -join '|') -eq ($daCs -join '|'))
+
+    Write-Host "`n=== INNO PRENDE IL POSTO DELLA VOCE C# NELLA STESSA CARTELLA ===" -ForegroundColor Cyan
+    # Nessun rilascio pubblica piu' l'installer C#: la correzione del suo
+    # disinstallatore arriva a chi l'ha usato solo se Installa-Campanella.exe
+    # toglie la voce vecchia (quello di prima della 1.5.0 toglieva anche i
+    # file di Inno). ISCC qui non c'e': si controlla il testo di [Code]
+    $chiaveCs = [string]$asm.GetType('Campanella.ProgrammaInstallazione').GetField('ChiaveRegistro', $FS).GetValue($null)
+    $nomeDis = [string]$tDis.GetField('NomeDisinstallatore', $FS).GetValue($null)
+    $lnkDis = @($tDis.GetField('CollegamentiMenu', $FS).GetValue($null)) | Where-Object { $_ -like 'Disinstalla*' }
+    $proc = [regex]::Match($iss, '(?ms)^procedure TogliVoceInstallerCs;.*?^end;').Value
+    Verifica "c'e' la procedura che toglie la voce dell'installer C#" ($proc -ne '')
+    $mChiave = [regex]::Match($proc, "(\w+)\s*:=\s*'" + [regex]::Escape($chiaveCs) + "';")
+    Verifica "usa la chiave dell'installer C# ($chiaveCs)" $mChiave.Success
+    $var = $mChiave.Groups[1].Value
+    $mLegge = [regex]::Match($proc, "RegQueryStringValue\(HKCU,\s*$var,\s*'InstallLocation',\s*(\w+)\)")
+    Verifica "legge InstallLocation da HKCU" $mLegge.Success
+    $mConfronto = [regex]::Match($proc, 'if\s+CompareText\(RemoveBackslashUnlessRoot\(' + $mLegge.Groups[1].Value +
+        '\),\s*RemoveBackslashUnlessRoot\(ExpandConstant\(''\{app\}''\)\)\)\s*<>\s*0\s+then\s+Exit;')
+    Verifica "esce se InstallLocation non e' questa cartella (barra finale e maiuscole a parte)" (
+        $mConfronto.Success -and $mLegge.Index -lt $mConfronto.Index)
+    $mExe = [regex]::Match($proc, "DeleteFile\(ExpandConstant\('\{app\}\\" + [regex]::Escape($nomeDis) + "'\)\);")
+    $mLnk = [regex]::Match($proc, "(\w+)\s*:=\s*ExpandConstant\('\{userprograms\}\\Campanella\\" + [regex]::Escape($lnkDis) + "'\);")
+    $lnk = $mLnk.Groups[1].Value
+    $mLnkVia = [regex]::Match($proc, "if\s+FileExists\($lnk\)\s+and\s+\(CompareText\($lnk,\s*ExpandConstant\(" +
+        "'\{group\}\\\{cm:UninstallProgram,\{#MyAppName\}\}\.lnk'\)\)\s*<>\s*0\)\s+then\s+DeleteFile\($lnk\);")
+    $mVoce = [regex]::Match($proc, "RegDeleteKeyIncludingSubkeys\(HKCU,\s*$var\);")
+    Verifica "toglie $nomeDis da {app}, dopo il confronto" ($mExe.Success -and $mConfronto.Index -lt $mExe.Index)
+    Verifica "toglie $lnkDis dal gruppo del menu Start, dopo il confronto" (
+        $mLnk.Success -and $mLnkVia.Success -and $mConfronto.Index -lt $mLnkVia.Index)
+    Verifica "  ...ma non il collegamento di Inno per disinstallare, che in italiano ha lo stesso nome" (
+        $iss -match '(?m)^Name:\s*"\{group\}\\\{cm:UninstallProgram,\{#MyAppName\}\}";\s*Filename:\s*"\{uninstallexe\}"')
+    Verifica "toglie la chiave, dopo il confronto" ($mVoce.Success -and $mConfronto.Index -lt $mVoce.Index)
+    Verifica "nessun'altra chiave viene cancellata (quella di Inno resta)" (
+        @([regex]::Matches($iss, 'RegDeleteKey')).Count -eq 1)
+    Verifica "si fa a installazione finita, anche in silenzio" (
+        $iss -match 'if\s+CurStep\s*=\s*ssPostInstall\s+then\s+TogliVoceInstallerCs;')
 }
 finally {
     Remove-Item -Recurse -Force -LiteralPath $prova -ErrorAction SilentlyContinue

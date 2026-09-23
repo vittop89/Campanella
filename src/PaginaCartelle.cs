@@ -685,8 +685,10 @@ namespace Campanella
                 "l'anno nuovo\", \"Trova i moduli nel Drive\", \"Controlla com'e' messo adesso\" e le " +
                 "altre voci). Da solo scrive soltanto l'esito della chiusura programmata, il giorno " +
                 "in cui scatta.\r\n\r\n" +
-                "Quello script pero' chiede il permesso su tutti i tuoi moduli, non su uno solo: " +
-                "con pochi moduli conviene questa strada.");
+                "Quello script pero' chiede sempre il permesso su tutti i tuoi moduli. Lo script " +
+                "nel modulo lo riceve da Google solo se non aggiungi il manifest facoltativo " +
+                "(voce 3): con il manifest, il permesso vale solo per quel modulo. Con pochi " +
+                "moduli conviene questa strada, con il manifest.");
             y += 36;
 
             lblModuloRiepilogo = Tema.Testo1("", 0, y, 880, Tema.Grassetto, Ruolo.Normale);

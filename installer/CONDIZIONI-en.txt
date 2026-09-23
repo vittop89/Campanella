@@ -15,9 +15,12 @@ ask it to: to check for updates or to download rizzo-pii.
 For Google Forms it prepares a second script, to be pasted inside the form:
 every year it creates the response sheet, links the form to it and closes the
 form at the end of the year. It is a separate project with its own
-permissions, and you are the one who runs it. It sends no email, shares
-nothing and deletes nothing: it clears last year responses from the form only
-if you ask, and only after checking they are already in an older sheet.
+permissions, and you are the one who runs it. Without the optional manifest
+that Campanella prepares with the code, Google gives it permission on all
+the forms of your account; with the manifest, only on that form. Either way
+it opens only the form it lives in. It sends no email, shares nothing and
+deletes nothing: it clears last year responses from the form only if you
+ask, and only after checking they are already in an older sheet.
 
 With more than one form, instead of the script inside each form you can use
 a control sheet: a Google Sheet with one row per form and a script inside it,

@@ -15,7 +15,10 @@ tu a chiederlo: per cercare aggiornamenti o per scaricare rizzo-pii.
 Per i moduli Google prepara un secondo script, da incollare dentro il modulo:
 ogni anno crea il foglio delle risposte, ci collega il modulo e a fine anno
 lo chiude. È un progetto a parte, con permessi suoi, e anche quello lo fai
-partire tu. Non manda email, non condivide niente, non cancella niente: le
+partire tu. Senza il manifest facoltativo che Campanella prepara insieme al
+codice, Google gli dà il permesso su tutti i moduli del tuo account; con il
+manifest, solo su quel modulo. In tutti e due i casi apre soltanto il modulo
+in cui sta. Non manda email, non condivide niente, non cancella niente: le
 risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo
 dopo aver controllato che stanno già in un foglio vecchio.
 

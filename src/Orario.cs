@@ -38,6 +38,9 @@ namespace Campanella
         public string Titolo = "";
         public string Formato = "";
         public List<string> Avvisi = new List<string>();
+        // ripreso dai dati di una versione precedente, senza le colonne: vale
+        // finche' il file dell'orario non viene riletto (vedi Ripristina)
+        public bool DaRicaricare = false;
 
         /// <summary>La colonna del giorno (0 = lunedi'), oppure -1 se il giorno non c'e'.</summary>
         public int Colonna(int giorno)
@@ -49,7 +52,9 @@ namespace Campanella
         public void SalvaIn(Stato s)
         {
             s.Lezioni = new List<Lezione>(Lezioni);
-            s.GiorniOrari = new List<int>(IndiciGiorni);
+            // colonne ricavate da dati vecchi non si salvano come buone: senza,
+            // l'invito a ricaricare il file resta anche dopo un riavvio
+            s.GiorniOrari = DaRicaricare ? new List<int>() : new List<int>(IndiciGiorni);
             s.OreOrari = OrePerGiorno;
             s.PeriodoOrari = Periodo ?? "";
         }
@@ -57,7 +62,8 @@ namespace Campanella
         /// <summary>
         /// L'orario salvato nello stato, con le colonne di allora. I dati di
         /// una versione precedente non hanno l'elenco delle colonne: le
-        /// ricavo dai giorni delle lezioni.
+        /// ricavo dai giorni delle lezioni, e negli avvisi chiedo di
+        /// ricaricare il file.
         /// </summary>
         public static RisultatoOrario Ripristina(Stato s)
         {
@@ -77,7 +83,23 @@ namespace Campanella
             List<int> colonne = new List<int>();
             foreach (int g in s.GiorniOrari)
                 if (g >= 0 && g < Lezione.Giorni.Length && !colonne.Contains(g)) colonne.Add(g);
-            if (colonne.Count == 0) { visti.Sort(); colonne = visti; }
+            if (colonne.Count == 0)
+            {
+                visti.Sort();
+                colonne = visti;
+                // Nella 1.4.x il giorno di una tabella Docente/Giorno/Ora era
+                // la posizione fra i giorni trovati: senza lunedi' (o con un
+                // giorno saltato) le lezioni cadrebbero un giorno prima. Da
+                // qui non si distingue: si chiede di rileggere il file una volta
+                if (o.Lezioni.Count > 0)
+                {
+                    o.DaRicaricare = true;
+                    o.Avvisi.Add("Questo orario e' stato salvato da una versione precedente di " +
+                                 "Campanella: ricarica una volta il file dell'orario, cosi' ogni " +
+                                 "lezione resta sotto il suo giorno anche se nel file manca qualche " +
+                                 "giorno (per esempio il lunedi').");
+                }
+            }
 
             foreach (int g in colonne)
             {

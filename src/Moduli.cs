@@ -37,7 +37,8 @@ namespace Campanella
     static class ScriptModuli
     {
         public const string Risorsa = "Moduli.gs";
-        public const string ChiusuraDiDefault = "31/08";
+        // scritto in Stato, che l'installer compila da solo e non puo' guardare qui
+        public const string ChiusuraDiDefault = Stato.ModuloChiusuraDiDefault;
         public const string FusoDiDefault = "Europe/Rome";            // quello delle scuole italiane
         public const string CartellaAnnoDiDefault = "A.S. {anno}";    // come la crea lo strumento Cartelle
 
@@ -356,11 +357,13 @@ namespace Campanella
             sb.AppendLine("colpo d'occhio quali sono a posto.");
             sb.AppendLine();
             sb.AppendLine("Con un modulo solo conviene l'altra strada (voce 1 del menu): quello script sta");
-            sb.AppendLine("dentro il modulo e chiede il permesso su quel modulo soltanto. Il pannello");
-            sb.AppendLine("invece lavora su moduli che stanno fuori dal foglio, quindi Google gli chiede");
-            sb.AppendLine("il permesso su TUTTI i moduli del tuo account. Lo script apre solo quelli che");
-            sb.AppendLine("elenchi nella scheda, e il codice e' li' da leggere, ma il permesso e' quello:");
-            sb.AppendLine("con pochi moduli il gioco non vale la candela.");
+            sb.AppendLine("dentro il modulo e, con il manifest facoltativo (voce 3), ha il permesso su");
+            sb.AppendLine("quel modulo soltanto; senza manifest anche a lui Google da' quello su tutti i");
+            sb.AppendLine("tuoi moduli. Il pannello invece lavora su moduli che stanno fuori dal foglio,");
+            sb.AppendLine("quindi Google gli chiede sempre il permesso su TUTTI i moduli del tuo account.");
+            sb.AppendLine("Lo script apre solo quelli che elenchi nella scheda, e il codice e' li' da");
+            sb.AppendLine("leggere, ma il permesso e' quello: con pochi moduli il gioco non vale la");
+            sb.AppendLine("candela.");
             sb.AppendLine();
             sb.AppendLine("PRIMA VOLTA");
             sb.AppendLine("-----------");

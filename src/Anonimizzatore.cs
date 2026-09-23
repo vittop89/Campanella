@@ -40,8 +40,6 @@ namespace Campanella
 
     class EsitoFile
     {
-        public string Origine = "";
-        public string Destinazione = "";
         public bool Fatto = false;
         public bool Saltato = false;
         public int Entita = 0;
@@ -59,6 +57,17 @@ namespace Campanella
         public int TimeoutMs = 300000;         // la CPU su un PDF lungo se la prende comoda
 
         static readonly string[] EstensioniTesto = { ".txt", ".md", ".csv", ".htm", ".html" };
+
+        /// <summary>Il servizio all'indirizzo scelto in Impostazioni (vuoto =
+        /// quello di partenza), senza spazi ne' barra in fondo. Lo usano
+        /// Impostazioni e Privacy.</summary>
+        public static Anonimizzatore Servizio(Stato s)
+        {
+            Anonimizzatore a = new Anonimizzatore();
+            a.Indirizzo = (s.AnonIndirizzo != "" ? s.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
+                          .Trim().TrimEnd('/');
+            return a;
+        }
 
         // ===================================================================
         public SaluteAnonimizzatore Salute()
@@ -201,8 +210,6 @@ namespace Campanella
         public EsitoFile Anonimizza(string origine, string destinazione)
         {
             EsitoFile e = new EsitoFile();
-            e.Origine = origine;
-            e.Destinazione = destinazione;
             string est = Path.GetExtension(origine).ToLowerInvariant();
 
             if (StessoFile(origine, destinazione))

@@ -45,7 +45,10 @@ namespace Campanella
 "Per i moduli Google prepara un secondo script, da incollare dentro il modulo:\r\n" +
 "ogni anno crea il foglio delle risposte, ci collega il modulo e a fine anno\r\n" +
 "lo chiude. E' un progetto a parte, con permessi suoi, e anche quello lo fai\r\n" +
-"partire tu. Non manda email, non condivide niente, non cancella niente: le\r\n" +
+"partire tu. Senza il manifest facoltativo che Campanella prepara insieme al\r\n" +
+"codice, Google gli da' il permesso su tutti i moduli del tuo account; con il\r\n" +
+"manifest, solo su quel modulo. In tutti e due i casi apre soltanto il modulo\r\n" +
+"in cui sta. Non manda email, non condivide niente, non cancella niente: le\r\n" +
 "risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo\r\n" +
 "dopo aver controllato che stanno gia' in un foglio vecchio.\r\n" +
 "\r\n" +

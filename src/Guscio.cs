@@ -191,6 +191,15 @@ namespace Campanella
         public virtual void Entra() { }
         public virtual void Esce() { }
 
+        /// <summary>Il pannello di un passo, con il suo titolo in alto.</summary>
+        protected Panel NuovaPagina(string titolo)
+        {
+            Panel p = new Panel();
+            p.AutoScroll = true;
+            p.Controls.Add(Tema.Testo1(titolo, 0, 6, 0, Tema.Sezione, Ruolo.Sezione));
+            return p;
+        }
+
         // Molte pagine si riempiono dallo Stato solo in Entra: finche' non sono
         // state aperte i loro controlli sono vuoti, ed Esce() li scriverebbe
         // nello Stato al posto dei dati veri. Chiudendo Campanella senza passare

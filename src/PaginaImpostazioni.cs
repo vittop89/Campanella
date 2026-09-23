@@ -491,14 +491,6 @@ namespace Campanella
         // ===================================================================
         //  COMPONENTI E AGGIORNAMENTI
         // ===================================================================
-        Anonimizzatore Servizio()
-        {
-            Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
-                          .Trim().TrimEnd('/');
-            return a;
-        }
-
         /// <summary>Esegue sul thread dell'interfaccia, se la pagina c'e' ancora.</summary>
         void SulThread(MethodInvoker m)
         {
@@ -517,7 +509,7 @@ namespace Campanella
         /// di secondi, e le Impostazioni non devono bloccarsi.</summary>
         void ControllaComponenti()
         {
-            Anonimizzatore a = Servizio();
+            Anonimizzatore a = Anonimizzatore.Servizio(S);
             int giro = ++giroSalute;
             lblComponenti.Text = RigaCampanella() + "Controllo rizzo-pii su " + a.Indirizzo + "...";
             lblComponenti.Tag = Ruolo.Tenue;
@@ -563,7 +555,7 @@ namespace Campanella
             if (lavoro != null && lavoro.IsAlive) return;
             Messaggio("Chiedo a GitHub...", Ruolo.Tenue);
             btnCerca.Enabled = false;
-            Anonimizzatore a = Servizio();
+            Anonimizzatore a = Anonimizzatore.Servizio(S);
 
             // tutta la rete qui dentro, anche la domanda a rizzo-pii
             lavoro = new System.Threading.Thread(delegate ()

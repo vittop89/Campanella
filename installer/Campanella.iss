@@ -106,6 +106,33 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 Type: filesandordirs; Name: "{app}\documenti"
 
 [Code]
+// L'installer C# ("Installa Campanella.exe", con lo spazio) registrava una
+// sua voce "Campanella" fra le app installate, con "Disinstalla
+// Campanella.exe" nella cartella. Quello delle versioni prima della 1.5.0,
+// se sta nella stessa cartella di questa installazione, toglie anche i file
+// messi qui e il gruppo nel menu Start: la voce passa a questa
+// installazione, e disinstallatore, collegamento e chiave vecchi se ne
+// vanno. Una voce C# che punta a un'altra cartella e' un'altra
+// installazione: resta com'e'.
+procedure TogliVoceInstallerCs;
+var
+  Chiave, Cartella, Collegamento: String;
+begin
+  Chiave := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\Campanella';
+  if not RegQueryStringValue(HKCU, Chiave, 'InstallLocation', Cartella) then
+    Exit;
+  if CompareText(RemoveBackslashUnlessRoot(Cartella), RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) <> 0 then
+    Exit;
+  DeleteFile(ExpandConstant('{app}\Disinstalla Campanella.exe'));
+  // in italiano il collegamento per disinstallare di questa installazione ha
+  // lo stesso nome e ha gia' preso il posto di quello vecchio: si toglie
+  // solo se e' un altro file (in inglese si chiama "Uninstall Campanella")
+  Collegamento := ExpandConstant('{userprograms}\Campanella\Disinstalla Campanella.lnk');
+  if FileExists(Collegamento) and (CompareText(Collegamento, ExpandConstant('{group}\{cm:UninstallProgram,{#MyAppName}}.lnk')) <> 0) then
+    DeleteFile(Collegamento);
+  RegDeleteKeyIncludingSubkeys(HKCU, Chiave);
+end;
+
 // Il consenso e' stato dato nel wizard (pagina della licenza): lo registro
 // come fa l'installer C#, cosi' Campanella non lo richiede al primo avvio.
 // Non tocco un campanella.json gia' esistente: contiene le impostazioni.
@@ -116,6 +143,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   Percorso, Contenuto: String;
 begin
+  // la voce vecchia si toglie anche in silenzio
+  if CurStep = ssPostInstall then
+    TogliVoceInstallerCs;
   if (CurStep = ssPostInstall) and not WizardSilent then
   begin
     Percorso := ExpandConstant('{app}\campanella.json');

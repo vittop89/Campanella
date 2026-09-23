@@ -133,6 +133,10 @@ namespace Campanella
             // le colonne e il periodo sono salvati con le lezioni: dopo un
             // riavvio l'orario torna con gli stessi giorni del tabellone
             orario = RisultatoOrario.Ripristina(S);
+            // con i dati di una versione precedente qui c'e' l'invito a
+            // ricaricare il file: lo mostro in "Cosa ho capito", al passo 1
+            if (orario.Avvisi.Count > 0)
+                txtEsito.Text = string.Join("\r\n\r\n", orario.Avvisi.ToArray());
         }
 
         // ===================================================================
@@ -852,14 +856,6 @@ namespace Campanella
             sb.AppendLine("\"A disposizione\". Gli orari delle ore sono quelli scritti qui sopra:");
             sb.AppendLine("se la scuola ha un intervallo, scrivi l'inizio di ogni ora.");
             return sb.ToString();
-        }
-
-        Panel NuovaPagina(string titolo)
-        {
-            Panel p = new Panel();
-            p.AutoScroll = true;
-            p.Controls.Add(Tema.Testo1(titolo, 0, 6, 0, Tema.Sezione, Ruolo.Sezione));
-            return p;
         }
     }
 }

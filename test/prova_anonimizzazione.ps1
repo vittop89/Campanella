@@ -488,6 +488,21 @@ public static class AiutoProvaScarico
         Pompa 3500 $null           # arrivano tutte e due: il lento dopo un secondo e mezzo
         Write-Host "  controllo: $((CampoP 'lblSalute2').Text -replace "`n", ' ')"
         Verifica 'un controllo vecchio non copre quello nuovo' ((CampoP 'lblSalute2').Text -like 'rizzo-pii pronto*')
+
+        # Impostazioni e Privacy prendono il servizio dallo stesso punto: prima
+        # erano due copie dello stesso codice, una per pagina (A-39)
+        $mServizio = $t.GetMethod('Servizio', $FS)
+        Verifica "c'e' un solo punto che prepara il servizio dallo stato" ($mServizio -ne $null)
+        if ($mServizio -ne $null) {
+            $stato.AnonIndirizzo = ''
+            $sv = $mServizio.Invoke($null, [object[]]@($stato))
+            Verifica '  ...indirizzo vuoto: quello di partenza' (
+                $sv.Indirizzo -eq $tStato.GetField('AnonIndirizzoDiDefault', $FS).GetValue($null))
+            $stato.AnonIndirizzo = "  http://127.0.0.1:$Porta/ "
+            $sv = $mServizio.Invoke($null, [object[]]@($stato))
+            Verifica '  ...senza spazi ne'' barra in fondo' ($sv.Indirizzo -eq "http://127.0.0.1:$Porta")
+            $stato.AnonIndirizzo = "http://127.0.0.1:$Porta"
+        }
     }
     finally {
         $privacy.Dispose()
