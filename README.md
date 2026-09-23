@@ -19,8 +19,9 @@ for the open-source audience.
 The application **never touches mail, calendar or Drive on its own**: it
 prepares the code of a Google Apps Script that the user pastes into their own
 account and runs. The scripts write to nobody else. The executable connects to
-the network only when the user presses a button, to look up and download
-rizzo-pii from GitHub.
+the network only when the user presses a button: to ask GitHub for the latest
+release of Campanella and of rizzo-pii, and to download rizzo-pii. rizzo-pii
+itself is reached only at an address on the same computer.
 
 ## Download
 
@@ -30,6 +31,12 @@ rizzo-pii from GitHub.
 | [Application only](https://github.com/vittop89/Campanella/releases/latest/download/Campanella.exe) | portable, keeps its settings next to itself |
 | [Instructions](https://github.com/vittop89/Campanella/releases/latest/download/ISTRUZIONI-Campanella.txt) · [Privacy notes](https://github.com/vittop89/Campanella/releases/latest/download/PRIVACY.md) | Italian |
 | [All releases](https://github.com/vittop89/Campanella/releases) | changelog and older versions |
+
+The installer is `Installa-Campanella.exe`, built with Inno Setup by the
+release workflow: it is the only installer published. Settings > "Cerca
+aggiornamenti" says when a newer release is out; to update, run the new
+installer over the old installation. From 1.5.0 on, the release notes say
+which Google scripts to paste again.
 
 Releases are not code-signed yet, so Windows SmartScreen warns: choose **More
 info**, then **Run anyway**. See "Code signing policy" below.
@@ -50,12 +57,42 @@ info**, then **Run anyway**. See "Code signing policy" below.
 ## Building
 
 ```powershell
-.\build.ps1                  # -> dist\Campanella.exe + dist\Installa Campanella.exe
+.\build.ps1                  # -> dist\Campanella.exe + dist\Installa Campanella.exe (C# installer)
 .\build.ps1 -SenzaInstaller  # the application only, faster for tests
+.\build.ps1 -Firma           # also signs both with a local self-signed certificate
+.\build.ps1 -Pubblica -Produzione 'D:\Campanella'   # builds, signs, copies into that folder
 ```
 
 Only Windows is needed: the compiler is the `csc.exe` of the .NET Framework
-4.x already present in the system. No Visual Studio, no NuGet.
+4.x already present in the system. No Visual Studio, no NuGet. The tests also
+need Node and Python (see "Testing"). The published installer needs Inno
+Setup 6:
+
+```powershell
+.\build.ps1 -SenzaInstaller
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\Campanella.iss   # -> dist\Installa-Campanella.exe
+```
+
+**Two installers, one published.** `Installa-Campanella.exe` (Inno Setup,
+`installer/Campanella.iss`) is the official one: the release workflow builds
+it and attaches it to every release, and the test workflow compiles it on
+every push. `dist\Installa Campanella.exe` (C#, `src-installer/`) is built
+by `build.ps1` and copied by `-Pubblica`, for local distribution only; it is
+never published. When its uninstaller runs in a folder that also holds the
+Inno installation, it removes only its own uninstaller and its entry in
+"Installed apps".
+
+**`-Firma` and `-Pubblica` install a certificate.** They sign through
+`strumenti\firma.ps1`, which the first time creates a code-signing
+certificate in your Windows user's personal store (with a non-exportable
+key) and adds its public part to that user's *Trusted Root Certification
+Authorities* and *Trusted Publishers*; Windows asks for confirmation before
+the root store. From then on that user trusts anything signed with it. It
+stays until you remove it with `certmgr.msc`, and other computers do not
+know it. The executable is signed before it goes into the C# installer, and
+a failed signature stops the build. `-Pubblica` has no default folder:
+`-Produzione` is required, as a full path, and is checked before anything is
+built or signed.
 
 Constraints to remember when touching the code:
 
@@ -73,25 +110,34 @@ Constraints to remember when touching the code:
 
 ```
 src/
-  Guscio.cs           Main, window, sidebar, home page, settings
+  Guscio.cs           Main, window, sidebar, Pagina base class, clipboard, documents
+  PaginaHome.cs       the home page: the state of every tool
+  PaginaImpostazioni.cs  settings: theme, data in Drive, rizzo-pii, updates, terms
   Tema.cs             light/dark palette, control factories, CasellaTema
   Stato.cs            data model, persistence (settings + data in Drive)
+  Dialoghi.cs         small dialogs: paste a list, show a text, edit a rule
   PaginaPosta.cs      the Posta tool (7 steps)
+  GeneratorePosta.cs  Configurazione.gs of the Posta tool, without windows
   PaginaCartelle.cs   the Cartelle tool (2 steps: folders, Google Forms)
+  GeneratoreAnno.cs   the year folders on disk, without windows
   PaginaOrari.cs      the Orari tool (4 steps)
   PaginaPrivacy.cs    the Privacy tool + documents for principal and DPO
   Moduli.cs           the Google Forms scripts: configuration, instructions, manifest
-  Anonimizzatore.cs   HTTP client of rizzo-pii
+  Anonimizzatore.cs   HTTP client of rizzo-pii (local addresses only)
   Consenso.cs         terms of use + acceptance window
-  Aggiornamenti.cs    GitHub releases, download with progress
+  Aggiornamenti.cs    GitHub releases of Campanella and rizzo-pii, checked download
   Xlsx.cs             minimal .xlsx reader (ZIP + XML) and CSV
+  Testo.cs            text files read as UTF-8 or ANSI (Windows-1252)
   Orario.cs           timetable recognition, calendar blocks
   risorse/            the .gs and .js files embedded in the executable
-src-installer/        the C# installer, per-user, no UAC
-installer/            Inno Setup script (it/en), terms, SignPath artifact config
+src-installer/        the C# installer, per-user, no UAC (local builds only)
+installer/            Inno Setup script (the published installer, it/en), terms, SignPath artifact config
+strumenti/firma.ps1   local signing with a self-signed certificate (-Firma, -Pubblica)
 docs/                 GDPR notes, technical note and email for principal and DPO (Italian)
 test/                 mock benches for the scripts, PowerShell tests for the app
-.github/workflows/release.yml   build, tests, SignPath signature, installer, release
+.github/workflows/prove.yml     build and every CI test, on every push and pull request
+.github/workflows/release.yml   checks, build, tests, SignPath signature, Inno installer, release
+.github/dependabot.yml          monthly updates of the pinned actions
 ```
 
 Every page is a `Pagina : Panel`; the shell shows it and lists its steps in the
@@ -100,23 +146,63 @@ and colouring each control by the **role** written in its `Tag`.
 
 ## Testing
 
+Before the tests run `.\build.ps1`: the PowerShell tests load
+`dist\Campanella.exe`, and `test\tutte.ps1` refuses an executable older than
+the sources. They need **Node 18** or later (CI uses 24) and **Python 3.7**
+or later, on the PATH as `python` (CI uses 3.13), for the fake rizzo-pii of
+`prova_anonimizzazione.ps1`.
+
+```powershell
+.\test\tutte.ps1                                 # every CI test below, with a summary at the end
+.\test\tutte.ps1 -Solo mock_orari,prova_stato    # only the ones named
+.\test\tutte.ps1 -ConGrafica                     # plus the two tests that open windows
+```
+
+`tutte.ps1` runs these, in this order; `.github/workflows/prove.yml` runs it
+on every push and pull request, and the release workflow before publishing:
+
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
-node test\mock_orari.js           # timetable emails and calendar
+node test\mock_orari.js           # timetable emails, resume, class timetables, calendar
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
+node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical
+node test\mutazioni_pannello.js   # mutations of the control-sheet engine: the bench must catch each one
+node test\nomi_funzioni.js        # every script function named by the app and the documents exists
+node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions
+.\test\prova_orario.ps1           # reads a timetable, checks the grid and the generated DatiOrari.gs
+.\test\prova_xlsx.ps1             # the .xlsx reader and CSV files in ANSI, UTF-8 and UTF-16
 .\test\prova_moduli.ps1           # generates both forms scripts and runs them in the benches
-.\test\prova_orario.ps1           # reads a timetable and checks the grid
-.\test\prova_installer.ps1        # installs into a temporary folder, then removes
-.\test\prova_anonimizzazione.ps1  # rizzo-pii client (fake service)
-.\test\prova_solalettura.ps1      # folder without permissions: it must warn, not stay silent
+.\test\prova_personale.ps1        # staff list: paste formats, roles grouped into five categories
+.\test\prova_stato.ps1            # loading and saving settings and Drive data, in temporary folders
+.\test\prova_guscio.ps1           # the main window, never shown: error message, status code, closing
+.\test\prova_disinstallazione.ps1 # what the C# and Inno uninstallers remove, on fake folders
+.\test\prova_posta.ps1            # the real Configurazione.gs generator through the Gmail bench
+.\test\prova_cartelle.ps1         # the year folders on a fake Drive
+.\test\prova_versioni.ps1         # consent version and text, product and script versions, document names
+.\test\prova_anonimizzazione.ps1  # rizzo-pii client against a fake service
 ```
+
+Not in the CI:
+
+```powershell
+.\test\prova_disposizione.ps1     # builds the real window: overlaps, text that does not fit (-ConGrafica)
+.\test\prova_solalettura.ps1      # folder without write permission: it must warn, not stay silent (-ConGrafica)
+.\test\prova_installer.ps1        # really installs and uninstalls the C# installer
+```
+
+`prova_installer.ps1` refuses to run where Campanella is installed, because
+it would touch the real installation and Start menu: run it with a Windows
+user that never had Campanella. `prova_versioni.ps1` only reads: run it
+before tagging a release. `genera_dati_prova.ps1` is not a test: it writes a
+`DatiOrari_prova.gs` into `%TEMP%` from a timetable.
 
 The benches simulate `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
 `SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` and
 `ScriptApp`, including a fake clock and a simplified interpreter of Gmail's
 search syntax. They run on invented data; files generated from real data stay
-out of the repository.
+out of the repository. Every test that creates a `Stato` points it at
+temporary folders, never at the real settings or Drive.
 
 ## Google Forms
 
@@ -130,22 +216,38 @@ which stays as it is. From the second year it is one click inside the form.
 For several forms the same step writes a **control sheet** instead: one Google
 Sheet with a row per form, from which the whole year is prepared at once. It is
 more convenient and more expensive: a sheet-bound script opens forms that live
-outside it, so Google asks for access to *all* the account's forms, not one.
+outside it, so Google asks for access to *all* the account's forms, not one,
+besides Sheets and Drive, and its scheduled closings run on their own.
 
 Nothing is deleted. Last year's answers stay in the form unless you ask for
-them to be cleared, and even then only after checking that an earlier sheet
-already holds them all.
+them to be cleared, and even then only after every single answer has been
+found, by its arrival time, in an earlier sheet.
 
 ## Safety for users
 
-- No tool deletes mail, files, folders, sheets or events. At most it archives,
-  and archiving in Gmail is reversible.
+- No tool deletes mail, files, folders or response sheets. At most it
+  archives, and archiving in Gmail is reversible. The tools remove only what
+  they put there, and only when asked: labels from messages, and the
+  timetable events they created. The control sheet also removes the empty
+  "Foglio1" tab of a new spreadsheet and rewrites its own "Istruzioni" tab.
+  The one real deletion is optional and off by default: clearing last year's
+  answers from a form, described above, which cannot be undone.
 - The first run of the mail sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
-- Every tool has its `ANNULLA_…` (undo) function.
-- The mail and timetable script asks only for Gmail and, for the calendar step,
-  Calendar. The forms scripts are separate projects with their own permissions;
-  a variant without Drive can be generated for schools that block it.
+- Every script has its undo functions (`ANNULLA_…`, `MODULO_ANNULLA`,
+  `PANNELLO_ANNULLA`). With no label group, `ANNULLA_etichettatura` removes
+  only the labels the script created, and says "NIENTE DA TOGLIERE" when
+  there are none; `ANNULLA_etichettaturaCompleta` empties the labels of every
+  active rule, same-named labels applied by hand included. Two things are
+  undone by hand: native Gmail filters, if created, and messages a rule
+  marked as read.
+- The mail and timetable scripts share one Apps Script project, and Google
+  asks for its permissions all at once: Gmail, sending to yourself
+  (`MailApp`), your own address (`Session`), triggers and, as soon as the
+  timetable file is in the project, Calendar, even if only the emails are
+  used. The forms scripts are separate projects with their own permissions;
+  for the per-form script a variant without Drive can be generated for
+  schools that block it.
 
 ## Code signing policy
 
@@ -168,15 +270,17 @@ requests.
 Privacy policy: this program will not transfer any information to other
 networked systems unless specifically requested by the user or the person
 installing or operating it. The only connections it makes are to GitHub, to
-look up and download rizzo-pii, and only when the user presses the button. The
-scripts it generates run inside the user's own Google account; rizzo-pii runs
-locally. Details, in Italian, in [PRIVACY.md](PRIVACY.md).
+check for new releases of Campanella and rizzo-pii and to download
+rizzo-pii, and only when the user presses the button. The scripts it
+generates run inside the user's own Google account; rizzo-pii runs locally,
+and Campanella talks to it only at an address on the same computer. Details,
+in Italian, in [PRIVACY.md](PRIVACY.md).
 
 ## Reporting and contributing
 
 Bugs and proposals: GitHub *issues*, in Italian or English. For a security
 problem do not open a public issue: see [SECURITY.md](SECURITY.md). Before
-opening a pull request, run the test benches. Versions are listed in
+opening a pull request, run `.\test\tutte.ps1`. Versions are listed in
 [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence and trademarks
