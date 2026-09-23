@@ -668,9 +668,14 @@ function _panEsegui_(davvero, inizioEsecuzione) {
   }
   if (daFare.length || giaPronte.length) {
     righe.push('--- TEMPO FINITO: Google ferma gli script dopo 6 minuti, e mi sono fermato prima.');
-    if (daFare.length) {
-      righe.push('    ' + (davvero ? 'Da preparare ancora: ' : 'Non guardate: ') + daFare.join(', ') + '.');
-      righe.push('    Riesegui "' + (davvero ? 'Prepara l\'anno nuovo' : 'Anteprima') + '": riparte da queste.');
+    if (daFare.length && davvero) {
+      righe.push('    Da preparare ancora: ' + daFare.join(', ') + '.');
+      righe.push('    Riesegui "Prepara l\'anno nuovo": riparte da queste.');
+    } else if (daFare.length) {
+      // l'anteprima non segna niente: rieseguita guarda di nuovo le stesse righe, nello stesso ordine
+      righe.push('    Non guardate: ' + daFare.join(', ') + '.');
+      righe.push('    L\'anteprima guarda ogni volta le stesse righe, e a queste non arriva. "Prepara');
+      righe.push('    l\'anno nuovo" le prepara lo stesso: se non finisce, riparte da quelle mancanti.');
     }
     if (giaPronte.length) {
       righe.push('    Gia\' pronte per quest\'anno, non ricontrollate adesso: ' + giaPronte.join(', ') + '.');

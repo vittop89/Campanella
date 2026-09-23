@@ -1711,6 +1711,18 @@ titolo('30 RIGHE LENTE: MI FERMO PRIMA DEI 6 MINUTI DI GOOGLE');
     Math.round((lenta.m.adesso - inizio) / 1000) + ' s)', lenta.m.adesso - inizio <= 280 * 1000);
   verifica('e le righe fatte sono salvate, con la loro chiusura', t.indexOf('NON HO FINITO') >= 0 && pronte > 0 &&
     lenta.m.trigger.length === 1);
+
+  // l'anteprima non segna niente: rieseguita guarda di nuovo le stesse righe
+  const vista = trentaRighe();
+  const a1 = vista.c.PANNELLO_3_anteprima();
+  const a2 = vista.c.PANNELLO_3_anteprima();
+  const nonGuardate = x => (/Non guardate: ([^\n]*)/.exec(x) || [])[1];
+  verifica('(l\'anteprima a tempo finito elenca le righe non guardate, e rieseguita sono le stesse)',
+    !!nonGuardate(a1) && nonGuardate(a1) === nonGuardate(a2) && vista.m.fogliCreati === 0);
+  verifica('e quindi non promette che rieseguendola riparte da quelle',
+    a1.indexOf('riparte da queste') < 0 && a1.indexOf('Riesegui "Anteprima"') < 0);
+  verifica('dice invece che "Prepara l\'anno nuovo" le prepara lo stesso',
+    a1.indexOf('le prepara lo stesso') >= 0);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------
