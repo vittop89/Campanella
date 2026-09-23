@@ -163,8 +163,12 @@ Cordiali saluti, Anna Verdi
     $lista = [System.Collections.Generic.List[string]]::new()
     $lista.Add($txt); $lista.Add((Join-Path $temp 'sotto\altro.md'))
     $vietata = $t.GetMethod('CartellaDiOrigine')
+    # Il percorso torna in forma lunga (GetFullPath): su un PC dove %TEMP% ha
+    # un nome corto 8.3, come sui runner di GitHub, non e' uguale al testo di
+    # $temp, quindi si confronta come fa il programma.
+    $trovata = $vietata.Invoke($null, [object[]]@($lista, "$temp\"))
     Verifica 'riconosce la cartella di un originale' `
-        ($vietata.Invoke($null, [object[]]@($lista, "$temp\")) -eq $temp)
+        (($trovata -ne $null) -and $t.GetMethod('StessoFile').Invoke($null, [object[]]@([string]$trovata, [string]$temp)))
     Verifica 'e anche quella di un file in una sottocartella' `
         ($vietata.Invoke($null, [object[]]@($lista, [string](Join-Path $temp 'SOTTO'))) -ne $null)
     Verifica 'una cartella diversa va bene' `
