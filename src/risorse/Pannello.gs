@@ -1191,6 +1191,8 @@ function _panGiornoChiusura(chiusura, anno) {
   var m = /^(\d{1,2})\/(\d{1,2})$/.exec(c);
   if (!m) throw new Error('la chiusura "' + c + '" non e\' nella forma giorno/mese, per esempio 31/08');
   var giorno = parseInt(m[1], 10), mese = parseInt(m[2], 10);
+  // la stessa regola di Campanella e dello script nel modulo: una chiusura che salta tre anni su quattro no
+  if (mese === 2 && giorno === 29) throw new Error('il giorno di chiusura "' + c + '" non c\'e\' tutti gli anni: scegli 28/02 o 01/03');
   var inizio = parseInt(anno.substring(0, 4), 10);
   var annoData = (mese >= 9) ? inizio : inizio + 1;
   var prova = new Date(Date.UTC(annoData, mese - 1, giorno));

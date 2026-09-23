@@ -715,6 +715,10 @@ titolo('ANNO E GIORNO DI CHIUSURA');
   verifica('31/02 non esiste: si ferma', e2.indexOf('non esiste') >= 0);
   const e3 = lancia(() => carica(nuovoMondo(), { config: { chiusura: 'fine agosto' } }).MODULO_1_anteprima());
   verifica('chiusura scritta a parole: si ferma e dice come scriverla', e3.indexOf('giorno/mese') >= 0);
+  const bisestile = nuovoMondo({ adesso: '2027-09-10T10:00:00+02:00' });   // 2027-28: febbraio 2028 ha il 29
+  const e4 = lancia(() => carica(bisestile, { config: { chiusura: '29/02' } }).MODULO_2_prepara());
+  verifica('29/02 anche in un anno bisestile: si ferma prima di toccare niente, come Campanella',
+    e4.indexOf('non c\'e\' tutti gli anni') >= 0 && bisestile.fogliCreati === 0 && bisestile.trigger.length === 0);
 
   const senza = nuovoMondo();
   const t = carica(senza, { config: { chiusura: '' } }).MODULO_2_prepara();

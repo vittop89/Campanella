@@ -1604,6 +1604,13 @@ titolo('CASI STORTI');
   // meglio una riga ferma e da correggere che una fatta a meta'
   verifica('chiusura scritta a parole: problema solo su quella riga, prima di toccare niente',
     tb.indexOf('giorno/mese') >= 0 && brutto.m.fogliCreati === 1 && scheda(brutto.m)[1][7] === 'pronto per 2026-27');
+
+  const bis = mondoPronto({ adesso: '2027-09-10T10:00:00+02:00' });       // 2027-28: febbraio 2028 ha il 29
+  bis.m.pannello.getSheetByName('Moduli').getRange(2, 5).setValue('29/02');
+  const tbis = bis.c.PANNELLO_4_preparaAnno();
+  verifica('29/02 anche in un anno bisestile: problema su quella riga, come in Campanella',
+    tbis.indexOf('non c\'e\' tutti gli anni') >= 0 && String(scheda(bis.m)[0][7]).indexOf('problema') === 0 &&
+    bis.m.fogliCreati === 1);
 }
 
 // ---- 10. il menu ------------------------------------------------------------------------------

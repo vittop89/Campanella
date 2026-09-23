@@ -134,9 +134,12 @@ namespace Campanella
             Match m = Regex.Match(c, @"^(\d{1,2})/(\d{1,2})$");
             if (!m.Success) return "Il giorno di chiusura si scrive giorno/mese, per esempio 31/08.";
             int giorno = int.Parse(m.Groups[1].Value), mese = int.Parse(m.Groups[2].Value);
-            // il 29 febbraio non c'e' tutti gli anni: meglio non programmarci una chiusura
+            // il 29 febbraio non c'e' tutti gli anni: meglio non programmarci una chiusura.
+            // Moduli.gs e Pannello.gs hanno la stessa regola
+            if (mese == 2 && giorno == 29)
+                return "Il giorno di chiusura " + c + " non c'e' tutti gli anni: scegli 28/02 o 01/03.";
             if (mese < 1 || mese > 12 || giorno < 1 || giorno > DateTime.DaysInMonth(2027, mese))
-                return "Il giorno di chiusura " + c + " non esiste (o non c'e' tutti gli anni).";
+                return "Il giorno di chiusura " + c + " non esiste.";
             return "";
         }
 
