@@ -762,10 +762,14 @@ function _etichettaCompleta_(cfg, regola) {
  */
 function _queryDellaRegola_(cfg, regola, periodoExtra) {
   var comune = [];
+  // destinatari previsti ma nessuno dopo l'espansione: come per i mittenti
+  // (qui sotto), niente ricerca. "to:()" non vuol dire niente.
+  var destinatari = _espandi_(cfg, regola.a || []);
+  if (!destinatari.length && regola.a && regola.a.length) return [];
 
   if (regola.oggetto  && regola.oggetto.length)  comune.push('subject:(' + _orDiTesti_(regola.oggetto) + ')');
   if (regola.contiene && regola.contiene.length) comune.push('(' + _orDiTesti_(regola.contiene) + ')');
-  if (regola.a && regola.a.length)               comune.push('to:(' + _espandi_(cfg, regola.a).join(' OR ') + ')');
+  if (destinatari.length)                        comune.push('to:(' + destinatari.join(' OR ') + ')');
   if (regola.haAllegato)                         comune.push('has:attachment');
   if (regola.queryLibera)                        comune.push('(' + regola.queryLibera + ')');
 
@@ -853,28 +857,36 @@ function _virgolette_(s) { return '"' + String(s).replace(/"/g, '') + '"'; }
 function _criteriFiltro_(cfg, regola) {
   var criteri = [];
   var mittenti = _espandi_(cfg, regola.da || []);
+  var destinatari = _espandi_(cfg, regola.a || []);
+  var allegato = !!regola.haAllegato;
   var libera = [];
   if (regola.contiene && regola.contiene.length) libera.push('(' + _orDiTesti_(regola.contiene) + ')');
   if (regola.queryLibera) libera.push('(' + regola.queryLibera + ')');
   var soggetto = (regola.oggetto && regola.oggetto.length) ? _orDiTesti_(regola.oggetto) : '';
 
-  // come in _queryDellaRegola_: mittenti previsti ma nessuno rimasto = niente filtro
+  // come in _queryDellaRegola_: mittenti (o destinatari) previsti ma nessuno
+  // rimasto = niente filtro
   if (!mittenti.length && regola.da && regola.da.length) return [];
+  if (!destinatari.length && regola.a && regola.a.length) return [];
 
   if (mittenti.length) {
     for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
       var c = { from: mittenti.slice(i, i + _INDIRIZZI_PER_QUERY).join(' OR ') };
-      if (soggetto)      c.subject = soggetto;
-      if (libera.length) c.query = libera.join(' ');
-      criteri.push(c);
+      criteri.push(_altriCriteri_(c, soggetto, destinatari, libera, allegato));
     }
-  } else if (soggetto || libera.length) {
-    var c2 = {};
-    if (soggetto)      c2.subject = soggetto;
-    if (libera.length) c2.query = libera.join(' ');
-    criteri.push(c2);
+  } else if (soggetto || destinatari.length || libera.length || allegato) {
+    criteri.push(_altriCriteri_({}, soggetto, destinatari, libera, allegato));
   }
   return criteri;
+}
+
+/** Il resto dei criteri, gli stessi campi che _queryDellaRegola_ mette nella ricerca. */
+function _altriCriteri_(c, soggetto, destinatari, libera, allegato) {
+  if (soggetto)           c.subject = soggetto;
+  if (destinatari.length) c.to = destinatari.join(' OR ');
+  if (libera.length)      c.query = libera.join(' ');
+  if (allegato)           c.hasAttachment = true;
+  return c;
 }
 
 function _filtroGiaPresente_(esistenti, criterio, idEtichetta) {
@@ -884,8 +896,10 @@ function _filtroGiaPresente_(esistenti, criterio, idEtichetta) {
     if (f.action.addLabelIds.indexOf(idEtichetta) < 0) continue;
     var c = f.criteria || {};
     if ((c.from || '')    === (criterio.from || '') &&
+        (c.to || '')      === (criterio.to || '') &&
         (c.subject || '') === (criterio.subject || '') &&
-        (c.query || '')   === (criterio.query || '')) return true;
+        (c.query || '')   === (criterio.query || '') &&
+        !!c.hasAttachment === !!criterio.hasAttachment) return true;
   }
   return false;
 }

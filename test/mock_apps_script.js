@@ -595,7 +595,32 @@ intestazione('ELENCO DEL PERSONALE VUOTO');
     contesto._queryDellaRegola_(contesto.CONFIG, mista).length === 0);
   const circolari = contesto.CONFIG.regole.find(r => r.etichetta === 'Circolari');
   verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola_(contesto.CONFIG, circolari).length === 1);
+  // destinatari previsti ma nessuno rimasto: niente "to:()", niente filtro
+  const aNessuno = { attiva: true, etichetta: 'Verbali', a: ['@PERSONALE@'], oggetto: ['verbale'] };
+  verifica('destinatari vuoti: nessuna ricerca e nessun filtro',
+    contesto._queryDellaRegola_(contesto.CONFIG, aNessuno).length === 0 &&
+    contesto._criteriFiltro_(contesto.CONFIG, aNessuno).length === 0);
   contesto.CONFIG.personale = personaleVero;
+}
+
+intestazione('IL FILTRO DI GMAIL PRENDE QUELLO CHE PRENDE LA RICERCA');
+{
+  // "a" (destinatari) e "haAllegato": la ricerca dello script li usa, e il
+  // filtro nativo non deve risultare piu' largo
+  const regola = { attiva: true, etichetta: 'Verbali', a: ['@PERSONALE@'], haAllegato: true, oggetto: ['verbale'] };
+  const q = contesto._queryDellaRegola_(contesto.CONFIG, regola);
+  const c = contesto._criteriFiltro_(contesto.CONFIG, regola);
+  verifica('la ricerca ha destinatari e allegato', q.length === 1 && /to:\(/.test(q[0]) && /has:attachment/.test(q[0]));
+  verifica('e il filtro anche', c.length === 1 && /mario\.rossi@/.test(c[0].to || '') && c[0].hasAttachment === true &&
+    c[0].subject === 'verbale');
+  const soloAllegato = contesto._criteriFiltro_(contesto.CONFIG, { attiva: true, etichetta: 'Allegati', haAllegato: true });
+  verifica('una regola con il solo allegato diventa un filtro sul solo allegato',
+    soloAllegato.length === 1 && soloAllegato[0].hasAttachment === true && Object.keys(soloAllegato[0]).length === 1);
+  const gia = [{ criteria: { subject: 'verbale', to: c[0].to }, action: { addLabelIds: ['id:x'] } }];
+  verifica('un filtro uguale ma senza allegato non conta come gia\' presente',
+    !contesto._filtroGiaPresente_(gia, c[0], 'id:x'));
+  gia[0].criteria.hasAttachment = true;
+  verifica('con l\'allegato si', contesto._filtroGiaPresente_(gia, c[0], 'id:x'));
 }
 
 intestazione('ANNULLA_progressoRiordino MENTRE IL RIORDINO LAVORA');
