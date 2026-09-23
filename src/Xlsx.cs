@@ -38,6 +38,12 @@ namespace Campanella
 
         static readonly string[] RigaVuota = new string[0];
 
+        // Le celle che le righe tengono in memoria, anche vuote: una riga con
+        // una sola cella nella colonna XFD ne tiene 16384. Oltre il tetto il
+        // foglio si rifiuta (Xlsx.Leggi lo abbassa per i fogli dopo il primo).
+        public long CelleAllocate = 0;
+        public long CelleConsentite = Xlsx.MaxCelle;
+
         public void Metti(int riga, int colonna, string valore)
         {
             // le righe saltate restano vuote, tutte con lo stesso array
@@ -45,6 +51,13 @@ namespace Campanella
             string[] r = Righe[riga];
             if (r.Length <= colonna)
             {
+                CelleAllocate += colonna + 1 - r.Length;
+                if (CelleAllocate > CelleConsentite)
+                    throw new InvalidDataException(
+                        "Il foglio e' troppo grande: ha celle scritte fino a colonne molto lontane, " +
+                        "su tante righe, e per leggerlo servirebbero centinaia di MB.\n\n" +
+                        "Se e' l'orario, copia solo la tabella in un foglio nuovo, salvalo e " +
+                        "riprova (oppure salvalo in CSV).");
                 string[] nuovo = new string[colonna + 1];
                 Array.Copy(r, nuovo, r.Length);
                 r = nuovo;
@@ -70,10 +83,15 @@ namespace Campanella
 
     static class Xlsx
     {
-        // i limiti di un foglio di Excel (fino alla riga 1048576 e alla colonna
-        // XFD): oltre, un file di pochi byte farebbe allocare centinaia di MB
+        // I limiti di un foglio di Excel (fino alla riga 1048576 e alla colonna
+        // XFD): oltre, il riferimento non e' valido e la cella si salta. Da
+        // soli non bastano: ogni riga con una cella in XFD tiene 16384 celle,
+        // e mille righe cosi' (pochi KB di file) chiedevano 125 MB. Per questo
+        // c'e' anche un tetto alle celle di tutto il file: 5 milioni, circa
+        // 40 MB, mille volte un orario vero.
         public const int MaxRighe = 1048576;
         public const int MaxColonne = 16384;
+        public const long MaxCelle = 5000000;
 
         // ===================================================================
         //  LETTURA
@@ -94,6 +112,9 @@ namespace Campanella
                     "Cartella di lavoro di Excel), oppure esportalo in CSV.");
 
             List<FoglioExcel> fogli = new List<FoglioExcel>();
+            // il tetto delle celle vale per tutto il file: tanti fogli appena
+            // sotto il tetto sarebbero lo stesso centinaia di MB
+            long restano = MaxCelle;
             using (FileStream fs = new FileStream(percorso, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (ZipArchive zip = new ZipArchive(fs, ZipArchiveMode.Read))
             {
@@ -108,7 +129,8 @@ namespace Campanella
                                         ?? TrovaVoce(zip, bersaglio.TrimStart('/'));
                     if (voce == null) continue;
 
-                    FoglioExcel foglio = LeggiFoglio(voce, condivise);
+                    FoglioExcel foglio = LeggiFoglio(voce, condivise, restano);
+                    restano -= foglio.CelleAllocate;
                     foglio.Nome = f.Key;
                     foglio.Compatta();
                     fogli.Add(foglio);
@@ -121,7 +143,8 @@ namespace Campanella
                     {
                         if (!voce.FullName.StartsWith("xl/worksheets/sheet")) continue;
                         if (!voce.FullName.EndsWith(".xml")) continue;
-                        FoglioExcel foglio = LeggiFoglio(voce, condivise);
+                        FoglioExcel foglio = LeggiFoglio(voce, condivise, restano);
+                        restano -= foglio.CelleAllocate;
                         foglio.Nome = Path.GetFileNameWithoutExtension(voce.Name);
                         foglio.Compatta();
                         fogli.Add(foglio);
@@ -213,9 +236,10 @@ namespace Campanella
             return fuori;
         }
 
-        static FoglioExcel LeggiFoglio(ZipArchiveEntry voce, List<string> condivise)
+        static FoglioExcel LeggiFoglio(ZipArchiveEntry voce, List<string> condivise, long consentite)
         {
             FoglioExcel f = new FoglioExcel();
+            f.CelleConsentite = consentite;
             using (Stream s = voce.Open())
             using (XmlReader r = XmlReader.Create(s, ImpostazioniXml()))
             {

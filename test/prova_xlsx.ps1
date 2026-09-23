@@ -9,7 +9,9 @@
     (stringhe condivise, stringhe nella cella, celle senza riferimento) e
     controlla che il lettore restituisca esattamente quella griglia. Prova
     anche una tabella Docente/Giorno/Ora, un foglio con riferimenti oltre i
-    limiti di Excel e i CSV salvati in ANSI, UTF-8 e UTF-16.
+    limiti di Excel, uno di pochi KB con mille righe che arrivano fino
+    all'ultima colonna (va rifiutato, non deve prendersi centinaia di MB) e i
+    CSV salvati in ANSI, UTF-8 e UTF-16.
 #>
 param(
     # di partenza quello compilato da build.ps1
@@ -242,6 +244,40 @@ try {
     Verifica "IndiceColonna('XFD1') = 16383, oltre -1" `
         (($tXlsx.GetMethod('IndiceColonna', $FS).Invoke($null, @('XFD1')) -eq 16383) -and
          ($tXlsx.GetMethod('IndiceColonna', $FS).Invoke($null, @('XFE1')) -eq -1))
+
+    # --- tante righe con una cella in XFD: dentro i limiti, ma sparse -------
+    # Ogni riga con una cella nell'ultima colonna tiene in memoria 16384
+    # celle: mille righe cosi' stanno in pochi KB e chiedevano 125 MB.
+    Write-Host "`nCELLE SPARSE FINO ALL'ULTIMA COLONNA" -ForegroundColor Cyan
+    function FoglioSparso([int]$righe) {
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.Append("<?xml version=`"1.0`" encoding=`"UTF-8`"?><worksheet xmlns=`"$NS`"><sheetData>")
+        for ($k = 1; $k -le $righe; $k++) { [void]$sb.Append("<row r=`"$k`"><c r=`"XFD$k`"><v>1</v></c></row>") }
+        [void]$sb.Append('</sheetData></worksheet>')
+        $sb.ToString()
+    }
+    $sparso = ScriviXlsx 'sparso.xlsx' $null $null (FoglioSparso 1000)
+    $kb = [math]::Round((Get-Item -LiteralPath $sparso).Length / 1024.0, 1)
+    $errore = $null
+    $letti = $null
+    [GC]::Collect()
+    $memoriaPrima = [GC]::GetTotalMemory($true)
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    try { $letti = Leggi $sparso } catch { $errore = $_.Exception }
+    $cronometro.Stop()
+    # quello che resta in memoria con il risultato ancora in mano
+    $mb = [math]::Round(([GC]::GetTotalMemory($true) - $memoriaPrima) / 1MB, 1)
+    $letti = $null
+    while ($errore -ne $null -and $errore.InnerException -ne $null) { $errore = $errore.InnerException }
+    $messaggio = ''
+    if ($errore -ne $null) { $messaggio = ($errore.Message -split "`n")[0] }
+    Verifica "un file di $kb KB con 1000 righe fino a XFD viene rifiutato ($mb MB in memoria)" ($errore -ne $null)
+    Verifica "con un messaggio chiaro: '$messaggio'" ($messaggio -match "troppo grande")
+    Verifica "e in fretta ($($cronometro.ElapsedMilliseconds) ms)" ($cronometro.ElapsedMilliseconds -lt 5000)
+    # un foglio vero ha qualche cella lontana, non migliaia di righe cosi'
+    $f = (Leggi (ScriviXlsx 'sparso-poco.xlsx' $null $null (FoglioSparso 50)))[0]
+    Verifica "cinquanta righe fino a XFD si leggono ancora" (
+        ($f.NumeroRighe -eq 50) -and ($f.Colonne -eq 16384) -and ($f.Cella(49, 16383) -eq '1'))
 
     # --- CSV in ANSI, UTF-8, UTF-16 (A-60) ----------------------------------
     Write-Host "`nCSV IN ANSI, UTF-8 E UTF-16" -ForegroundColor Cyan
