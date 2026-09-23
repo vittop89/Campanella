@@ -17,7 +17,10 @@
       - la costante di versione degli script Google cambiati dall'ultimo
         rilascio (serve git con i tag: senza, il controllo viene saltato);
       - i nomi dei documenti per dirigente e DPO in build.ps1, Guscio.cs,
-        Installa.cs e Campanella.iss.
+        Installa.cs e Campanella.iss;
+      - se dist\Campanella.exe e' gia' compilato, che la finestra delle
+        condizioni chieda due spunte e che "Rileggile" la apra in sola
+        lettura (la costruisce senza mostrarla).
 #>
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -265,6 +268,45 @@ Verifica "ProgrammaInstallazione.Documenti usa gli stessi nomi" ((Elenco $nomiIn
 $privacyGuscio = Cerca $guscio 'public const string DocPrivacy\s*=\s*"([^"]+)"' 'Guscio.DocPrivacy'
 $privacyBuild  = Cerca $build '/resource:\$privacy,([^"]+)"' 'la risorsa di PRIVACY.md dell''app in build.ps1'
 Verifica "PRIVACY.md e' incorporato con il nome che Guscio.DocPrivacy cerca ($privacyGuscio)" ($privacyBuild -eq $privacyGuscio)
+
+# ===========================================================================
+#  La finestra delle condizioni: questa parte usa l'eseguibile compilato, e
+#  si salta quando manca (il flusso di rilascio lancia la prova prima di
+#  compilare). Costruisce le finestre senza mostrarle.
+Write-Host "`n=== FINESTRA DELLE CONDIZIONI ===" -ForegroundColor Cyan
+$exe = Join-Path $radice 'dist\Campanella.exe'
+$sorgente = Join-Path $radice 'src\Consenso.cs'
+if (-not (Test-Path -LiteralPath $exe) -or
+    (Get-Item -LiteralPath $exe).LastWriteTime -lt (Get-Item -LiteralPath $sorgente).LastWriteTime) {
+    Write-Host "  SALTATO dist\Campanella.exe manca o e' piu' vecchio di src\Consenso.cs (compila con build.ps1)" -ForegroundColor DarkGray
+} else {
+    Add-Type -AssemblyName System.Windows.Forms
+    $tipo = [Reflection.Assembly]::LoadFrom($exe).GetType('Campanella.FormConsenso')
+    function Controlli($padre) { foreach ($c in $padre.Controls) { $c; Controlli $c } }
+
+    $f = $tipo.GetConstructor([Type]::EmptyTypes).Invoke(@())
+    try {
+        $tutti = @(Controlli $f)
+        Verifica "per accettare servono due spunte" (@($tutti | Where-Object { $_ -is [Windows.Forms.CheckBox] }).Count -eq 2)
+        $accetto = $tutti | Where-Object { $_ -is [Windows.Forms.Button] -and $_.Text -eq 'Accetto e continuo' } | Select-Object -First 1
+        Verifica "senza spunte 'Accetto e continuo' e' spento" ($null -ne $accetto -and -not $accetto.Enabled)
+    } finally { $f.Dispose() }
+
+    $costruttore = $tipo.GetConstructor([Type[]]@([bool]))
+    Verifica "la finestra si apre anche in sola lettura (per 'Rileggile')" ($null -ne $costruttore)
+    if ($costruttore) {
+        $f = $costruttore.Invoke(@($true))
+        try {
+            $tutti = @(Controlli $f)
+            $bottoni = @($tutti | Where-Object { $_ -is [Windows.Forms.Button] } | ForEach-Object { $_.Text })
+            Verifica "in sola lettura non ci sono spunte" (@($tutti | Where-Object { $_ -is [Windows.Forms.CheckBox] }).Count -eq 0)
+            Verifica "in sola lettura c'e' solo 'Chiudi' (bottoni: $($bottoni -join ', '))" `
+                ($bottoni.Count -eq 1 -and $bottoni[0] -eq 'Chiudi' -and $null -ne $f.CancelButton)
+        } finally { $f.Dispose() }
+    }
+    $guscio = Leggi 'src\Guscio.cs'
+    Verifica "'Rileggile' apre la finestra in sola lettura" ($guscio -match 'new FormConsenso\(true\)')
+}
 
 Write-Host ""
 if ($fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
