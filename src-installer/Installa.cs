@@ -809,7 +809,16 @@ namespace Campanella
                 return;
             }
 
-            DialogResult r = MessageBox.Show(
+            // con l'installazione Inno nella stessa cartella i file sono di
+            // tutte e due: si toglie solo questa voce, e le impostazioni restano
+            bool innoQui = InnoQui(CartelleInno(ChiaveInno), cartella);
+            DialogResult r = MessageBox.Show(innoQui
+                ? "In questa cartella Campanella e' installata anche con Installa-Campanella.exe, " +
+                  "e le due installazioni usano gli stessi file.\n\n" +
+                  "Cartella: " + cartella + "\n\n" +
+                  "Tolgo solo questa voce fra le app installate e \"" + NomeDisinstallatore + "\": " +
+                  "Campanella, le istruzioni, i documenti e le impostazioni restano. Per " +
+                  "togliere del tutto Campanella usa poi l'altra voce.\n\nProcedo?" :
                 "Vuoi togliere Campanella da questo computer?\n\n" +
                 "Cartella: " + cartella + "\n\n" +
                 "Gli script che hai gia' incollato dentro il tuo account Google restano dove " +
@@ -818,7 +827,7 @@ namespace Campanella
                 "Disinstalla Campanella", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (r != DialogResult.Yes) return;
 
-            DialogResult impostazioni = MessageBox.Show(
+            DialogResult impostazioni = innoQui ? DialogResult.No : MessageBox.Show(
                 "Vuoi cancellare anche le tue impostazioni?\n\n" +
                 "Sono l'elenco del personale, le regole delle etichette, gli orari caricati " +
                 "e la struttura delle cartelle: i file campanella.json e struttura.json.\n\n" +
@@ -860,7 +869,12 @@ namespace Campanella
             // tolgo solo i miei, e solo se puntano dentro questa cartella. Se
             // c'e' anche l'installazione Inno, menu Start e scrivania sono
             // anche suoi (stessi nomi): li lascio stare.
-            bool inno = InstallazioneInno();
+            List<string> cartelleInno = CartelleInno(ChiaveInno);
+            bool inno = cartelleInno.Count > 0;
+            // e se sta proprio in questa cartella, programma, istruzioni,
+            // documenti e impostazioni sono anche suoi: tolgo solo il mio
+            // disinstallatore e la mia voce, e Campanella resta installata
+            bool innoQui = InnoQui(cartelleInno, cartella);
             if (!inno)
             {
                 string menu = Path.Combine(
@@ -884,7 +898,7 @@ namespace Campanella
                 Registry.CurrentUser.DeleteSubKeyTree(ProgrammaInstallazione.ChiaveRegistro, false);
             }, problemi, "registro");
 
-            TogliFile(cartella, ancheImpostazioni, problemi);
+            TogliFile(cartella, ancheImpostazioni, innoQui, problemi);
 
             string messaggio = (problemi.Count == 0)
                 ? "Campanella e' stata tolta dal computer."
@@ -899,6 +913,13 @@ namespace Campanella
             if (inno)
                 messaggio += "\n\nIl gruppo nel menu Start e il collegamento sulla scrivania restano: " +
                              "li usa anche la Campanella installata con Installa-Campanella.exe.";
+            if (innoQui)
+                messaggio = ((problemi.Count == 0)
+                        ? "Ho tolto questa voce e \"" + NomeDisinstallatore + "\"."
+                        : "Ho tolto questa voce, ma qualcosa non si e' lasciato cancellare:\n\n  " +
+                          string.Join("\n  ", problemi.ToArray())) +
+                    "\n\nCampanella resta installata in " + cartella + " con Installa-Campanella.exe, " +
+                    "con le sue impostazioni: se vuoi toglierla, usa la sua voce fra le app installate.";
 
             MessageBox.Show(messaggio, "Disinstallazione", MessageBoxButtons.OK,
                             problemi.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
@@ -908,12 +929,17 @@ namespace Campanella
         /// Toglie dalla cartella solo i file messi dall'installazione, piu' le
         /// impostazioni se richiesto, poi la cartella se e' rimasta vuota. A
         /// parte da Rimuovi, che tocca anche menu Start e registro, per poterla
-        /// provare su una cartella temporanea.
+        /// provare su una cartella temporanea. Con soloDisinstallatore (c'e'
+        /// l'installazione Inno nella stessa cartella) toglie solo
+        /// "Disinstalla Campanella.exe": il resto e' anche suo.
         /// </summary>
-        static void TogliFile(string cartella, bool ancheImpostazioni, List<string> problemi)
+        static void TogliFile(string cartella, bool ancheImpostazioni, bool soloDisinstallatore,
+                              List<string> problemi)
         {
-            List<string> daTogliere = new List<string>(FileInstallati);
-            if (ancheImpostazioni) daTogliere.AddRange(FileImpostazioni);
+            List<string> daTogliere = soloDisinstallatore
+                ? new List<string>(new string[] { NomeDisinstallatore })
+                : new List<string>(FileInstallati);
+            if (ancheImpostazioni && !soloDisinstallatore) daTogliere.AddRange(FileImpostazioni);
             foreach (string nome in daTogliere)
             {
                 string f = Path.Combine(cartella, nome);
@@ -925,6 +951,7 @@ namespace Campanella
             string doc = Path.Combine(cartella, "documenti");
             List<string> documenti = new List<string>(ProgrammaInstallazione.Documenti);
             documenti.Add("PRIVACY.txt");
+            if (soloDisinstallatore) documenti.Clear();
             foreach (string nome in documenti)
             {
                 string f = Path.Combine(doc, nome);
@@ -994,21 +1021,41 @@ namespace Campanella
         }
 
         /// <summary>
-        /// C'e' anche un'installazione fatta con l'installer Inno? Nel dubbio
-        /// (registro illeggibile) rispondo di si': cosi' non tocco i suoi collegamenti.
+        /// Le cartelle delle installazioni fatte con l'installer Inno, per
+        /// l'utente e (le 1.4.x installate per tutti) per il computer: la
+        /// lista e' vuota se non ce ne sono. Una chiave che non dice dove, o
+        /// un registro illeggibile, da' "": nel dubbio conta come questa
+        /// cartella, cosi' non tocco ne' i suoi collegamenti ne' i suoi file.
         /// </summary>
-        static bool InstallazioneInno()
+        static List<string> CartelleInno(string chiave)
         {
+            List<string> cartelle = new List<string>();
             try
             {
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(ChiaveInno))
-                    if (k != null) return true;
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(chiave))
+                    if (k != null) cartelle.Add(DoveDice(k));
                 using (RegistryKey hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32))
-                using (RegistryKey k = hklm.OpenSubKey(ChiaveInno))
-                    if (k != null) return true;
-                return false;
+                using (RegistryKey k = hklm.OpenSubKey(chiave))
+                    if (k != null) cartelle.Add(DoveDice(k));
             }
-            catch { return true; }
+            catch { cartelle.Add(""); }
+            return cartelle;
+        }
+
+        /// <summary>La cartella scritta da Inno nella sua chiave: "" se non c'e'.</summary>
+        static string DoveDice(RegistryKey k)
+        {
+            string c = (k.GetValue("Inno Setup: App Path") as string) ?? "";
+            if (c == "") c = (k.GetValue("InstallLocation") as string) ?? "";
+            return c.Trim();
+        }
+
+        /// <summary>Una delle installazioni Inno sta in questa cartella (o non si sa dove sta)?</summary>
+        static bool InnoQui(List<string> cartelleInno, string cartella)
+        {
+            foreach (string c in cartelleInno)
+                if (c == "" || Stato.StessoPercorso(c, cartella)) return true;
+            return false;
         }
 
         /// <summary>Il collegamento punta a un file dentro la cartella che sto togliendo?</summary>

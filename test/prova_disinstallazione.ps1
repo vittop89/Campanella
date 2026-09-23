@@ -12,8 +12,8 @@
     l'installer C# con quelli che toglie installer\Campanella.iss.
 
     Prova anche quali cartelle il disinstallatore accetta (anche senza
-    Campanella.exe, purche' ci sia lui) e quando toglie la sua voce fra le
-    app installate. Le chiavi del registro sono finte, sotto
+    Campanella.exe, purche' ci sia lui) e cosa fa con l'installazione Inno
+    nella stessa cartella. Le chiavi del registro sono finte, sotto
     HKEY_CURRENT_USER\Software\CampanellaProva, e alla fine si cancellano:
     quelle vere di Campanella e di Inno non vengono ne' lette ne' toccate.
 
@@ -74,9 +74,10 @@ try {
         if ($ConAltro) { Set-Content -LiteralPath (Join-Path $c 'appunti miei.txt') -Value 'non e'' dell''installazione' }
         return $c
     }
-    function Togli($cartella, $ancheImpostazioni) {
+    function Togli($cartella, $ancheImpostazioni, [switch]$SoloDisinstallatore) {
         $problemi = New-Object 'System.Collections.Generic.List[string]'
-        $mTogli.Invoke($null, [object[]]@([string]$cartella, [bool]$ancheImpostazioni, $problemi.PSObject.BaseObject)) | Out-Null
+        $mTogli.Invoke($null, [object[]]@([string]$cartella, [bool]$ancheImpostazioni,
+                                          [bool]$SoloDisinstallatore, $problemi.PSObject.BaseObject)) | Out-Null
         return ,$problemi
     }
     function Resta($cartella, $nome) { return Test-Path -LiteralPath (Join-Path $cartella $nome) }
@@ -159,6 +160,48 @@ try {
         Verifica "punta a un'altra cartella: la chiave resta" ((-not $tolta) -and (Test-Path ('HKCU:\' + $chiave)))
         $tolta = $mTogliChiave.Invoke($null, [object[]]@($chiave, [string]($soloDis + '\')))
         Verifica "punta a questa cartella: la chiave se ne va" ($tolta -and -not (Test-Path ('HKCU:\' + $chiave)))
+    }
+
+    Write-Host "`n=== INNO NELLA STESSA CARTELLA ===" -ForegroundColor Cyan
+    # Con l'installazione Inno nella stessa cartella, programma, istruzioni,
+    # documenti e impostazioni sono anche suoi: il disinstallatore C# toglieva
+    # Campanella.exe e la voce Inno restava con un programma che non c'era piu'
+    $mCartelleInno = $tDis.GetMethod('CartelleInno', $FS)
+    $mInnoQui = $tDis.GetMethod('InnoQui', $FS)
+    Verifica "c'e' il controllo della cartella di Inno" ($mCartelleInno -ne $null -and $mInnoQui -ne $null)
+    if ($mCartelleInno -ne $null -and $mInnoQui -ne $null) {
+        $chiaveInno = $radiceChiavi + '\Uninstall\Inno_is1'
+        function CartelleInno { return ,($mCartelleInno.Invoke($null, [object[]]@($chiaveInno))) }
+        function InnoQui($elenco, $cartella) {
+            $l = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($e in $elenco) { $l.Add([string]$e) }
+            return $mInnoQui.Invoke($null, [object[]]@($l.PSObject.BaseObject, [string]$cartella))
+        }
+        Verifica "senza la chiave di Inno: nessuna installazione Inno" ((CartelleInno).Count -eq 0)
+        $c = Cartella 'con inno'
+        foreach ($f in @('unins000.exe', 'unins000.dat', 'LICENSE.txt')) {
+            Set-Content -LiteralPath (Join-Path $c $f) -Value 'di Inno'
+        }
+        New-Item -Path ('HKCU:\' + $chiaveInno) -Force | Out-Null
+        Set-ItemProperty -Path ('HKCU:\' + $chiaveInno) -Name 'InstallLocation' -Value ($c + '\')
+        $letta = CartelleInno
+        Verifica "legge InstallLocation di Inno (con la barra in fondo)" ($letta.Count -eq 1 -and (InnoQui $letta $c))
+        Set-ItemProperty -Path ('HKCU:\' + $chiaveInno) -Name 'Inno Setup: App Path' -Value $c
+        $letta = CartelleInno
+        Verifica "legge 'Inno Setup: App Path'" ($letta.Count -eq 1 -and $letta[0] -eq $c)
+        Verifica "Inno in un'altra cartella: non e' qui" (-not (InnoQui @($estranea) $c))
+        Verifica "nessuna installazione Inno: non e' qui" (-not (InnoQui @() $c))
+        Verifica "una chiave Inno che non dice dove: nel dubbio e' qui" (InnoQui @('') $c)
+
+        $p = Togli $c $true -SoloDisinstallatore
+        Verifica "nessun problema" ($p.Count -eq 0)
+        Verifica "via Disinstalla Campanella.exe" (-not (Resta $c 'Disinstalla Campanella.exe'))
+        Verifica "Campanella.exe, istruzioni e PRIVACY.md restano" (
+            (Resta $c 'Campanella.exe') -and (Resta $c 'ISTRUZIONI - Campanella.txt') -and (Resta $c 'PRIVACY.md'))
+        Verifica "le impostazioni restano, anche chiedendo di toglierle" (
+            (Resta $c 'campanella.json') -and (Resta $c 'struttura.json'))
+        Verifica "i documenti restano" (@($documenti | Where-Object { -not (Resta $c "documenti\$_") }).Count -eq 0)
+        Verifica "e i file di Inno pure" ((Resta $c 'unins000.exe') -and (Resta $c 'unins000.dat') -and (Resta $c 'LICENSE.txt'))
     }
 
     Write-Host "`n=== INNO SETUP TOGLIE GLI STESSI FILE ===" -ForegroundColor Cyan
