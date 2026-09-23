@@ -238,6 +238,10 @@ $argIstr[0] = $elenco
 $argIstr[1] = '2026-27'
 $istrP = Chiama 'IstruzioniPannello' $argIstr @($tipoIList, [string])
 Verifica "le istruzioni avvisano del permesso piu' largo" ($istrP.Contains('TUTTI i moduli'))
+# senza il manifest anche lo script nel modulo riceve il permesso su tutti i
+# moduli: il confronto non deve far credere il contrario (A-21)
+Verifica "e dicono che lo script nel modulo e' stretto solo con il manifest" (
+    $istrP.Contains('con il manifest facoltativo (voce 3)') -and $istrP.Contains('senza manifest anche a lui'))
 Verifica "e spiegano il link giusto"                  ($istrP.Contains('/edit'))
 
 # --- 6. i banchi non dipendono dal fuso del PC che li fa girare --------------------

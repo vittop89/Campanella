@@ -34,7 +34,7 @@ $radice = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 # ---------------------------------------------------------------------------
 $impronte = @(
     @{ Versione = 3; It = 'caf164d52155ca76b9fbbd8bd9a3499356d5af54e46de5c107deccbb36638cf1'; En = 'f4dfeefe0d7450120dd2e8c2eb7247ec7c7ab96293f613adddb780a4377c3286' }
-    @{ Versione = 4; It = '4b3cd7cb31e21d2604a9acdea7b2d6f83c6a8f8a3d8a137629a4ecdb60505bcd'; En = 'db08ae9098b4056ba84e0cd1c30a3ca09a077b066d8ed829a63a7e1d0de38db4' }
+    @{ Versione = 4; It = '495de1254a870caca58ba6e45ecf9052f5988aaab97bd5e0de033d2f89480d1b'; En = 'b0114d3a73b0608ea57693cb932eaab8acae46ae25ef2e7eb9208807d15d854f' }
 )
 
 # Gli script Google con una costante di versione che l'anteprima stampa: se
