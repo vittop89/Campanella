@@ -590,6 +590,22 @@ namespace Campanella
                 return;
             }
 
+            List<string> file = new List<string>();
+            foreach (object o in elencoFile.Items) file.Add(Convert.ToString(o));
+
+            // le copie pulite nella cartella degli originali finirebbero sopra di loro
+            string stessa = Anonimizzatore.CartellaDiOrigine(file, destinazione);
+            if (stessa != null)
+            {
+                MessageBox.Show(this,
+                    "La cartella per le copie pulite e' la stessa in cui sta uno dei file da " +
+                    "ripulire:\n\n" + stessa + "\n\n" +
+                    "Le copie finirebbero sopra gli originali. Scegli un'altra cartella, per " +
+                    "esempio una sottocartella \"Anonimizzati\".",
+                    "Cartella da cambiare", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             Anonimizzatore a = Servizio();
             a.ConDizionario = false;      // sui file l'anonimizzazione e' definitiva
             SaluteAnonimizzatore s = a.Salute();
@@ -599,9 +615,6 @@ namespace Campanella
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            List<string> file = new List<string>();
-            foreach (object o in elencoFile.Items) file.Add(Convert.ToString(o));
 
             log3.Clear();
             interrompi = false;
@@ -622,20 +635,14 @@ namespace Campanella
                 Scrivi3("File da trattare: " + file.Count);
                 Scrivi3("");
 
-                Dictionary<string, int> usati = new Dictionary<string, int>();
-                foreach (string f in file)
+                // nomi tutti diversi: due file omonimi di cartelle diverse non
+                // finiscono uno sull'altro
+                string[] nomi = Anonimizzatore.NomiDiUscita(file);
+                for (int i = 0; i < file.Count; i++)
                 {
                     if (interrompi) { Scrivi3(""); Scrivi3("Fermato da te."); break; }
 
-                    // nomi diversi che finiscono nella stessa cartella: numero i doppioni
-                    string nome = Path.GetFileName(f);
-                    if (usati.ContainsKey(nome.ToLowerInvariant()))
-                    {
-                        int n = ++usati[nome.ToLowerInvariant()];
-                        nome = Path.GetFileNameWithoutExtension(f) + " (" + n + ")" + Path.GetExtension(f);
-                    }
-                    else usati[nome.ToLowerInvariant()] = 1;
-
+                    string f = file[i], nome = nomi[i];
                     EsitoFile e = a.Anonimizza(f, Path.Combine(destinazione, nome));
                     if (e.Fatto)
                     {

@@ -3,7 +3,8 @@
     Campanella (JSON, multipart, intestazioni, ripristino) contro il finto
     servizio di test\finto_rizzo.py. Verifica anche che:
       - un indirizzo fuori dal computer venga rifiutato subito;
-      - una risposta senza il testo anonimizzato sia un errore, non un file vuoto.
+      - una risposta senza il testo anonimizzato sia un errore, non un file vuoto;
+      - una copia pulita non finisca mai sopra l'originale.
     Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
@@ -130,6 +131,39 @@ Cordiali saluti, Anna Verdi
     Verifica 'il motivo del salto e'' spiegato'    ($e3.Nota -like '*docx*')
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
+
+    Write-Host "`n=== ORIGINALI AL SICURO ===" -ForegroundColor Cyan
+    function Impronta($f) { (Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash }
+    $primaTxt = Impronta $txt
+    $primaPdf = Impronta $pdf
+    $e4 = $a.Anonimizza($txt, $txt)
+    $e5 = $a.Anonimizza($pdf, (Join-Path $temp '.\CIRCOLARE.PDF'))
+    Verifica 'origine uguale a destinazione: saltato'  ($e4.Saltato -and -not $e4.Fatto)
+    Verifica "l'impronta del TXT non cambia"           ((Impronta $txt) -eq $primaTxt)
+    Verifica 'lo stesso file scritto in un altro modo' ($e5.Saltato -and ((Impronta $pdf) -eq $primaPdf))
+    Verifica 'il motivo e'' detto'                     ($e4.Nota -like '*sopra l''originale*')
+
+    $lista = [System.Collections.Generic.List[string]]::new()
+    $lista.Add($txt); $lista.Add((Join-Path $temp 'sotto\altro.md'))
+    $vietata = $t.GetMethod('CartellaDiOrigine')
+    Verifica 'riconosce la cartella di un originale' `
+        ($vietata.Invoke($null, [object[]]@($lista, "$temp\")) -eq $temp)
+    Verifica 'e anche quella di un file in una sottocartella' `
+        ($vietata.Invoke($null, [object[]]@($lista, [string](Join-Path $temp 'SOTTO'))) -ne $null)
+    Verifica 'una cartella diversa va bene' `
+        ($vietata.Invoke($null, [object[]]@($lista, [string]$uscita)) -eq $null)
+
+    $omonimi = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in @('a\verbale.pdf', 'b\verbale.pdf', 'c\verbale (2).pdf', 'd\VERBALE.PDF', 'e\nota.txt')) {
+        $omonimi.Add((Join-Path $temp $f))
+    }
+    $nomi = $t.GetMethod('NomiDiUscita').Invoke($null, [object[]]@(, $omonimi))
+    Write-Host "  nomi delle copie: $($nomi -join ' | ')"
+    $diversi = @($nomi | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object -Unique)
+    Verifica 'omonimi di cartelle diverse: nomi tutti diversi' ($diversi.Count -eq 5)
+    Verifica 'il primo tiene il suo nome'                     ($nomi[0] -eq 'verbale.pdf')
+    Verifica 'un "(2)" vero non viene coperto da un doppione' ($nomi[2] -eq 'verbale (2).pdf')
+    Verifica 'un nome senza doppioni resta com''e'''          ($nomi[4] -eq 'nota.txt')
 
     Write-Host "`n=== RISPOSTA SENZA TESTO ANONIMIZZATO ===" -ForegroundColor Cyan
     $c = [Activator]::CreateInstance($t)

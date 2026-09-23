@@ -124,6 +124,61 @@ namespace Campanella
         }
 
         // ===================================================================
+        //  ORIGINALI AL SICURO
+        // ===================================================================
+        /// <summary>Vero se i due percorsi indicano lo stesso file.</summary>
+        public static bool StessoFile(string a, string b)
+        {
+            try
+            {
+                return string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'),
+                                     Path.GetFullPath(b).TrimEnd('\\', '/'),
+                                     StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }     // un percorso non valido non si scrive comunque
+        }
+
+        /// <summary>Se la cartella delle copie pulite e' quella di uno dei file,
+        /// torna quella cartella; altrimenti null. Le copie finirebbero sopra
+        /// gli originali.</summary>
+        public static string CartellaDiOrigine(IList<string> file, string destinazione)
+        {
+            foreach (string f in file)
+            {
+                string cartella;
+                try { cartella = Path.GetDirectoryName(Path.GetFullPath(f)); }
+                catch { continue; }
+                if (!string.IsNullOrEmpty(cartella) && StessoFile(cartella, destinazione)) return cartella;
+            }
+            return null;
+        }
+
+        /// <summary>Il nome della copia pulita di ogni file, tutti diversi fra
+        /// loro: due "verbale.pdf" di sottocartelle diverse diventano
+        /// "verbale.pdf" e "verbale (2).pdf", e nessuno finisce sopra l'altro.
+        /// Un nome che compare una volta sola resta com'e'.</summary>
+        public static string[] NomiDiUscita(IList<string> file)
+        {
+            string[] nomi = new string[file.Count];
+            // prima tutti i nomi veri, cosi' un numero aggiunto non ne copre uno
+            Dictionary<string, bool> presi = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (string f in file) presi[Path.GetFileName(f)] = false;
+            for (int i = 0; i < file.Count; i++)
+            {
+                string nome = Path.GetFileName(file[i]);
+                if (presi[nome])
+                {
+                    string radice = Path.GetFileNameWithoutExtension(nome), est = Path.GetExtension(nome);
+                    int n = 2;
+                    do nome = radice + " (" + n++ + ")" + est; while (presi.ContainsKey(nome));
+                }
+                presi[nome] = true;
+                nomi[i] = nome;
+            }
+            return nomi;
+        }
+
+        // ===================================================================
         /// <summary>Anonimizza un file e scrive il risultato. Torna cosa e' successo.</summary>
         public EsitoFile Anonimizza(string origine, string destinazione)
         {
@@ -131,6 +186,13 @@ namespace Campanella
             e.Origine = origine;
             e.Destinazione = destinazione;
             string est = Path.GetExtension(origine).ToLowerInvariant();
+
+            if (StessoFile(origine, destinazione))
+            {
+                e.Saltato = true;
+                e.Nota = "la copia pulita finirebbe sopra l'originale: scegli un'altra cartella";
+                return e;
+            }
 
             try
             {
