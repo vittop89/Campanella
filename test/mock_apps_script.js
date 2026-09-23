@@ -693,8 +693,12 @@ verifica('le etichette delle regole spente non le tocca, ma le nomina',
 genitori.removeFromThreads([casella[0]]);
 verifica('nessuna conversazione ha piu\' le etichette dello strumento',
   casella.every(t => [...t.labels].every(l => !l.startsWith('Scuola/'))));
-console.log(contesto.ANNULLA_automazione());
-verifica('nessun trigger residuo', trigger.length === 0);
+// la ripresa di Orari.gs, che sta nello stesso progetto, a meta' invio
+trigger.push({ fn: 'ORARI_2_invia', tipo: 'dopo', valore: 60000 });
+const spenta = contesto.ANNULLA_automazione();
+console.log(spenta);
+verifica('nessun trigger residuo, nemmeno la ripresa degli orari', trigger.length === 0);
+verifica('e lo dice', spenta.indexOf('ripresa dell\'invio degli orari') > 0);
 
 intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
 {

@@ -68,6 +68,7 @@ var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
+var _TRIGGER_ORARI          = 'ORARI_2_invia';  // la ripresa di Orari.gs, nello stesso progetto
 
 
 // ===========================================================================
@@ -612,7 +613,12 @@ function EXTRA_codiceStato() {
 function ANNULLA_automazione() {
   _rimuoviTrigger_(_TRIGGER_ORARIO);
   _rimuoviTrigger_(_TRIGGER_RIPRESA);
-  var testo = 'Automazione spenta. Le etichette gia\' applicate restano dove sono.';
+  // Orari.gs sta nello stesso progetto e anche la sua ripresa e' un'attivita'
+  // programmata: spegnere l'automazione vuol dire spegnere tutto
+  var orari = _rimuoviTrigger_(_TRIGGER_ORARI);
+  var testo = 'Automazione spenta. Le etichette gia\' applicate restano dove sono.' +
+              (orari ? '\nFermata anche la ripresa dell\'invio degli orari: se serve, riesegui ' +
+                       'ORARI_2_invia, che riparte da dove era arrivato.' : '');
   Logger.log(testo);
   return testo;
 }
@@ -1061,11 +1067,17 @@ function _programmaRipresa_() {
   ScriptApp.newTrigger(_TRIGGER_RIPRESA).timeBased().after(60 * 1000).create();
 }
 
+/** Toglie i trigger di una funzione; dice quanti ne ha tolti. */
 function _rimuoviTrigger_(nomeFunzione) {
   var trigger = ScriptApp.getProjectTriggers();
+  var tolti = 0;
   for (var i = 0; i < trigger.length; i++) {
-    if (trigger[i].getHandlerFunction() === nomeFunzione) ScriptApp.deleteTrigger(trigger[i]);
+    if (trigger[i].getHandlerFunction() === nomeFunzione) {
+      ScriptApp.deleteTrigger(trigger[i]);
+      tolti++;
+    }
   }
+  return tolti;
 }
 
 /** Manda un riepilogo a te stesso, e soltanto a te. Vero se e' partito. */
