@@ -42,7 +42,8 @@
  *                                    Campanella (Impostazioni): dice se il
  *                                    riordino e' fatto
  *
- *    ANNULLA_automazione ........... spegne lo smistamento automatico
+ *    ANNULLA_automazione ........... spegne lo smistamento automatico (e le
+ *                                    riprese degli orari, se ci sono)
  *    ANNULLA_etichettatura ......... toglie dalle mail le etichette applicate
  *                                    (senza gruppo, solo quelle nate qui)
  *    ANNULLA_progressoRiordino ..... azzera il segnaposto del PASSO 3
@@ -68,7 +69,8 @@ var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
-var _TRIGGER_ORARI          = 'ORARI_2_invia';  // la ripresa di Orari.gs, nello stesso progetto
+var _TRIGGER_ORARI          = 'ORARI_2_invia';  // le due riprese di Orari.gs, nello stesso progetto
+var _TRIGGER_ORARI_CLASSI   = 'ORARI_3_inviaOrariClassi';
 
 
 // ===========================================================================
@@ -621,12 +623,14 @@ function EXTRA_codiceStato() {
 function ANNULLA_automazione() {
   _rimuoviTrigger_(_TRIGGER_ORARIO);
   _rimuoviTrigger_(_TRIGGER_RIPRESA);
-  // Orari.gs sta nello stesso progetto e anche la sua ripresa e' un'attivita'
-  // programmata: spegnere l'automazione vuol dire spegnere tutto
-  var orari = _rimuoviTrigger_(_TRIGGER_ORARI);
+  // Orari.gs sta nello stesso progetto e anche le sue riprese (orari dei
+  // docenti e orari delle classi) sono attivita' programmate: spegnere
+  // l'automazione vuol dire spegnere tutto
+  var orari = _rimuoviTrigger_(_TRIGGER_ORARI) + _rimuoviTrigger_(_TRIGGER_ORARI_CLASSI);
   var testo = 'Automazione spenta. Le etichette gia\' applicate restano dove sono.' +
               (orari ? '\nFermata anche la ripresa dell\'invio degli orari: se serve, riesegui ' +
-                       'ORARI_2_invia, che riparte da dove era arrivato.' : '');
+                       'ORARI_2_invia (o ORARI_3_inviaOrariClassi, per gli orari delle classi), ' +
+                       'che riparte da dove era arrivato.' : '');
   Logger.log(testo);
   return testo;
 }

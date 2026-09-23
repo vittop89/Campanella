@@ -554,6 +554,19 @@ verifica('le funzioni interne finiscono con "_"' +
 ['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
  'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
   verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));
+// ANNULLA_automazione della Posta spegne tutto il progetto, dicono documenti e
+// nota per il DPO: anche ogni ripresa degli orari (var _ORARI_TRIGGER...). Se
+// Orari.gs ne aggiunge una, qui ci se ne accorge.
+const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]);
+verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + ')',
+  riprese.length >= 2 && riprese.every(n => typeof contesto[n] === 'function'));
+vm.runInContext(posta, contesto, { filename: 'Organizzazione_Gmail.gs' });
+trigger.length = 0;
+riprese.forEach(fn => trigger.push({ fn, ms: 60000 }));
+const spenta = contesto.ANNULLA_automazione();
+verifica('ANNULLA_automazione della Posta le toglie tutte' +
+  (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
+verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
 
 intestazione('RISULTATO');
 const saltate = SEZIONI.filter(s => sezioniFatte.indexOf(s) < 0);

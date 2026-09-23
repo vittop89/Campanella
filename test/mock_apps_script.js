@@ -718,12 +718,21 @@ verifica('le etichette delle regole spente non le tocca, ma le nomina',
 genitori.removeFromThreads([casella[0]]);
 verifica('nessuna conversazione ha piu\' le etichette dello strumento',
   casella.every(t => [...t.labels].every(l => !l.startsWith('Scuola/'))));
-// la ripresa di Orari.gs, che sta nello stesso progetto, a meta' invio
+// le due riprese di Orari.gs, che sta nello stesso progetto, a meta' invio:
+// quella degli orari dei docenti e quella degli orari delle classi
 trigger.push({ fn: 'ORARI_2_invia', tipo: 'dopo', valore: 60000 });
+trigger.push({ fn: 'ORARI_3_inviaOrariClassi', tipo: 'dopo', valore: 60000 });
 const spenta = contesto.ANNULLA_automazione();
 console.log(spenta);
-verifica('nessun trigger residuo, nemmeno la ripresa degli orari', trigger.length === 0);
-verifica('e lo dice', spenta.indexOf('ripresa dell\'invio degli orari') > 0);
+verifica('nessun trigger residuo, nemmeno le riprese degli orari' +
+  (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
+verifica('e lo dice, nominandole tutte e due', spenta.indexOf('ripresa dell\'invio degli orari') > 0 &&
+  spenta.indexOf('ORARI_2_invia') > 0 && spenta.indexOf('ORARI_3_inviaOrariClassi') > 0);
+// con la sola ripresa degli orari delle classi
+trigger.push({ fn: 'ORARI_3_inviaOrariClassi', tipo: 'dopo', valore: 60000 });
+const soloClassi = contesto.ANNULLA_automazione();
+verifica('anche la sola ripresa degli orari delle classi si ferma, e lo dice',
+  trigger.length === 0 && soloClassi.indexOf('ripresa dell\'invio degli orari') > 0);
 
 intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
 {
