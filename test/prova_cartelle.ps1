@@ -119,7 +119,62 @@ try {
     Verifica "la nota senza codice delle versioni precedenti lo riceve"  ($intatta.Invoke($null, @([string](Leggi $notaVecchia))) -and (Leggi $notaVecchia).Contains('- Avviso.gdoc'))
     Verifica "creato solo l'aggiornamento della nota ($($r3.Creati))"    ($r3.Creati -eq 1)
 
-    # --- 5. il Drive va sempre dato: nessun ripiego sul Drive vero ------------------
+    # --- 5. tutto resta dentro "A.S. <anno>" -----------------------------------------
+    Write-Host "`nNOMI CHE ESCONO DALLA CARTELLA DELL'ANNO" -ForegroundColor Cyan
+    # l'unica voce assoluta punta dentro la cartella temporanea: anche se il
+    # controllo mancasse, la prova non scriverebbe fuori di li'
+    $assoluta = Join-Path $finto 'Assoluta'
+    $r4 = Genera $finto "..: Matematica`r`n5E: .., Storia" @() @('..\Fuori', $assoluta, 'A/../B', 'Punto?', 'RECUPERI/ PENTAMESTRE /') 'Extra, .., CON'
+    Verifica "'..\Fuori' non esce dall'anno"             (-not (Test-Path (Join-Path $finto 'Fuori')))
+    Verifica "la voce assoluta non viene creata"         (-not (Test-Path $assoluta))
+    Verifica "'A/../B' non viene creata"                 (-not (Test-Path (Join-Path $anno 'A')) -and -not (Test-Path (Join-Path $anno 'B')))
+    Verifica "le barre dritte vanno bene"                (Test-Path (Join-Path $anno 'RECUPERI\PENTAMESTRE'))
+    Verifica "la classe '..' no, la materia '..' no"     (-not (Test-Path (Join-Path $anno 'Matematica')) -and -not (Test-Path (Join-Path $anno 'RECUPERI\Matematica')) -and (Test-Path (Join-Path $anno 'CLASSI\5E\Storia')))
+    Verifica "delle cartelle in piu' solo quella buona"  ((Test-Path (Join-Path $anno 'Extra')) -and -not (Test-Path (Join-Path $anno 'CON')))
+    $attese = @('*..\Fuori*', '*Assoluta]*', '*A/../B*', '*Punto?*', '*Classe non valida: `[..: Matematica`]*', '*Materia non valida in `[5E*', '*Cartella in piu'' non valida `[..`]*', '*Cartella in piu'' non valida `[CON`]*')
+    foreach ($a in $attese) {
+        Verifica "segnalato: $a" (($r4.Errori | Where-Object { $_ -like $a }).Count -ge 1)
+    }
+    Verifica "solo quelli ($($r4.Errori.Count))" ($r4.Errori.Count -eq $attese.Count)
+
+    $voce = $tG.GetMethod('ControllaVoce', $FS)
+    foreach ($v in @('\Radice', '/radice', 'C:\Scuola', '\\server\cartella', '..', 'A\..\..\B', 'NUL', 'Com1.txt', 'Fine.', 'Tab<>')) {
+        Verifica "voce rifiutata: $v" ($voce.Invoke($null, @([string]$v)) -ne '')
+    }
+    foreach ($v in @('CLASSI', 'RECUPERI\TRIMESTRE', 'Verifiche e valutazione', 'A.S. vecchi\2025-26', 'Consiglio di classe')) {
+        Verifica "voce accettata: $v" ($voce.Invoke($null, @([string]$v)) -eq '')
+    }
+
+    # --- 6. struttura.json scritto a mano ---------------------------------------------
+    Write-Host "`nSTRUTTURA.JSON" -ForegroundColor Cyan
+    $leggi = $tG.GetMethod('LeggiStruttura', $FS)
+    function LeggiJson($testo) {
+        $f = Join-Path $finto 'struttura.json'
+        if ($null -eq $testo) { Remove-Item $f -ErrorAction SilentlyContinue }
+        else { Scrivi $f $testo }
+        $errori = [System.Collections.Generic.List[string]]::new()
+        $argomenti = New-Object 'object[]' 2
+        $argomenti[0] = [string]$f
+        $argomenti[1] = $errori
+        $voci = $leggi.Invoke($null, $argomenti)
+        return @{ Voci = $voci; Errori = $errori }
+    }
+    $x = LeggiJson $null
+    Verifica "senza file: nessuna voce e nessun errore"        ($null -eq $x.Voci -and $x.Errori.Count -eq 0)
+    $x = LeggiJson '{ "cartelle": [ { "nome": "CLASSI" }, '
+    Verifica "JSON rotto: nessuna voce e il perche'"           ($null -eq $x.Voci -and $x.Errori.Count -eq 1 -and $x.Errori[0] -like '*non si legge*')
+    $x = LeggiJson '{ "cartella": [ ] }'
+    Verifica "senza l'elenco cartelle: lo dice"                ($null -eq $x.Voci -and $x.Errori[0] -like '*manca l''elenco*')
+    $x = LeggiJson ('{ "cartelle": [ { "nome": "CLASSI" }, { "nome": "RECUPERI/TRIMESTRE", "spuntata": false }, ' +
+                    '{ "nome": "..\\Fuori" }, { "nome": "C:\\Windows" }, "Sbagliata", { "nome": "Da stampare", "spuntata": "false" } ] }')
+    $nomi = @($x.Voci | ForEach-Object { $_.Nome })
+    Verifica "tiene le voci buone ($($nomi -join ' | '))"       ($nomi.Count -eq 3 -and $nomi[0] -eq 'CLASSI' -and $nomi[1] -eq 'RECUPERI\TRIMESTRE' -and $nomi[2] -eq 'Da stampare')
+    Verifica "con la loro spunta"                              ($x.Voci[0].Spuntata -and -not $x.Voci[1].Spuntata -and -not $x.Voci[2].Spuntata)
+    Verifica "e segnala le tre sbagliate"                      ($x.Errori.Count -eq 3 -and ($x.Errori -join '|') -like '*voce 3*' -and ($x.Errori -join '|') -like '*voce 4*' -and ($x.Errori -join '|') -like '*voce 5*')
+    $x = LeggiJson '{ "cartelle": [ { "nome": "..\\.." } ] }'
+    Verifica "tutte sbagliate: nessuna voce, ma il perche'"    ($null -eq $x.Voci -and $x.Errori.Count -eq 1)
+
+    # --- 7. il Drive va sempre dato: nessun ripiego sul Drive vero ------------------
     Write-Host "`nIL DRIVE" -ForegroundColor Cyan
     $messaggio = ''
     try { Genera '' $classi @() @('CLASSI') '' | Out-Null }

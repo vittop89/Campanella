@@ -13,6 +13,10 @@
 //  modelli: quando in MODELLI cambiano i documenti da duplicare la riscrive,
 //  ma solo se e' ancora come l'ha scritta Campanella (lo dice il codice
 //  nell'ultima riga). Se l'hai modificata tu, resta la tua.
+//
+//  Tutto finisce dentro "A.S. <anno>": le voci di struttura.json, le classi,
+//  le materie e le cartelle in piu' sono controllate prima (niente percorsi
+//  assoluti, niente "..", niente caratteri o nomi che Windows non accetta).
 // ===========================================================================
 
 using System;
@@ -21,6 +25,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Web.Script.Serialization;
 
 namespace Campanella
 {
@@ -36,6 +41,9 @@ namespace Campanella
         public List<string> Registro = new List<string>();
     }
 
+    /// <summary>Una cartella fissa dell'anno, come la scrive struttura.json.</summary>
+    class VoceStruttura { public string Nome = ""; public bool Spuntata = true; }
+
     class GeneratoreAnno
     {
         /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
@@ -50,7 +58,15 @@ namespace Campanella
         /// </summary>
         public Action<string> Avanzamento;
 
+        static readonly string[] NomiRiservati =
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+
         RisultatoGenerazione res;
+        string cartellaAnno = "";
 
         // ===================================================================
         /// <summary>
@@ -94,8 +110,11 @@ namespace Campanella
             if (classi.Count == 0)
                 throw new Exception("Scrivi almeno una classe (per esempio  1A: Matematica, Fisica).");
 
+            string problemaAnno = ControllaNome("A.S. " + anno);
+            if (problemaAnno != "") throw new Exception("Anno scolastico non valido [" + anno + "]: " + problemaAnno);
             string target = Path.Combine(radice, "A.S. " + anno);
             res.Cartella = target;
+            cartellaAnno = target;
             if (Directory.Exists(target))
             {
                 Riga("La cartella esiste gia': aggiungo solo cio' che manca.");
@@ -110,7 +129,11 @@ namespace Campanella
             }
 
             foreach (string d in (struttura ?? new List<string>()))
-                Cartella(Path.Combine(target, d));
+            {
+                string problema = ControllaVoce(d);
+                if (problema != "") { Errore("Cartella dell'anno non valida [" + d + "]: " + problema); continue; }
+                Cartella(Path.Combine(target, NormalizzaVoce(d)));
+            }
             Riga("Struttura: " + target);
 
             if (extraText != null && extraText.Trim() != "")
@@ -119,9 +142,10 @@ namespace Campanella
                 {
                     string ee = e.Trim();
                     if (ee == "") continue;
-                    if (ee.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                    string problema = ControllaNome(ee);
+                    if (problema != "")
                     {
-                        Errore("Nome di cartella non valido: [" + ee + "]");
+                        Errore("Cartella in piu' non valida [" + ee + "]: " + problema);
                         continue;
                     }
                     if (Cartella(Path.Combine(target, ee))) Riga("Cartella in piu': " + ee);
@@ -157,9 +181,10 @@ namespace Campanella
                     if (mm != "") materie.Add(mm);
                 }
             }
-            if (nomeClasse == "" || nomeClasse.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            string problema = ControllaNome(nomeClasse);
+            if (problema != "")
             {
-                Errore("Classe non valida: [" + c + "]");
+                Errore("Classe non valida: [" + c + "]: " + problema);
                 return;
             }
             // "1A; 2B" o "1A, 2B" su una riga sola: sono due classi scritte di
@@ -181,9 +206,10 @@ namespace Campanella
             string elenco = "";
             foreach (string m in materie)
             {
-                if (m.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                string problemaMateria = ControllaNome(m);
+                if (problemaMateria != "")
                 {
-                    Errore("Materia non valida in [" + c + "]: " + m);
+                    Errore("Materia non valida in [" + c + "]: " + m + " (" + problemaMateria + ")");
                     continue;
                 }
                 Cartella(Path.Combine(dirClasse, m));
@@ -403,6 +429,12 @@ namespace Campanella
         {
             try
             {
+                // i controlli sui nomi bastano gia'; questo e' l'ultimo argine
+                if (!Dentro(percorso))
+                {
+                    Errore("Cartella fuori da \"" + Path.GetFileName(cartellaAnno) + "\", non la creo: " + percorso);
+                    return false;
+                }
                 if (Directory.Exists(percorso)) { res.GiaPresenti++; return true; }
                 Directory.CreateDirectory(percorso);
                 res.Creati++;
@@ -413,6 +445,116 @@ namespace Campanella
                 Errore("Non riesco a creare la cartella " + percorso + ": " + ex.Message);
                 return false;
             }
+        }
+
+        /// <summary>Vero se il percorso sta dentro la cartella dell'anno.</summary>
+        bool Dentro(string percorso)
+        {
+            string dentro = Path.GetFullPath(cartellaAnno).TrimEnd('\\') + "\\";
+            return Path.GetFullPath(percorso).StartsWith(dentro, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ===================================================================
+        //  NOMI E STRUTTURA.JSON
+        // ===================================================================
+        /// <summary>
+        /// Vuoto se il nome va bene per una cartella sola (una classe, una
+        /// materia, una cartella in piu'), altrimenti il perche' no.
+        /// </summary>
+        public static string ControllaNome(string nome)
+        {
+            string n = (nome ?? "").Trim();
+            if (n == "") return "il nome e' vuoto";
+            if (n == "." || n == "..")
+                return "\"" + n + "\" non e' un nome di cartella: tutto deve restare dentro \"A.S. <anno>\"";
+            if (n.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                return "contiene un carattere che Windows non accetta nei nomi ( \\ / : * ? \" < > | )";
+            if (n.EndsWith(".")) return "finisce con un punto, che Windows toglierebbe";
+            string prima = n.Split('.')[0].Trim().ToUpperInvariant();
+            if (Array.IndexOf(NomiRiservati, prima) >= 0) return "\"" + n + "\" e' un nome riservato di Windows";
+            return "";
+        }
+
+        /// <summary>
+        /// Vuoto se la voce (anche su piu' livelli, "RECUPERI\TRIMESTRE") resta
+        /// dentro "A.S. &lt;anno&gt;", altrimenti il perche' no.
+        /// </summary>
+        public static string ControllaVoce(string voce)
+        {
+            string v = (voce ?? "").Trim();
+            if (v == "") return "il nome e' vuoto";
+            if (v.StartsWith("\\") || v.StartsWith("/") || v.IndexOf(':') >= 0)
+                return "e' un percorso assoluto: ogni cartella va dentro \"A.S. <anno>\"";
+            foreach (string parte in v.Split('\\', '/'))
+            {
+                if (parte.Trim() == "") continue;
+                string problema = ControllaNome(parte);
+                if (problema != "") return problema;
+            }
+            return "";
+        }
+
+        /// <summary>"RECUPERI/ TRIMESTRE\" diventa "RECUPERI\TRIMESTRE".</summary>
+        public static string NormalizzaVoce(string voce)
+        {
+            List<string> parti = new List<string>();
+            foreach (string parte in (voce ?? "").Split('\\', '/'))
+                if (parte.Trim() != "") parti.Add(parte.Trim());
+            return string.Join("\\", parti.ToArray());
+        }
+
+        /// <summary>
+        /// Le cartelle fisse scritte in struttura.json. Null se il file non c'e'
+        /// oppure non si puo' usare: in quel caso errori dice perche'. Le voci
+        /// che uscirebbero da "A.S. &lt;anno&gt;" restano fuori e finiscono in errori.
+        /// </summary>
+        public static List<VoceStruttura> LeggiStruttura(string percorso, List<string> errori)
+        {
+            if (!File.Exists(percorso)) return null;
+            object letto;
+            try { letto = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(percorso, Encoding.UTF8)); }
+            catch (Exception ex)
+            {
+                errori.Add("il file non si legge (" + ex.Message + ")");
+                return null;
+            }
+            Dictionary<string, object> radice = letto as Dictionary<string, object>;
+            object[] elenco = (radice != null && radice.ContainsKey("cartelle")) ? radice["cartelle"] as object[] : null;
+            if (elenco == null)
+            {
+                errori.Add("manca l'elenco \"cartelle\": [ { \"nome\": \"...\", \"spuntata\": true } ]");
+                return null;
+            }
+
+            List<VoceStruttura> voci = new List<VoceStruttura>();
+            for (int i = 0; i < elenco.Length; i++)
+            {
+                Dictionary<string, object> d = elenco[i] as Dictionary<string, object>;
+                if (d == null)
+                {
+                    errori.Add("voce " + (i + 1) + ": non e' nella forma { \"nome\": \"...\", \"spuntata\": true }");
+                    continue;
+                }
+                object o;
+                string nome = (d.TryGetValue("nome", out o) && o != null) ? Convert.ToString(o) : "";
+                if (nome.Trim() == "") continue;
+                string problema = ControllaVoce(nome);
+                if (problema != "")
+                {
+                    errori.Add("voce " + (i + 1) + " [" + nome + "]: " + problema);
+                    continue;
+                }
+                VoceStruttura v = new VoceStruttura();
+                v.Nome = NormalizzaVoce(nome);
+                if (d.TryGetValue("spuntata", out o) && o != null)
+                {
+                    try { v.Spuntata = Convert.ToBoolean(o); }
+                    catch (FormatException) { }
+                    catch (InvalidCastException) { }
+                }
+                voci.Add(v);
+            }
+            return (voci.Count > 0) ? voci : null;
         }
 
         /// <summary>Copia un file se manca e lo conta. Vero solo se l'ha copiato adesso.</summary>

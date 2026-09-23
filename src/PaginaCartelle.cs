@@ -22,7 +22,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text;
-using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 namespace Campanella
@@ -72,6 +71,11 @@ namespace Campanella
         };
 
         const string FileStruttura = "struttura.json";
+
+        // gli errori dell'ultima lettura di struttura.json
+        List<string> erroriStruttura = new List<string>();
+        bool strutturaInutilizzabile = false;
+        string avvisoStruttura = "";
 
         /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
         const string CartellaPerClasse = GeneratoreAnno.CartellaPerClasse;
@@ -243,6 +247,7 @@ namespace Campanella
             PopolaModelli();
             AggiornaDrive();
             RicaricaStruttura();
+            AvvisaStruttura(false);
             CaricaModulo();
             Tema.Applica(this);
         }
@@ -374,47 +379,22 @@ namespace Campanella
             }
         }
 
-        class VoceStruttura { public string Nome = ""; public bool Spuntata = true; }
-
         string PercorsoStruttura()
         {
             try { return Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), FileStruttura); }
             catch { return FileStruttura; }
         }
 
-        List<VoceStruttura> LeggiStrutturaJson()
-        {
-            string p = PercorsoStruttura();
-            if (!File.Exists(p)) return null;
-            try
-            {
-                JavaScriptSerializer ser = new JavaScriptSerializer();
-                Dictionary<string, object> radice =
-                    ser.DeserializeObject(File.ReadAllText(p, Encoding.UTF8)) as Dictionary<string, object>;
-                if (radice == null || !radice.ContainsKey("cartelle")) return null;
-                object[] a = radice["cartelle"] as object[];
-                if (a == null) return null;
-
-                List<VoceStruttura> voci = new List<VoceStruttura>();
-                foreach (object o in a)
-                {
-                    Dictionary<string, object> d = o as Dictionary<string, object>;
-                    if (d == null) continue;
-                    string nome = Stato.Str(d, "nome", "");
-                    if (nome.Trim() == "") continue;
-                    VoceStruttura v = new VoceStruttura();
-                    v.Nome = nome;
-                    v.Spuntata = Stato.Bool(d, "spuntata", true);
-                    voci.Add(v);
-                }
-                return (voci.Count > 0) ? voci : null;
-            }
-            catch { return null; }
-        }
-
+        /// <summary>
+        /// Rilegge struttura.json. Le voci che non vanno restano fuori
+        /// dall'elenco e finiscono in erroriStruttura; se il file non si puo'
+        /// usare del tutto, l'elenco lo dice e "Genera" si rifiuta.
+        /// </summary>
         void RicaricaStruttura()
         {
-            List<VoceStruttura> voci = LeggiStrutturaJson();
+            erroriStruttura = new List<string>();
+            List<VoceStruttura> voci = GeneratoreAnno.LeggiStruttura(PercorsoStruttura(), erroriStruttura);
+            strutturaInutilizzabile = (voci == null && erroriStruttura.Count > 0);
             if (voci == null)
             {
                 voci = new List<VoceStruttura>();
@@ -431,8 +411,48 @@ namespace Campanella
                 prima[Convert.ToString(clbStruttura.Items[i])] = clbStruttura.GetItemChecked(i);
 
             clbStruttura.Items.Clear();
+            if (strutturaInutilizzabile)
+            {
+                // meglio nessuna cartella che quelle di partenza al posto delle tue
+                clbStruttura.Items.Add("(" + FileStruttura + " ha un errore: correggilo con \"Modifica struttura...\")", false);
+                clbStruttura.Enabled = false;
+                return;
+            }
+            clbStruttura.Enabled = true;
             foreach (VoceStruttura v in voci)
                 clbStruttura.Items.Add(v.Nome, prima.ContainsKey(v.Nome) ? prima[v.Nome] : v.Spuntata);
+        }
+
+        /// <summary>Cosa non va in struttura.json, spiegato; vuoto se e' tutto a posto.</summary>
+        string TestoErroriStruttura()
+        {
+            if (erroriStruttura.Count == 0) return "";
+            StringBuilder sb = new StringBuilder();
+            sb.Append(strutturaInutilizzabile
+                ? "Non riesco a usare " + FileStruttura + ", quindi non so quali cartelle vuoi:\n"
+                : "In " + FileStruttura + " ci sono voci che salto:\n");
+            foreach (string e in erroriStruttura) sb.Append("  - " + e + "\n");
+            sb.Append(strutturaInutilizzabile
+                ? "\nCorreggilo con \"Modifica struttura...\", oppure cancellalo per tornare alle " +
+                  "cartelle di partenza.\nIl file e': " + PercorsoStruttura()
+                : "\nOgni cartella deve stare dentro \"A.S. <anno>\": niente percorsi come C:\\..., " +
+                  "niente \"..\" e niente caratteri come : * ? \" < > |");
+            return sb.ToString();
+        }
+
+        /// <summary>Racconta i problemi di struttura.json nel riquadro e, se richiesto, in una finestra.</summary>
+        void AvvisaStruttura(bool finestra)
+        {
+            string testo = TestoErroriStruttura();
+            if (testo == "") { avvisoStruttura = ""; return; }
+            if (testo != avvisoStruttura)
+            {
+                foreach (string riga in testo.Split('\n')) Log(riga);
+                avvisoStruttura = testo;
+            }
+            Guscio.Stato1(FileStruttura + " ha dei problemi: leggi il riquadro.", Tema.Ambra);
+            if (finestra)
+                MessageBox.Show(this, testo, FileStruttura, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         void ModificaStruttura()
@@ -452,15 +472,27 @@ namespace Campanella
                 }
                 sb.AppendLine("  ]");
                 sb.AppendLine("}");
-                File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false));
+                try { File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false)); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this,
+                        "Non riesco a creare " + FileStruttura + " accanto al programma:\n" + p +
+                        "\n\n" + ex.Message + "\n\nLe cartelle dell'anno restano quelle dell'elenco.",
+                        "Struttura", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
             }
             Guscio.Apri(p);
             MessageBox.Show(this,
                 "Ho aperto " + FileStruttura + " con l'editor di testo.\n\n" +
                 "Modifica i nomi, salva con Ctrl+S e torna qui: l'elenco si aggiorna da solo.\n" +
-                "Nel file il backslash si scrive doppio: \"RECUPERI\\\\TRIMESTRE\".",
+                "Nel file il backslash si scrive doppio: \"RECUPERI\\\\TRIMESTRE\" (va bene anche " +
+                "\"RECUPERI/TRIMESTRE\").\n" +
+                "Ogni cartella resta dentro \"A.S. <anno>\": le voci con C:\\, \"..\" o caratteri " +
+                "come : * ? le salto e te lo dico.",
                 "Struttura", MessageBoxButtons.OK, MessageBoxIcon.Information);
             RicaricaStruttura();
+            AvvisaStruttura(true);
             Tema.Applica(this);
         }
 
@@ -643,8 +675,9 @@ namespace Campanella
         List<string> CartelleDellAnno()
         {
             List<string> fuori = new List<string>();
-            for (int i = 0; i < clbStruttura.Items.Count; i++)
-                if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
+            if (!strutturaInutilizzabile)
+                for (int i = 0; i < clbStruttura.Items.Count; i++)
+                    if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
             if (clbModelli.Enabled)
                 for (int i = 0; i < clbModelli.Items.Count; i++)
                 {
@@ -920,7 +953,13 @@ namespace Campanella
                            : (voce == 3) ? "Pannello.gs" : "pannello - cosa fare.txt";
                 d.Filter = "Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
-                File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false));
+                try { File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false)); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Non riesco a salvare il file:\n" + d.FileName + "\n\n" + ex.Message,
+                        "Salvataggio non riuscito", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
                 Guscio.Stato1("Salvato: " + d.FileName);
             }
         }
@@ -936,11 +975,24 @@ namespace Campanella
             if (PercorsoDrive() == "") txtDrive.Text = Stato.DriveDiDefault();
             Esce();
 
+            // struttura.json si puo' cambiare anche mentre la pagina e' aperta;
+            // il riquadro e' appena stato svuotato, quindi l'avviso va riscritto
+            RicaricaStruttura();
+            avvisoStruttura = "";
+            AvvisaStruttura(false);
+            if (strutturaInutilizzabile)
+            {
+                MessageBox.Show(this, TestoErroriStruttura(), "Non genero niente",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             string bersaglio = CartellaAnno();
             string avviso = Directory.Exists(bersaglio)
                 ? "La cartella\n\n" + bersaglio + "\n\nesiste gia'. Verranno aggiunte solo le " +
                   "cartelle e i file mancanti: niente viene sovrascritto o cancellato.\n\nProcedo?"
                 : "Sto per creare\n\n" + bersaglio + "\n\nProcedo?";
+            if (erroriStruttura.Count > 0) avviso = TestoErroriStruttura() + "\n\n" + avviso;
             if (MessageBox.Show(this, avviso, "Conferma",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
