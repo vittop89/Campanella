@@ -97,6 +97,7 @@
 		<apps:property name='sizeOperator' value='s_sl'/>
 		<apps:property name='sizeUnit' value='s_smb'/>
 		<apps:property name='label' value='Allegati grandi'/>
+		<apps:property name='shouldNuovaAzione' value='true'/>
 	</entry>
 	<entry>
 		<category term='filter'></category>

@@ -653,15 +653,20 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     ControllaPannello $ff "Filtri che hai gia' in Gmail, con il file"
     Verifica "con il file: i suoi 14 filtri, e in fondo quello scelto prima che non c'e'" (
         $gr.Rows.Count -eq 15 -and $ff.Spuntata(14) -and [string]$gr.Rows[14].Cells[4].Value -match "^scelto prima: nel file non c'e'")
-    $mConfronta = $tFG.GetMethod('Confronta', $FS)
-    $storte = @(); $uguali = 0
+    # partono spuntati quelli uguali a una regola che non fanno altro
+    # (FiltriGmail.DiPartenza): non quelli che inoltrano, eliminano..., ne'
+    # quelli creati da Campanella
+    $mConfronta = $tFG.GetMethod('Confronta', $FS, $null, [Type[]]@($asm.GetType('Campanella.FiltroGmail'), $tStato), $null)
+    $mDiPartenza = $tFG.GetMethod('DiPartenza', $FS)
+    $storte = @(); $spuntati = 0
     for ($i = 0; $i -lt 14; $i++) {
-        $tipo = $mConfronta.Invoke($null, @([string]$filtriEs[$i].Etichetta, $stato.PSObject.BaseObject)).Tipo
-        if ($tipo -eq 'uguale') { $uguali++ }
-        if ($ff.Spuntata($i) -ne ($tipo -eq 'uguale')) { $storte += $filtriEs[$i].Etichetta }
+        $x = $mConfronta.Invoke($null, @($filtriEs[$i], $stato.PSObject.BaseObject))
+        $diPartenza = [bool]$mDiPartenza.Invoke($null, @($filtriEs[$i], $x))
+        if ($diPartenza) { $spuntati++ }
+        if ($ff.Spuntata($i) -ne $diPartenza) { $storte += $filtriEs[$i].Etichetta }
     }
-    Verifica "partono spuntati proprio i filtri uguali a una regola ($uguali)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
-        $storte.Count -eq 0 -and $uguali -ge 2 -and $uguali -lt 14)
+    Verifica "partono spuntati proprio i filtri uguali a una regola che non fanno altro ($spuntati)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
+        $storte.Count -eq 0 -and $spuntati -ge 2 -and $spuntati -lt 14)
     Verifica "un filtro senza etichetta non si puo' spuntare" (
         [string]$gr.Rows[6].Cells[1].Value -eq '(nessuna)' -and $gr.Rows[6].Cells[0].ReadOnly -and -not $ff.Spuntata(6))
     $ff.Spunta(6, $true)

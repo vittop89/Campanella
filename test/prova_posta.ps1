@@ -493,6 +493,41 @@ try {
         Verifica "una proprieta' che Campanella non conosce resta, con il suo valore" (
             $filtri[7].Altre.Count -eq 1 -and $filtri[7].Altre[0].Key -eq 'nuovaOpzione' -and $filtri[7].Altre[0].Value -eq 'si' -and
             (Descrivi $filtri[7]) -eq 'Sindacato{query=assemblea}')
+        # nuovaOpzione non e' un'azione (non comincia per "should"): potrebbe
+        # essere un criterio nuovo di Gmail, e senza quello lo script
+        # toglierebbe un altro filtro, Sindacato{query=assemblea}
+        Verifica "e siccome potrebbe essere un criterio, quel filtro non si puo' togliere" (
+            $filtri[7].CriteriIncompleti -and $null -eq $filtri[7].GetType().GetMethod('DaTogliere').Invoke($filtri[7], @()))
+        Verifica "un'azione che Campanella non conosce (should...) invece si mostra, e il filtro si puo' togliere" (
+            -not $filtri[8].CriteriIncompleti -and @($filtri[8].AltreAzioni | Where-Object { $_ -match 'shouldNuovaAzione' }).Count -eq 1 -and
+            $null -ne $filtri[8].GetType().GetMethod('DaTogliere').Invoke($filtri[8], @()))
+        # un criterio che non si legge: il filtro resta nell'elenco, ma non
+        # diventa mai una voce con un criterio in meno
+        function UnFiltro($proprieta) {
+            $p = ($proprieta.GetEnumerator() | ForEach-Object {
+                "<apps:property name='$($_.Key)' value='$([System.Security.SecurityElement]::Escape([string]$_.Value))'/>" }) -join ''
+            $f = LeggiFiltri ("<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom' " +
+                "xmlns:apps='http://schemas.google.com/apps/2006'><entry>$p</entry></feed>")
+            return $f[0]
+        }
+        $conSi = UnFiltro ([ordered]@{ hasTheWord = 'verbale'; hasAttachment = 'yes'; label = 'Allegati' })
+        $conUnita = UnFiltro ([ordered]@{ hasTheWord = 'verbale'; size = '5'; sizeUnit = 's_sgb'; label = 'Allegati' })
+        $conOperatore = UnFiltro ([ordered]@{ hasTheWord = 'verbale'; size = '5'; sizeOperator = 's_circa'; label = 'Allegati' })
+        $conNuovo = UnFiltro ([ordered]@{ hasTheWord = 'verbale'; nuovoCriterio = 'x'; label = 'Allegati' })
+        $ripetuto = LeggiFiltri ("<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'><entry>" +
+            "<apps:property name='from' value='a@scuola.example'/><apps:property name='from' value='b@scuola.example'/>" +
+            "<apps:property name='label' value='Allegati'/></entry></feed>")
+        $semplice = UnFiltro ([ordered]@{ hasTheWord = 'verbale'; label = 'Allegati' })
+        $storti = @()
+        foreach ($coppia in @(@('hasAttachment=yes', $conSi), @('sizeUnit sconosciuta', $conUnita), @('sizeOperator sconosciuto', $conOperatore),
+                              @('nuovoCriterio', $conNuovo), @('from ripetuto', $ripetuto[0]))) {
+            $f = $coppia[1]
+            if (-not $f.CriteriIncompleti -or $null -ne $f.GetType().GetMethod('DaTogliere').Invoke($f, @())) { $storti += $coppia[0] }
+        }
+        Verifica "hasAttachment='yes', una dimensione che non si legge, un criterio nuovo, un criterio ripetuto: non si tolgono$(if ($storti.Count) { ' (no: ' + ($storti -join ', ') + ')' })" (
+            $storti.Count -eq 0)
+        Verifica "e lo stesso filtro senza quel criterio si' (Allegati, con le parole verbale)" (
+            $null -ne $semplice.GetType().GetMethod('DaTogliere').Invoke($semplice, @()))
         $mAzioni = $tFiltri.GetMethod('DescriviAzioni', $FS)
         $mCriteri = $tFiltri.GetMethod('DescriviCriteri', $FS)
         $azioni = @($filtri | ForEach-Object { [string]$mAzioni.Invoke($null, @($_.PSObject.BaseObject)) })
@@ -526,10 +561,22 @@ try {
         Verifica "un file con un DOCTYPE (e un'entita' esterna) non si apre" ($conEntita -match '^Il file non si legge')
         $senzaFiltri = LeggiFiltri "<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'><title>Mail Filters</title></feed>"
         Verifica "un'esportazione senza filtri e' vuota, non un errore" ($senzaFiltri.Count -eq 0 -and (ErroreDi "<feed xmlns='http://www.w3.org/2005/Atom'/>") -eq '')
+        # un feed Atom qualsiasi (un blog, delle notizie) ha delle voci, ma non filtri
+        $blog = ErroreDi ("<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'><title>Notizie</title>" +
+            "<entry><title>Uno</title><content>testo</content></entry><entry><title>Due</title></entry></feed>")
+        Verifica "un altro feed Atom, con voci che non sono filtri, non e' un'esportazione dei filtri" (
+            $blog -match 'non e'' l''esportazione dei filtri di Gmail')
+        $altroSpazio = ErroreDi ("<feed xmlns='http://www.w3.org/2005/Atom'><entry>" +
+            "<z:property xmlns:z='urn:altro' name='from' value='x@scuola.example'/></entry></feed>")
+        $senzaAtom = ErroreDi ("<feed xmlns:apps='http://schemas.google.com/apps/2006'><entry>" +
+            "<apps:property name='from' value='x@scuola.example'/><apps:property name='label' value='X'/></entry></feed>")
+        Verifica "e nemmeno proprieta' di un altro spazio dei nomi, o un feed che non e' Atom" (
+            $altroSpazio -match 'non e'' l''esportazione dei filtri di Gmail' -and $senzaAtom -match 'non e'' l''esportazione dei filtri di Gmail')
 
         # -------------------------------------------------------------------
         Intestazione 'I FILTRI CHE HAI GIA'' IN GMAIL: UGUALI, SIMILI O TUOI'
-        $mConfronta = $tFiltri.GetMethod('Confronta', $FS)
+        # Confronta ha piu' forme: qui quella con l'etichetta sola
+        $mConfronta = $tFiltri.GetMethod('Confronta', $FS, $null, [Type[]]@([string], $tStato), $null)
         $c4 = NuovoStato
         Imposta $c4 'Dominio' 'scuola.example'
         Imposta $c4 'Prefisso' ''
@@ -561,6 +608,13 @@ try {
             (Somiglia 'circolari' $c4) -eq 'uguale|Circolari' -and (Somiglia 'Circolare urgente' $c4) -eq 'simile|Circolari')
         Verifica "le parole corte e quelle generiche non bastano (Ora, Varie)" (
             (Somiglia 'Ora' $c4) -eq 'tuo|' -and (Somiglia 'Varie' $c4) -eq 'tuo|')
+        # uguali a meno dell'ultima lettera, e lunghe uguali o una lettera in
+        # piu': non basta che una cominci come l'altra
+        $parolePerse = @('Circolo didattico', 'Sindaco', 'Registrazioni', 'Segreto') | Where-Object { (Somiglia $_ $c4) -ne 'tuo|' }
+        Verifica "Circolo, Sindaco, Registrazioni e Segreto non somigliano a Circolari, Sindacati, Registro e Segreteria$(if (@($parolePerse).Count) { ': no ' + (@($parolePerse) -join ', ') })" (
+            @($parolePerse).Count -eq 0)
+        Verifica "ma circolare e circolari, sindacato e sindacati si'" (
+            (Somiglia 'Circolare' $c4) -eq 'simile|Circolari' -and (Somiglia 'Sindacato' $c4) -eq 'simile|Sindacati')
         Imposta $c4 'Prefisso' 'Scuola'
         Verifica "con il gruppo: uguale solo il nome intero, Scuola/Colleghi; Colleghi da solo e' simile" (
             (Somiglia 'Scuola/Colleghi' $c4) -eq 'uguale|Scuola/Colleghi' -and (Somiglia 'Colleghi' $c4) -eq 'simile|Scuola/Colleghi' -and
@@ -571,6 +625,128 @@ try {
         Verifica "una regola spuntata ma spenta nella configurazione (Colleghi senza elenco) non e' uguale" (
             (Somiglia 'Colleghi' $senzaPersone) -eq 'simile|Colleghi' -and
             ($mConfronta.Invoke($null, @([string]'Colleghi', $senzaPersone))).Testo() -eq 'simile a Colleghi (regola spenta)')
+
+        # -------------------------------------------------------------------
+        Intestazione 'I FILTRI CHE HAI GIA'' IN GMAIL: QUALI PARTONO SPUNTATI'
+        # uguale a una regola si', ma solo se il filtro non fa altro: chi lo
+        # toglie perderebbe anche l'inoltro, la stella, lo spam...
+        $tFiltroGmail = $asm.GetType('Campanella.FiltroGmail')
+        $mConfrontaF = $tFiltri.GetMethod('Confronta', $FS, $null, [Type[]]@($tFiltroGmail, $tStato), $null)
+        $mDiPartenza = $tFiltri.GetMethod('DiPartenza', $FS)
+        Verifica "c'e' il confronto di un filtro intero, e la scelta di quelli spuntati di partenza" (
+            $null -ne $mConfrontaF -and $null -ne $mDiPartenza)
+        if ($null -ne $mConfrontaF -and $null -ne $mDiPartenza) {
+            # BaseObject: dentro ForEach-Object il filtro arriva avvolto da PowerShell
+            function Confronto($f, $stato) { return $mConfrontaF.Invoke($null, @($f.PSObject.BaseObject, $stato.PSObject.BaseObject)) }
+            function Partenza($f, $stato) {
+                $x = Confronto $f $stato
+                return $x.Tipo + '|' + [bool]$mDiPartenza.Invoke($null, @($f.PSObject.BaseObject, $x))
+            }
+            $partenze = @($filtri | ForEach-Object { Partenza $_ $c4 })
+            # Dirigenza ha proprio i criteri del filtro che Campanella crea per
+            # quella regola (da: preside@scuola.example), ma inoltra e mette la stella
+            $attesePartenza = @(
+                'uguale|True', 'uguale|True', 'simile|False', 'simile|False', 'tuo|False', 'tuo|False', 'senza|False',
+                'noncapito|False', 'tuo|False', 'simile|False', 'campanella|False', 'uguale|False', 'tuo|False', 'uguale|True')
+            $diverse = @()
+            for ($i = 0; $i -lt $filtri.Count; $i++) {
+                if ($partenze[$i] -ne $attesePartenza[$i]) { $diverse += "$($filtri[$i].Etichetta): $($partenze[$i]) invece di $($attesePartenza[$i])" }
+            }
+            Verifica "spuntati di partenza: Colleghi, Circolari (archivia) e Colleghi/Docenti; non Dirigenza (inoltra) ne' Newsletter (spam, categoria)$(if ($diverse.Count) { ': no ' + ($diverse -join '; ') })" (
+                $diverse.Count -eq 0)
+            $inoltra = UnFiltro ([ordered]@{ subject = 'circolare'; label = 'Circolari'; forwardTo = 'vice@scuola.example' })
+            $testoInoltra = (Confronto $inoltra $c4).Testo()
+            Verifica "uguale ma inoltra: non spuntato, e il suggerimento dice perche' ('$testoInoltra')" (
+                (Partenza $inoltra $c4) -eq 'uguale|False' -and
+                $testoInoltra -match '^uguale a una regola di Campanella \(Circolari\), ma fa anche altro \(inoltra a vice@scuola\.example\)' -and
+                $testoInoltra -match 'toglilo solo se non ti serve')
+            $dirigenza = (Confronto $filtri[10] $c4).Testo()
+            Verifica "e cosi' anche per Dirigenza: '$dirigenza'" (
+                $dirigenza -match '^come quelli creati da Campanella per Dirigenza' -and $dirigenza -match 'inoltra a vice@scuola\.example')
+            Verifica "un filtro con un criterio che non si capisce lo dice: '$((Confronto $filtri[7] $c4).Testo())'" (
+                (Confronto $filtri[7] $c4).Testo() -eq "ha un criterio che Campanella non capisce: resta com'e'")
+            $cestino = UnFiltro ([ordered]@{ subject = 'circolare'; label = 'Circolari'; shouldTrash = 'true' })
+            Verifica "anche un filtro uguale che elimina non parte spuntato" ((Partenza $cestino $c4) -eq 'uguale|False')
+        }
+
+        # -------------------------------------------------------------------
+        Intestazione 'I FILTRI CHE HA CREATO CAMPANELLA (EXTRA_creaFiltriGmail)'
+        # Uno Stato con il gruppo, i ruoli e piu' di 20 colleghi: i filtri
+        # che il C# si aspetta da EXTRA_creaFiltriGmail devono essere proprio
+        # quelli che calcola lo script vero, e letti da un'esportazione di
+        # Gmail sono "creati da Campanella", mai spuntati di partenza
+        $c5 = NuovoStato
+        Imposta $c5 'Dominio' 'scuola.example'
+        Imposta $c5 'Dirigenza' 'preside@scuola.example'
+        Imposta $c5 'Segreteria' "segreteria@scuola.example`r`nprotocollo@scuola.example"
+        for ($k = 1; $k -le 23; $k++) {
+            AggiungiPersona $c5 ('DOCENTE ' + $k) 'DOCENTE' ('docente' + $k.ToString('00') + '@scuola.example') $true
+        }
+        AggiungiPersona $c5 'AMMINISTRATIVA UNA' 'ASSISTENTE AMMINISTRATIVO' 'amministrativa1@scuola.example' $true
+        $fileC5 = Join-Path $temporanea 'Configurazione_campanella.gs'
+        Scrivi $fileC5 (Genera $c5 $false)
+        $filtriJs = Join-Path $temporanea 'filtri_di_campanella.js'
+        Scrivi $filtriJs @'
+const vm = require('vm'), fs = require('fs');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto, { filename: 'Configurazione.gs' });
+vm.runInContext(fs.readFileSync(process.argv[3], 'utf8'), contesto, { filename: 'Organizzazione_Gmail.gs' });
+const cfg = contesto.CONFIG, filtri = [];
+contesto._regoleAttive_(cfg).forEach(r => {
+  if (r.escludiEtichette && r.escludiEtichette.length) return;       // restano allo script
+  contesto._criteriFiltro_(cfg, r).forEach(c => {
+    const nome = contesto._etichettaCompleta_(cfg, r);
+    const chiave = nome.trim().toLowerCase() + Object.keys(c).sort()
+      .map(k => '\n' + k + '=' + String(c[k] === true ? 'true' : c[k]).replace(/\s+/g, ' ').trim()).join('');
+    filtri.push({ etichetta: nome, criteri: c, chiave, archivia: !!r.archivia, letti: !!r.segnaComeLette });
+  });
+});
+process.stdout.write(JSON.stringify({ filtri, perQuery: contesto._INDIRIZZI_PER_QUERY }));
+'@
+        $delloScript = (& node $filtriJs $fileC5 $motore) | ConvertFrom-Json
+        $mFiltriDiCampanella = $tFiltri.GetMethod('FiltriDiCampanella', $FS)
+        Verifica "c'e' il calcolo dei filtri che crea Campanella" ($null -ne $mFiltriDiCampanella)
+        if ($null -ne $mFiltriDiCampanella) {
+            $delC = @($mFiltriDiCampanella.Invoke($null, @($c5)) | ForEach-Object { $_.Chiave() })
+            $chiaviJs = @($delloScript.filtri | ForEach-Object { $_.chiave })
+            $colleghiJs = @($delloScript.filtri | Where-Object { $_.etichetta -eq 'Scuola/Colleghi' })
+            Verifica "gli stessi filtri dello script vero ($($chiaviJs.Count), in $(@($delloScript.filtri | ForEach-Object { $_.etichetta } | Select-Object -Unique).Count) etichette)" (
+                $chiaviJs.Count -ge 8 -and (($delC | Sort-Object) -join "`n|") -eq (($chiaviJs | Sort-Object) -join "`n|"))
+            Verifica "con 24 colleghi, due filtri per Colleghi: ogni $($delloScript.perQuery) mittenti, come nello script" (
+                $colleghiJs.Count -eq 2 -and $delloScript.perQuery -eq $tFiltri.GetField('IndirizziPerFiltro', $FS).GetValue($null))
+        }
+        # l'esportazione di quei filtri, come la scrive Gmail: query ->
+        # hasTheWord, le regole che archiviano con shouldArchive, e le
+        # proprieta' della dimensione che Gmail mette sempre
+        $nomiExport = @{ from = 'from'; to = 'to'; subject = 'subject'; query = 'hasTheWord' }
+        $voci = foreach ($f in $delloScript.filtri) {
+            $p = @()
+            foreach ($k in $f.criteri.PSObject.Properties) {
+                $p += "<apps:property name='$($nomiExport[$k.Name])' value='$([System.Security.SecurityElement]::Escape([string]$k.Value))'/>"
+            }
+            $p += "<apps:property name='label' value='$([System.Security.SecurityElement]::Escape($f.etichetta))'/>"
+            if ($f.archivia) { $p += "<apps:property name='shouldArchive' value='true'/>" }
+            if ($f.letti) { $p += "<apps:property name='shouldMarkAsRead' value='true'/>" }
+            $p += "<apps:property name='sizeOperator' value='s_sl'/><apps:property name='sizeUnit' value='s_smb'/>"
+            '<entry><category term=''filter''></category><title>Mail Filter</title>' + ($p -join '') + '</entry>'
+        }
+        $esportazione = "<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' " +
+            "xmlns:apps='http://schemas.google.com/apps/2006'><title>Mail Filters</title>" + ($voci -join '') + '</feed>'
+        $diCampanella = LeggiFiltri $esportazione
+        if ($null -ne $mConfrontaF -and $null -ne $mDiPartenza) {
+            $partenzeC = @($diCampanella | ForEach-Object { Partenza $_ $c5 })
+            $nonCampanella = @($partenzeC | Where-Object { $_ -ne 'campanella|False' })
+            Verifica "letti dall'esportazione sono tutti 'creati da Campanella', e nessuno parte spuntato ($($diCampanella.Count))$(if ($nonCampanella.Count) { ': no ' + ($nonCampanella -join ', ') })" (
+                $diCampanella.Count -eq @($delloScript.filtri).Count -and $nonCampanella.Count -eq 0)
+            $testoC = (Confronto $diCampanella[0] $c5).Testo()
+            Verifica "e il suggerimento lo dice: '$testoC'" (
+                $testoC -match '^creato da Campanella per Scuola/' -and $testoC -match 'EXTRA_creaFiltriGmail' -and
+                $testoC -match "toglilo solo se non vuoi piu' i filtri veri")
+            # lo stesso nome ma altri criteri: un filtro vecchio, anche di una
+            # versione di prima di Campanella, e parte spuntato
+            $vecchioC = UnFiltro ([ordered]@{ subject = 'circolare'; label = 'Scuola/Circolari' })
+            Verifica "con la stessa etichetta ma altri criteri e' uguale, e parte spuntato" ((Partenza $vecchioC $c5) -eq 'uguale|True')
+        }
 
         # -------------------------------------------------------------------
         Intestazione 'I FILTRI DA TOGLIERE NELLA CONFIGURAZIONE'
@@ -660,6 +836,75 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         Verifica "e non quello con un criterio in piu'" ((@($esitoTogli.restano) -join ',') -eq 'INPIU')
         Verifica "PASSO_1_anteprima dice quanti sono e con quale funzione si tolgono" (
             @($esitoTogli.riga).Count -eq 1 -and $esitoTogli.riga[0] -eq '4 filtri di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).')
+
+        # -------------------------------------------------------------------
+        Intestazione 'LA FINESTRA DEI FILTRI, COSTRUITA E MAI MOSTRATA'
+        # La finestra del passo 4 si costruisce senza aprirla: bastano Carica,
+        # le spunte e la scelta, e non serve lo schermo
+        $tFF = $asm.GetType('Campanella.FormFiltriGmail')
+        $FIn = [System.Reflection.BindingFlags]'NonPublic,Instance'
+        function NuovaFinestra($stato) { return [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject)) }
+        function Scelte($ff) { return (@($ff.SceltiAdesso() | ForEach-Object { $_.Etichetta }) -join ',') }
+        # la virgola: la lista arriva a Carica cosi' com'e', non srotolata
+        function Esempio { return ,($tFiltri.GetMethod('LeggiFile', $FS).Invoke($null, @([string]$esempioXml))) }
+
+        # i filtri creati da Campanella (qui sopra) non partono spuntati
+        if ($null -ne $esportazione) {
+            $ffC = NuovaFinestra $c5
+            $ffC.Carica($mLeggi.Invoke($null, @([string]$esportazione)))
+            $esitoC = $tFF.GetField('lblEsito', $FIn).GetValue($ffC).Text
+            Verifica "i filtri creati da Campanella non partono spuntati ('$esitoC')" (
+                (Scelte $ffC) -eq '' -and $esitoC -match 'creati da Campanella')
+            $ffC.Dispose()
+        }
+
+        # riordinata con un clic sull'intestazione, ogni spunta resta al suo filtro
+        $ffO = NuovaFinestra $c4
+        $ffO.Carica((Esempio))
+        $gr = $tFF.GetField('griglia', $FIn).GetValue($ffO)
+        $primaO = Scelte $ffO
+        $gr.Sort($gr.Columns[1], [System.ComponentModel.ListSortDirection]::Descending)
+        $dopoO = Scelte $ffO
+        $aVista = (@($gr.Rows | Where-Object { $_.Cells[0].Value -eq $true } | ForEach-Object { [string]$_.Cells[1].Value }) | Sort-Object) -join ','
+        Verifica "riordinata per etichetta, la scelta resta la stessa ($primaO), e si vede sulle righe giuste" (
+            $primaO -ne '' -and $dopoO -eq $primaO -and $aVista -eq ((@($primaO -split ',') | Sort-Object) -join ','))
+        $ffO.Spunta(4, $true)
+        $rigaViaggi = @($gr.Rows | Where-Object { [string]$_.Cells[1].Value -eq 'Viaggi' })[0]
+        Verifica "spuntare un filtro dall'elenco spunta la sua riga, dovunque sia finita" (
+            $rigaViaggi.Cells[0].Value -eq $true -and (Scelte $ffO) -match 'Viaggi')
+        # un clic sulla spunta di una riga della griglia (la quarta, che nel file
+        # e' un'altra): e' il filtro di quella riga
+        $quarta = [string]$gr.Rows[3].Cells[1].Value
+        $primaDelClic = @($ffO.SceltiAdesso() | Where-Object { $_.Etichetta -eq $quarta }).Count
+        $gr.Rows[3].Cells[0].Value = $true
+        Verifica "la spunta messa sulla quarta riga della griglia ($quarta) sceglie proprio quel filtro" (
+            $primaDelClic -eq 0 -and @($ffO.SceltiAdesso() | Where-Object { $_.Etichetta -eq $quarta }).Count -eq 1)
+        $gr.CurrentCell = $gr.Rows[1].Cells[1]
+        $dettaglio = $tFF.GetField('txtDettaglio', $FIn).GetValue($ffO).Text
+        Verifica "e il dettaglio sotto la griglia e' quello della riga scelta ($([string]$gr.Rows[1].Cells[1].Value))" (
+            $dettaglio -match ('^Etichetta: ' + [regex]::Escape([string]$gr.Rows[1].Cells[1].Value) + '\r?\n'))
+        $ffO.Dispose()
+
+        # un secondo file che non ha un filtro scelto prima: la scelta resta, in fondo
+        $s6 = NuovoStato
+        Imposta $s6 'Prefisso' ''
+        $scelti6 = [Activator]::CreateInstance($tListaFiltri)
+        $viaggi6 = [Activator]::CreateInstance($tDaTogliere)
+        $viaggi6.Etichetta = 'Viaggi'
+        $viaggi6.Criteri['query'] = '{prenotazione biglietto}'
+        $scelti6.Add($viaggi6)
+        Imposta $s6 'FiltriDaTogliere' $scelti6
+        $ff6 = NuovaFinestra $s6
+        $ff6.Carica((Esempio))
+        $conViaggi = Scelte $ff6
+        $ff6.Carica($mLeggi.Invoke($null, @([string]("<feed xmlns='http://www.w3.org/2005/Atom' " +
+            "xmlns:apps='http://schemas.google.com/apps/2006'><entry><apps:property name='from' value='gite@scuola.example'/>" +
+            "<apps:property name='label' value='Gite'/></entry></feed>"))))
+        $esito6 = $tFF.GetField('lblEsito', $FIn).GetValue($ff6).Text
+        Verifica "aprendo un altro file che non ha Viaggi, scelto prima, Viaggi resta scelto ('$esito6')" (
+            $conViaggi -match 'Viaggi' -and (Scelte $ff6) -eq 'Viaggi' -and
+            $esito6 -match "^Nel file c'e' 1 filtro: 1 tuo\." -and $esito6 -match "In fondo, 1 scelto prima che nel file non c'e'\.")
+        $ff6.Dispose()
     }
 
     # -----------------------------------------------------------------------

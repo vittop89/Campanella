@@ -305,10 +305,12 @@ namespace Campanella
     /// I filtri che il docente ha gia' in Gmail (Posta, passo 4). Apre
     /// l'esportazione di Gmail, elenca ogni filtro con che cosa cerca, che cosa
     /// fa e quanto somiglia alle regole di Campanella (FiltriGmail.Confronta), e
-    /// fa spuntare quelli da togliere: di partenza quelli uguali a una regola e
-    /// quelli gia' scelti prima. Scelti va nello Stato; i filtri li toglie lo
-    /// script, con EXTRA_togliFiltri. Due filtri uguali si spuntano insieme:
-    /// per lo script sono la stessa voce.
+    /// fa spuntare quelli da togliere: di partenza quelli uguali a una regola
+    /// che non fanno altro (FiltriGmail.DiPartenza) e quelli gia' scelti prima.
+    /// Scelti va nello Stato; i filtri li toglie lo script, con
+    /// EXTRA_togliFiltri. Due filtri uguali si spuntano insieme: per lo script
+    /// sono la stessa voce. Ogni riga della griglia sa di quale filtro e' (Tag):
+    /// riordinata con un clic sull'intestazione, le spunte restano ai loro filtri.
     /// </summary>
     class FormFiltriGmail : Form
     {
@@ -318,9 +320,10 @@ namespace Campanella
         class Riga
         {
             public FiltroGmail Filtro;          // null: una voce scelta prima, senza file
-            public FiltroDaTogliere Voce;       // null: non si puo' togliere (niente etichetta)
+            public FiltroDaTogliere Voce;       // null: non si puo' togliere (niente etichetta, criteri, o uno non si capisce)
             public Somiglianza Somiglia;
             public bool Prima;                  // era gia' fra i filtri scelti
+            public DataGridViewRow Fila;        // la sua riga nella griglia, dovunque stia
         }
 
         readonly Stato stato;
@@ -371,8 +374,9 @@ namespace Campanella
             lblEsito.AutoSize = false;
             // alta quanto l'esito piu' lungo che Carica puo' scrivere
             lblEsito.Height = Tema.AltezzaTesto("Nel file ci sono 999 filtri: 999 uguali a una regola di Campanella " +
-                "(gia' spuntati), 999 simili, 999 tuoi, 999 senza etichetta. In fondo, 999 scelti prima che nel " +
-                "file non ci sono.", Tema.Normale, lblEsito.Width);
+                "(999 gia' spuntati, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
+                "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce. In fondo, 999 " +
+                "scelti prima che nel file non ci sono.", Tema.Normale, lblEsito.Width);
             Controls.Add(lblEsito);
             y += Math.Max(38, lblEsito.Height + 10);
 
@@ -412,7 +416,8 @@ namespace Campanella
             griglia.CellValueChanged += delegate(object o, DataGridViewCellEventArgs e)
             {
                 if (riempiendo || e.RowIndex < 0 || e.ColumnIndex != 0) return;
-                Spunta(e.RowIndex, Spuntata(e.RowIndex));
+                int i = righe.IndexOf(griglia.Rows[e.RowIndex].Tag as Riga);
+                Spunta(i, Spuntata(i));
             };
             // CurrentCellChanged, non SelectionChanged: quando arriva la
             // selezione CurrentRow e' ancora la riga di prima
@@ -422,7 +427,7 @@ namespace Campanella
             {
                 if (e.KeyCode != Keys.Space || griglia.CurrentRow == null) return;
                 if (griglia.CurrentCell != null && griglia.CurrentCell.ColumnIndex == 0) return;
-                int i = griglia.CurrentRow.Index;
+                int i = righe.IndexOf(griglia.CurrentRow.Tag as Riga);
                 Spunta(i, !Spuntata(i));
                 e.Handled = true;
             };
@@ -443,8 +448,9 @@ namespace Campanella
             y += txtDettaglio.Height + 8;
 
             Label nota = Tema.Testo1(
-                "Partono spuntati quelli uguali a una regola di Campanella e quelli scelti prima. Prima di togliere " +
-                "un filtro lo script ne scrive una copia nel registro, per rifarlo a mano. Le etichette gia' messe " +
+                "Partono spuntati quelli scelti prima e quelli uguali a una regola di Campanella che non fanno " +
+                "altro (non inoltrano, non eliminano...); non quelli creati da Campanella. Prima di togliere un " +
+                "filtro lo script ne scrive una copia nel registro, per rifarlo a mano. Le etichette gia' messe " +
                 "ai messaggi restano: se non ti servono, cancellale da Gmail (i messaggi non si cancellano).",
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(nota);
@@ -470,7 +476,7 @@ namespace Campanella
                     if (f == null) continue;
                     Riga r = new Riga();
                     r.Voce = f.Copia();
-                    r.Somiglia = FiltriGmail.Confronta(f.Etichetta, s);
+                    r.Somiglia = FiltriGmail.Confronta(f.Etichetta, f.Criteri, s);
                     r.Prima = true;
                     righe.Add(r);
                 }
@@ -511,13 +517,15 @@ namespace Campanella
 
         /// <summary>
         /// Mette nella finestra i filtri di un file: spuntati quelli scelti prima
-        /// e quelli uguali a una regola. Quelli scelti prima che nel file non ci
-        /// sono restano, spuntati, in fondo: forse sono gia' stati tolti.
+        /// e quelli uguali a una regola che non fanno altro. Quelli scelti prima
+        /// che nel file non ci sono restano, spuntati, in fondo: forse sono gia'
+        /// stati tolti.
         /// </summary>
         public void Carica(List<FiltroGmail> filtri)
         {
             // le spunte di adesso (i filtri scelti prima, o quelli di un altro
-            // file aperto poco fa) passano ai filtri uguali del file nuovo
+            // file aperto poco fa) passano ai filtri uguali del file nuovo; quelli
+            // scelti prima che il file nuovo non ha restano in fondo
             List<string> prima = new List<string>();
             List<Riga> vecchie = new List<Riga>();
             for (int i = 0; i < righe.Count; i++)
@@ -526,26 +534,37 @@ namespace Campanella
                 if (r.Voce == null || !Spuntata(i) || prima.Contains(r.Voce.Chiave())) continue;
                 prima.Add(r.Voce.Chiave());
                 if (r.Filtro == null) vecchie.Add(r);
+                else if (r.Prima)
+                {
+                    Riga v = new Riga();
+                    v.Voce = r.Voce.Copia();
+                    v.Somiglia = r.Somiglia;
+                    v.Prima = true;
+                    vecchie.Add(v);
+                }
             }
 
             righe.Clear();
             List<bool> spunte = new List<bool>();
             List<string> nelFile = new List<string>();
-            int uguali = 0, simili = 0, tuoi = 0, senza = 0;
+            int uguali = 0, ugualiSpuntati = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0;
             foreach (FiltroGmail f in filtri ?? new List<FiltroGmail>())
             {
                 Riga r = new Riga();
                 r.Filtro = f;
                 r.Voce = f.DaTogliere();
-                r.Somiglia = FiltriGmail.Confronta(f.Etichetta, stato);
-                if (r.Voce == null && r.Somiglia.Tipo != FiltriGmail.SenzaEtichetta) r.Somiglia.Tipo = FiltriGmail.SenzaEtichetta;
+                r.Somiglia = FiltriGmail.Confronta(f, stato);
                 r.Prima = r.Voce != null && prima.Contains(r.Voce.Chiave());
                 righe.Add(r);
-                spunte.Add(r.Voce != null && (r.Prima || r.Somiglia.Tipo == FiltriGmail.Uguale));
+                bool di = FiltriGmail.DiPartenza(f, r.Somiglia);
+                spunte.Add(r.Voce != null && (r.Prima || di));
                 if (r.Voce != null) nelFile.Add(r.Voce.Chiave());
-                if (r.Somiglia.Tipo == FiltriGmail.Uguale) uguali++;
-                else if (r.Somiglia.Tipo == FiltriGmail.Simile) simili++;
-                else if (r.Somiglia.Tipo == FiltriGmail.SenzaEtichetta) senza++;
+                string tipo = r.Somiglia.Tipo;
+                if (tipo == FiltriGmail.Uguale) { uguali++; if (di) ugualiSpuntati++; }
+                else if (tipo == FiltriGmail.DiCampanella) diCampanella++;
+                else if (tipo == FiltriGmail.Simile) simili++;
+                else if (tipo == FiltriGmail.SenzaEtichetta || tipo == FiltriGmail.SenzaCriteri) senza++;
+                else if (tipo == FiltriGmail.NonCapito) nonCapiti++;
                 else tuoi++;
             }
             int mancano = 0;
@@ -558,13 +577,30 @@ namespace Campanella
             }
             fileAperto = true;
             int n = (filtri == null) ? 0 : filtri.Count;
+            List<string> parti = new List<string>();
+            if (uguali > 0)
+            {
+                // quelli che fanno anche altro (inoltrano, eliminano...) non partono spuntati
+                string spuntati;
+                if (ugualiSpuntati == uguali) spuntati = (uguali == 1) ? "gia' spuntato" : "gia' spuntati";
+                else if (ugualiSpuntati == 0) spuntati = (uguali == 1) ? "non spuntato: fa anche altro" : "non spuntati: fanno anche altro";
+                else spuntati = ugualiSpuntati + " gia' spuntati, gli altri fanno anche altro";
+                parti.Add(Quanti(uguali, "uguale", "uguali") + " a una regola di Campanella (" + spuntati + ")");
+            }
+            if (diCampanella > 0) parti.Add(Quanti(diCampanella, "creato", "creati") + " da Campanella");
+            if (simili > 0) parti.Add(Quanti(simili, "simile", "simili"));
+            if (tuoi > 0) parti.Add(Quanti(tuoi, "tuo", "tuoi"));
+            if (senza > 0) parti.Add(senza + " senza etichetta o senza criteri");
+            if (nonCapiti > 0) parti.Add(nonCapiti + " con un criterio che Campanella non capisce");
             lblEsito.Text = (n == 0 ? "Nel file non ci sono filtri." :
-                "Nel file ci sono " + n + (n == 1 ? " filtro: " : " filtri: ") + uguali +
-                " uguali a una regola di Campanella (gia' spuntati), " + simili + " simili, " + tuoi + " tuoi" +
-                (senza > 0 ? ", " + senza + " senza etichetta" : "") + ".") +
-                (mancano > 0 ? " In fondo, " + mancano + " scelti prima che nel file non ci sono." : "");
+                (n == 1 ? "Nel file c'e' 1 filtro: " : "Nel file ci sono " + n + " filtri: ") +
+                string.Join(", ", parti.ToArray()) + ".") +
+                (mancano > 0 ? " In fondo, " + Quanti(mancano, "scelto", "scelti") + " prima che nel file " +
+                               (mancano == 1 ? "non c'e'." : "non ci sono.") : "");
             Riempi(spunte);
         }
+
+        static string Quanti(int n, string uno, string tanti) { return n + " " + (n == 1 ? uno : tanti); }
 
         /// <summary>Le righe nella griglia; spunte null = spuntate quelle con una voce (i filtri scelti prima).</summary>
         void Riempi(List<bool> spunte)
@@ -582,6 +618,8 @@ namespace Campanella
                     bool si = (spunte != null) ? spunte[i] : r.Voce != null;
                     int k = griglia.Rows.Add(si, etichetta == "" ? "(nessuna)" : etichetta, cerca, fa, Suggerimento(r));
                     DataGridViewRow riga = griglia.Rows[k];
+                    riga.Tag = r;
+                    r.Fila = riga;
                     if (r.Voce == null)
                     {
                         riga.Cells[0].ReadOnly = true;
@@ -598,32 +636,32 @@ namespace Campanella
         {
             if (r.Filtro == null)
                 return fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima";
-            if (r.Voce == null && r.Filtro.Etichetta != "") return "senza criteri: resta com'e'";
             return (r.Prima ? "scelto prima; " : "") + r.Somiglia.Testo();
         }
 
+        /// <summary>Vero se la riga i dell'elenco (nell'ordine del file, non della griglia) e' spuntata.</summary>
         public bool Spuntata(int i)
         {
-            if (i < 0 || i >= griglia.Rows.Count) return false;
-            object v = griglia.Rows[i].Cells[0].Value;
+            if (i < 0 || i >= righe.Count || righe[i].Fila == null) return false;
+            object v = righe[i].Fila.Cells[0].Value;
             return v is bool && (bool)v;
         }
 
-        /// <summary>Spunta (o no) una riga, e con lei i filtri uguali: per lo script sono la stessa voce.</summary>
+        /// <summary>Spunta (o no) la riga i dell'elenco, e con lei i filtri uguali: per lo script sono la stessa voce.</summary>
         public void Spunta(int i, bool si)
         {
-            if (i < 0 || i >= righe.Count) return;
+            if (i < 0 || i >= righe.Count || righe[i].Fila == null) return;
             if (righe[i].Voce == null) si = false;
             riempiendo = true;
             try
             {
-                griglia.Rows[i].Cells[0].Value = si;
+                righe[i].Fila.Cells[0].Value = si;
                 if (righe[i].Voce != null)
                 {
                     string chiave = righe[i].Voce.Chiave();
                     for (int k = 0; k < righe.Count; k++)
-                        if (k != i && righe[k].Voce != null && righe[k].Voce.Chiave() == chiave)
-                            griglia.Rows[k].Cells[0].Value = si;
+                        if (k != i && righe[k].Voce != null && righe[k].Fila != null && righe[k].Voce.Chiave() == chiave)
+                            righe[k].Fila.Cells[0].Value = si;
                 }
             }
             finally { riempiendo = false; }
@@ -652,9 +690,8 @@ namespace Campanella
 
         void MostraDettaglio()
         {
-            int i = (griglia.CurrentRow != null) ? griglia.CurrentRow.Index : -1;
-            if (i < 0 || i >= righe.Count) { txtDettaglio.Text = ""; return; }
-            Riga r = righe[i];
+            Riga r = (griglia.CurrentRow != null) ? griglia.CurrentRow.Tag as Riga : null;
+            if (r == null) { txtDettaglio.Text = ""; return; }
             StringBuilder sb = new StringBuilder();
             string etichetta = (r.Filtro != null) ? r.Filtro.Etichetta : r.Voce.Etichetta;
             sb.Append("Etichetta: ").Append(etichetta == "" ? "nessuna" : etichetta).Append("\r\n");
