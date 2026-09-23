@@ -33,6 +33,7 @@ if (-not (Test-Path $csc)) { throw 'Compilatore C# non trovato: manca il .NET Fr
 # ---------------------------------------------------------------------------
 $ospite = @'
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -90,6 +91,8 @@ static class ProvaStato
                 case "colori-andata-e-ritorno": ColoriAndataERitorno(); break;
                 case "colori-dalla-1-5": ColoriDalla15(); break;
                 case "colori-scritti-a-mano": ColoriScrittiAMano(); break;
+                case "filtri-andata-e-ritorno": FiltriAndataERitorno(); break;
+                case "filtri-scritti-a-mano": FiltriScrittiAMano(); break;
                 // queste due girano nella stessa cartella, una dopo l'altra: la
                 // prima con lo Stato di adesso, la seconda con Formato = 1
                 case "scrivi-per-la-vecchia": ScriviPerLaVecchia(); break;
@@ -866,6 +869,73 @@ static class ProvaStato
             letti["Tecnici"] == "#a4c2f4/#000000" && !letti.ContainsKey("Inventata"));
     }
 
+    // I filtri di Gmail da togliere (Posta, passo 4) sono dati personali: i
+    // criteri possono avere indirizzi. Stanno nel file dei dati, seguono i dati
+    // quando cambiano posto e si rileggono uguali.
+    static void FiltriAndataERitorno()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        Verifica("uno Stato letto da un file senza filtri non ne ha, e l'elenco c'e'", FiltriDi(s) != null && FiltriDi(s).Count == 0);
+        AggiungiFiltro(s, "Famiglie", "query", "from:(@famiglie.example)");
+        AggiungiFiltro(s, "Progetti", "to", "erasmus@scuola.example", "hasAttachment", "true",
+                       "size", "5242880", "sizeComparison", "larger");
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("i filtri stanno nel file dei dati, con etichetta e criteri",
+            FiltriNelFile(dati) == "Famiglie{query=from:(@famiglie.example)}|" +
+            "Progetti{hasAttachment=true,size=5242880,sizeComparison=larger,to=erasmus@scuola.example}");
+        Verifica("e non in campanella.json, nemmeno un indirizzo",
+            !Json(Impostazioni()).ContainsKey("filtriDaTogliere") && !Leggi(Impostazioni()).Contains("erasmus@"));
+        Stato t = Carica();
+        Verifica("si rileggono uguali (" + DescriviFiltri(t) + ")", DescriviFiltri(t) == DescriviFiltri(s) &&
+            DescriviFiltri(t).StartsWith("Famiglie{query=from:(@famiglie.example)}|Progetti{"));
+
+        string errore;
+        t.SpostaDati(false, "", out errore);
+        Verifica("con i dati accanto al programma stanno in campanella.json",
+            FiltriNelFile(Json(Impostazioni())) == FiltriNelFile(dati) && !File.Exists(FileDati(c)));
+        bool ok = t.SpostaDati(true, c, out errore);
+        Verifica("e tornando nel Drive tornano nel file dei dati, e escono da campanella.json",
+            ok && FiltriNelFile(Json(FileDati(c))) == FiltriNelFile(dati) &&
+            !Json(Impostazioni()).ContainsKey("filtriDaTogliere"));
+        if (FiltriDi(t) != null) FiltriDi(t).Clear();
+        t.Salva();
+        Verifica("tolti tutti, il file dei dati ha un elenco vuoto", FiltriNelFile(Json(FileDati(c))) == "" &&
+            Json(FileDati(c)).ContainsKey("filtriDaTogliere"));
+    }
+
+    // un elenco scritto a mano, o rovinato: una voce che non si capisce del
+    // tutto non si tiene a meta' (con un criterio in meno toglierebbe un altro filtro)
+    static void FiltriScrittiAMano()
+    {
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["filtriDaTogliere"] = new object[]
+        {
+            FiltroJson("Famiglie", Criteri("query", "  from:(@famiglie.example) ")),
+            FiltroJson("Famiglie", Criteri("query", "from:(@famiglie.example)")),       // la stessa: una volta sola
+            FiltroJson("", Criteri("from", "x@scuola.example")),                          // senza etichetta
+            FiltroJson("Vuoto", Criteri()),                                               // senza criteri
+            FiltroJson("Rotto", Criteri("from", new object[] { "a@scuola.example" })),    // un criterio che non si capisce
+            FiltroJson("Allegati", Criteri("from", "b@scuola.example", "hasAttachment", "forse")),
+            FiltroJson("Grandi", Criteri("size", 5242880, "sizeComparison", "LARGER", "hasAttachment", true,
+                                         "excludeChats", false)),
+            FiltroJson("Futuro", Criteri("from", "c@scuola.example", "deliveredTo", "io@scuola.example")),
+            "non e' una voce"
+        };
+        ScriviImpostazioni(false, "", altro);
+        Stato s = Carica();
+        Verifica("tiene le voci buone, una volta sola (" + DescriviFiltri(s) + ")",
+            DescriviFiltri(s) == "Famiglie{query=from:(@famiglie.example)}|" +
+            "Grandi{hasAttachment=true,size=5242880,sizeComparison=larger}|" +
+            "Futuro{deliveredTo=io@scuola.example,from=c@scuola.example}");
+        s.Salva();
+        Stato t = Carica();
+        Verifica("e le riscrive cosi'", DescriviFiltri(t) == DescriviFiltri(s));
+    }
+
     // la versione di adesso scrive i file: la prova dopo li da' a una versione
     // con il formato di prima, che non deve riscriverli
     static void ScriviPerLaVecchia()
@@ -875,11 +945,14 @@ static class ProvaStato
         Stato s = Carica();
         MettiColore(RegolaDi(s, "Circolari"), "");
         ColoriRuoli(s)["Docenti"] = "#fb4c2f/#000000";
+        AggiungiFiltro(s, "Famiglie", "query", "from:(@famiglie.example)");
         s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
         s.Salva();
         Verifica("scritti con il formato di adesso (" + Stato.Formato + "), piu' alto di quello della 1.5.2",
             s.UltimoErrore == "" && Numero(Json(Impostazioni()), "formato") == Stato.Formato &&
             Numero(Json(FileDati(c)), "formato") == Stato.Formato && Stato.Formato > 1);
+        Verifica("e il file dei dati ha i filtri di Gmail da togliere, che la 1.5.2 non conosce",
+            FiltriNelFile(Json(FileDati(c))) == "Famiglie{query=from:(@famiglie.example)}");
     }
 
     static void VecchiaNonRiscrive()
@@ -893,7 +966,7 @@ static class ProvaStato
         s.TemaScuro = !s.TemaScuro;
         s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
         s.Salva();
-        Verifica("e non li riscrive: i colori delle regole e dei ruoli non si perdono",
+        Verifica("e non li riscrive: i colori delle regole e dei ruoli e i filtri da togliere non si perdono",
             Leggi(Impostazioni()) == imp && Leggi(FileDati(c)) == dati);
         Verifica("e lo dice", (Testo(s, "DaAvvisare") ?? "").Contains("versione piu' recente"));
     }
@@ -924,6 +997,79 @@ static class ProvaStato
         if (f == null) { Verifica("Stato ha il campo ColoriRuoli", false); return new Dictionary<string, string>(); }
         Dictionary<string, string> d = f.GetValue(s) as Dictionary<string, string>;
         if (d == null) { d = new Dictionary<string, string>(); f.SetValue(s, d); }
+        return d;
+    }
+
+    // I filtri di Gmail da togliere si cercano per nome, come i colori: con uno
+    // Stato di prima non ci sono, e i controlli falliscono invece di non compilare.
+    static IList FiltriDi(Stato s)
+    {
+        FieldInfo f = typeof(Stato).GetField("FiltriDaTogliere");
+        if (f == null) { Verifica("Stato ha il campo FiltriDaTogliere", false); return null; }
+        return f.GetValue(s) as IList;
+    }
+
+    static void AggiungiFiltro(Stato s, string etichetta, params string[] criteri)
+    {
+        Type t = typeof(Stato).Assembly.GetType("Campanella.FiltroDaTogliere");
+        if (t == null) { Verifica("c'e' la classe FiltroDaTogliere", false); return; }
+        object f = Activator.CreateInstance(t, true);
+        t.GetField("Etichetta").SetValue(f, etichetta);
+        Dictionary<string, string> c = t.GetField("Criteri").GetValue(f) as Dictionary<string, string>;
+        for (int i = 0; i + 1 < criteri.Length; i += 2) c[criteri[i]] = criteri[i + 1];
+        IList elenco = FiltriDi(s);
+        if (elenco != null) elenco.Add(f);
+    }
+
+    // "Etichetta{chiave=valore,...}|..." con le chiavi in ordine
+    static string DescriviFiltri(Stato s)
+    {
+        IList elenco = FiltriDi(s);
+        if (elenco == null) return "(null)";
+        List<string> fuori = new List<string>();
+        foreach (object f in elenco)
+        {
+            Type t = f.GetType();
+            Dictionary<string, string> c = t.GetField("Criteri").GetValue(f) as Dictionary<string, string>;
+            List<string> coppie = new List<string>();
+            foreach (KeyValuePair<string, string> kv in c) coppie.Add(kv.Key + "=" + kv.Value);
+            coppie.Sort(StringComparer.Ordinal);
+            fuori.Add(t.GetField("Etichetta").GetValue(f) + "{" + string.Join(",", coppie.ToArray()) + "}");
+        }
+        return string.Join("|", fuori.ToArray());
+    }
+
+    // lo stesso, dal file
+    static string FiltriNelFile(Dictionary<string, object> file)
+    {
+        object[] a = file.ContainsKey("filtriDaTogliere") ? file["filtriDaTogliere"] as object[] : null;
+        if (a == null) return "(manca)";
+        List<string> fuori = new List<string>();
+        foreach (object o in a)
+        {
+            Dictionary<string, object> d = o as Dictionary<string, object>;
+            Dictionary<string, object> c = (d != null && d.ContainsKey("criteri")) ? d["criteri"] as Dictionary<string, object> : null;
+            if (c == null) { fuori.Add("(voce strana)"); continue; }
+            List<string> coppie = new List<string>();
+            foreach (KeyValuePair<string, object> kv in c) coppie.Add(kv.Key + "=" + Convert.ToString(kv.Value));
+            coppie.Sort(StringComparer.Ordinal);
+            fuori.Add(Str(d, "etichetta") + "{" + string.Join(",", coppie.ToArray()) + "}");
+        }
+        return string.Join("|", fuori.ToArray());
+    }
+
+    static Dictionary<string, object> FiltroJson(string etichetta, Dictionary<string, object> criteri)
+    {
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        d["etichetta"] = etichetta;
+        d["criteri"] = criteri;
+        return d;
+    }
+
+    static Dictionary<string, object> Criteri(params object[] coppie)
+    {
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        for (int i = 0; i + 1 < coppie.Length; i += 2) d[(string)coppie[i]] = coppie[i + 1];
         return d;
     }
 
@@ -1124,6 +1270,8 @@ $casi = @(
     'colori-andata-e-ritorno'
     'colori-dalla-1-5'
     'colori-scritti-a-mano'
+    'filtri-andata-e-ritorno'
+    'filtri-scritti-a-mano'
 )
 
 $base = Join-Path $env:TEMP ('campanella-prova-stato-' + [Guid]::NewGuid().ToString('N'))
@@ -1154,8 +1302,9 @@ try {
 
     # -----------------------------------------------------------------------
     #  LA PROTEZIONE DELLE VERSIONI DI PRIMA
-    #  La 1.5.2 ha il formato 1 e non sa niente dei colori: riscrivendo i file
-    #  di adesso li perderebbe. Qui gira una copia di questo stesso Stato.cs
+    #  La 1.5.2 ha il formato 1 e non sa niente dei colori ne' dei filtri di
+    #  Gmail da togliere: riscrivendo i file di adesso li perderebbe. Qui gira
+    #  una copia di questo stesso Stato.cs
     #  con Formato = 1, nella cartella dove la versione di adesso ha appena
     #  scritto i suoi file: deve lasciarli come sono.
     # -----------------------------------------------------------------------

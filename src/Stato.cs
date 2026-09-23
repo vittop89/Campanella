@@ -83,6 +83,105 @@ namespace Campanella
         }
     }
 
+    /// <summary>
+    /// Un filtro di Gmail che l'utente aveva gia' e che ha scelto di togliere
+    /// (Posta, passo 4): l'etichetta che mette e i suoi criteri, con i nomi
+    /// del servizio Gmail API (from, to, subject, query, negatedQuery,
+    /// hasAttachment, excludeChats, size, sizeComparison). Lo script
+    /// (EXTRA_togliFiltri) toglie solo il filtro che ha proprio questi criteri,
+    /// nessuno in piu', e mette proprio questa etichetta. I criteri possono
+    /// avere indirizzi: e' un dato personale, e sta con l'elenco del personale.
+    /// </summary>
+    class FiltroDaTogliere
+    {
+        public string Etichetta = "";
+        /// <summary>nome del criterio -> valore, come lo scrive Valore ("true" per i si'/no, i byte per size)</summary>
+        public Dictionary<string, string> Criteri = new Dictionary<string, string>();
+
+        /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
+        public static readonly string[] NomiCriteri =
+            { "from", "to", "subject", "query", "negatedQuery", "hasAttachment", "excludeChats", "size", "sizeComparison" };
+
+        /// <summary>
+        /// Il valore di un criterio come lo tiene Campanella: "" se e' come se
+        /// il criterio non ci fosse (vuoto, falso, zero, 'unspecified'), null
+        /// se non si capisce (un elenco, un si'/no scritto male, un nome che non
+        /// e' un nome). Una voce con un criterio che non si capisce non si tiene
+        /// a meta': con un criterio in meno lo script toglierebbe un altro filtro.
+        /// </summary>
+        public static string Valore(string nome, object valore)
+        {
+            if (nome == null || !Regex.IsMatch(nome, "^[A-Za-z][A-Za-z0-9]*$")) return null;
+            if (valore == null) return "";
+            bool testo = valore is string, siNo = valore is bool;
+            bool numero = valore is int || valore is long || valore is decimal || valore is double;
+            if (!testo && !siNo && !numero) return null;
+            string v = Convert.ToString(valore, CultureInfo.InvariantCulture).Trim();
+            if (nome == "hasAttachment" || nome == "excludeChats")
+            {
+                if (v.Equals("true", StringComparison.OrdinalIgnoreCase)) return "true";
+                if (v == "" || v.Equals("false", StringComparison.OrdinalIgnoreCase)) return "";
+                return null;
+            }
+            if (nome == "size")
+            {
+                long n;
+                if (v == "") return "";
+                if (!long.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out n)) return null;
+                return (n > 0) ? n.ToString(CultureInfo.InvariantCulture) : "";
+            }
+            if (siNo || numero) return null;          // un testo scritto come si'/no o numero
+            if (nome == "sizeComparison")
+            {
+                v = v.ToLowerInvariant();
+                return (v == "unspecified") ? "" : v;
+            }
+            return v;
+        }
+
+        /// <summary>
+        /// Un filtro dai criteri letti (nome -> valore qualsiasi): null se
+        /// l'etichetta manca, se non resta nessun criterio o se uno non si capisce.
+        /// </summary>
+        public static FiltroDaTogliere Da(string etichetta, IEnumerable<KeyValuePair<string, object>> criteri)
+        {
+            FiltroDaTogliere f = new FiltroDaTogliere();
+            f.Etichetta = (etichetta ?? "").Trim();
+            if (f.Etichetta == "" || criteri == null) return null;
+            foreach (KeyValuePair<string, object> kv in criteri)
+            {
+                string v = Valore(kv.Key, kv.Value);
+                if (v == null) return null;
+                if (v != "") f.Criteri[kv.Key] = v;
+            }
+            // il confronto con il minore o maggiore vale solo con una dimensione
+            if (!f.Criteri.ContainsKey("size")) f.Criteri.Remove("sizeComparison");
+            return (f.Criteri.Count > 0) ? f : null;
+        }
+
+        /// <summary>
+        /// Etichetta (senza maiuscole) e criteri in ordine, con gli spazi in fila
+        /// come uno solo: due filtri con la stessa chiave sono lo stesso filtro,
+        /// come per lo script.
+        /// </summary>
+        public string Chiave()
+        {
+            List<string> nomi = new List<string>(Criteri.Keys);
+            nomi.Sort(StringComparer.Ordinal);
+            StringBuilder sb = new StringBuilder((Etichetta ?? "").Trim().ToLowerInvariant());
+            foreach (string n in nomi) sb.Append('\n').Append(n).Append('=').Append(Regex.Replace(Criteri[n] ?? "", @"\s+", " ").Trim());
+            return sb.ToString();
+        }
+
+        public FiltroDaTogliere Copia()
+        {
+            FiltroDaTogliere f = new FiltroDaTogliere();
+            f.Etichetta = Etichetta;
+            f.Criteri = new Dictionary<string, string>(Criteri);
+            return f;
+        }
+    }
+
     /// <summary>Un "Il mio Drive" trovato sul computer, e di chi e'.</summary>
     class DriveTrovato
     {
@@ -159,6 +258,9 @@ namespace Campanella
         public int Ore = 1;
         public List<bool> SpunteInstallazione = new List<bool>();
         public string CodiceStatoPosta = "";     // incollato dall'utente
+        // i filtri di Gmail che l'utente aveva gia' e vuole togliere (dato
+        // personale: i criteri possono avere indirizzi)
+        public List<FiltroDaTogliere> FiltriDaTogliere = new List<FiltroDaTogliere>();
 
         // ---- cartelle (generatore anno scolastico) --------------------------
         // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
@@ -402,9 +504,12 @@ namespace Campanella
         /// vecchia non distingue un dato personale sconosciuto da un'impostazione,
         /// e ce lo lascerebbe anche con i dati nel Drive. Vedendo un numero piu'
         /// alto del suo, quella versione non sovrascrive il file.
-        /// Formato 2 (1.5.3): il colore dentro le regole ("colore") e i colori
-        /// delle sottoetichette dei ruoli ("coloriRuoli"); la 1.5.2 riscrivendo
-        /// le regole li perderebbe.
+        /// Formato 2 (1.5.3): il colore dentro le regole ("colore"), i colori
+        /// delle sottoetichette dei ruoli ("coloriRuoli") e, fra i dati
+        /// personali, i filtri di Gmail da togliere ("filtriDaTogliere", una
+        /// chiave nuova in cima a Dati()); la 1.5.2 riscrivendo i file li
+        /// perderebbe, e i filtri li lascerebbe in campanella.json anche con i
+        /// dati nel Drive.
         /// </summary>
         public const int Formato = 2;
 
@@ -837,6 +942,19 @@ namespace Campanella
             }
             r["regole"] = reg;
 
+            List<object> filtri = new List<object>();
+            if (FiltriDaTogliere != null)
+                foreach (FiltroDaTogliere f in FiltriDaTogliere)
+                {
+                    Dictionary<string, object> d = new Dictionary<string, object>();
+                    d["etichetta"] = f.Etichetta;
+                    Dictionary<string, object> c = new Dictionary<string, object>();
+                    foreach (KeyValuePair<string, string> kv in f.Criteri) c[kv.Key] = kv.Value;
+                    d["criteri"] = c;
+                    filtri.Add(d);
+                }
+            r["filtriDaTogliere"] = filtri;
+
             List<object> lez = new List<object>();
             foreach (Lezione l in Lezioni)
             {
@@ -1132,6 +1250,25 @@ namespace Campanella
                 {
                     ColoriEtichette.Completa(lette, ColoriRuoli);
                     Regole = lette;
+                }
+            }
+
+            // i filtri di Gmail da togliere: una voce che non si capisce tutta
+            // si lascia fuori (FiltroDaTogliere.Da), e una ripetuta vale una volta
+            object[] ft = r.ContainsKey("filtriDaTogliere") ? r["filtriDaTogliere"] as object[] : null;
+            if (ft != null)
+            {
+                FiltriDaTogliere = new List<FiltroDaTogliere>();
+                List<string> chiavi = new List<string>();
+                foreach (object o in ft)
+                {
+                    Dictionary<string, object> d = o as Dictionary<string, object>;
+                    Dictionary<string, object> c = (d != null && d.ContainsKey("criteri"))
+                        ? d["criteri"] as Dictionary<string, object> : null;
+                    FiltroDaTogliere f = (c != null) ? FiltroDaTogliere.Da(Str(d, "etichetta", ""), c) : null;
+                    if (f == null || chiavi.Contains(f.Chiave())) continue;
+                    chiavi.Add(f.Chiave());
+                    FiltriDaTogliere.Add(f);
                 }
             }
 
@@ -2034,7 +2171,8 @@ namespace Campanella
 
         /// <summary>
         /// I passi facoltativi dell'installazione guidata della Posta, che stanno
-        /// in fondo: oggi uno, il servizio Gmail API (colori e filtri veri). Il
+        /// in fondo: oggi uno, il servizio Gmail API (colori, filtri veri e
+        /// filtri che avevi gia' da togliere). Il
         /// numero dei passi invece non si copia qui: e' quello delle spunte che
         /// la pagina salva, una per passo.
         /// </summary>
