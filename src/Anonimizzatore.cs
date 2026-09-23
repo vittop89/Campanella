@@ -230,7 +230,9 @@ namespace Campanella
 
                 if (Array.IndexOf(EstensioniTesto, est) >= 0)
                 {
-                    string testo = File.ReadAllText(origine, Encoding.UTF8);
+                    // nella sua codifica: un TXT o un CSV salvato in ANSI, letto come
+                    // UTF-8, perdeva le lettere accentate e con loro i nomi da trovare
+                    string testo = Testo.LeggiFile(origine);
                     if (testo.Trim() == "") { e.Saltato = true; e.Nota = "file vuoto"; return e; }
                     int entita;
                     string pulito = TestoAnonimo(testo, out entita);

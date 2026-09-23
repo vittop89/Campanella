@@ -69,18 +69,29 @@ namespace Campanella
                     d.Filter = "Elenchi (*.csv;*.txt;*.tsv)|*.csv;*.txt;*.tsv|Tutti i file (*.*)|*.*";
                     d.Title = "Scegli il file con l'elenco";
                     if (d.ShowDialog(this) != DialogResult.OK) return;
-                    try { txt.Text = System.IO.File.ReadAllText(d.FileName, Encoding.UTF8); }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(this, "Non riesco a leggere il file:\n\n" + ex.Message,
-                            "Errore", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    CaricaFile(d.FileName);
                 }
             });
             file.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             Controls.Add(file);
 
             Tema.Applica(this);
+        }
+
+        /// <summary>
+        /// Mette nella casella il contenuto di un file, nella sua codifica: il CSV
+        /// del registro salvato da Excel e' spesso in ANSI, e letto come UTF-8
+        /// rovinava i cognomi accentati.
+        /// </summary>
+        public void CaricaFile(string percorso)
+        {
+            // Campanella.Testo: qui dentro "Testo" e' la proprieta' con il testo incollato
+            try { txt.Text = Campanella.Testo.LeggiFile(percorso); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Non riesco a leggere il file:\n\n" + ex.Message,
+                    "Errore", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 

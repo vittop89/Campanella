@@ -275,6 +275,22 @@ try {
         Verifica "$nome`: tabellone riconosciuto, cinque giorni" (($o.Formato -eq 'tabellone docenti') -and ($o.Giorni.Count -eq 5))
         Verifica "$nome`: il docente c'e' con il suo nome" (@($o.Docenti()) -ccontains $cognome)
     }
+    # "Apri un file..." della finestra che incolla l'elenco del personale:
+    # lo stesso CSV in ANSI leggeva i cognomi accentati come U+FFFD
+    $tIncolla = $asm.GetType('Campanella.FormIncolla')
+    $mCaricaFile = $tIncolla.GetMethod('CaricaFile')
+    Verifica "la finestra dell'elenco sa leggere un file" ($mCaricaFile -ne $null)
+    if ($mCaricaFile -ne $null) {
+        $ansi = Join-Path $tmp 'elenco-ansi.csv'
+        [System.IO.File]::WriteAllBytes($ansi, [byte[]]$codifiche['ANSI (Windows-1252)'])
+        $incolla = [Activator]::CreateInstance($tIncolla, @([string]''))
+        try {
+            $mCaricaFile.Invoke($incolla, @([string]$ansi)) | Out-Null
+            Verifica "la finestra dell'elenco legge il CSV in ANSI senza rovinare i cognomi" (
+                $incolla.Testo.Contains($cognome) -and -not $incolla.Testo.Contains([string][char]0xFFFD))
+        } finally { $incolla.Dispose() }
+    }
+
     $tTesto = $asm.GetType('Campanella.Testo')
     $dec = $tTesto.GetMethod('Decodifica', $FS)
     Verifica "un UTF-8 valido non viene preso per ANSI" `

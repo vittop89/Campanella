@@ -136,6 +136,19 @@ Cordiali saluti, Anna Verdi
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
 
+    # un TXT salvato in ANSI (Windows-1252), come fa il Blocco note di una
+    # volta o Excel: letto come UTF-8 le lettere accentate diventavano U+FFFD
+    $accentato = 'Colloquio con Anna Verdi: la citt' + [char]0xE0 + ' ' + [char]0xE8 + ' lontana, perch' + [char]0xE9 + ' no.'
+    $ansi = Join-Path $temp 'nota-ansi.txt'
+    [System.IO.File]::WriteAllBytes($ansi, [System.Text.Encoding]::GetEncoding(1252).GetBytes($accentato))
+    $e7 = $a.Anonimizza($ansi, (Join-Path $uscita 'nota-ansi.txt'))
+    $pulitoAnsi = if ($e7.Fatto) { [System.IO.File]::ReadAllText((Join-Path $uscita 'nota-ansi.txt')) } else { '' }
+    Verifica 'il TXT in ANSI viene trattato'       $e7.Fatto
+    Verifica 'il TXT in ANSI perde il nome'        ($e7.Fatto -and -not $pulitoAnsi.Contains('Anna Verdi'))
+    Verifica 'il TXT in ANSI tiene le lettere accentate' `
+        ($pulitoAnsi.Contains('citt' + [char]0xE0 + ' ' + [char]0xE8) -and $pulitoAnsi.Contains('perch' + [char]0xE9) -and
+         -not $pulitoAnsi.Contains([string][char]0xFFFD))
+
     Write-Host "`n=== ORIGINALI AL SICURO ===" -ForegroundColor Cyan
     function Impronta($f) { (Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash }
     $primaTxt = Impronta $txt
