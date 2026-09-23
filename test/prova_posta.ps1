@@ -1,0 +1,212 @@
+<#
+    prova_posta.ps1 - lo strumento Posta, dalla parte di Campanella
+
+        .\test\prova_posta.ps1
+
+    Carica dist\Campanella.exe come assembly e chiama il generatore vero
+    (GeneratorePosta, in src\GeneratorePosta.cs) con uno Stato inventato:
+    scrive Configurazione.gs in una cartella temporanea e ci fa girare il
+    banco test\mock_apps_script.js, che usa lo script vero della posta. Cosi'
+    una chiave rinominata da una parte sola si vede subito. Controlla anche
+    che la configurazione generata sia quella d'esempio che il banco usa da
+    solo, e che nomi strani non possano uscire da stringhe e commenti.
+
+    Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
+    Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
+    persone e indirizzi sono inventati.
+#>
+$ErrorActionPreference = 'Stop'
+$qui    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$radice = Split-Path -Parent $qui
+$exe    = Join-Path $radice 'dist\Campanella.exe'
+if (-not (Test-Path $exe)) { throw "Manca $exe`: compila prima con .\build.ps1" }
+# un exe piu' vecchio dei sorgenti proverebbe il codice di prima
+foreach ($f in @('src\GeneratorePosta.cs', 'src\PaginaPosta.cs', 'src\Dialoghi.cs', 'src\Guscio.cs',
+                 'src\risorse\Organizzazione_Gmail.gs', 'src\risorse\estensione_personale\manifest.json')) {
+    if ((Get-Item (Join-Path $radice $f)).LastWriteTimeUtc -gt (Get-Item $exe).LastWriteTimeUtc) {
+        throw "$f e' piu' recente di dist\Campanella.exe: ricompila con .\build.ps1"
+    }
+}
+Add-Type -AssemblyName System.Windows.Forms
+$asm = [System.Reflection.Assembly]::LoadFrom($exe)
+$FS  = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
+$FI  = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+$tStato    = $asm.GetType('Campanella.Stato')
+$tPersona  = $asm.GetType('Campanella.Persona')
+$tGen      = $asm.GetType('Campanella.GeneratorePosta')
+
+$script:fallimenti = 0
+function Verifica($testo, $ok) {
+    if ($ok) { Write-Host "  OK      $testo" }
+    else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
+}
+function Intestazione($t) {
+    Write-Host ""
+    Write-Host ("=" * 72)
+    Write-Host "  $t" -ForegroundColor Cyan
+    Write-Host ("=" * 72)
+}
+function Scrivi($percorso, $testo) {
+    [System.IO.File]::WriteAllText($percorso, $testo, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+$temporanea = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-posta-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $temporanea | Out-Null
+
+# ---------------------------------------------------------------------------
+#  LO STATO INVENTATO
+#  GetUninitializedObject salta il costruttore: "new Stato()" cerca il Drive
+#  vero del PC. Qui ogni campo che il generatore legge si imposta a mano.
+# ---------------------------------------------------------------------------
+function Imposta($s, $campo, $valore) { $tStato.GetField($campo, $FI).SetValue($s, $valore) }
+# la virgola impedisce a PowerShell di srotolare le liste (una vuota diventerebbe $null)
+function Leggi($s, $campo) { return ,($tStato.GetField($campo, $FI).GetValue($s)) }
+$tListaPersone = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tPersona)
+
+function NuovoStato {
+    $s = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tStato)
+    Imposta $s 'Drive' $temporanea
+    Imposta $s 'CartellaDati' $temporanea
+    Imposta $s 'DatiNelDrive' $false
+    Imposta $s 'Dominio' 'scuola-esempio.edu.it'
+    Imposta $s 'Prefisso' 'Scuola'
+    Imposta $s 'EtichettaPerRuolo' $true
+    Imposta $s 'Dirigenza' 'preside@scuola-esempio.edu.it'
+    Imposta $s 'Segreteria' 'segreteria@scuola-esempio.edu.it'
+    Imposta $s 'Registro' '@spaggiari.eu'
+    $tStato.GetField('Personale', $FI).SetValue($s, [Activator]::CreateInstance($tListaPersone))
+    $tStato.GetField('Regole', $FI).SetValue($s, $tStato.GetMethod('RegoleDiDefault', $FS).Invoke($null, @()))
+    Imposta $s 'Prova' $true
+    Imposta $s 'Report' $true
+    Imposta $s 'EscludiInviata' $true
+    Imposta $s 'Periodo' ([int]0)
+    Imposta $s 'Ore' ([int]1)
+    return $s
+}
+function AggiungiPersona($s, $nome, $ruolo, $mail, [bool]$incluso) {
+    $p = [Activator]::CreateInstance($tPersona)
+    $tPersona.GetField('Nome', $FI).SetValue($p, $nome)
+    $tPersona.GetField('Ruolo', $FI).SetValue($p, $ruolo)
+    $tPersona.GetField('Email', $FI).SetValue($p, $mail)
+    $tPersona.GetField('Incluso', $FI).SetValue($p, $incluso)
+    (Leggi $s 'Personale').Add($p)
+}
+function Genera($s, [bool]$prova) {
+    $m = $tGen.GetMethod('Configurazione', $FS)
+    return $m.Invoke($null, @($s, $prova, [datetime]'2026-09-23T10:00:00'))
+}
+
+# lettore della configurazione generata, fuori da qualunque servizio Google
+$leggiJs = Join-Path $temporanea 'leggi_configurazione.js'
+Scrivi $leggiJs @'
+const vm = require('vm'), fs = require('fs');
+const contesto = {};
+vm.runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const globali = Object.keys(contesto).filter(k => k !== 'CONFIG');
+process.stdout.write(JSON.stringify({ CONFIG: contesto.CONFIG, altri: globali }));
+'@
+# confronto fra due configurazioni: tutto tranne le note, a chiavi ordinate
+$confrontaJs = Join-Path $temporanea 'confronta.js'
+Scrivi $confrontaJs @'
+const vm = require('vm'), fs = require('fs');
+function carica(f) { const c = {}; vm.runInNewContext(fs.readFileSync(f, 'utf8'), c); return c.CONFIG; }
+function canonico(v) {
+  if (Array.isArray(v)) return '[' + v.map(canonico).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).filter(k => k !== 'nota').sort()
+      .map(k => JSON.stringify(k) + ':' + canonico(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+const a = canonico(carica(process.argv[2])), b = canonico(carica(process.argv[3]));
+process.stdout.write(a === b ? 'uguali' : 'diversi\n' + a + '\n' + b);
+'@
+function LeggiConfigurazione($file) { return ((& node $leggiJs $file) | ConvertFrom-Json) }
+
+try {
+    # -----------------------------------------------------------------------
+    Intestazione 'LA CONFIGURAZIONE GENERATA, NEL BANCO DELLO SCRIPT VERO'
+    $s = NuovoStato
+    AggiungiPersona $s 'ROSSI MARIO' 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'mario.rossi@scuola-esempio.edu.it' $true
+    AggiungiPersona $s 'DE LUCA ANNA' 'ASSISTENTE AMMINISTRATIVO' 'anna.deluca@scuola-esempio.edu.it' $true
+    AggiungiPersona $s 'ALUNNO ESCLUSO' 'Studente' 'studente.escluso@scuola-esempio.edu.it' $false
+    $testo = Genera $s $true
+    $file = Join-Path $temporanea 'Configurazione.gs'
+    Scrivi $file $testo
+
+    Verifica "l'intestazione dice la versione di Campanella" ($testo -match 'dall''applicazione Campanella \d+\.\d+\.\d+\.')
+    Verifica "chi non ha la spunta non c'e'" (-not $testo.Contains('studente.escluso@'))
+    $letta = LeggiConfigurazione $file
+    Verifica "si carica e definisce solo CONFIG" ($null -ne $letta.CONFIG -and $letta.altri.Count -eq 0)
+    Verifica "parte in modalita' prova" ($letta.CONFIG.provaSenzaModifiche -eq $true)
+
+    $esito = (& node $confrontaJs $file (Join-Path $qui 'Configurazione_esempio.gs')) -join "`n"
+    Verifica "e' la stessa configurazione d'esempio su cui gira il banco" ($esito -eq 'uguali')
+    if ($esito -ne 'uguali') { Write-Host $esito }
+
+    $banco = & node (Join-Path $qui 'mock_apps_script.js') $file 2>&1
+    $esitoBanco = $LASTEXITCODE
+    if ($esitoBanco -ne 0) { $banco | Out-Host }
+    Verifica "il banco dello script vero passa con la configurazione generata ($(@($banco -match '^\s+OK ').Count) controlli)" ($esitoBanco -eq 0)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'LE OPZIONI ARRIVANO NELLE CHIAVI GIUSTE'
+    Imposta $s 'Periodo' ([int]2)
+    Imposta $s 'Ore' ([int]3)
+    Imposta $s 'Report' $false
+    Imposta $s 'EscludiInviata' $false
+    $file2 = Join-Path $temporanea 'Configurazione_vera.gs'
+    Scrivi $file2 (Genera $s $false)
+    $c = (LeggiConfigurazione $file2).CONFIG
+    Verifica "senza prova: provaSenzaModifiche false" ($c.provaSenzaModifiche -eq $false)
+    Verifica "ultimi 24 mesi" ($c.soloUltimiMesi -eq 24)
+    Verifica "ogni 3 ore" ($c.ogniQuanteOre -eq 3)
+    Verifica "niente riepilogo, e anche la posta inviata" ($c.inviaReport -eq $false -and $c.escludiPostaInviata -eq $false)
+    Verifica "i gruppi per ruolo" ($c.gruppi.Docenti[0] -eq 'mario.rossi@scuola-esempio.edu.it' -and
+                                   $c.gruppi.Amministrativi[0] -eq 'anna.deluca@scuola-esempio.edu.it')
+    Verifica "0 = tutta la posta"   ((& { Imposta $s 'Periodo' ([int]0); ((Genera $s $true) -match 'soloUltimiMesi:\s+0,') }))
+
+    # -----------------------------------------------------------------------
+    Intestazione 'SENZA ELENCO DEL PERSONALE'
+    $vuoto = NuovoStato
+    $file3 = Join-Path $temporanea 'Configurazione_vuota.gs'
+    Scrivi $file3 (Genera $vuoto $true)
+    $c = (LeggiConfigurazione $file3).CONFIG
+    $colleghi = @($c.regole | Where-Object { $_.etichetta -eq 'Colleghi' })[0]
+    Verifica "personale vuoto" ($c.personale.Count -eq 0)
+    Verifica "e la regola Colleghi spenta, non su tutta la casella" ($colleghi.attiva -eq $false)
+    Verifica "niente sottoetichette dei ruoli" (@($c.regole | Where-Object { $_.etichetta -like 'Colleghi/*' }).Count -eq 0)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'
+    $strano = NuovoStato
+    $a_capo = [string][char]0x2028
+    AggiungiPersona $strano ('ROSSI */ MARIO' + $a_capo + 'var INIETTATO = 1;') 'DOCENTE' 'mario.rossi@scuola-esempio.edu.it' $true
+    AggiungiPersona $strano ("BIANCHI`nvar INIETTATO2 = 2;") "ASSISTENTE`r`nAMMINISTRATIVO" 'anna.bianchi@scuola-esempio.edu.it' $true
+    $regole = Leggi $strano 'Regole'
+    $regole[2].Etichetta = 'Circolari "urgenti" \ tutte'
+    $regole[2].Descrizione = "prima riga`n*/ var INIETTATO3 = 3; /*"
+    $file4 = Join-Path $temporanea 'Configurazione_strana.gs'
+    Scrivi $file4 (Genera $strano $true)
+    $letta = LeggiConfigurazione $file4
+    Verifica "si carica lo stesso, e definisce solo CONFIG" ($null -ne $letta.CONFIG -and $letta.altri.Count -eq 0)
+    Verifica "l'etichetta con virgolette e barre arriva identica" (
+        @($letta.CONFIG.regole | Where-Object { $_.etichetta -eq 'Circolari "urgenti" \ tutte' }).Count -eq 1)
+    Verifica "i due indirizzi ci sono" ($letta.CONFIG.personale.Count -eq 2)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'UNA SOLA FUNZIONE DI ESCAPE PER JAVASCRIPT'
+    $pagina = Get-Content -Raw (Join-Path $radice 'src\PaginaPosta.cs')
+    $generatore = Get-Content -Raw (Join-Path $radice 'src\GeneratorePosta.cs')
+    Verifica "PaginaPosta non ha piu' una sua copia di Js()" (-not ($pagina -match 'static\s+string\s+Js\s*\('))
+    Verifica "il generatore usa quella di AnalisiOrario" (
+        $generatore.Contains('AnalisiOrario.Js(') -and -not ($generatore -match 'static\s+string\s+Js\s*\('))
+}
+finally {
+    Remove-Item -Recurse -Force $temporanea
+}
+
+# ---------------------------------------------------------------------------
+Write-Host ""
+if ($script:fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
+else { Write-Host "PROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

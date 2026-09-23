@@ -1791,237 +1791,21 @@ namespace Campanella
 
         // ===================================================================
         //  GENERAZIONE
+        //  Il testo lo scrive GeneratorePosta, che lavora solo sui dati: qui
+        //  si raccolgono i valori dei controlli nello Stato e basta.
         // ===================================================================
-        static List<string> Righe(string testo)
-        {
-            List<string> fuori = new List<string>();
-            if (string.IsNullOrEmpty(testo)) return fuori;
-            foreach (string p in testo.Split(new char[] { '\r', '\n', ',', ';', ' ', '\t' },
-                                             StringSplitOptions.RemoveEmptyEntries))
-            {
-                string s = p.Trim();
-                if (s != "" && !fuori.Contains(s)) fuori.Add(s);
-            }
-            return fuori;
-        }
-
-        static string Js(string s)
-        {
-            return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
-                            .Replace("\r", "").Replace("\n", "\\n");
-        }
-
-        static string ListaJs(List<string> valori)
-        {
-            if (valori.Count == 0) return "[]";
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < valori.Count; i++)
-            {
-                if (i > 0) sb.Append(", ");
-                sb.Append("\"").Append(Js(valori[i])).Append("\"");
-            }
-            return sb.Append("]").ToString();
-        }
-
-        static string SoloUnaRiga(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
+        static List<string> Righe(string testo) { return GeneratorePosta.Righe(testo); }
 
         public string GeneraConfigurazione() { return GeneraConfigurazione(chkProva.Checked); }
 
         public string GeneraConfigurazione(bool prova)
         {
             Raccogli();
-            List<string> indirizzi = S.IndirizziPersonale();
-            int mesi = 0;
-            if (cmbPeriodo.SelectedIndex == 1) mesi = 12;
-            else if (cmbPeriodo.SelectedIndex == 2) mesi = 24;
-            else if (cmbPeriodo.SelectedIndex == 3) mesi = 36;
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("/* =========================================================================");
-            sb.AppendLine("   CONFIGURAZIONE DI \"ORGANIZZAZIONE GMAIL\"");
-            sb.AppendLine("   Generata il " + DateTime.Now.ToString("dd/MM/yyyy HH:mm") +
-                          " dall'applicazione Campanella.");
-            sb.AppendLine();
-            sb.AppendLine("   Puoi modificare i valori a mano: sono tutti scritti in chiaro.");
-            sb.AppendLine("   Dopo ogni modifica salva con Ctrl+S.");
-            sb.AppendLine("   ========================================================================= */");
-            sb.AppendLine();
-            sb.AppendLine("var CONFIG = {");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- la tua scuola ---------------------------------------------------");
-            sb.AppendLine("  dominioScuola:     \"" + Js(S.DominioPulito()) + "\",");
-            sb.AppendLine("  prefissoEtichette: \"" + Js(S.PrefissoPulito()) + "\",");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- come lavorare ---------------------------------------------------");
-            sb.AppendLine("  provaSenzaModifiche: " + (prova ? "true" : "false") +
-                          ",   // true = conta soltanto, non tocca niente");
-            sb.AppendLine("  soloUltimiMesi:      " + mesi + ",       // 0 = tutta la posta");
-            sb.AppendLine("  ogniQuanteOre:       " + (int)numOre.Value + ",");
-            sb.AppendLine("  giorniPostaNuova:    3,");
-            sb.AppendLine("  inviaReport:         " + (chkReport.Checked ? "true" : "false") + ",");
-            sb.AppendLine("  escludiPostaInviata: " + (chkEscludiInviata.Checked ? "true" : "false") + ",");
-            sb.AppendLine("  escludiGiaArchiviati: false,");
-            sb.AppendLine("  anniDaEsaminare:     3,       // per EXTRA_elencaIndirizziScuola");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- il personale della scuola (" + indirizzi.Count + " indirizzi) ----");
-            if (indirizzi.Count == 0)
-            {
-                sb.AppendLine("  //  ATTENZIONE: elenco vuoto. La regola \"Colleghi\" non fara' niente e");
-                sb.AppendLine("  //  tutta la posta del dominio finira' sotto \"Studenti\".");
-                sb.AppendLine("  personale: [],");
-            }
-            else
-            {
-                sb.AppendLine("  personale: [");
-                Dictionary<string, string> nota = new Dictionary<string, string>();
-                foreach (Persona p in S.Personale)
-                {
-                    string e = (p.Email ?? "").Trim().ToLowerInvariant();
-                    if (e == "" || nota.ContainsKey(e)) continue;
-                    string n = p.Nome;
-                    if (p.Ruolo != "" && p.Ruolo != "Non specificato")
-                        n = (n == "" ? "" : n + " - ") + p.Ruolo;
-                    nota[e] = n;
-                }
-                int larghezza = 0;
-                foreach (string a in indirizzi) if (a.Length > larghezza) larghezza = a.Length;
-                for (int i = 0; i < indirizzi.Count; i++)
-                {
-                    string virgola = (i < indirizzi.Count - 1) ? "," : " ";
-                    string riga = "    \"" + Js(indirizzi[i]) + "\"" + virgola;
-                    string commento = nota.ContainsKey(indirizzi[i]) ? nota[indirizzi[i]] : "";
-                    if (commento != "")
-                    {
-                        while (riga.Length < larghezza + 9) riga += " ";
-                        riga += "  // " + SoloUnaRiga(commento);
-                    }
-                    sb.AppendLine(riga.TrimEnd());
-                }
-                sb.AppendLine("  ],");
-            }
-            // ---- lo stesso personale, diviso per ruolo ----
-            Dictionary<string, List<string>> gruppi = S.EtichettaPerRuolo
-                ? S.GruppiPerRuolo() : new Dictionary<string, List<string>>();
-            if (gruppi.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("  // ---- lo stesso personale, diviso per ruolo ---------------------------");
-                sb.AppendLine("  //  Da qui nascono le sottoetichette " + EtichettaColleghi() + "/Docenti,");
-                sb.AppendLine("  //  " + EtichettaColleghi() + "/Amministrativi e cosi' via.");
-                sb.AppendLine("  gruppi: {");
-                List<string> nomi = CategoriePresenti(gruppi);
-                for (int g = 0; g < nomi.Count; g++)
-                {
-                    List<string> dentro = gruppi[nomi[g]];
-                    sb.AppendLine("    \"" + Js(nomi[g]) + "\": [        // " + dentro.Count +
-                                  (dentro.Count == 1 ? " indirizzo" : " indirizzi"));
-                    for (int k = 0; k < dentro.Count; k += 3)
-                    {
-                        List<string> pezzo = new List<string>();
-                        for (int j = k; j < Math.Min(k + 3, dentro.Count); j++)
-                            pezzo.Add("\"" + Js(dentro[j]) + "\"");
-                        bool ultima = (k + 3 >= dentro.Count);
-                        sb.AppendLine("      " + string.Join(", ", pezzo.ToArray()) + (ultima ? "" : ","));
-                    }
-                    sb.AppendLine("    ]" + (g < nomi.Count - 1 ? "," : ""));
-                }
-                sb.AppendLine("  },");
-            }
-
-            sb.AppendLine();
-            sb.AppendLine("  // ---- le regole --------------------------------------------------------");
-            sb.AppendLine("  //  Le etichette si sommano: un messaggio puo' prenderne piu' d'una.");
-            sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti va sotto le regole");
-            sb.AppendLine("  //  che esclude (Colleghi, Dirigenza, Segreteria).");
-            sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio");
-            if (gruppi.Count > 0)
-                sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
-            sb.AppendLine("  regole: [");
-
-            List<string> blocchi = new List<string>();
-            for (int i = 0; i < S.Regole.Count; i++)
-            {
-                Regola r = S.Regole[i];
-                List<string> da;
-                if (r.Sorgente == "dirigenza") da = Righe(S.Dirigenza);
-                else if (r.Sorgente == "segreteria") da = Righe(S.Segreteria);
-                else if (r.Sorgente == "registro") da = Righe(S.Registro);
-                else da = new List<string>(r.Da);
-
-                bool inutile = da.Count == 0 && r.Oggetto.Count == 0 &&
-                               r.Contiene.Count == 0 && r.QueryLibera == "";
-                bool attiva = r.Attiva && !inutile;
-                if (da.Count == 1 && da[0] == "@DOMINIO@" && S.DominioPulito() == "") attiva = false;
-                // senza elenco del personale, Colleghi non ha nessuno da riconoscere
-                if (da.Count == 1 && da[0] == "@PERSONALE@" && indirizzi.Count == 0) attiva = false;
-
-                StringBuilder b = new StringBuilder();
-                b.AppendLine("    {");
-                b.AppendLine("      attiva:    " + (attiva ? "true" : "false") + ",");
-                b.AppendLine("      etichetta: \"" + Js(r.Etichetta) + "\",");
-                if (da.Count > 0) b.AppendLine("      da:        " + ListaJs(da) + ",");
-                if (r.Oggetto.Count > 0) b.AppendLine("      oggetto:   " + ListaJs(r.Oggetto) + ",");
-                if (r.Contiene.Count > 0) b.AppendLine("      contiene:  " + ListaJs(r.Contiene) + ",");
-                if (r.QueryLibera != "") b.AppendLine("      queryLibera: \"" + Js(r.QueryLibera) + "\",");
-                if (r.EscludiEtichette.Count > 0)
-                    b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
-                if (r.Archivia) b.AppendLine("      archivia:  true,");
-                if (r.SegnaComeLette) b.AppendLine("      segnaComeLette: true,");
-                b.AppendLine("      nota:      \"" + Js(SoloUnaRiga(r.Descrizione)) + "\"");
-                b.Append("    }");
-                blocchi.Add(b.ToString());
-
-                // subito sotto ai colleghi vanno le sottoetichette dei ruoli:
-                // chi ci finisce dentro e' un sottoinsieme di quella regola
-                if (gruppi.Count > 0 && EtichettaColleghi() == r.Etichetta)
-                    foreach (string nome in CategoriePresenti(gruppi))
-                        blocchi.Add(BloccoRuolo(r.Etichetta, nome, gruppi[nome].Count));
-            }
-            if (gruppi.Count > 0 && !ColleghiInElenco())
-                foreach (string nome in CategoriePresenti(gruppi))
-                    blocchi.Add(BloccoRuolo(EtichettaColleghi(), nome, gruppi[nome].Count));
-
-            sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
-            sb.AppendLine("  ]");
-            sb.AppendLine("};");
-            return sb.ToString();
+            return GeneratorePosta.Configurazione(S, prova, DateTime.Now);
         }
 
         /// <summary>L'etichetta sotto cui mettere i ruoli: quella dei colleghi.</summary>
-        string EtichettaColleghi()
-        {
-            foreach (Regola r in S.Regole)
-                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return r.Etichetta;
-            return "Colleghi";
-        }
-
-        bool ColleghiInElenco()
-        {
-            foreach (Regola r in S.Regole)
-                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return true;
-            return false;
-        }
-
-        static List<string> CategoriePresenti(Dictionary<string, List<string>> gruppi)
-        {
-            List<string> fuori = new List<string>();
-            foreach (string c in Stato.Categorie) if (gruppi.ContainsKey(c)) fuori.Add(c);
-            return fuori;
-        }
-
-        static string BloccoRuolo(string baseEtichetta, string categoria, int quanti)
-        {
-            StringBuilder b = new StringBuilder();
-            b.AppendLine("    {");
-            b.AppendLine("      attiva:    true,");
-            b.AppendLine("      etichetta: \"" + Js(baseEtichetta + "/" + categoria) + "\",");
-            b.AppendLine("      da:        [\"@GRUPPO:" + Js(categoria) + "@\"],");
-            b.AppendLine("      nota:      \"" + Js(categoria + ": " + quanti +
-                         (quanti == 1 ? " indirizzo" : " indirizzi") +
-                         " dall'elenco del personale.") + "\"");
-            b.Append("    }");
-            return b.ToString();
-        }
+        string EtichettaColleghi() { return GeneratorePosta.EtichettaColleghi(S.Regole); }
 
         string RiepilogoEtichette()
         {
@@ -2042,7 +1826,7 @@ namespace Campanella
                 sb.AppendLine((prefisso != "" ? "  +-- " : "") + r.Etichetta +
                               (r.Archivia ? "      (i messaggi escono dalla Posta in arrivo)" : ""));
                 if (gruppiEtichette.Count > 0 && EtichettaColleghi() == r.Etichetta)
-                    foreach (string c in CategoriePresenti(gruppiEtichette))
+                    foreach (string c in GeneratorePosta.CategoriePresenti(gruppiEtichette))
                     {
                         n++;
                         sb.AppendLine((prefisso != "" ? "  |     " : "  ") + "+-- " + c +
