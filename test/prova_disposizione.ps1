@@ -311,6 +311,40 @@ $tGuscio.GetMethod('Avanti', $FIp).Invoke($guscio, @()) | Out-Null
 Verifica "a meta' strada Avanti resta nello stesso strumento" (
     $tGuscio.GetField('pagina', $FIp).GetValue($guscio) -eq $iPosta -and $pagine[$iPosta].Passo -eq 1)
 
+# --- si va a una pagina, non a una posizione nel menu -------------------------
+# "Cominciamo" chiamava VaiA(1, 1) e VaiAStrumento cercava un pezzo del nome:
+# "Impostazioni" contiene "posta". Riordinare le pagine rompeva i bottoni.
+Write-Host "`nLA NAVIGAZIONE" -ForegroundColor Cyan
+function PaginaOra { return $pagine[$tGuscio.GetField('pagina', $FIp).GetValue($guscio)] }
+$mPerTipo = $tGuscio.GetMethod('VaiAPagina', [Type[]]@([System.Type], [int]))
+$mPerPagina = $tGuscio.GetMethod('VaiAPagina', [Type[]]@($asm.GetType('Campanella.Pagina'), [int]))
+$mStrumento = $tGuscio.GetMethod('VaiAStrumento', [Type[]]@([string]))
+Verifica "si puo' andare a una pagina per tipo e per pagina" ($mPerTipo -ne $null -and $mPerPagina -ne $null)
+if ($mPerTipo -ne $null -and $mPerPagina -ne $null) {
+    $mPerTipo.Invoke($guscio, @($asm.GetType('Campanella.PaginaImpostazioni'), [int]0)) | Out-Null
+    Verifica "per tipo: PaginaImpostazioni porta alle Impostazioni" ((PaginaOra).Nome -eq 'Impostazioni')
+    $mPerPagina.Invoke($guscio, @($pagine[$iPosta], [int]1)) | Out-Null
+    Verifica "per pagina: la Posta, al secondo passo" ((PaginaOra).Nome -eq 'Posta' -and $pagine[$iPosta].Passo -eq 1)
+}
+$mStrumento.Invoke($guscio, @(' posta ')) | Out-Null
+Verifica "per nome, maiuscole e spazi a parte: 'posta' porta alla Posta" ((PaginaOra).Nome -eq 'Posta')
+$errore = $null
+try { $mStrumento.Invoke($guscio, @('Imposta')) | Out-Null }
+catch { $errore = $_.Exception.GetBaseException() }
+Verifica "un pezzo di nome non basta: 'Imposta' non porta alle Impostazioni" ((PaginaOra).Nome -eq 'Posta')
+Verifica "e il nome sbagliato si vede subito (eccezione)" ($errore -is [System.ArgumentException])
+# le schede della pagina iniziale portano ognuna alla sua pagina
+foreach ($nome in @('Posta', 'Cartelle', 'Orari', 'Privacy')) {
+    $metodoVaiA.Invoke($guscio, @([int]0, [int]0)) | Out-Null
+    $bottone = $null
+    foreach ($c in $pagine[0].Controls) {
+        foreach ($d in $c.Controls) { if ($d -is [System.Windows.Forms.Button] -and $d.Text -eq "Apri $nome") { $bottone = $d } }
+    }
+    if ($bottone -eq $null) { Verifica "la pagina iniziale ha il bottone 'Apri $nome'" $false; continue }
+    $onClick.Invoke($bottone, @([System.EventArgs]::Empty)) | Out-Null
+    Verifica "'Apri $nome' porta a $nome" ((PaginaOra).Nome -eq $nome)
+}
+
 # --- un bottone spento si legge, in tutti e due i temi -----------------------
 Write-Host "`nI BOTTONI SPENTI" -ForegroundColor Cyan
 $iPrivacy = -1
