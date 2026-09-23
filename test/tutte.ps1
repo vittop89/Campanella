@@ -34,6 +34,7 @@ $elenco = @(
     'mock_moduli.js'
     'mock_pannello.js'
     'prova_gemelli.js'
+    'mutazioni_pannello.js'
     'nomi_funzioni.js'
     'invarianti_script.js'
     'prova_orario.ps1'
@@ -41,6 +42,7 @@ $elenco = @(
     'prova_moduli.ps1'
     'prova_personale.ps1'
     'prova_stato.ps1'
+    'prova_guscio.ps1'
     'prova_posta.ps1'
     'prova_cartelle.ps1'
     'prova_versioni.ps1'
@@ -48,8 +50,9 @@ $elenco = @(
 )
 # aprono finestre sullo schermo: solo con -ConGrafica, mai nella CI
 $conFinestre = @('prova_disposizione.ps1', 'prova_solalettura.ps1')
-# non usano l'eseguibile compilato (prova_versioni lo usa solo se c'e')
-$senzaExe = @('prova_versioni.ps1')
+# non usano l'eseguibile compilato: prova_versioni lo usa solo se c'e',
+# prova_stato compila Stato.cs per conto suo
+$senzaExe = @('prova_versioni.ps1', 'prova_stato.ps1')
 
 $tutte = @($elenco)
 if ($ConGrafica) { $tutte += $conFinestre }
