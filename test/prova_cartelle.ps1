@@ -189,6 +189,27 @@ try {
     $x = LeggiJson '{ "cartelle": [ { "nome": "..\\.." } ] }'
     Verifica "tutte sbagliate: nessuna voce, ma il perche'"    ($null -eq $x.Voci -and $x.Errori.Count -eq 1)
 
+    # il file che scrive "Modifica struttura...": JSON valido anche con le virgolette
+    # in un nome, e le voci tornano come erano
+    $scrivi = $tG.GetMethod('TestoStruttura', $FS)
+    Verifica "c'e' chi scrive struttura.json"                  ($null -ne $scrivi)
+    if ($null -ne $scrivi) {
+        $tV = $asm.GetType('Campanella.VoceStruttura')
+        $daScrivere = [Activator]::CreateInstance([System.Collections.Generic.List[int]].GetGenericTypeDefinition().MakeGenericType($tV))
+        foreach ($coppia in @(@('CLASSI', $true), @('RECUPERI\TRIMESTRE', $false), @('Da "stampare"', $true))) {
+            $v = [Activator]::CreateInstance($tV)
+            $v.Nome = $coppia[0]
+            $v.Spuntata = $coppia[1]
+            $daScrivere.Add($v)
+        }
+        $argomenti = New-Object 'object[]' 1
+        $argomenti[0] = $daScrivere
+        $x = LeggiJson ([string]$scrivi.Invoke($null, $argomenti))
+        $nomi = @($x.Voci | ForEach-Object { $_.Nome })
+        Verifica "si rilegge ($($nomi -join ' | '))"           ($nomi.Count -eq 2 -and $nomi[0] -eq 'CLASSI' -and $nomi[1] -eq 'RECUPERI\TRIMESTRE' -and $x.Voci[0].Spuntata -and -not $x.Voci[1].Spuntata)
+        Verifica "e il nome con le virgolette e' solo una voce da saltare" ($x.Errori.Count -eq 1 -and $x.Errori[0] -like 'voce 3 *')
+    }
+
     # --- 7. il lavoro in un altro thread: le righe arrivano subito, e si ferma -------
     Write-Host "`nAVANZAMENTO E INTERRUZIONE" -ForegroundColor Cyan
     $script:arrivate = [System.Collections.Generic.List[string]]::new()

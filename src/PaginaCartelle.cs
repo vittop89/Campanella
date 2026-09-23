@@ -509,21 +509,24 @@ namespace Campanella
         void ModificaStruttura()
         {
             string p = PercorsoStruttura();
-            if (!File.Exists(p))
+            // il file puo' essere cambiato o cancellato da fuori mentre la pagina
+            // era aperta: senza rileggerlo, nell'elenco c'e' ancora la riga che
+            // diceva dell'errore
+            RicaricaStruttura();
+            if (!File.Exists(p) && !strutturaInutilizzabile)
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("{");
-                sb.AppendLine("  \"cartelle\": [");
-                for (int i = 0; i < clbStruttura.Items.Count; i++)
+                // senza file l'elenco e' quello delle cartelle di partenza: nel file
+                // vanno quelle, con le spunte di adesso, mai le righe dell'elenco
+                List<VoceStruttura> voci = new List<VoceStruttura>();
+                foreach (string s in StrutturaDiDefault)
                 {
-                    string nome = Convert.ToString(clbStruttura.Items[i]);
-                    string sep = (i < clbStruttura.Items.Count - 1) ? "," : "";
-                    sb.AppendLine("    { \"nome\": \"" + nome.Replace("\\", "\\\\") + "\", \"spuntata\": " +
-                                  (clbStruttura.GetItemChecked(i) ? "true" : "false") + " }" + sep);
+                    VoceStruttura v = new VoceStruttura();
+                    v.Nome = s;
+                    int i = clbStruttura.Items.IndexOf(s);
+                    v.Spuntata = (i < 0) || clbStruttura.GetItemChecked(i);
+                    voci.Add(v);
                 }
-                sb.AppendLine("  ]");
-                sb.AppendLine("}");
-                try { File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false)); }
+                try { File.WriteAllText(p, GeneratoreAnno.TestoStruttura(voci), new UTF8Encoding(false)); }
                 catch (Exception ex)
                 {
                     MessageBox.Show(this,

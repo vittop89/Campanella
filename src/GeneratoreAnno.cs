@@ -608,6 +608,28 @@ namespace Campanella
             return (voci.Count > 0) ? voci : null;
         }
 
+        /// <summary>
+        /// Il testo di struttura.json per queste voci, come lo rilegge
+        /// LeggiStruttura. I nomi passano dal serializzatore, che mette il
+        /// backslash davanti a virgolette e backslash.
+        /// </summary>
+        public static string TestoStruttura(List<VoceStruttura> voci)
+        {
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine("  \"cartelle\": [");
+            for (int i = 0; i < voci.Count; i++)
+            {
+                string sep = (i < voci.Count - 1) ? "," : "";
+                sb.AppendLine("    { \"nome\": " + js.Serialize(voci[i].Nome) + ", \"spuntata\": " +
+                              (voci[i].Spuntata ? "true" : "false") + " }" + sep);
+            }
+            sb.AppendLine("  ]");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
         /// <summary>Copia un file se manca e lo conta. Vero solo se l'ha copiato adesso.</summary>
         bool CopiaFile(string origine, string destinazione, string etichetta)
         {
