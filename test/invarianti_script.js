@@ -30,16 +30,20 @@
  *     soltanto i filtri scelti dal docente dopo averne scritto la copia:
  *     altrove e' una cancellazione non ammessa, come tutte le altre.
  *     EXTRA_togliFiltri la esegue solo il docente: nessuna funzione e nessun
- *     trigger la chiama, e _togliFiltri_ la chiama solo EXTRA_togliFiltri.
+ *     trigger la chiama, e _togliFiltri_ la chiama solo EXTRA_togliFiltri;
+ *   - i nomi delle azioni vietate (TRASH, SPAM, forward...) possono stare
+ *     solo nella tabella di testi _AZIONI_A_PAROLE, con cui la copia di un
+ *     filtro dice che cosa faceva: solo testi, letti per chiave solo da
+ *     _copiaFiltro_.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
  * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
  * estraneo, una copia in cc, un moveToTrash, un filtro tolto fuori da
- * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora o
- * un'etichetta cancellata anche li' dentro devono far fallire i controlli.
- * Se un giorno uno di questi non fallisse piu', il controllo sarebbe
- * diventato cieco.
+ * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora,
+ * un'etichetta cancellata anche li' dentro o la tabella dei testi usata per
+ * altro devono far fallire i controlli. Se un giorno uno di questi non
+ * fallisse piu', il controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -234,7 +238,10 @@ const REGOLE = {
     // queste funzioni, che prima ne scrivono la copia nel registro. Quella
     // pubblica (senza "_" in fondo) la esegue solo il docente: nessuna
     // funzione la chiama. Quelle interne le chiama solo quella pubblica.
-    gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] }
+    gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] },
+    // la tabella dei testi delle azioni di Gmail per la copia di un filtro:
+    // solo testi, letti per chiave e solo dentro _copiaFiltro_
+    tabellaDiTesti: { nome: '_AZIONI_A_PAROLE', gruppi: ['aggiunge', 'toglie', 'altro'], soloIn: '_copiaFiltro_' }
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
@@ -275,11 +282,76 @@ function dentroA(corpi, nomi, posizione) {
   return nomi.some(n => (corpi[n] || []).some(c => posizione > c[0] && posizione < c[1]));
 }
 
-/** L'elenco delle violazioni di un file: vuoto se rispetta le promesse. */
-function controlla(nomeFile, sorgente) {
-  const regole = REGOLE[nomeFile];
-  const { codice, nudo, stringhe } = smonta(sorgente);
+/**
+ * La tabella dei testi (regole.tabellaDiTesti): var NOME = { gruppo: { CHIAVE:
+ * 'testo', ... }, ... }. Nelle chiavi e nei testi ci sono nomi vietati nel
+ * resto dello script (TRASH, SPAM, forward: le azioni che la copia di un filtro
+ * deve saper dire), e qui non contano, ma solo se la tabella e' fatta soltanto
+ * di testi, se c'e' una volta sola e se si legge solo per chiave
+ * (NOME.gruppo[...]) dentro la funzione ammessa: cosi' una chiave non puo'
+ * diventare un valore (Object.keys, for in) e finire in un filtro creato.
+ * Torna il sorgente con la tabella cancellata (spazi, a capo intatti) e le
+ * violazioni trovate.
+ */
+function tabellaDiTesti(sorgente, t) {
   const fuori = [];
+  let { codice, nudo } = smonta(sorgente);
+  const riga = pos => codice.slice(0, pos).split('\n').length;
+  const dichiarazione = new RegExp('\\bvar\\s+' + t.nome + '\\s*=\\s*\\{', 'g');
+  const trovate = [...nudo.matchAll(dichiarazione)];
+  if (trovate.length === 0) return { sorgente, fuori };
+  if (trovate.length > 1) {
+    fuori.push('la tabella ' + t.nome + ' e\' dichiarata ' + trovate.length + ' volte');
+    return { sorgente, fuori };
+  }
+  const inizio = trovate[0].index, aperta = inizio + trovate[0][0].length - 1;
+  const dentro = argomenti(codice, nudo, aperta);
+  const chiusa = aperta + 1 + dentro.nudo.length;
+  const oggetto = { testo: codice.slice(aperta, chiusa + 1), nudo: nudo.slice(aperta, chiusa + 1) };
+  const gruppi = chiaviOggetto(oggetto);
+  const soloTesti = !!gruppi && gruppi.every(g => {
+    if (t.gruppi.indexOf(g.chiave) < 0) return false;
+    const voci = chiaviOggetto(g.valore);
+    // nel testo nudo una stringa e' fatta solo di virgolette e spazi
+    return !!voci && voci.every(v => /^\s*(['"])[ ]*\1\s*$/.test(v.valore.nudo));
+  });
+  if (!soloTesti) {
+    fuori.push('la tabella ' + t.nome + ' non e\' fatta solo di testi nei gruppi ' + t.gruppi.join(', ') +
+               ' (riga ' + riga(inizio) + ')');
+    return { sorgente, fuori };
+  }
+  const bianco = x => x.replace(/[^\n]/g, ' ');
+  sorgente = sorgente.slice(0, inizio) + bianco(sorgente.slice(inizio, chiusa + 1)) + sorgente.slice(chiusa + 1);
+  ({ codice, nudo } = smonta(sorgente));
+  const corpi = corpiDelleFunzioni(nudo);
+  if ((corpi[t.soloIn] || []).length !== 1) {
+    fuori.push('la funzione ' + t.soloIn + ', l\'unica che legge ' + t.nome + ', non e\' dichiarata una volta sola');
+  }
+  const uso = new RegExp('\\b' + t.nome + '\\b', 'g');
+  const perChiave = new RegExp('^\\s*\\.\\s*(' + t.gruppi.join('|') + ')\\s*\\[');
+  let u;
+  while ((u = uso.exec(nudo))) {
+    if (!dentroA(corpi, [t.soloIn], u.index)) {
+      fuori.push(t.nome + ' usata fuori da ' + t.soloIn + ' (riga ' + riga(u.index) + ')');
+    } else if (!perChiave.test(nudo.slice(u.index + t.nome.length))) {
+      fuori.push(t.nome + ' letta non per chiave, ' + t.nome + '.gruppo[...] (riga ' + riga(u.index) + ')');
+    }
+  }
+  return { sorgente, fuori };
+}
+
+/** L'elenco delle violazioni di un file: vuoto se rispetta le promesse. */
+function controlla(nomeFile, sorgenteIntero) {
+  const regole = REGOLE[nomeFile];
+  const fuori = [];
+  // la tabella dei testi, se c'e' e va bene, non la guardano i controlli qui sotto
+  let sorgente = sorgenteIntero;
+  if (regole.tabellaDiTesti) {
+    const tabella = tabellaDiTesti(sorgenteIntero, regole.tabellaDiTesti);
+    sorgente = tabella.sorgente;
+    fuori.push(...tabella.fuori);
+  }
+  const { codice, nudo, stringhe } = smonta(sorgente);
   const riga = pos => codice.slice(0, pos).split('\n').length;
 
   for (const [re, cosa] of VIETATI) {
@@ -327,7 +399,6 @@ function controlla(nomeFile, sorgente) {
       if ((corpi[f] || []).length > 1) fuori.push('la funzione ' + f + ' e\' dichiarata ' + corpi[f].length + ' volte');
     }
   }
-
   // e chi le chiama. Quella pubblica (EXTRA_togliFiltri) la esegue solo il
   // docente dall'editor: nel codice non compare mai, se non nella sua
   // dichiarazione, cosi' nessuna funzione e nessun trigger orario la chiama.
@@ -576,6 +647,24 @@ function provaDellaProva() {
     inserisci(posta, 'function PASSO_4_attivaAutomazione() {',
               '\n  ScriptApp.newTrigger(\'EXTRA_togliFiltri\').timeBased().everyHours(1).create();'),
     'il nome EXTRA_togliFiltri da solo fra virgolette');
+  // la tabella dei testi delle azioni: TRASH, SPAM e forward solo li', solo testi,
+  // e letti per chiave solo dalla copia del filtro
+  const TABELLA = 'STARRED: \'Aggiungi stella\',';
+  deveFallire('Organizzazione_Gmail.gs', 'un valore che non e\' un testo nella tabella delle azioni viene trovato',
+    sostituisci(posta, TABELLA, 'STARRED: GmailApp.search(\'in:inbox\'),'), 'non e\' fatta solo di testi');
+  deveFallire('Organizzazione_Gmail.gs', 'e un testo scritto a pezzi',
+    sostituisci(posta, TABELLA, 'STARRED: \'Aggiungi \' + \'stella\','), 'non e\' fatta solo di testi');
+  deveFallire('Organizzazione_Gmail.gs', 'e un gruppo in piu\' nella tabella',
+    sostituisci(posta, 'altro: {', 'crea: { TRASH: \'x\' },\n  altro: {'), 'non e\' fatta solo di testi');
+  deveFallire('Organizzazione_Gmail.gs', 'e quando la tabella non vale, i nomi vietati dentro si vedono',
+    sostituisci(posta, TABELLA, 'STARRED: GmailApp.search(\'in:inbox\'),'), 'cestino (trash)');
+  deveFallire('Organizzazione_Gmail.gs', 'la tabella letta fuori dalla copia del filtro viene trovata',
+    inserisci(posta, INIZIO, '\n  var chiavi = Object.keys(_AZIONI_A_PAROLE.aggiunge);'), '_AZIONI_A_PAROLE usata fuori da _copiaFiltro_');
+  deveFallire('Organizzazione_Gmail.gs', 'e le sue chiavi prese come valori, anche dentro la copia',
+    inserisci(posta, 'function _copiaFiltro_(filtro, etichette) {', '\n  for (var x in _AZIONI_A_PAROLE.aggiunge) {}'),
+    '_AZIONI_A_PAROLE letta non per chiave');
+  deveFallire('Organizzazione_Gmail.gs', 'e una seconda tabella con lo stesso nome',
+    posta + '\nvar _AZIONI_A_PAROLE = { aggiunge: { TRASH: \'x\' } };\n', 'dichiarata 2 volte');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto

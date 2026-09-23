@@ -1407,10 +1407,40 @@ function _fraIScelti_(voci, filtro, etichette) {
   return false;
 }
 
+// Le azioni dei filtri di Gmail che lo script non usa mai, con le parole della
+// finestra "Crea un nuovo filtro" di Gmail: le etichette di sistema che un
+// filtro aggiunge o toglie, e le altre chiavi della sua azione. Servono solo
+// alla copia che EXTRA_togliFiltri scrive nel registro prima di togliere un
+// filtro (_copiaFiltro_), per rifarlo a mano. Il controllo delle promesse
+// (test/invarianti_script.js) lascia questi nomi, vietati in tutto il resto
+// dello script, solo in questa tabella di testi, e solo _copiaFiltro_ la legge.
+var _AZIONI_A_PAROLE = {
+  aggiunge: {
+    TRASH: 'Eliminalo (va nel cestino)',
+    STARRED: 'Aggiungi stella',
+    IMPORTANT: 'Contrassegna sempre come importante',
+    CATEGORY_PERSONAL: 'Classifica come: Principale',
+    CATEGORY_SOCIAL: 'Classifica come: Social',
+    CATEGORY_PROMOTIONS: 'Classifica come: Promozioni',
+    CATEGORY_UPDATES: 'Classifica come: Aggiornamenti',
+    CATEGORY_FORUMS: 'Classifica come: Forum'
+  },
+  toglie: {
+    INBOX: 'Salta la Posta in arrivo (archivia)',
+    UNREAD: 'Segna come gia\' letto',
+    SPAM: 'Non inviarlo mai in Spam',
+    IMPORTANT: 'Non contrassegnarlo mai come importante'
+  },
+  altro: {
+    forward: 'Inoltralo a: '
+  }
+};
+
 /**
  * La copia di un filtro, per rifarlo a mano: i criteri e le azioni, con i
- * nomi delle etichette invece dei loro id. Le azioni che lo script non usa
- * mai si scrivono con il nome che hanno nel servizio Gmail API.
+ * nomi delle etichette invece dei loro id e le azioni dette come nella
+ * finestra di Gmail (_AZIONI_A_PAROLE). Un'azione che Gmail aggiungera' un
+ * giorno si scrive con il nome che ha nel servizio Gmail API.
  */
 function _copiaFiltro_(filtro, etichette) {
   var azione = filtro.action || {};
@@ -1418,22 +1448,23 @@ function _copiaFiltro_(filtro, etichette) {
   righe.push('  Azioni:');
   var aggiunte = azione.addLabelIds || [], tolte = azione.removeLabelIds || [];
   for (var i = 0; i < aggiunte.length; i++) {
-    var e = etichette[aggiunte[i]];
-    if (!e) righe.push('    Applica l\'etichetta con id ' + aggiunte[i] + ' (in Gmail non c\'e\' piu\')');
+    var e = etichette[aggiunte[i]], a = _AZIONI_A_PAROLE.aggiunge[aggiunte[i]];
+    if (typeof a === 'string') righe.push('    ' + a);
+    else if (!e) righe.push('    Applica l\'etichetta con id ' + aggiunte[i] + ' (in Gmail non c\'e\' piu\')');
     else if (!e.sistema) righe.push('    Applica l\'etichetta: ' + e.nome);
     else righe.push('    Aggiunge ' + e.nome + ' (etichetta di sistema di Gmail)');
   }
   for (var j = 0; j < tolte.length; j++) {
-    var d = etichette[tolte[j]];
-    if (tolte[j] === 'INBOX') righe.push('    Salta la Posta in arrivo (archivia)');
-    else if (tolte[j] === 'UNREAD') righe.push('    Segna come gia\' letto');
+    var d = etichette[tolte[j]], t = _AZIONI_A_PAROLE.toglie[tolte[j]];
+    if (typeof t === 'string') righe.push('    ' + t);
     else if (d && !d.sistema) righe.push('    Toglie l\'etichetta: ' + d.nome);
     else righe.push('    Toglie ' + (d ? d.nome : tolte[j]) + ' (etichetta di sistema di Gmail)');
   }
   for (var k in azione) {
     if (k === 'addLabelIds' || k === 'removeLabelIds') continue;
-    var valore = azione[k];
-    righe.push('    ' + k + ': ' + (valore && typeof valore === 'object' ? JSON.stringify(valore) : String(valore)));
+    var valore = azione[k], parole = _AZIONI_A_PAROLE.altro[k];
+    righe.push('    ' + (typeof parole === 'string' ? parole : k + ': ') +
+               (valore && typeof valore === 'object' ? JSON.stringify(valore) : String(valore)));
   }
   return righe.join('\n');
 }

@@ -1815,9 +1815,9 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
                     [fFamiglie2.id]: ['Contiene le parole: from:(@famiglie.example)', 'Applica l\'etichetta: Famiglie'],
                     [fCircolari.id]: ['Da: segreteria@' + S, 'Oggetto: circolare', 'Applica l\'etichetta: Circolari',
                                       'Salta la Posta in arrivo (archivia)', 'Segna come gia\' letto'],
-                    [fAlunni.id]: ['Da: @studenti.' + S, 'Applica l\'etichetta: Alunni', 'STARRED'],
+                    [fAlunni.id]: ['Da: @studenti.' + S, 'Applica l\'etichetta: Alunni', 'Aggiungi stella'],
                     [fRiunioni.id]: ['Contiene le parole: riunione', 'Non contiene: bozza', 'Dimensioni: maggiore di 5 MB',
-                                     'IMPORTANT', 'vice@' + S] };
+                                     'Non contrassegnarlo mai come importante', 'Inoltralo a: vice@' + S] };
     const senzaCopia = tolti.filter(x => {
       const prima = registro[x.registro - 1] || '';
       return prima.indexOf('COPIA DEL FILTRO') !== 0 || !copia[x.id].every(pezzo => prima.indexOf(pezzo) >= 0);
@@ -1865,6 +1865,33 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
   verifica('senza il riepilogo per email non manda niente', posta.length === postaDopo);
   verifica('ancora una volta, etichette e messaggi intatti', fotoEtichette() === etichettePrima && fotoPosta() === postaPrima);
 
+  // --- la copia dice le azioni con le parole della finestra di Gmail ----------------
+  {
+    const newsletter = GmailApp.createLabel('Newsletter');
+    ['TRASH', 'SPAM', 'CATEGORY_PROMOTIONS'].forEach(n => sistema.push({ id: n, name: n, type: 'system' }));
+    const fTutto = filtro({ query: 'unsubscribe' }, {
+      addLabelIds: [newsletter.id, 'TRASH', 'STARRED', 'IMPORTANT', 'CATEGORY_PROMOTIONS'],
+      removeLabelIds: ['SPAM'], forward: 'vice@' + S });
+    const fMai = filtro({ query: 'offerta' }, { addLabelIds: [newsletter.id], removeLabelIds: ['IMPORTANT', 'INBOX'] });
+    contesto.CONFIG.filtriDaTogliere = [
+      { etichetta: 'Newsletter', criteri: { query: 'unsubscribe' } },
+      { etichetta: 'Newsletter', criteri: { query: 'offerta' } }
+    ];
+    const prima = tolti.length;
+    t = contesto.EXTRA_togliFiltri();
+    const copiaDi = id => { const x = tolti.find(y => y.id === id); return x ? (registro[x.registro - 1] || '') : ''; };
+    console.log(copiaDi(fTutto.id));
+    const attese = {
+      [fTutto.id]: ['Applica l\'etichetta: Newsletter', 'Eliminalo (va nel cestino)', 'Aggiungi stella',
+                    'Contrassegna sempre come importante', 'Classifica come: Promozioni', 'Non inviarlo mai in Spam',
+                    'Inoltralo a: vice@' + S],
+      [fMai.id]: ['Non contrassegnarlo mai come importante', 'Salta la Posta in arrivo (archivia)'] };
+    const storte = Object.keys(attese).filter(id => !attese[id].every(p => copiaDi(id).indexOf(p) >= 0));
+    verifica('la copia dice elimina, stella, importante, categoria, spam e inoltro come la finestra "Crea un nuovo filtro"' +
+      (storte.length ? ' (no: ' + storte.join(', ') + ')' : ''), tolti.length === prima + 2 && storte.length === 0);
+    verifica('e non con i nomi del servizio Gmail API',
+      [fTutto.id, fMai.id].every(id => copiaDi(id) !== '' && !/\b(TRASH|STARRED|IMPORTANT|CATEGORY_PROMOTIONS|SPAM)\b|forward/.test(copiaDi(id))));
+  }
 
   // --- niente scelto in Campanella ----------------------------------------------
   delete contesto.CONFIG.filtriDaTogliere;
