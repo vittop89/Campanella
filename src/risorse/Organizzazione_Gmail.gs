@@ -19,7 +19,9 @@
  *    3. resta attiva e smista i messaggi nuovi ogni ora;
  *    4. (facoltativo) crea i veri filtri di Gmail, cosi' lo smistamento
  *       avviene anche senza lo script (tranne le regole che escludono le
- *       altre, come Studenti: quelle restano allo smistamento del punto 3).
+ *       altre, come Studenti: quelle restano allo smistamento del punto 3);
+ *    5. (facoltativo) da' alle etichette i colori scelti in Campanella.
+ *    I punti 4 e 5 vogliono il servizio avanzato "Gmail API" (Servizi -> "+").
  *
  *  COSA NON FA
  *    Non cancella niente. Non svuota il cestino. Non segnala come spam.
@@ -38,6 +40,12 @@
  *                                    dominio della scuola, per compilare
  *                                    l'elenco del personale nell'applicazione
  *    EXTRA_creaFiltriGmail ......... crea i filtri veri di Gmail (facoltativo)
+ *    EXTRA_coloraEtichette ......... da' alle etichette i colori scelti in
+ *                                    Campanella: solo a quelle senza colore o
+ *                                    create dallo script (facoltativo)
+ *    EXTRA_coloraTutteLeEtichette .. come la precedente, ma ricolora anche le
+ *                                    etichette che c'erano gia', comprese
+ *                                    quelle a cui avevi dato un colore tu
  *    EXTRA_codiceStato ............. stampa il codice da incollare in
  *                                    Campanella (Impostazioni): dice se il
  *                                    riordino e' fatto
@@ -83,6 +91,23 @@ var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
 var _TRIGGER_ORARI          = 'ORARI_2_invia';  // le due riprese di Orari.gs, nello stesso progetto
 var _TRIGGER_ORARI_CLASSI   = 'ORARI_3_inviaOrariClassi';
+// i colori che Gmail accetta per le etichette, per lo sfondo e per il testo
+// (Gmail API, Label.color): con un altro valore la chiamata fallisce
+var _COLORI_GMAIL = [
+  '#000000', '#434343', '#666666', '#999999', '#cccccc', '#efefef', '#f3f3f3', '#ffffff',
+  '#fb4c2f', '#ffad47', '#fad165', '#16a766', '#43d692', '#4a86e8', '#a479e2', '#f691b3',
+  '#f6c5be', '#ffe6c7', '#fef1d1', '#b9e4d0', '#c6f3de', '#c9daf8', '#e4d7f5', '#fcdee8',
+  '#efa093', '#ffd6a2', '#fce8b3', '#89d3b2', '#a0eac9', '#a4c2f4', '#d0bcf1', '#fbc8d9',
+  '#e66550', '#ffbc6b', '#fcda83', '#44b984', '#68dfa9', '#6d9eeb', '#b694e8', '#f7a7c0',
+  '#cc3a21', '#eaa041', '#f2c960', '#149e60', '#3dc789', '#3c78d8', '#8e63ce', '#e07798',
+  '#ac2b16', '#cf8933', '#d5ae49', '#0b804b', '#2a9c68', '#285bac', '#653e9b', '#b65775',
+  '#822111', '#a46a21', '#aa8831', '#076239', '#1a764d', '#1c4587', '#41236d', '#83334c',
+  '#464646', '#e7e7e7', '#0d3472', '#b6cff5', '#0d3b44', '#98d7e4', '#3d188e', '#e3d7ff',
+  '#711a36', '#fbd3e0', '#8a1c0a', '#f2b2a8', '#7a2e0b', '#ffc8af', '#7a4706', '#ffdeb5',
+  '#594c05', '#fbe983', '#684e07', '#fdedc1', '#0b4f30', '#b3efd3', '#04502e', '#a2dcc1',
+  '#c2c2c2', '#4986e7', '#2da2bb', '#b99aff', '#994a64', '#f691b2', '#ff7537', '#ffad46',
+  '#662e37', '#ebdbde', '#cca6ac', '#094228', '#42d692', '#16a765'
+];
 
 
 // ===========================================================================
@@ -109,6 +134,8 @@ function PASSO_1_anteprima() {
     righe = righe.concat(_aCapo_('Copiala di nuovo dalla Posta, passo 5: quella nuova ha l\'impronta, ' +
       'e qui potrai controllare che sia quella di adesso.', '  ', '  '));
   }
+  // i colori scelti in Campanella: li puo' mettere solo il servizio Gmail API
+  righe.push(_rigaColori_(cfg));
   righe.push('');
 
   var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
@@ -438,6 +465,20 @@ function _aDestra_(s, n) {
   return s;
 }
 
+/**
+ * La riga dell'anteprima sui colori: quante etichette delle regole accese
+ * hanno un colore che Gmail accetta, e se il servizio Gmail API c'e' per
+ * metterli. Una riga sola, sotto l'impronta: la tabella resta com'e'.
+ */
+function _rigaColori_(cfg) {
+  var regole = _regoleAttive_(cfg), n = 0;
+  for (var i = 0; i < regole.length; i++) if (_coloreAmmesso_(regole[i].colore)) n++;
+  if (!n) return 'Colori: nessuno scelto in Campanella.';
+  return 'Colori: ' + n + (n === 1 ? ' etichetta' : ' etichette') + ' con un colore' +
+    (_servizioGmail_() ? '; il servizio Gmail API c\'e\', quindi si possono applicare.'
+                       : ', ma senza il servizio Gmail API non si possono applicare.');
+}
+
 
 // ===========================================================================
 //  PASSO 2 - CREA LE ETICHETTE
@@ -449,6 +490,8 @@ function PASSO_2_creaEtichette() {
   var prova = !!cfg.provaSenzaModifiche;
   var create = [];
   var esistenti = [];
+  // come e' andata con i colori delle etichette nuove (vedi _coloraNuova_)
+  var colori = { messi: 0, senzaServizio: 0, sbagliati: 0, falliti: 0 };
   if (!prova) _potaCreate_();
 
   for (var i = 0; i < regole.length; i++) {
@@ -460,7 +503,7 @@ function PASSO_2_creaEtichette() {
       if (GmailApp.getUserLabelByName(progressivo)) {
         if (esistenti.indexOf(progressivo) < 0) esistenti.push(progressivo);
       } else if (create.indexOf(progressivo) < 0) {
-        if (!prova) _creaEtichetta_(progressivo);
+        if (!prova) _creaEtichetta_(progressivo, colori);
         create.push(progressivo);
       }
     }
@@ -473,8 +516,30 @@ function PASSO_2_creaEtichette() {
                 : 'Etichette create adesso: ') + create.length +
               (create.length ? '\n  - ' + create.join('\n  - ') : '') +
               '\n\nEtichette gia\' presenti: ' + esistenti.length +
-              (esistenti.length ? '\n  - ' + esistenti.join('\n  - ') : '');
+              (esistenti.length ? '\n  - ' + esistenti.join('\n  - ') : '') +
+              _esitoColori_(colori);
   Logger.log(testo);
+  return testo;
+}
+
+/** Quello che PASSO_2 dice dei colori delle etichette che ha appena creato. */
+function _esitoColori_(c) {
+  var testo = '';
+  if (c.messi) testo += '\n\nColori dati alle etichette nuove: ' + c.messi + '.';
+  if (c.senzaServizio) {
+    testo += '\n\n' + (c.senzaServizio === 1 ? 'Un\'etichetta nuova e\' nata' :
+                       c.senzaServizio + ' etichette nuove sono nate') +
+             ' senza il colore scelto in Campanella: manca il servizio "Gmail API". Nell\'editor: ' +
+             'Servizi -> "+" -> scegli "Gmail API" -> Aggiungi; poi esegui EXTRA_coloraEtichette.';
+  }
+  if (c.sbagliati) {
+    testo += '\n\nColori saltati perche\' Gmail non li accetta: ' + c.sbagliati +
+             '. Scegli di nuovo il colore in Campanella (Posta, passo 4) e copia di nuovo la configurazione.';
+  }
+  if (c.falliti) {
+    testo += '\n\nColori non applicati: ' + c.falliti + ' (il motivo e\' nel registro). ' +
+             'Riprova con EXTRA_coloraEtichette.';
+  }
   return testo;
 }
 
@@ -878,6 +943,113 @@ function EXTRA_creaFiltriGmail() {
               'indirizzi bloccati.' +
               '\nSe poi cambi una regola, il filtro vecchio resta: cancellalo da li\' e riesegui ' +
               'questa funzione.';
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  EXTRA - I COLORI DELLE ETICHETTE (facoltativo)
+//  GmailApp non sa colorare le etichette: serve il servizio avanzato "Gmail
+//  API", lo stesso dei filtri veri (editor -> Servizi (+) -> "Gmail API").
+//  Con il servizio attivo le etichette nuove nascono gia' colorate; queste
+//  due funzioni colorano quelle che ci sono gia'. Toccano solo le etichette
+//  delle regole accese che in Configurazione.gs hanno un colore, e solo con
+//  i colori della tavolozza di Gmail. Non cancellano niente.
+// ===========================================================================
+
+/**
+ * Da' alle etichette delle regole accese il colore scelto in Campanella, ma
+ * solo a quelle senza colore e a quelle create dallo script: un colore che
+ * avevi dato tu a un'etichetta che c'era gia' resta com'e'.
+ */
+function EXTRA_coloraEtichette() {
+  return _coloraEtichette_(false);
+}
+
+/**
+ * Come EXTRA_coloraEtichette, ma ricolora anche le etichette che c'erano
+ * gia', comprese quelle a cui avevi dato un colore tu.
+ */
+function EXTRA_coloraTutteLeEtichette() {
+  return _coloraEtichette_(true);
+}
+
+function _coloraEtichette_(tutte) {
+  var funzione = tutte ? 'EXTRA_coloraTutteLeEtichette' : 'EXTRA_coloraEtichette';
+  if (!_servizioGmail_()) {
+    var senza = 'SERVIZIO "Gmail API" NON ATTIVO: non ho cambiato nessun colore.\n' +
+      'I colori delle etichette li puo\' mettere solo quel servizio. Nell\'editor, colonna di sinistra: ' +
+      'Servizi -> "+" -> scegli "Gmail API" -> Aggiungi. Poi esegui di nuovo ' + funzione + '.';
+    Logger.log(senza);
+    return senza;
+  }
+  var cfg = _config_();
+  var prova = !!cfg.provaSenzaModifiche;
+
+  // lo stesso blocco del riordino e dello smistamento, che creano etichette
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Un\'altra esecuzione (il riordino della posta o lo smistamento) sta lavorando ' +
+                   'proprio adesso: riprova fra un minuto. Non ho cambiato nessun colore.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var fatte = [], uguali = [], tue = [], mancano = [], sbagliati = [], fallite = [];
+  try {
+    var create = _etichetteCreate_();
+    var inGmail = _etichetteGmail_();
+    var regole = _regoleAttive_(cfg);
+    var viste = {};
+    for (var i = 0; i < regole.length; i++) {
+      var colore = regole[i].colore;
+      if (!colore) continue;                       // regola senza colore: la sua etichetta non si tocca
+      var nome = _etichettaCompleta_(cfg, regole[i]);
+      if (viste[nome]) continue;
+      viste[nome] = true;
+      if (!_coloreAmmesso_(colore)) { sbagliati.push(nome + ' (' + _descriviColore_(colore) + ')'); continue; }
+      if (!inGmail[nome]) { mancano.push(nome); continue; }
+      try {
+        var adesso = Gmail.Users.Labels.get('me', inGmail[nome].id).color || null;
+        if (_stessoColore_(adesso, colore)) { uguali.push(nome); continue; }
+        // un colore che non ha dato lo script si cambia solo se lo chiedi
+        var senzaColore = !adesso || !adesso.backgroundColor;
+        if (!tutte && !senzaColore && create.indexOf(nome) < 0) { tue.push(nome); continue; }
+        if (!prova) _applicaColore_(inGmail[nome].id, colore);
+        fatte.push(nome);
+      } catch (errore) {
+        fallite.push(nome + ': ' + errore.message);
+      }
+    }
+  } finally {
+    lock.releaseLock();
+  }
+
+  var testo = (prova
+      ? 'MODALITA\' PROVA: non ho cambiato nessun colore, dico soltanto che cosa cambierebbe.\n'
+      : '') +
+    (tutte
+      ? 'Questa funzione ricolora anche le etichette che c\'erano gia\', comprese quelle a cui avevi ' +
+        'dato un colore tu.\n'
+      : '') +
+    (prova ? 'Etichette da colorare: ' : 'Etichette colorate adesso: ') + fatte.length +
+    (fatte.length ? '\n  - ' + fatte.join('\n  - ') : '') +
+    '\nGia\' del colore scelto: ' + uguali.length +
+    (tue.length
+      ? '\n\nNon toccate, perche\' hanno gia\' un colore e non le ha create lo script (il colore gliel\'hai ' +
+        'dato tu): ' + tue.join(', ') + '.\nPer dare anche a queste i colori di Campanella esegui ' +
+        'EXTRA_coloraTutteLeEtichette.'
+      : '') +
+    (mancano.length
+      ? '\n\nNon ci sono ancora in Gmail: ' + mancano.join(', ') + '.\nLe crea ' +
+        'PASSO_3_riordinaPostaEsistente, gia\' colorate.'
+      : '') +
+    (sbagliati.length
+      ? '\n\nSaltate, perche\' Gmail non accetta il loro colore: ' + sbagliati.join(', ') + '.\n' +
+        'Scegli di nuovo il colore in Campanella (Posta, passo 4) e copia di nuovo la configurazione.'
+      : '') +
+    (fallite.length ? '\n\nNon riuscite:\n  - ' + fallite.join('\n  - ') : '') +
+    '\n\nLe etichette delle regole senza colore restano come sono.';
   Logger.log(testo);
   return testo;
 }
@@ -1422,15 +1594,102 @@ function _salvaCreate_(elenco) {
   PropertiesService.getUserProperties().setProperty(_CHIAVE_CREATE, JSON.stringify(elenco));
 }
 
-/** Crea un'etichetta e se lo segna. */
-function _creaEtichetta_(nome) {
+/**
+ * Crea un'etichetta, se lo segna e le da' il colore della sua regola (se il
+ * servizio Gmail API c'e'). "colori", facoltativo, conta com'e' andata.
+ */
+function _creaEtichetta_(nome, colori) {
   var etichetta = GmailApp.createLabel(nome);
   var create = _etichetteCreate_();
   if (create.indexOf(nome) < 0) {
     create.push(nome);
     _salvaCreate_(create);
   }
+  var esito = _coloraNuova_(nome);
+  if (colori && esito) colori[esito] = (colori[esito] || 0) + 1;
   return etichetta;
+}
+
+/**
+ * Da' a un'etichetta appena creata il colore della sua regola. Senza il
+ * servizio Gmail API resta del colore di Gmail; un colore che Gmail non
+ * accetta si salta. Un errore qui non ferma il riordino: finisce nel
+ * registro. Dice com'e' andata ('' se la regola non ha un colore).
+ */
+function _coloraNuova_(nome) {
+  var colore = _coloreDellEtichetta_(_config_(), nome);
+  if (!colore) return '';
+  if (!_coloreAmmesso_(colore)) return 'sbagliati';
+  if (!_servizioGmail_()) return 'senzaServizio';
+  try {
+    var inGmail = _etichetteGmail_()[nome];
+    if (!inGmail) throw new Error('il servizio Gmail API non la trova');
+    _applicaColore_(inGmail.id, colore);
+    return 'messi';
+  } catch (errore) {
+    Logger.log('Etichetta "' + nome + '": colore non applicato (' + errore.message + ').');
+    return 'falliti';
+  }
+}
+
+// ---------------------------------------------------------------------------
+//  I colori delle etichette, con il servizio avanzato "Gmail API". In
+//  Configurazione.gs un colore e' { sfondo: "#16a766", testo: "#000000" }.
+// ---------------------------------------------------------------------------
+
+/** Vero se nel progetto c'e' il servizio avanzato "Gmail API" (Servizi -> "+"). */
+function _servizioGmail_() {
+  return typeof Gmail !== 'undefined' && !!Gmail && !!Gmail.Users && !!Gmail.Users.Labels;
+}
+
+/** Vero se sfondo e testo sono tutti e due fra i colori che Gmail accetta. */
+function _coloreAmmesso_(colore) {
+  return !!colore && typeof colore === 'object' &&
+    _COLORI_GMAIL.indexOf(String(colore.sfondo || '').toLowerCase()) >= 0 &&
+    _COLORI_GMAIL.indexOf(String(colore.testo || '').toLowerCase()) >= 0;
+}
+
+function _descriviColore_(colore) {
+  if (!colore || typeof colore !== 'object') return 'colore scritto male: ' + String(colore);
+  return 'sfondo ' + String(colore.sfondo) + ', testo ' + String(colore.testo);
+}
+
+/** Il colore che l'etichetta ha in Gmail e' gia' quello scelto? */
+function _stessoColore_(adesso, colore) {
+  return !!adesso &&
+    String(adesso.backgroundColor || '').toLowerCase() === String(colore.sfondo).toLowerCase() &&
+    String(adesso.textColor || '').toLowerCase() === String(colore.testo).toLowerCase();
+}
+
+/** Il colore della regola accesa che mette quell'etichetta (gruppo compreso), o null. */
+function _coloreDellEtichetta_(cfg, nome) {
+  var regole = _regoleAttive_(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    if (regole[i].colore && _etichettaCompleta_(cfg, regole[i]) === nome) return regole[i].colore;
+  }
+  return null;
+}
+
+/**
+ * Le tue etichette secondo il servizio Gmail API: nome -> { id }. L'elenco
+ * non dice i colori: li dice Gmail.Users.Labels.get, un'etichetta alla volta.
+ */
+function _etichetteGmail_() {
+  var mappa = {};
+  var lista = Gmail.Users.Labels.list('me').labels || [];
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].type && lista[i].type !== 'user') continue;
+    mappa[lista[i].name] = { id: lista[i].id };
+  }
+  return mappa;
+}
+
+/** Cambia il colore di un'etichetta: sfondo e testo insieme, come vuole Gmail. */
+function _applicaColore_(id, colore) {
+  Gmail.Users.Labels.patch({ color: {
+    backgroundColor: String(colore.sfondo).toLowerCase(),
+    textColor: String(colore.testo).toLowerCase()
+  } }, 'me', id);
 }
 
 /** Dimentica le etichette create qui che nel frattempo hai cancellato da Gmail. */

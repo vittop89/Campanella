@@ -1291,6 +1291,257 @@ intestazione('ANTEPRIMA: PIU\' MITTENTI, NOMI LUNGHI, UN GRUPPO DELLA 1.4');
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;
 
+intestazione('I COLORI DELLE ETICHETTE');
+{
+  const S = 'scuola.example';
+  indirizzoAttivo = 'docente@' + S;
+  // I colori che Gmail accetta, come li elenca la documentazione dell'API
+  // (Label.color). Il motore deve avere proprio questi, e il servizio finto
+  // qui sotto rifiuta tutti gli altri, come quello vero.
+  const TAVOLOZZA = [
+    '#000000', '#434343', '#666666', '#999999', '#cccccc', '#efefef', '#f3f3f3', '#ffffff',
+    '#fb4c2f', '#ffad47', '#fad165', '#16a766', '#43d692', '#4a86e8', '#a479e2', '#f691b3',
+    '#f6c5be', '#ffe6c7', '#fef1d1', '#b9e4d0', '#c6f3de', '#c9daf8', '#e4d7f5', '#fcdee8',
+    '#efa093', '#ffd6a2', '#fce8b3', '#89d3b2', '#a0eac9', '#a4c2f4', '#d0bcf1', '#fbc8d9',
+    '#e66550', '#ffbc6b', '#fcda83', '#44b984', '#68dfa9', '#6d9eeb', '#b694e8', '#f7a7c0',
+    '#cc3a21', '#eaa041', '#f2c960', '#149e60', '#3dc789', '#3c78d8', '#8e63ce', '#e07798',
+    '#ac2b16', '#cf8933', '#d5ae49', '#0b804b', '#2a9c68', '#285bac', '#653e9b', '#b65775',
+    '#822111', '#a46a21', '#aa8831', '#076239', '#1a764d', '#1c4587', '#41236d', '#83334c',
+    '#464646', '#e7e7e7', '#0d3472', '#b6cff5', '#0d3b44', '#98d7e4', '#3d188e', '#e3d7ff',
+    '#711a36', '#fbd3e0', '#8a1c0a', '#f2b2a8', '#7a2e0b', '#ffc8af', '#7a4706', '#ffdeb5',
+    '#594c05', '#fbe983', '#684e07', '#fdedc1', '#0b4f30', '#b3efd3', '#04502e', '#a2dcc1',
+    '#c2c2c2', '#4986e7', '#2da2bb', '#b99aff', '#994a64', '#f691b2', '#ff7537', '#ffad46',
+    '#662e37', '#ebdbde', '#cca6ac', '#094228', '#42d692', '#16a765'
+  ];
+  const ordinata = a => JSON.stringify(a.slice().sort());
+  const delMotore = contesto._COLORI_GMAIL || [];
+  verifica('il motore conosce proprio i colori che Gmail accetta (' + delMotore.length + ')',
+    TAVOLOZZA.length === 102 && ordinata(delMotore) === ordinata(TAVOLOZZA));
+
+  // Il servizio avanzato "Gmail API", finto, sopra le etichette finte. Come
+  // quello vero: l'elenco non dice i colori (li dice get), patch vuole sfondo
+  // e testo insieme e solo dalla tavolozza, e le etichette di sistema ci sono.
+  const api = { get: 0, patch: [] };
+  let patchRotto = false;
+  function gmailFinto() {
+    const perId = id => [...etichette.values()].find(l => 'id:' + l.nome === id);
+    return { Users: {
+      Labels: {
+        list: () => ({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }].concat(
+          [...etichette.values()].map(l => ({ id: 'id:' + l.nome, name: l.nome, type: 'user' }))) }),
+        get: (utente, id) => {
+          api.get++;
+          const l = perId(id);
+          if (utente !== 'me' || !l) throw new Error('Requested entity was not found.');
+          return { id, name: l.nome, type: 'user', color: l.colore ? Object.assign({}, l.colore) : undefined };
+        },
+        patch: (risorsa, utente, id) => {
+          if (patchRotto) throw new Error('Service unavailable');
+          const l = perId(id);
+          if (utente !== 'me' || !l) throw new Error('Requested entity was not found.');
+          const c = (risorsa && risorsa.color) || {};
+          if (TAVOLOZZA.indexOf(c.backgroundColor) < 0 || TAVOLOZZA.indexOf(c.textColor) < 0) {
+            throw new Error('Label color ' + c.backgroundColor + ' is not on the allowed color palette');
+          }
+          api.patch.push({ nome: l.nome, sfondo: c.backgroundColor, testo: c.textColor });
+          l.colore = { backgroundColor: c.backgroundColor, textColor: c.textColor };
+          return { id, name: l.nome, color: Object.assign({}, l.colore) };
+        }
+      },
+      Settings: { Filters: { list: () => ({ filter: [] }), create: f => f } }
+    } };
+  }
+  const colore = n => {
+    const l = etichette.get(n);
+    return !l ? '(non c\'e\')' : l.colore ? l.colore.backgroundColor + '/' + l.colore.textColor : '';
+  };
+  const fotografia = () => JSON.stringify([...etichette.values()].map(l => [l.nome, l.colore || null]));
+  function daCapo(prova) {
+    casella.length = 0;
+    etichette.clear();
+    proprieta.clear();
+    trigger.length = 0;
+    orologio = 0;
+    api.get = 0;
+    api.patch.length = 0;
+    patchRotto = false;
+    contesto.CONFIG = {
+      impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: 'Scuola', provaSenzaModifiche: prova,
+      soloUltimiMesi: 0, escludiPostaInviata: true, giorniPostaNuova: 3,
+      personale: ['anna.bianchi@' + S], gruppi: { Docenti: ['anna.bianchi@' + S] },
+      regole: [
+        { attiva: true, etichetta: 'Dirigenza', da: ['preside@' + S], colore: { sfondo: '#cc3a21', testo: '#ffffff' } },
+        { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'], colore: { sfondo: '#4a86e8', testo: '#000000' } },
+        { attiva: true, etichetta: 'Colleghi/Docenti', da: ['@GRUPPO:Docenti@'],
+          colore: { sfondo: '#A4C2F4', testo: '#000000' } },
+        { attiva: true, etichetta: 'Circolari', oggetto: ['circolare'] },
+        { attiva: true, etichetta: 'Sindacati', da: ['@sindacato.example'], colore: { sfondo: '#123456', testo: '#ffffff' } },
+        { attiva: false, etichetta: 'Genitori', da: ['@genitori.example'], colore: { sfondo: '#a46a21', testo: '#ffffff' } }
+      ]
+    };
+  }
+
+  // --- senza il servizio Gmail API: niente colori, niente errori ------------
+  daCapo(false);
+  delete contesto.Gmail;
+  let t = '', errore = null;
+  try { t = contesto.PASSO_2_creaEtichette(); } catch (e) { errore = e; }
+  verifica('senza il servizio Gmail API le etichette nascono lo stesso, senza colore',
+    !errore && etichette.has('Scuola/Dirigenza') && [...etichette.values()].every(l => !l.colore));
+  verifica('e PASSO_2 dice che manca il servizio, e come si attiva',
+    /3 etichette nuove sono nate senza il colore scelto in Campanella: manca il servizio "Gmail API"/.test(t) &&
+    t.indexOf('Servizi -> "+"') > 0 && t.indexOf('EXTRA_coloraEtichette') > 0);
+  let senza1 = '', senza2 = '';
+  errore = null;
+  try { senza1 = contesto.EXTRA_coloraEtichette(); senza2 = contesto.EXTRA_coloraTutteLeEtichette(); } catch (e) { errore = e; }
+  verifica('senza servizio le due funzioni dei colori non si fermano con un errore, e non cambiano niente',
+    !errore && [...etichette.values()].every(l => !l.colore));
+  verifica('e spiegano come attivarlo, ognuna con il suo nome',
+    senza1.indexOf('NON ATTIVO') >= 0 && senza1.indexOf('Servizi -> "+" -> scegli "Gmail API"') > 0 &&
+    senza1.indexOf('EXTRA_coloraEtichette.') > 0 && senza2.indexOf('EXTRA_coloraTutteLeEtichette.') > 0);
+  {
+    const a = contesto.PASSO_1_anteprima().split('\n');
+    const riga = a.find(r => r.indexOf('Colori: ') === 0) || '';
+    verifica('l\'anteprima dice quante etichette hanno un colore e che senza servizio non si applicano',
+      riga === 'Colori: 3 etichette con un colore, ma senza il servizio Gmail API non si possono applicare.');
+    verifica('in una riga sola, sotto l\'impronta, prima della tabella',
+      a.indexOf(riga) > 6 && a.indexOf(riga) < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) &&
+      a.every(r => r.length <= 100));
+  }
+
+  // --- con il servizio: le etichette nuove nascono colorate ------------------
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  {
+    const riga = contesto.PASSO_1_anteprima().split('\n').find(r => r.indexOf('Colori: ') === 0) || '';
+    verifica('con il servizio l\'anteprima dice che i colori si possono applicare',
+      riga === 'Colori: 3 etichette con un colore; il servizio Gmail API c\'e\', quindi si possono applicare.');
+  }
+  t = contesto.PASSO_2_creaEtichette();
+  console.log(t);
+  verifica('le etichette create da PASSO_2 prendono il colore della loro regola',
+    colore('Scuola/Dirigenza') === '#cc3a21/#ffffff' && colore('Scuola/Colleghi') === '#4a86e8/#000000' &&
+    colore('Scuola/Colleghi/Docenti') === '#a4c2f4/#000000');
+  verifica('il gruppo "Scuola", che non e\' una regola, resta senza colore', colore('Scuola') === '');
+  verifica('una regola senza colore lascia la sua etichetta del colore di Gmail', colore('Scuola/Circolari') === '');
+  verifica('un colore che Gmail non accetta si salta, senza nemmeno chiederlo a Gmail',
+    colore('Scuola/Sindacati') === '' && api.patch.every(p => p.nome !== 'Scuola/Sindacati'));
+  verifica('una regola spenta non crea e non colora niente', !etichette.has('Scuola/Genitori'));
+  verifica('PASSO_2 lo dice: 3 colori dati, 1 saltato',
+    t.indexOf('Colori dati alle etichette nuove: 3.') > 0 && t.indexOf('Colori saltati perche\' Gmail non li accetta: 1.') > 0);
+
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('anche il riordino (PASSO_3) colora le etichette che crea',
+    colore('Scuola/Dirigenza') === '#cc3a21/#ffffff' && colore('Scuola/Colleghi/Docenti') === '#a4c2f4/#000000');
+  // l'hai cancellata da Gmail: lo smistamento la ricrea, gia' colorata
+  etichette.delete('Scuola/Dirigenza');
+  const nuova = aggiungi('preside@' + S, 'Convocazione', '', { giorniFa: 1 });
+  contesto.smistaNuoviMessaggi();
+  verifica('e anche lo smistamento, se deve ricrearne una',
+    nuova.labels.has('Scuola/Dirigenza') && colore('Scuola/Dirigenza') === '#cc3a21/#ffffff');
+
+  // in prova non si crea niente, e quindi non si colora niente
+  daCapo(true);
+  contesto.Gmail = gmailFinto();
+  contesto.PASSO_2_creaEtichette();
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('in prova niente etichette e niente colori', etichette.size === 0 && api.patch.length === 0);
+
+  // un errore di Gmail sul colore non ferma la creazione delle etichette
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  patchRotto = true;
+  const primaDelGuasto = registro.length;
+  errore = null;
+  try { t = contesto.PASSO_2_creaEtichette(); } catch (e) { errore = e; }
+  verifica('se Gmail rifiuta il colore le etichette nascono lo stesso, e lo dice',
+    !errore && etichette.has('Scuola/Colleghi/Docenti') && t.indexOf('Colori non applicati: 3') > 0 &&
+    registro.slice(primaDelGuasto).some(r => /Scuola\/Dirigenza": colore non applicato \(Service unavailable\)/.test(r)));
+
+  // --- le etichette che c'erano gia' -------------------------------------------
+  daCapo(true);
+  contesto.Gmail = gmailFinto();
+  GmailApp.createLabel('Scuola');
+  // Dirigenza c'era, e le avevi dato tu un colore (verde)
+  GmailApp.createLabel('Scuola/Dirigenza').colore = { backgroundColor: '#16a766', textColor: '#ffffff' };
+  // Colleghi c'era, senza colore
+  GmailApp.createLabel('Scuola/Colleghi');
+  // Colleghi/Docenti l'ha creata lo script, con il colore di prima
+  GmailApp.createLabel('Scuola/Colleghi/Docenti').colore = { backgroundColor: '#fb4c2f', textColor: '#000000' };
+  _memoriaCon(['Scuola/Colleghi/Docenti']);
+  // Circolari non ha colore nella configurazione: il tuo giallo resta
+  GmailApp.createLabel('Scuola/Circolari').colore = { backgroundColor: '#fad165', textColor: '#000000' };
+  const quante = etichette.size;
+
+  const prima = fotografia();
+  t = contesto.EXTRA_coloraEtichette();
+  console.log(t);
+  verifica('in prova EXTRA_coloraEtichette non cambia nessun colore', fotografia() === prima && api.patch.length === 0);
+  verifica('e dice che cosa cambierebbe: Colleghi e Colleghi/Docenti',
+    t.indexOf('MODALITA\' PROVA') === 0 && /Etichette da colorare: 2\n  - Scuola\/Colleghi\n  - Scuola\/Colleghi\/Docenti\n/.test(t));
+  const tutteInProva = contesto.EXTRA_coloraTutteLeEtichette();
+  verifica('in prova nemmeno EXTRA_coloraTutteLeEtichette, che direbbe anche la Dirigenza',
+    fotografia() === prima && api.patch.length === 0 && /Etichette da colorare: 3\n/.test(tutteInProva) &&
+    tutteInProva.indexOf('  - Scuola/Dirigenza') > 0);
+
+  contesto.CONFIG.provaSenzaModifiche = false;
+  t = contesto.EXTRA_coloraEtichette();
+  console.log(t);
+  verifica('colora un\'etichetta che c\'era gia\' ma non aveva colore', colore('Scuola/Colleghi') === '#4a86e8/#000000');
+  verifica('e ricolora una creata dallo script', colore('Scuola/Colleghi/Docenti') === '#a4c2f4/#000000');
+  verifica('ma non tocca il colore che avevi dato tu a un\'etichetta che c\'era gia\'',
+    colore('Scuola/Dirigenza') === '#16a766/#ffffff');
+  verifica('e lo dice, con la funzione che la ricolorerebbe',
+    /Non toccate[^\n]*: Scuola\/Dirigenza\./.test(t) && t.indexOf('esegui EXTRA_coloraTutteLeEtichette') > 0);
+  verifica('le etichette delle regole senza colore restano come sono', colore('Scuola/Circolari') === '#fad165/#000000');
+  verifica('il colore che Gmail non accetta e\' saltato e segnalato',
+    /Saltate, perche' Gmail non accetta il loro colore: Scuola\/Sindacati \(sfondo #123456, testo #ffffff\)/.test(t));
+  verifica('a Gmail non arriva mai un colore fuori dalla sua tavolozza',
+    api.patch.every(p => TAVOLOZZA.indexOf(p.sfondo) >= 0 && TAVOLOZZA.indexOf(p.testo) >= 0));
+
+  const cambi = api.patch.length;
+  t = contesto.EXTRA_coloraTutteLeEtichette();
+  console.log(t);
+  verifica('EXTRA_coloraTutteLeEtichette ricolora anche quella che avevi colorato tu',
+    colore('Scuola/Dirigenza') === '#cc3a21/#ffffff' && api.patch.length === cambi + 1);
+  verifica('e lo dice subito, in cima', t.indexOf('Questa funzione ricolora anche le etichette che c\'erano gia\'') === 0);
+  verifica('ma nemmeno lei tocca le etichette delle regole senza colore', colore('Scuola/Circolari') === '#fad165/#000000');
+  const ancora = contesto.EXTRA_coloraTutteLeEtichette();
+  verifica('rieseguita non cambia niente: sono gia\' del colore scelto',
+    api.patch.length === cambi + 1 && /Etichette colorate adesso: 0\nGia' del colore scelto: 3/.test(ancora));
+  verifica('e nessuna etichetta e\' stata cancellata o creata', etichette.size === quante);
+
+  // un riordino o uno smistamento in corso tiene il blocco: non si tocca niente
+  daCapo(false);
+  contesto.Gmail = gmailFinto();
+  GmailApp.createLabel('Scuola/Colleghi');
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  t = contesto.EXTRA_coloraEtichette();
+  LockService.getUserLock = bloccoVero;
+  verifica('con il blocco preso non colora niente, e dice di riprovare',
+    api.patch.length === 0 && colore('Scuola/Colleghi') === '' && t.indexOf('riprova fra un minuto') > 0);
+  // e un'etichetta che manca non la crea: la creera' il riordino
+  t = contesto.EXTRA_coloraEtichette();
+  verifica('un\'etichetta che non c\'e\' ancora non la crea, lo dice',
+    !etichette.has('Scuola/Dirigenza') && /Non ci sono ancora in Gmail: Scuola\/Dirigenza/.test(t));
+
+  // la configurazione di prima della 1.5.3 non ha colori
+  daCapo(false);
+  contesto.CONFIG.regole.forEach(r => { delete r.colore; });
+  const vecchia = contesto.PASSO_1_anteprima().split('\n').find(r => r.indexOf('Colori: ') === 0);
+  verifica('senza colori nella configurazione l\'anteprima dice che non ce ne sono',
+    vecchia === 'Colori: nessuno scelto in Campanella.');
+  contesto.CONFIG.provaSenzaModifiche = false;
+  t = contesto.EXTRA_coloraTutteLeEtichette();
+  verifica('e le funzioni dei colori non toccano niente', api.patch.length === 0 && /colorate adesso: 0/.test(t));
+  delete contesto.Gmail;
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
+
 intestazione('LA POSTA VA SOLO A TE');
 {
   // La promessa fatta al DPO: lo script manda email solo all'account in cui

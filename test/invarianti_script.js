@@ -19,7 +19,10 @@
  *     cc ne' bcc (nemmeno { 'bcc': x } oppure o.bcc = x);
  *   - le cancellazioni sono solo quelle dell'elenco di ciascun file;
  *   - i filtri di Gmail (solo Posta) etichettano, archiviano e segnano come
- *     letti, e basta.
+ *     letti, e basta;
+ *   - del servizio Gmail API (solo Posta) si usano poche chiamate: elencare
+ *     etichette e filtri, leggere e cambiare il colore di un'etichetta, creare
+ *     un filtro. Cancellare un'etichetta no, in nessuna forma.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
@@ -168,7 +171,11 @@ const VIETATI = [
   [/\b(createDraft|reply|replyAll)\b/, 'bozza o risposta a nome tuo'],
   // { cc: x }, { 'bcc': x }, o.bcc = x, o['cc'] = x
   [/(['"]?)\b(cc|bcc)\1\s*:|\.\s*(cc|bcc)\s*=(?!=)|\[\s*(['"])(cc|bcc)\4\s*\]\s*=(?!=)/,
-   'copia (cc) o copia nascosta (bcc) in un invio']
+   'copia (cc) o copia nascosta (bcc) in un invio'],
+  // Gmail.Users.Labels['delete'](...): le cancellazioni qui sotto guardano
+  // solo le chiamate scritte con il punto
+  [/\[\s*(['"`])\w*(delete|remove|trash|purge|clear|empty|destroy)\w*\1\s*\]/i,
+   'cancellazione chiamata per nome fra parentesi quadre']
 ];
 
 // etichette di sistema di Gmail: un filtro puo' toglierne solo quelle ammesse
@@ -181,8 +188,10 @@ const REGOLE = {
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'removeFromThreads'],
     destinatari: [/^_mioIndirizzo_?\(\)$/],
     etichetteDiSistema: ['INBOX', 'UNREAD'],
-    gmailApi: ['Gmail.Users.Labels.list', 'Gmail.Users.Settings.Filters.list',
-               'Gmail.Users.Settings.Filters.create']
+    // le etichette: elencarle, leggerne il colore (get) e cambiarlo (patch);
+    // mai cancellarle (delete, che resta fuori anche dalle cancellazioni)
+    gmailApi: ['Gmail.Users.Labels.list', 'Gmail.Users.Labels.get', 'Gmail.Users.Labels.patch',
+               'Gmail.Users.Settings.Filters.list', 'Gmail.Users.Settings.Filters.create']
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
@@ -259,7 +268,8 @@ function controlla(nomeFile, sorgente) {
     }
   }
 
-  // il servizio avanzato Gmail: solo elencare etichette e filtri, e creare filtri
+  // il servizio avanzato Gmail: elencare etichette e filtri, leggere e cambiare il
+  // colore di un'etichetta, creare filtri; nient'altro
   const api = /\bGmail\s*\.\s*Users(?:\s*\.\s*[A-Za-z_$][\w$]*)+\s*\(/g;
   while ((m = api.exec(nudo))) {
     const nome = m[0].replace(/\s+/g, '').replace(/\($/, '');
@@ -329,6 +339,23 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'un servizio Gmail fuori elenco viene trovato',
     inserisci(posta, INIZIO, '\n  Gmail.Users.Messages.batchDelete({ ids: [] }, \'me\');'),
     'Gmail.Users.Messages.batchDelete');
+  // colorare un'etichetta si', cancellarla no: ne' dall'elenco dei servizi
+  // Gmail ne' da quello delle cancellazioni
+  const cancellaEtichetta = sostituisci(posta, '_applicaColore_(inGmail[nome].id, colore);',
+    'Gmail.Users.Labels.remove(\'me\', inGmail[nome].id);');
+  deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con il servizio Gmail viene trovata',
+    cancellaEtichetta, 'servizio Gmail non ammesso: Gmail.Users.Labels.remove');
+  deveFallire('Organizzazione_Gmail.gs', 'ed e\' anche una cancellazione non ammessa',
+    cancellaEtichetta, 'cancellazione non ammessa: remove');
+  deveFallire('Organizzazione_Gmail.gs', 'Gmail.Users.Labels.delete viene trovata',
+    inserisci(posta, INIZIO, '\n  Gmail.Users.Labels.delete(\'me\', \'Label_1\');'),
+    'servizio Gmail non ammesso: Gmail.Users.Labels.delete');
+  deveFallire('Organizzazione_Gmail.gs', 'anche chiamata per nome, Gmail.Users.Labels[\'delete\']',
+    inserisci(posta, INIZIO, '\n  Gmail.Users.Labels[\'delete\'](\'me\', \'Label_1\');'),
+    'cancellazione chiamata per nome fra parentesi quadre');
+  deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con GmailApp (deleteLabel) viene trovata',
+    inserisci(posta, INIZIO, '\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();'),
+    'cancellazione non ammessa: deleteLabel');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto
