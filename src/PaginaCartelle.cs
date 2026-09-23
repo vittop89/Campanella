@@ -269,7 +269,7 @@ namespace Campanella
 
         public override void Esce()
         {
-            S.Drive = txtDrive.Text;
+            S.Drive = PercorsoDrive();       // senza virgolette: il Drive lo usano anche le altre pagine
             string anno = (txtAnno.Text ?? "").Trim();
             S.Anno = (anno == Stato.AnnoScolastico(DateTime.Now)) ? "" : anno;
             S.Classi = txtClassi.Text;
@@ -283,7 +283,9 @@ namespace Campanella
             return (a == "") ? Stato.AnnoScolastico(DateTime.Now) : a;
         }
 
-        string PercorsoDrive() { return (txtDrive.Text ?? "").Trim().TrimEnd('\\'); }
+        // le virgolette arrivano da "Copia come percorso" di Esplora file, e con
+        // quelle Path.Combine si ferma con la finestra d'errore di .NET
+        string PercorsoDrive() { return (txtDrive.Text ?? "").Trim().Trim('"').Trim().TrimEnd('\\'); }
 
         string PercorsoModelli() { return Path.Combine(PercorsoDrive(), "MODELLI"); }
 
@@ -1038,6 +1040,16 @@ namespace Campanella
             {
                 MessageBox.Show(this, TestoErroriStruttura(), "Non genero niente",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // un anno con caratteri come | o " farebbe cadere Path.Combine qui sotto
+            string problemaAnno = GeneratoreAnno.ControllaNome("A.S. " + AnnoCorrente());
+            if (problemaAnno != "")
+            {
+                MessageBox.Show(this, "L'anno scolastico \"" + AnnoCorrente() + "\" non va bene per una " +
+                    "cartella: " + problemaAnno + ".\n\nScrivilo come 2026-27, oppure svuota la casella.",
+                    "Anno scolastico", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
