@@ -66,8 +66,10 @@ static class ProvaStato
                 case "dati-non-json": DatiIlleggibili("questo non e' JSON {", "non JSON"); break;
                 case "dati-vuoti": DatiIlleggibili("", "vuoto"); break;
                 case "dati-bloccati": DatiBloccati(); break;
+                case "dati-piu-recenti": DatiPiuRecenti(); break;
                 case "impostazioni-illeggibili": ImpostazioniIlleggibili(); break;
                 case "impostazioni-vuote": ImpostazioniVuote(); break;
+                case "impostazioni-piu-recenti": ImpostazioniPiuRecenti(); break;
                 case "scrittura-atomica": ScritturaAtomica(); break;
                 case "sposta-su-esistente": SpostaSuEsistente(); break;
                 case "usa-esistente": UsaEsistente(); break;
@@ -75,6 +77,7 @@ static class ProvaStato
                 case "sposta-fallito": SpostaFallito(); break;
                 case "torna-locale": TornaLocale(); break;
                 case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
+                case "chiavi-sconosciute": ChiaviSconosciute(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
@@ -171,6 +174,23 @@ static class ProvaStato
         Verifica("e avvisa", Pieno(Testo(s, "DaAvvisare")));
     }
 
+    // A-51: un file scritto da una versione piu' recente si legge ma non si riscrive
+    static void DatiPiuRecenti()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Dictionary<string, object> d = DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"));
+        d["formato"] = 99;
+        string contenuto = ToJson(d);
+        Scrivi(FileDati(c), contenuto);
+        Stato s = Carica();
+        Verifica("l'elenco si legge lo stesso", s.Personale.Count == 1);
+        Verifica("dice che il file e' di una versione piu' recente", Pieno(Testo(s, "ErroreDati")));
+        s.Salva();
+        Verifica("non lo riscrive (perderebbe quello che non capisce)", Leggi(FileDati(c)) == contenuto);
+        Verifica("e avvisa", Pieno(Testo(s, "DaAvvisare")));
+    }
+
     // A-1: campanella.json illeggibile non viene sostituito in silenzio
     static void ImpostazioniIlleggibili()
     {
@@ -196,6 +216,19 @@ static class ProvaStato
         Verifica("vuoto: nessun errore", Testo(s, "ErroreImpostazioni") == "");
         s.Salva();
         Verifica("vuoto: Salva lo riscrive", s.UltimoErrore == "" && Json(Impostazioni()) != null);
+    }
+
+    static void ImpostazioniPiuRecenti()
+    {
+        Dictionary<string, object> r = new Dictionary<string, object>();
+        r["formato"] = 99; r["drive"] = Finto(); r["temaScuro"] = false;
+        string contenuto = ToJson(r);
+        Scrivi(Impostazioni(), contenuto);
+        Stato s = Carica();
+        Verifica("le impostazioni si leggono lo stesso", !s.TemaScuro);
+        s.Salva();
+        Verifica("campanella.json di una versione piu' recente non si riscrive", Leggi(Impostazioni()) == contenuto);
+        Verifica("e avvisa", Pieno(Testo(s, "DaAvvisare")));
     }
 
     // R-1.4: campanella.json passa da un .tmp e non lascia copie
@@ -334,6 +367,35 @@ static class ProvaStato
             !Vero(Json(Impostazioni()), "datiNelDrive"));
         Verifica("il file non letto non viene cancellato", File.Exists(FileDati(c)) && Leggi(FileDati(c)) == "{rotto");
         Verifica("e lo dice", errore != "");
+    }
+
+    // A-51: numero di formato e chiavi sconosciute conservate
+    static void ChiaviSconosciute()
+    {
+        string c = Cartella("Campanella");
+        Dictionary<string, object> futuro = new Dictionary<string, object>();
+        futuro["x"] = 1;
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["chiaveFutura"] = futuro;
+        ScriviImpostazioni(true, c, altro);
+        Dictionary<string, object> d = DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        d["elencoFuturo"] = new object[] { 1, 2 };
+        Scrivi(FileDati(c), ToJson(d));
+        Stato s = Carica();
+        s.Salva();
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("campanella.json ha il numero di formato", Numero(imp, "formato") >= 1);
+        Verifica("il file dei dati anche", Numero(dati, "formato") >= 1);
+        Verifica("una chiave sconosciuta di campanella.json resta", imp.ContainsKey("chiaveFutura"));
+        Verifica("una chiave sconosciuta del file dei dati resta", dati.ContainsKey("elencoFuturo"));
+        Verifica("l'elenco resta", Nomi(dati).Contains("ROSSI MARIO"));
+
+        // e con i dati accanto al programma
+        string errore;
+        s.SpostaDati(false, "", out errore);
+        imp = Json(Impostazioni());
+        Verifica("in locale la chiave sconosciuta di campanella.json resta", imp.ContainsKey("chiaveFutura"));
     }
 
     // quello che si salva si rilegge uguale
@@ -495,8 +557,10 @@ $casi = @(
     'dati-non-json'
     'dati-vuoti'
     'dati-bloccati'
+    'dati-piu-recenti'
     'impostazioni-illeggibili'
     'impostazioni-vuote'
+    'impostazioni-piu-recenti'
     'scrittura-atomica'
     'sposta-su-esistente'
     'usa-esistente'
@@ -504,6 +568,7 @@ $casi = @(
     'sposta-fallito'
     'torna-locale'
     'torna-locale-illeggibile'
+    'chiavi-sconosciute'
     'andata-e-ritorno'
 )
 

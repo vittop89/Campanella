@@ -364,13 +364,22 @@ namespace Campanella
 
         /// <summary>
         /// Perche' all'avvio campanella.json c'era ma non si e' potuto usare
-        /// (illeggibile, o bloccato da un altro programma). Finche' non e'
+        /// (illeggibile, o scritto da una versione piu' recente). Finche' non e'
         /// vuoto quel file non si sovrascrive: dentro c'e' qualcosa che qui non si vede.
         /// </summary>
         public string ErroreImpostazioni = "";
 
         /// <summary>Lo stesso per il file dei dati nel Drive: c'era, ma non si e' potuto leggere.</summary>
         public string ErroreDati = "";
+
+        /// <summary>
+        /// Il formato dei due file. Le chiavi che questa versione non conosce si
+        /// riscrivono tali e quali; il numero va alzato solo quando una versione
+        /// vecchia, riscrivendo il file, perderebbe qualcosa che non sa leggere
+        /// (per esempio un campo nuovo dentro le persone dell'elenco): vedendo un
+        /// numero piu' alto del suo, quella versione non lo sovrascrive.
+        /// </summary>
+        public const int Formato = 1;
 
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
@@ -383,6 +392,9 @@ namespace Campanella
         bool datiNelFileLocale = false;
         // i dati appena caricati, come testo: se non cambiano non c'e' niente da scrivere
         string datiAllAvvio = null;
+        // le chiavi dei due file che questa versione non conosce
+        Dictionary<string, object> altroImpostazioni = new Dictionary<string, object>();
+        Dictionary<string, object> altroDati = new Dictionary<string, object>();
 
         /// <summary>
         /// Prova davvero a scrivere nella cartella dell'eseguibile, con un file
@@ -436,6 +448,9 @@ namespace Campanella
             Dictionary<string, object> r = Impostazioni();
             if (conDati)
                 foreach (KeyValuePair<string, object> kv in Dati()) r[kv.Key] = kv.Value;
+            foreach (KeyValuePair<string, object> kv in altroImpostazioni)
+                if (!r.ContainsKey(kv.Key)) r[kv.Key] = kv.Value;
+            r["formato"] = Formato;
 
             string p = Percorso();
             try
@@ -460,9 +475,9 @@ namespace Campanella
         /// <summary>
         /// Scrive campanella-dati.json nel Drive, ma solo se e' il file letto (o
         /// scritto) in questa sessione, o se non c'e'. Uno comparso dopo l'avvio,
-        /// o uno che all'avvio non si leggeva, puo' avere dati che qui non ci
-        /// sono: sovrascriverlo li cancellerebbe, anche sugli altri computer.
-        /// Torna vero se l'ha scritto.
+        /// uno che all'avvio non si leggeva o uno di una versione piu' recente
+        /// puo' avere dati che qui non ci sono: sovrascriverlo li cancellerebbe,
+        /// anche sugli altri computer. Torna vero se l'ha scritto.
         /// </summary>
         bool SalvaDatiNelDrive(JavaScriptSerializer ser, UTF8Encoding utf8)
         {
@@ -497,6 +512,9 @@ namespace Campanella
                     throw new Exception("non trovo la cartella del Drive (" + radice + ")");
                 Directory.CreateDirectory(cartella);
                 Dictionary<string, object> d = Dati();
+                foreach (KeyValuePair<string, object> kv in altroDati)
+                    if (!d.ContainsKey(kv.Key)) d[kv.Key] = kv.Value;
+                d["formato"] = Formato;
                 // scritto sul posto, non sostituito: nel Drive un file nuovo
                 // perderebbe la cronologia delle versioni, che e' il modo di recuperarlo
                 File.WriteAllText(dati, ser.Serialize(d), utf8);
@@ -765,8 +783,8 @@ namespace Campanella
 
         /// <summary>
         /// Legge campanella.json. Null se non c'e' o e' vuoto: si parte da zero.
-        /// Se c'e' ma non si legge lo annota in ErroreImpostazioni, e Salva non
-        /// lo sovrascrivera'.
+        /// Se c'e' ma non si legge, o l'ha scritto una versione piu' recente, lo
+        /// annota in ErroreImpostazioni, e Salva non lo sovrascrivera'.
         /// </summary>
         Dictionary<string, object> ApriImpostazioni(string p)
         {
@@ -781,6 +799,7 @@ namespace Campanella
                 ErroreImpostazioni = "non si legge (" + ex.Message + ")";
                 return null;
             }
+            if (r != null && Int(r, "formato", 0) > Formato) ErroreImpostazioni = PiuRecente(Int(r, "formato", 0));
             return r;
         }
 
@@ -798,6 +817,7 @@ namespace Campanella
             {
                 try
                 {
+                    altroImpostazioni = Sconosciute(r, true);
                     datiNelFileLocale = r.ContainsKey("personale") || r.ContainsKey("regole") || r.ContainsKey("lezioni");
                     if (DatiNelDrive) CaricaDatiDelDrive(r);
                     else LeggiDati(r);
@@ -842,8 +862,37 @@ namespace Campanella
                 LeggiDati(r);
                 return;
             }
+            int formato = Int(d, "formato", 0);
+            if (formato > Formato) ErroreDati = PiuRecente(formato);
             LeggiDati(d);
-            datiLetti = dati;
+            altroDati = Sconosciute(d, false);
+            if (ErroreDati == "") datiLetti = dati;
+        }
+
+        static string PiuRecente(int formato)
+        {
+            return "e' stato scritto da una versione piu' recente di Campanella (formato " + formato +
+                   "): aggiorna Campanella";
+        }
+
+        /// <summary>
+        /// Le chiavi di un file che questa versione non scrive, da riscrivere tali
+        /// e quali: cosi' un computer con una versione diversa non cancella i campi
+        /// che non conosce. In campanella.json quelle dei dati personali sono note
+        /// anche quando i dati stanno nel Drive.
+        /// </summary>
+        Dictionary<string, object> Sconosciute(Dictionary<string, object> letto, bool impostazioni)
+        {
+            Dictionary<string, object> fuori = new Dictionary<string, object>();
+            Dictionary<string, object> dati = Dati();
+            Dictionary<string, object> imp = impostazioni ? Impostazioni() : null;
+            foreach (KeyValuePair<string, object> kv in letto)
+            {
+                if (kv.Key == "formato" || dati.ContainsKey(kv.Key)) continue;
+                if (imp != null && imp.ContainsKey(kv.Key)) continue;
+                fuori[kv.Key] = kv.Value;
+            }
+            return fuori;
         }
 
         /// <summary>Un file JSON con un oggetto dentro. Null se e' vuoto; eccezione se non si legge.</summary>
@@ -1016,6 +1065,8 @@ namespace Campanella
             {
                 Dictionary<string, object> d = LeggiJson(file);
                 if (d == null) throw new InvalidDataException("e' vuoto");
+                int formato = Int(d, "formato", 0);
+                if (formato > Formato) throw new InvalidDataException(PiuRecente(formato));
             }
             catch (Exception ex)
             {
