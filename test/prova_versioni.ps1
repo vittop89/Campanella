@@ -42,8 +42,10 @@ $impronte = @(
 # la versione del prodotto. Gli altri script vengono controllati solo se
 # hanno una costante (var _QUALCOSA_VERSIONE = '...').
 $costanti = [ordered]@{
-    'Moduli.gs'   = '_MODULO_VERSIONE'
-    'Pannello.gs' = '_PAN_VERSIONE'
+    'Moduli.gs'               = '_MODULO_VERSIONE'
+    'Pannello.gs'             = '_PAN_VERSIONE'
+    'Organizzazione_Gmail.gs' = '_POSTA_VERSIONE'
+    'Orari.gs'                = '_ORARI_VERSIONE'
 }
 
 $fallimenti = 0
