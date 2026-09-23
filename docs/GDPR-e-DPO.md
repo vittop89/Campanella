@@ -129,7 +129,7 @@ lett. c) ed f) GDPR).
 ## I punti di attenzione veri
 
 1. **Il computer.** Se non è cifrato, se lo usano altri, se i dati stanno su
-   una chiavetta: una chiavetta smarsa con l'elenco del personale è una
+   una chiavetta: una chiavetta smarrita con l'elenco del personale è una
    violazione di dati personali (art. 4, n. 12), che la scuola deve valutare e
    se del caso notificare al Garante entro 72 ore (art. 33). L'obbligo di
    notifica è del titolare; il tuo dovere, secondo le istruzioni ricevute, è

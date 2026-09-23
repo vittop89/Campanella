@@ -10,7 +10,7 @@ Campanella è `documenti\GDPR - cosa vale per un docente.txt`).
 **Il codice si può pubblicare in chiaro. I dati che ci passano dentro no.**
 
 Campanella è un generatore di testo: non contiene dati personali, non
-raccoglie statistiche, e si collega a un server solo quando glielo chiedi
+raccoglie statistiche, e si collega a internet solo quando glielo chiedi
 tu (vedi «Le connessioni del programma», più sotto). Tutto quello che tratta
 resta nell'account Google dell'utente e nel suo computer. Il rischio non è il
 programma: è quello che finisce per sbaglio dentro al repository.
@@ -20,7 +20,7 @@ programma: è quello che finisce per sbaglio dentro al repository.
 | File | Perché |
 |---|---|
 | `campanella.json`, `campanella-dati.json` | contengono l'elenco del personale: nomi, cognomi, ruoli, indirizzi email di colleghi. Dati personali di terzi. |
-| `test/DatiOrari_prova.gs`, `test/Configurazione_prova.gs` | generati dai dati veri (cognomi, indirizzi, orario di servizio). I banchi di prova usano i file `*_esempio.gs`, inventati. |
+| `DatiOrari_prova.gs`, `Configurazione_prova.gs` | generati dai dati veri (cognomi, indirizzi, orario di servizio): `test\genera_dati_prova.ps1` scrive il suo in `%TEMP%\campanella-dati-prova`, fuori dal repository. I banchi di prova usano i file `*_esempio.gs`, inventati. |
 | qualunque `.xlsx` di orario | come sopra |
 | `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
 | `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
@@ -46,8 +46,9 @@ repository nuovo.
   informazioni pubbliche, stanno sui siti istituzionali. Il dominio della
   scuola di partenza è vuoto: lo scrive chi usa il programma.
 - La cartella del Drive viene cercata all'avvio (`Il mio Drive` nel profilo o
-  nella radice di un'unità). `build.ps1` non contiene percorsi: la cartella
-  in cui `-Pubblica` copia i file si scrive ogni volta con `-Produzione`.
+  nella radice di un'unità). `build.ps1` non contiene percorsi personali: la
+  cartella in cui `-Pubblica` copia i file si scrive ogni volta con
+  `-Produzione`.
 - Il nome dell'autore nelle proprietà dell'eseguibile: è una scelta di chi
   pubblica.
 
@@ -76,24 +77,30 @@ quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a
 GitHub, su api.github.com, l'ultima versione pubblicata di Campanella e di
 rizzo-pii: se c'è una Campanella nuova te lo dice e ti rimanda alla pagina
 dei rilasci, senza scaricare niente. «Scarica e installa rizzo-pii» scarica
-da GitHub l'installer di rizzo-pii e, prima di avviarlo, ne controlla
-dimensione e impronta SHA-256. Con rizzo-pii parla solo sul tuo computer
-(vedi «Dare documenti a un'intelligenza artificiale»). I pulsanti che aprono
-Gmail, il Drive o l'editor degli script aprono il tuo browser.
+da GitHub l'installer di rizzo-pii e, prima di avviarlo, ne controlla la
+dimensione e, quando GitHub la pubblica, l'impronta SHA-256. Con rizzo-pii
+parla solo sul tuo computer, anche quando le Impostazioni, all'apertura,
+controllano se è avviato (vedi «Dare documenti a un'intelligenza
+artificiale»). I pulsanti che aprono Gmail, il Drive o l'editor degli
+script aprono il tuo browser.
 
 **Dove stanno i dati sul computer.** L'elenco del personale, gli indirizzi di
 dirigenza e segreteria e gli orari con i cognomi stanno in `campanella.json`
 accanto al programma, oppure — dalle Impostazioni, ed è la scelta
 consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
-non ne resta traccia, nemmeno il nome del calendario degli orari. Quando non
-ti servono più, svuota l'elenco. Le righe senza spunta (per esempio gli
-indirizzi di studenti trovati nella casella, che arrivano senza spunta) non
-vanno nello script ma restano salvate: toglile con «Togli le righe senza
-spunta». Quando Campanella copia negli appunti la configurazione degli
-script, i dati degli orari, gli indirizzi di un gruppo o i testi della
-Privacy, chiede a Windows di non tenerli nella cronologia degli appunti e di
-non sincronizzarli con altri dispositivi.
+non ne resta traccia, nemmeno il nome del calendario degli orari. Se poi
+sposti i dati in un'altra cartella del Drive o di nuovo accanto al
+programma, Campanella, dopo averlo chiesto, cancella il file che lasciano;
+se quel file non l'ha letto, o nel frattempo l'ha cambiato un altro
+computer, lo lascia e lo dice. Quando non ti servono più, svuota l'elenco.
+Le righe senza spunta (per esempio gli indirizzi di studenti trovati nella
+casella, che arrivano senza spunta) non vanno nello script ma restano
+salvate: toglile con «Togli le righe senza spunta». Quando Campanella copia
+negli appunti la configurazione degli script, i dati degli orari, gli
+indirizzi di un gruppo o i testi della Privacy, chiede a Windows di non
+tenerli nella cronologia degli appunti e di non sincronizzarli con altri
+dispositivi.
 
 **Il registro delle esecuzioni.** Gli indirizzi che lo script della posta
 ricava dalla tua casella (`EXTRA_elencaIndirizziScuola`: nomi e indirizzi
@@ -105,24 +112,29 @@ finisce soltanto se quell'email non parte.
 **I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
 2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio
 delle risposte dell'anno, lo collega al modulo e a fine anno chiude il modulo
-e scollega il foglio. Le risposte sono dati di studenti e famiglie: restano
-nel modulo e nel foglio, dentro il Drive della scuola. Lo script ne legge il
-numero e l'ora di arrivo, non il contenuto, e non le manda da nessuna
-parte. Il foglio che crea è tuo e non è condiviso con nessuno: farlo vedere
-ad altri è una tua decisione. Chiede il permesso per Drive solo per mettere il foglio nella
-cartella dell'anno, e ne esiste una versione che ne fa a meno. Le risposte
-degli anni scorsi le toglie dal modulo solo se lo chiedi tu, e solo dopo
-averle ritrovate, una per una e dall'ora in cui sono arrivate, in un foglio
-degli anni scorsi: se ne manca anche una non toglie niente. È l'unica
-cancellazione che non si può annullare. Vale anche qui la
+e scollega il foglio. Apre soltanto il modulo in cui sta, ma senza il
+manifest facoltativo che Campanella prepara (da mettere prima della prima
+esecuzione) Google gli dà il permesso su tutti i moduli dell'account; con il
+manifest, che per i moduli chiede solo l'ambito del modulo corrente, il
+permesso vale solo per quello. Le risposte sono dati di studenti e famiglie:
+restano nel modulo e nel foglio, dentro il Drive della scuola. Lo script ne
+legge il numero e l'ora di arrivo, non il contenuto, e non le manda da
+nessuna parte. Il foglio che crea è tuo e non è condiviso con nessuno: farlo
+vedere ad altri è una tua decisione. Chiede il permesso per Drive solo per
+mettere il foglio nella cartella dell'anno, e ne esiste una versione che ne
+fa a meno. Le risposte degli anni scorsi le toglie dal modulo solo se lo
+chiedi tu, e solo dopo averle ritrovate, una per una e dall'ora in cui sono
+arrivate, in un foglio degli anni scorsi: se ne manca anche una non toglie
+niente. È l'unica cancellazione che non si può annullare. Vale anche qui la
 conservazione: i fogli degli anni passati non scadono da soli.
-Se i moduli sono piu' di uno c'e' la variante "foglio di controllo": stesso
-lavoro, ma lo script sta in un foglio e apre i moduli elencati li' dentro,
-quindi Google gli chiede il permesso su tutti i moduli dell'account, oltre
-che sui fogli e sul Drive (questa variante non ha una versione senza Drive),
-e le chiusure che programma scattano da sole nel giorno indicato. Il
-codice e' leggibile e tocca solo quelli in elenco, ma il permesso e' piu'
-largo: con pochi moduli conviene lo script dentro il modulo.
+Se i moduli sono più di uno c'è la variante «foglio di controllo»: stesso
+lavoro, ma lo script sta in un foglio e apre i moduli elencati lì dentro,
+quindi Google gli chiede sempre il permesso su tutti i moduli dell'account,
+oltre che sui fogli e sul Drive (questa variante non ha una versione senza
+Drive), e le chiusure che programma scattano da sole nel giorno indicato.
+Il codice è leggibile e tocca solo quelli in elenco, ma il permesso sui
+moduli non si può restringere: con pochi moduli conviene lo script dentro
+il modulo, con il manifest.
 
 **I punti che meritano attenzione.**
 

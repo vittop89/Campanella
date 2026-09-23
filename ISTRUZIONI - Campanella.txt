@@ -88,6 +88,10 @@ restano nell'account istituzionale, li ritrovi su tutti i computer che
 sincronizzano quel Drive, e nel file accanto al programma non ne resta
 traccia. E' la scelta consigliata. Su una chiavetta, invece, mai: una
 chiavetta persa con quei dati e' una violazione da segnalare alla scuola.
+Se poi sposti i dati (in un'altra cartella del Drive, o di nuovo accanto al
+programma), Campanella te lo chiede e cancella il file che lasciano; se quel
+file non l'ha letto, o nel frattempo l'ha cambiato un altro computer, lo
+lascia e te lo dice.
 
 
 PER TOGLIERLA
@@ -99,10 +103,15 @@ Drive (campanella-dati.json) non lo tocca: se non ti serve, cancellalo tu.
 Gli script che hai gia' messo nel tuo account Google restano dove sono:
 quelli si spengono da li' (vedi "PER SPEGNERE GLI SCRIPT").
 Se fra le app installate vedi due voci Campanella, una e' del vecchio
-installer "Installa Campanella.exe" (con lo spazio, senza trattino). Quando
-togli quella, se Campanella sta nella stessa cartella, se ne vanno solo il
-suo disinstallatore e la sua voce: Campanella resta installata, e si toglie
-dall'altra voce.
+installer "Installa Campanella.exe" (con lo spazio, senza trattino). Se
+viene da una versione precedente alla 1.5.0 e Campanella sta nella stessa
+cartella, non toglierla con il suo disinstallatore: quello vecchio
+cancellerebbe anche il programma e gli altri file della cartella
+(campanella.json solo se glielo chiedi), i documenti, il gruppo nel menu
+Start e l'icona sul desktop. Esegui invece Installa-Campanella.exe (1.5.0 o
+successivo) nella stessa cartella: toglie da solo il vecchio disinstallatore
+e la sua voce, e Campanella resta installata. Per toglierla, poi, usa la
+voce che resta.
 
 
 L'ASPETTO
@@ -214,15 +223,18 @@ solo quando una versione nuova di Campanella cambia lo script: vedi
 "QUANDO REINCOLLARE GLI SCRIPT".)
 Scegli il modulo, la cartella e il nome del foglio; la voce 2 del menu in
 basso spiega tutto passo per passo, con i pulsanti che copiano al posto tuo.
+Lo script apre solo il suo modulo, ma senza il manifest (voce 3, da mettere
+prima della prima esecuzione) Google gli da' il permesso su TUTTI i tuoi
+moduli; con il manifest, solo su quello.
 Se la scuola blocca l'accesso a Drive agli script, togli la spunta "metti il
 foglio nella cartella dell'anno": quella versione Drive non lo nomina
 nemmeno, e il foglio lo sposti tu.
 
 Se i moduli sono piu' di uno, le voci 4 e 5 del menu preparano invece un
 foglio Google di controllo: una riga per modulo, e da li' si prepara l'anno
-per tutti insieme. E' piu' comodo ma chiede il permesso su TUTTI i tuoi
-moduli, non su uno solo, oltre che sui fogli e sul Drive: con uno o due
-moduli conviene lo script dentro il modulo. Il foglio non si aggiorna da
+per tutti insieme. E' piu' comodo ma chiede sempre il permesso su TUTTI i
+tuoi moduli, oltre che sui fogli e sul Drive: con uno o due moduli conviene
+lo script dentro il modulo, con il manifest. Il foglio non si aggiorna da
 solo quando aggiungi o togli un modulo: un modulo nuovo e' una riga in piu'
 (il nome, poi "Trova i moduli nel Drive" e "Prepara l'anno nuovo"), uno che
 non serve piu' e' una spunta "Attivo" tolta. Da solo scrive soltanto
@@ -262,7 +274,8 @@ arrivato: il giorno dopo rieseguilo tu (ORARI_2_invia, o
 ORARI_3_inviaOrariClassi per le classi) e riparte da li', senza mandare
 niente due volte. Se invece finisce il tempo di un'esecuzione (circa quattro
 minuti), riprende da solo dopo un minuto. ANNULLA_automazione ferma anche
-queste riprese; ORARI_ANNULLA_invio fa ricominciare gli invii da capo.
+queste riprese (se un invio sta girando, prima aspetta che finisca);
+ORARI_ANNULLA_invio fa ricominciare gli invii da capo.
 
 
 PRIVACY - le regole, la pulizia, i documenti
@@ -287,9 +300,10 @@ source che riconosce 22 categorie di dati personali (compresi codice fiscale,
 partita IVA e IBAN) e gira sul tuo computer, senza collegamento.
 Lo scarichi da Campanella > Impostazioni > "Cerca aggiornamenti", poi
 "Scarica e installa rizzo-pii" (circa 1,2 GB, ci vuole qualche minuto).
-Prima di avviarlo Campanella ne controlla dimensione e impronta: un file
-incompleto o diverso da quello pubblicato viene cancellato. Lo scarico si
-ferma con lo stesso pulsante, che nel frattempo diventa "Ferma lo scarico".
+Prima di avviarlo Campanella ne controlla la dimensione e, quando GitHub la
+pubblica, l'impronta: un file incompleto o diverso da quello pubblicato
+viene cancellato. Lo scarico si ferma con lo stesso pulsante, che nel
+frattempo diventa "Ferma lo scarico".
 Deve essere avviato mentre Campanella lavora: il pulsante "Controlla
 rizzo-pii" dice se lo vede. L'indirizzo del servizio si cambia in
 Impostazioni, ma deve essere su questo computer (localhost o 127.0.0.1):
@@ -302,10 +316,16 @@ versione di Campanella e di rizzo-pii. Se e' uscita una Campanella nuova te
 lo dice ("E' uscita Campanella ...") e il pulsante "Pagina dei rilasci" ti
 porta dove scaricarla, con le novita': Campanella non si scarica da sola
 (vedi "PER AGGIORNARLA"). Parte solo quando premi il pulsante:
-l'applicazione non controlla niente da sola.
+l'applicazione non va su internet da sola.
 Se usi lo stesso file dei dati nel Drive da piu' computer, aggiorna
 Campanella su tutti: le versioni fino alla 1.4.6, salvando, tolgono dal
-file i campi che non conoscono.
+file i campi che non conoscono. Se un altro computer cambia il file mentre
+Campanella e' aperta, alla chiusura non lo sovrascrive. Se avevi cambiato
+qualcosa anche tu, ti chiede se chiudere lo stesso, perdendo le modifiche
+di adesso (di partenza No): con No si apre Impostazioni, dove con Applica
+scegli se usare quel file o sostituirlo con i dati che vedi.
+Se l'orario salvato viene da una versione 1.4.x, Orari ti invita a
+ricaricare il file del tabellone: basta farlo una volta.
 
 QUANDO REINCOLLARE GLI SCRIPT
 Aggiornare Campanella non cambia gli script che hai gia' incollato nel tuo
@@ -377,6 +397,9 @@ I FILE
    Campanella.exe             il programma
    unins000.exe, unins000.dat li usa "Disinstalla Campanella" per toglierla
    campanella.json            le tue impostazioni, salvate da solo
+   campanella.json.tmp        resta solo se il computer si spegne mentre
+                              Campanella salva: lo riscrive e lo toglie al
+                              salvataggio dopo
    campanella-dati.json       i dati di altre persone, se li tieni nel Drive
    PRIVACY.md                 le note su dati personali e GDPR, per esteso
    LICENSE.txt                la licenza (MIT)
