@@ -174,7 +174,13 @@ function PANNELLO_chiusura(e) {
 
 function _panChiudiScaduti_(e) {
   var righe = ['CHIUSURE DI FINE ANNO', ''];
-  var oggi = _panOggi_();
+  // Il trigger del giorno dopo la chiusura scatta verso la mezzanotte, anche
+  // qualche minuto prima: con la data di adesso la riga risultava ancora nel suo
+  // ultimo giorno, veniva saltata e non si chiudeva piu'. Mezz'ora avanti basta
+  // per quei minuti, e un tentativo fra un'ora nel pieno dell'ultimo giorno di
+  // un'altra riga non la chiude prima del tempo (Moduli.gs ha un modulo solo, e
+  // li' basta accettare il giorno stesso)
+  var oggi = Utilities.formatDate(new Date(new Date().getTime() + 30 * 60 * 1000), _panFuso_(), 'yyyy-MM-dd');
   var foglio = _panScheda_(false);
   if (!foglio) { Logger.log('Non trovo la scheda ' + PANNELLO.scheda + '.'); return; }
   var dati = _panLeggi_(foglio);

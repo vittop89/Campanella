@@ -1083,6 +1083,34 @@ for (const nuovo of ['31/07', '']) {
     m.uscite.aperto === false && m.trigger.length === 1 && m.trigger[0].mese === 9);
 }
 
+// il trigger "a mezzanotte" scatta qualche minuto prima: e' ancora l'ultimo giorno
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const scattato = m.trigger.find(x => x.mese === 7);
+  m.adesso = new Date('2027-06-30T23:50:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: scattato.uid });
+  verifica('il trigger scattato alle 23:50 dell\'ultimo giorno chiude lo stesso',
+    m.uscite.aperto === false && m.uscite.destinazione === null &&
+    scheda(m)[1][7].indexOf('chiuso il 30/06/2027') === 0);
+  verifica('e l\'altra riga, che scade il 31/08, resta aperta', m.recuperi.aperto === true);
+}
+
+// un tentativo fra un'ora nel pieno dell'ultimo giorno di un'altra riga
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  m.adesso = new Date('2027-08-31T10:00:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  verifica('alle 10 del 31/08 Recuperi, che chiude a fine giornata, resta aperto',
+    m.recuperi.aperto === true && m.recuperi.destinazione !== null);
+  m.adesso = new Date('2027-08-31T23:52:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  verifica('e alle 23:52 si chiude', m.recuperi.aperto === false && m.recuperi.destinazione === null);
+}
+
 // una riga che non riesce a prepararsi tiene la sua chiusura programmata
 {
   const p = mondoPronto();
