@@ -8,7 +8,9 @@
     e senza Drive, e lo fa girare nel banco di prova test\mock_moduli.js.
     Controlla anche le proposte (cartella, nome del foglio), i controlli sui
     campi, il manifest e il riconoscimento del foglio gia' presente sul PC.
-    I file *_prova.gs restano fuori dal repository.
+    Gli script generati vanno in una cartella temporanea, cancellata alla
+    fine: nella copia di lavoro non resta niente. I due banchi girano anche
+    con il PC in un altro fuso orario.
 #>
 $ErrorActionPreference = 'Stop'
 $qui    = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -48,12 +50,17 @@ function Scrivi($percorso, $testo) {
     [System.IO.File]::WriteAllText($percorso, $testo, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+# gli script generati: in una cartella temporanea, non dentro test\
+$uscita = Join-Path ([System.IO.Path]::GetTempPath()) ("campanella-prova-moduli-" + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force $uscita | Out-Null
+try {   # fino in fondo: la cartella temporanea se ne va anche se una prova si rompe
+
 # --- 1. il codice generato, nelle due versioni, dentro il banco di prova -------
 Write-Host "`nIL CODICE GENERATO" -ForegroundColor Cyan
 $conDrive = Chiama 'Codice' @((Parametri $true)) @($tP)
 $senza    = Chiama 'Codice' @((Parametri $false)) @($tP)
-$f1 = Join-Path $qui 'Moduli_prova.gs'
-$f2 = Join-Path $qui 'Moduli_senzadrive_prova.gs'
+$f1 = Join-Path $uscita 'Moduli_prova.gs'
+$f2 = Join-Path $uscita 'Moduli_senzadrive_prova.gs'
 Scrivi $f1 $conDrive
 Scrivi $f2 $senza
 
@@ -75,7 +82,7 @@ $p = Parametri $true
 $p.Modulo = 'Verifica "finale" */ dell''anno'
 $p.NomeFoglio = 'Risposte "3A\B" d''esame - A.S. {anno}'
 $p.CartellaFoglio = 'RECUPERI\TRIMESTRE'
-$f3 = Join-Path $qui 'Moduli_nomi_prova.gs'
+$f3 = Join-Path $uscita 'Moduli_nomi_prova.gs'
 Scrivi $f3 (Chiama 'Codice' @($p) @($tP))
 $js = "const vm=require('vm'),fs=require('fs');const s={};vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'),s);process.stdout.write(JSON.stringify(s.MODULO));"
 $letta = (& node -e $js $f3) | ConvertFrom-Json
@@ -154,20 +161,19 @@ try {
     $personale = Join-Path ([System.IO.Path]::GetTempPath()) ("campanella-personale-" + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force (Join-Path $personale 'Foto') | Out-Null
     try {
-        $scuola = Esamina $finto 'vittorio.pantaleo@scuola.edu.it - Google Drive'
+        $scuola = Esamina $finto 'mario.rossi@scuola.example - Google Drive'
         $casa   = Esamina $personale 'tizio@gmail.com - Google Drive'
         Verifica "riconosce MODELLI e le cartelle degli anni" ($scuola.ConModelli -and $scuola.ConAnni)
         Verifica "nell'altro non c'e' niente del genere"      (-not $casa.ConModelli -and -not $casa.ConAnni)
-        Verifica "legge l'indirizzo dall'etichetta dell'unita'" ($scuola.Account -eq 'vittorio.pantaleo@scuola.edu.it' -and $casa.Account -eq 'tizio@gmail.com')
+        Verifica "legge l'indirizzo dall'etichetta dell'unita'" ($scuola.Account -eq 'mario.rossi@scuola.example' -and $casa.Account -eq 'tizio@gmail.com')
         Verifica "quello della scuola vince"                  ($scuola.Punti -gt $casa.Punti)
         Verifica "un indirizzo gmail perde punti"             ($casa.Punti -lt 0)
         $anonimo = Esamina $personale ''
         Verifica "senza etichetta non penalizza nessuno"      ($anonimo.Punti -eq 0)
         $soloAnni = Esamina $finto ''
         Verifica "bastano le cartelle degli anni per vincere" ($soloAnni.Punti -gt $anonimo.Punti)
-        Verifica "una cartella che non esiste non rompe"      ((Esamina 'Z:
-on\esiste' '').Punti -eq 0)
-        Verifica "la descrizione mostra percorso e account"   ($scuola.Descrizione().Contains($finto) -and $scuola.Descrizione().Contains('vittorio.pantaleo@scuola.edu.it'))
+        Verifica "una cartella che non esiste non rompe"      ((Esamina 'Z:\non\esiste' '').Punti -eq 0)
+        Verifica "la descrizione mostra percorso e account"   ($scuola.Descrizione().Contains($finto) -and $scuola.Descrizione().Contains('mario.rossi@scuola.example'))
     }
     finally { Remove-Item -Recurse -Force $personale -ErrorAction SilentlyContinue }
 }
@@ -192,7 +198,7 @@ $tipiPannello = @($tipoIList)
 $argPannello = New-Object 'object[]' 1
 $argPannello[0] = $elenco
 $pannello = Chiama 'CodicePannello' $argPannello $tipiPannello
-$fp = Join-Path $qui 'Pannello_prova.gs'
+$fp = Join-Path $uscita 'Pannello_prova.gs'
 Scrivi $fp $pannello
 
 Verifica "il pannello non sta dentro un modulo"      (-not $pannello.Contains('FormApp.getActiveForm'))
@@ -216,6 +222,24 @@ $argIstr[1] = '2026-27'
 $istrP = Chiama 'IstruzioniPannello' $argIstr @($tipoIList, [string])
 Verifica "le istruzioni avvisano del permesso piu' largo" ($istrP.Contains('TUTTI i moduli'))
 Verifica "e spiegano il link giusto"                  ($istrP.Contains('/edit'))
+
+# --- 6. i banchi non dipendono dal fuso del PC che li fa girare --------------------
+Write-Host "`nALTRI FUSI ORARI" -ForegroundColor Cyan
+foreach ($fuso in @('Asia/Tokyo', 'America/New_York')) {
+    $primaTZ = $env:TZ
+    $env:TZ = $fuso
+    try {
+        & node (Join-Path $qui 'mock_pannello.js') | Out-Null
+        $okPannello = ($LASTEXITCODE -eq 0)
+        & node (Join-Path $qui 'mock_moduli.js') | Out-Null
+        $okModuli = ($LASTEXITCODE -eq 0)
+    }
+    finally { $env:TZ = $primaTZ }
+    Verifica "i due banchi passano anche con il PC in $fuso" ($okPannello -and $okModuli)
+}
+
+}
+finally { Remove-Item -Recurse -Force $uscita -ErrorAction SilentlyContinue }
 
 if ($script:fallimenti -eq 0) { Write-Host "`nTutte le prove superate." -ForegroundColor Green }
 else { Write-Host "`nPROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

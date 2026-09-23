@@ -11,6 +11,9 @@
  * quelli di mock_moduli.js: collegare un foglio ci ricopia tutte le risposte
  * che il modulo ha ancora, getDestinationId() senza destinazione lancia un
  * errore, un modulo non pubblicato non si riapre.
+ *
+ * Non dipende dal fuso del PC: il foglio finto sta nel fuso della scuola, e
+ * test/prova_moduli.ps1 lo fa girare anche con TZ=Asia/Tokyo e America/New_York.
  */
 
 'use strict';
@@ -36,6 +39,18 @@ const CONFIG_BASE = {
     { modulo: 'Uscite', cartella: '', foglio: 'Risposte Uscite - A.S. {anno}', chiusura: '30/06', svuota: false }
   ]
 };
+
+// Il foglio finto sta nel fuso della scuola, come quello vero: una data scritta in
+// una cella vale dalla mezzanotte di Roma. Niente fuso del PC che fa girare le prove.
+function annoARoma(ms) {
+  return parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric' }).format(new Date(ms)), 10);
+}
+function mezzanotteARoma(anno, mese, giorno) {
+  const utc = Date.UTC(anno, mese - 1, giorno);
+  const ore = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(utc)).find(x => x.type === 'hour').value;
+  return new Date(utc - parseInt(ore, 10) * 3600 * 1000);       // a mezzanotte UTC a Roma e' l'una o le due
+}
 
 // ---------------------------------------------------------------------------
 //  IL MONDO FINTO
@@ -174,7 +189,7 @@ function nuovoMondo(opzioni) {
       if (typeof v === 'string' && this.formati.get(r + ',' + c) === '@') this.scrittoComeTesto.add(r + ',' + c);
       if (typeof v === 'string' && this.formati.get(r + ',' + c) !== '@') {
         const g = /^(\d{1,2})\/(\d{1,2})$/.exec(v);
-        if (g) v = new Date(new Date(m.adesso).getFullYear(), parseInt(g[2], 10) - 1, parseInt(g[1], 10));
+        if (g) v = mezzanotteARoma(annoARoma(m.adesso), parseInt(g[2], 10), parseInt(g[1], 10));
         // e una stringa che comincia con = + - il foglio la legge come formula
         else if (/^[=+\-]/.test(v)) v = '#ERROR!';
       }
