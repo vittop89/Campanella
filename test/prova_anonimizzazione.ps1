@@ -2,7 +2,8 @@
     prova_anonimizzazione.ps1 - verifica il client di rizzo-pii dentro
     Campanella (JSON, multipart, intestazioni, ripristino) contro il finto
     servizio di test\finto_rizzo.py. Verifica anche che:
-      - un indirizzo fuori dal computer venga rifiutato subito.
+      - un indirizzo fuori dal computer venga rifiutato subito;
+      - una risposta senza il testo anonimizzato sia un errore, non un file vuoto.
     Tutto in una cartella temporanea; nessuna connessione fuori dal computer.
 
         .\test\prova_anonimizzazione.ps1
@@ -15,21 +16,30 @@ $exe = Join-Path $radice 'dist\Campanella.exe'
 $temp = Join-Path $env:TEMP 'campanella_anon'
 Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $temp | Out-Null
+$PortaSenzaTesto = $Porta + 1
 
-Write-Host "Avvio il finto rizzo-pii sulla porta $Porta..." -ForegroundColor Cyan
+Write-Host "Avvio il finto rizzo-pii sulle porte $Porta e $PortaSenzaTesto..." -ForegroundColor Cyan
 $server = Start-Process -FilePath 'python' `
     -ArgumentList @((Join-Path $radice 'test\finto_rizzo.py'), $Porta) `
     -PassThru -WindowStyle Hidden
+# lo stesso servizio, ma con le risposte di /analyze senza "anonymized_text"
+$serverSenzaTesto = Start-Process -FilePath 'python' `
+    -ArgumentList @((Join-Path $radice 'test\finto_rizzo.py'), $PortaSenzaTesto, '--senza-testo') `
+    -PassThru -WindowStyle Hidden
 
-try {
-    $pronto = $false
-    for ($i = 0; $i -lt 40 -and -not $pronto; $i++) {
+function Aspetta($porta) {
+    for ($i = 0; $i -lt 40; $i++) {
         try {
-            $r = Invoke-WebRequest "http://127.0.0.1:$Porta/health" -UseBasicParsing -TimeoutSec 2
-            $pronto = ($r.StatusCode -eq 200)
+            $r = Invoke-WebRequest "http://127.0.0.1:$porta/health" -UseBasicParsing -TimeoutSec 2
+            if ($r.StatusCode -eq 200) { return $true }
         } catch { Start-Sleep -Milliseconds 250 }
     }
-    if (-not $pronto) { throw "il finto servizio non e' partito" }
+    return $false
+}
+
+try {
+    if (-not (Aspetta $Porta)) { throw "il finto servizio non e' partito" }
+    if (-not (Aspetta $PortaSenzaTesto)) { throw "il finto servizio senza testo non e' partito" }
 
     Add-Type -AssemblyName System.Windows.Forms
     $asm = [System.Reflection.Assembly]::LoadFrom($exe)
@@ -121,6 +131,22 @@ Cordiali saluti, Anna Verdi
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
 
+    Write-Host "`n=== RISPOSTA SENZA TESTO ANONIMIZZATO ===" -ForegroundColor Cyan
+    $c = [Activator]::CreateInstance($t)
+    $c.Indirizzo = "http://127.0.0.1:$PortaSenzaTesto"
+    $uscita2 = Join-Path $temp 'puliti2'
+    $e6 = $c.Anonimizza($txt, (Join-Path $uscita2 'nota.txt'))
+    Write-Host "  $($e6.Nota)"
+    Verifica 'il file non risulta ripulito'        (-not $e6.Fatto -and $e6.Saltato)
+    Verifica 'nessuna copia vuota scritta'         (-not (Test-Path (Join-Path $uscita2 'nota.txt')))
+    $lanciata = $false
+    try {
+        $argTesto = New-Object 'object[]' 2
+        $argTesto[0] = 'Colloquio con Anna Verdi.'
+        [void]$t.GetMethod('TestoAnonimo', [type[]]@([string], [int].MakeByRefType())).Invoke($c, $argTesto)
+    } catch { $lanciata = $true }
+    Verifica 'il testo senza risposta e'' un errore' $lanciata
+
     Write-Host "`n=== SOLO SU QUESTO COMPUTER ===" -ForegroundColor Cyan
     $locale = $t.GetMethod('IndirizzoLocale')
     $casi = [ordered]@{
@@ -190,5 +216,6 @@ Cordiali saluti, Anna Verdi
 }
 finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+    if ($serverSenzaTesto -and -not $serverSenzaTesto.HasExited) { Stop-Process -Id $serverSenzaTesto.Id -Force }
     Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

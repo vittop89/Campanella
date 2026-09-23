@@ -50,6 +50,10 @@ namespace Campanella
 
     class Anonimizzatore
     {
+        /// <summary>La versione di rizzo-pii con cui e' stato controllato il
+        /// protocollo qui sotto (campi di /health e /analyze, intestazioni di /pdf).</summary>
+        public const string VersioneRizzoProvata = "2.0.0";
+
         public string Indirizzo = Stato.AnonIndirizzoDiDefault;
         public bool ConDizionario = false;     // false = anonimizzazione definitiva
         public int TimeoutMs = 300000;         // la CPU su un PDF lungo se la prende comoda
@@ -182,6 +186,9 @@ namespace Campanella
                 using (MemoryStream m = new MemoryStream())
                 {
                     resp.GetResponseStream().CopyTo(m);
+                    if (m.Length == 0)
+                        throw new InvalidDataException(
+                            "rizzo-pii ha risposto con un PDF vuoto: non scrivo niente.");
                     return m.ToArray();
                 }
             }
@@ -239,7 +246,15 @@ namespace Campanella
                         try { perTipo[kv.Key] = Convert.ToInt32(kv.Value); } catch { }
                     }
 
-                return Stato.Str(d, "anonymized_text", "");
+                // senza il testo pulito non c'e' niente da scrivere: meglio un errore
+                // che una copia "ripulita" e vuota
+                object pulito;
+                if (!d.TryGetValue("anonymized_text", out pulito) || !(pulito is string))
+                    throw new InvalidDataException(
+                        "rizzo-pii ha risposto senza il testo anonimizzato: forse la sua versione " +
+                        "parla un protocollo diverso da quello della " + VersioneRizzoProvata +
+                        ", con cui Campanella e' provata. Non scrivo niente.");
+                return (string)pulito;
             }
         }
 

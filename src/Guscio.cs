@@ -1079,12 +1079,18 @@ namespace Campanella
             return a;
         }
 
+        static string RigaCampanella()
+        {
+            return "Campanella " + Aggiornamenti.VersioneCampanella +
+                   "  (provata con rizzo-pii " + Anonimizzatore.VersioneRizzoProvata + ")\r\n";
+        }
+
         void ControllaComponenti()
         {
             Anonimizzatore a = Servizio();
             SaluteAnonimizzatore s = a.Salute();
 
-            string riga = "Campanella " + Aggiornamenti.VersioneCampanella + "\r\n";
+            string riga = RigaCampanella();
             riga += s.Pronto
                 ? "rizzo-pii " + (s.Versione != "" ? s.Versione : "(versione non dichiarata)") +
                   " - in ascolto su " + a.Indirizzo + ", modello " + s.Modello + " su " + s.Dispositivo
