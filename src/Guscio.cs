@@ -456,11 +456,33 @@ namespace Campanella
         // ===================================================================
         //  SERVIZI CONDIVISI
         // ===================================================================
+        /// <summary>
+        /// Il testo per gli appunti, con i formati che chiedono a Windows di non
+        /// tenerlo nella cronologia degli appunti (Win+V) e di non mandarlo agli
+        /// altri dispositivi: Campanella copia indirizzi e nomi di colleghi, o
+        /// codice da incollare una volta sola.
+        /// </summary>
+        public static DataObject PerGliAppunti(string testo)
+        {
+            DataObject d = new DataObject();
+            d.SetData(DataFormats.UnicodeText, false, testo ?? "");
+            d.SetData("ExcludeClipboardContentFromMonitorProcessing", false, new MemoryStream(BitConverter.GetBytes(0)));
+            d.SetData("CanIncludeInClipboardHistory", false, new MemoryStream(BitConverter.GetBytes(0)));
+            d.SetData("CanUploadToCloudClipboard", false, new MemoryStream(BitConverter.GetBytes(0)));
+            return d;
+        }
+
+        /// <summary>Mette il testo negli appunti, fuori da cronologia e sincronizzazione. Se non ci riesce, eccezione.</summary>
+        public static void MettiNegliAppunti(string testo)
+        {
+            Clipboard.SetDataObject(PerGliAppunti(testo), true);
+        }
+
         public void Copia(string testo, string messaggio)
         {
             for (int tentativo = 0; tentativo < 3; tentativo++)
             {
-                try { Clipboard.SetText(testo); Stato1(messaggio); return; }
+                try { MettiNegliAppunti(testo); Stato1(messaggio); return; }
                 catch { System.Threading.Thread.Sleep(120); }
             }
             MessageBox.Show(this,

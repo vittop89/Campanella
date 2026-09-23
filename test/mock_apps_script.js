@@ -1,13 +1,19 @@
 /**
  * Banco di prova per Organizzazione_Gmail.gs
  *
- *   node test/mock_apps_script.js
+ *   node test/mock_apps_script.js [Configurazione.gs] [Organizzazione_Gmail.gs]
  *
  * Simula GmailApp, PropertiesService, ScriptApp, MailApp e Session con una
  * finta casella di posta, poi esegue i quattro passi e stampa cosa succede.
  * Serve a verificare le ricerche costruite, l'etichettatura a blocchi, la
  * ripresa dopo il tempo massimo e le funzioni di annullamento, senza dover
- * caricare nulla su Google.
+ * caricare nulla su Google. In fondo controlla che ogni email mandata durante
+ * le prove sia andata solo all'account stesso, senza copie.
+ *
+ * Di partenza usa test/Configurazione_esempio.gs e il motore vero; il primo
+ * argomento e' un'altra configurazione (test/prova_posta.ps1 passa quella
+ * generata da Campanella), il secondo una copia del motore
+ * (test/invarianti_script.js ci mette dei guasti apposta).
  */
 
 'use strict';
@@ -187,6 +193,7 @@ const GmailApp = {
     return (inizio === undefined) ? r : r.slice(inizio, inizio + quanti);
   },
   getUserLabelByName(nome) { return etichette.get(nome) || null; },
+  getUserLabels() { return [...etichette.values()]; },
   createLabel(nome) {
     if (!etichette.has(nome)) etichette.set(nome, new Label(nome));
     return etichette.get(nome);
@@ -236,10 +243,25 @@ const ScriptApp = {
   }
 };
 
+// Ogni invio, con tutto quello che lo script passa: destinatario, oggetto,
+// corpo e opzioni (cc, bcc...), in tutte e due le forme che MailApp accetta.
+// In fondo si controlla che ogni email sia andata solo all'account stesso.
 const posta = [];
-const MailApp = { sendEmail: (a, o, c) => posta.push({ a, o, c }) };
+function registraInvio(servizio, argomenti) {
+  const primo = argomenti[0];
+  if (primo && typeof primo === 'object') {
+    posta.push({ servizio, a: primo.to, o: primo.subject, c: primo.body, opzioni: primo });
+  } else {
+    posta.push({ servizio, a: primo, o: argomenti[1], c: argomenti[2], opzioni: argomenti[3] || {} });
+  }
+}
+const MailApp = { sendEmail: (...argomenti) => registraInvio('MailApp', argomenti) };
+GmailApp.sendEmail = (...argomenti) => registraInvio('GmailApp', argomenti);
 const Logger = { log: t => registro.push(String(t)) };
-const Utilities = { sleep: () => {} };
+const Utilities = {
+  sleep: () => {},
+  formatDate: (d, fuso, modello) => (modello === 'yyyyMMdd' ? '20260923' : String(d))
+};
 const LockService = {
   getUserLock: () => ({ tryLock: () => true, releaseLock: () => {} })
 };
@@ -256,7 +278,11 @@ const DateFinta = new Proxy(Date, {
 //  CARICO GLI SCRIPT
 // ---------------------------------------------------------------------------
 const radice = path.join(__dirname, '..', 'src', 'risorse');
-const codice = fs.readFileSync(path.join(radice, 'Organizzazione_Gmail.gs'), 'utf8');
+// di partenza il motore vero; un secondo argomento carica una sua copia (serve
+// a test/invarianti_script.js per provare che il banco si accorge dei guasti)
+const codice = process.argv[3]
+  ? fs.readFileSync(process.argv[3], 'utf8')
+  : fs.readFileSync(path.join(radice, 'Organizzazione_Gmail.gs'), 'utf8');
 // di partenza i dati inventati di Configurazione_esempio.gs; si puo' passare
 // un'altra configurazione (la casella finta si adatta al suo dominio)
 const configurazione = process.argv[2]
@@ -272,7 +298,10 @@ vm.runInContext(configurazione, contesto, { filename: 'Configurazione.gs' });
 
 const DOM = String(contesto.CONFIG.dominioScuola || 'scuola-esempio.edu.it').replace(/^@/, '');
 const IO = 'io@' + DOM;
-const Session = { getActiveUser: () => ({ getEmail: () => IO }) };
+const Session = {
+  getActiveUser: () => ({ getEmail: () => IO }),
+  getScriptTimeZone: () => 'Europe/Rome'
+};
 contesto.Session = Session;
 vm.runInContext(codice, contesto, { filename: 'Organizzazione_Gmail.gs' });
 
@@ -311,9 +340,13 @@ function verifica(descrizione, condizione) {
 
 intestazione('PASSO 1 - anteprima (non deve modificare niente)');
 const etichettePrima = new Set(casella.flatMap(t => [...t.labels]));
-console.log(contesto.PASSO_1_anteprima());
+const anteprima = contesto.PASSO_1_anteprima();
+console.log(anteprima);
 verifica('nessuna etichetta applicata durante l\'anteprima',
   casella.every(t => t.labels.size === 0) && etichettePrima.size === 0);
+verifica('l\'anteprima dice la versione dello script',
+  /Versione dello script: \d+\.\d+\.\d+/.test(anteprima) &&
+  anteprima.indexOf(contesto._POSTA_VERSIONE) >= 0);
 
 intestazione('PASSO 3 in modalita\' prova: conta e basta');
 verifica('la configurazione di partenza e\' in prova', contesto.CONFIG.provaSenzaModifiche === true);
@@ -325,7 +358,28 @@ verifica('in prova non lascia un progresso a meta\'', !proprieta.has('ORGGMAIL_P
 verifica('in prova conta tutti gli studenti, non solo i primi 100',
   registro.some(r => /Studenti\s+25[0-9] conversazioni/.test(r)));
 
+intestazione('PASSO 2 in modalita\' prova: elenca soltanto');
+{
+  // "in prova non si crea nemmeno un'etichetta": vale anche per PASSO_2, che la
+  // procedura guidata fa eseguire prima di togliere la prova
+  const t = contesto.PASSO_2_creaEtichette();
+  console.log(t);
+  verifica('in prova PASSO_2 non crea nessuna etichetta', etichette.size === 0);
+  verifica('e lo dice, elencando quelle che nasceranno',
+    t.indexOf('MODALITA\' PROVA') === 0 &&t.indexOf('Scuola/Colleghi/Docenti') > 0);
+  verifica('elencando ogni etichetta una volta sola',
+    t.split('\n').filter(r => r === '  - Scuola').length === 1);
+  const filtriInProva = [];
+  contesto.Gmail = { Users: { Labels: { list: () => ({ labels: [] }) },
+    Settings: { Filters: { list: () => ({ filter: [] }), create: (f) => { filtriInProva.push(f); return f; } } } } };
+  const tf = contesto.EXTRA_creaFiltriGmail();
+  delete contesto.Gmail;
+  verifica('in prova nemmeno i filtri di Gmail, e lo dice',
+    filtriInProva.length === 0 && etichette.size === 0 && tf.indexOf('MODALITA\' PROVA') === 0);
+}
+
 intestazione('PASSO 2 - creazione etichette');
+contesto.CONFIG.provaSenzaModifiche = false;
 console.log(contesto.PASSO_2_creaEtichette());
 verifica('l\'etichetta madre "Scuola" e\' stata creata', etichette.has('Scuola'));
 verifica('esiste Scuola/Colleghi', etichette.has('Scuola/Colleghi'));
@@ -465,8 +519,10 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     /^Trovati \d+ indirizzi @/.test(scritte[0]) && scritte[0].split('\n').length === 1);
   verifica('e subito dopo dice che l\'elenco e\' nell\'email',
     /EMAIL/.test(scritte[1]) && /Incolla elenco/.test(scritte[1]));
-  verifica('l\'elenco nel registro c\'e\' lo stesso, a blocchi',
-    scritte.slice(2).some(r => r.includes('mario.rossi@' + DOM)));
+  // nomi e indirizzi di altre persone: il registro delle esecuzioni li
+  // conserverebbe, quindi con l'email partita li' non vanno
+  verifica('con l\'email partita l\'elenco NON finisce nel registro',
+    scritte.every(r => !r.includes('mario.rossi@' + DOM)));
 
   const email = posta.slice(postaPrima).filter(m => /Indirizzi @/.test(m.o));
   verifica('l\'email con l\'elenco parte sempre', email.length === 1);
@@ -474,6 +530,17 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     tsv.split('\n').every(r => email[0].c.includes(r)));
   verifica('con il conto di quante conversazioni ha guardato',
     /esaminando \d+ conversazioni/.test(email[0].c));
+
+  // l'email non parte (quota finita, per esempio): allora l'elenco serve nel registro
+  const mandaVero = MailApp.sendEmail;
+  MailApp.sendEmail = () => { throw new Error('Service invoked too many times: email'); };
+  const primaDelGuasto = registro.length;
+  contesto.EXTRA_elencaIndirizziScuola();
+  MailApp.sendEmail = mandaVero;
+  const guasto = registro.slice(primaDelGuasto);
+  verifica('se l\'email non parte lo dice, e l\'elenco va nel registro a blocchi',
+    guasto.some(r => /NON E' PARTITA/.test(r)) &&
+    guasto.some(r => r.includes('mario.rossi@' + DOM)) && guasto.every(r => r.length < 6000));
 }
 
 intestazione('FILTRI VERI DI GMAIL');
@@ -491,6 +558,14 @@ intestazione('FILTRI VERI DI GMAIL');
   };
   const t = contesto.EXTRA_creaFiltriGmail();
   const etichettate = filtri.map(f => f.action.addLabelIds[0]);
+  // un filtro puo' solo etichettare, archiviare e segnare come letto: niente
+  // cestino, spam, inoltro o altre etichette di sistema
+  verifica('i filtri fanno solo quello che fa lo script (' + filtri.length + ' filtri)',
+    filtri.length > 0 && filtri.every(f =>
+      Object.keys(f.action).every(k => k === 'addLabelIds' || k === 'removeLabelIds') &&
+      f.action.addLabelIds.every(id => etichette.has(id.replace(/^id:/, ''))) &&
+      (f.action.removeLabelIds || []).every(id => id === 'INBOX' || id === 'UNREAD') &&
+      Object.keys(f.criteria).every(k => ['from', 'to', 'subject', 'query', 'hasAttachment'].indexOf(k) >= 0)));
   verifica('crea i filtri delle regole semplici',
     etichettate.indexOf('id:Scuola/Colleghi') >= 0 && etichettate.indexOf('id:Scuola/Circolari') >= 0);
   verifica('ma non quello di Studenti: prenderebbe anche i colleghi',
@@ -535,18 +610,43 @@ intestazione('ELENCO DEL PERSONALE VUOTO');
   const personaleVero = contesto.CONFIG.personale;
   contesto.CONFIG.personale = [];
   const colleghi = contesto.CONFIG.regole.find(r => r.etichetta === 'Colleghi');
-  const q = contesto._queryDellaRegola(contesto.CONFIG, colleghi);
+  const q = contesto._queryDellaRegola_(contesto.CONFIG, colleghi);
   verifica('Colleghi senza personale non cerca niente (non tutta la casella)', q.length === 0);
-  verifica('e non diventa un filtro di Gmail', contesto._criteriFiltro(contesto.CONFIG, colleghi).length === 0);
+  verifica('e non diventa un filtro di Gmail', contesto._criteriFiltro_(contesto.CONFIG, colleghi).length === 0);
   // mittenti piu' parole nell'oggetto: senza mittenti non deve restare un filtro
   // sul solo oggetto, che prenderebbe quelle parole da chiunque
   const mista = { attiva: true, etichetta: 'Colleghi/Verbali', da: ['@PERSONALE@'], oggetto: ['verbale'] };
   verifica('mittenti vuoti e oggetto: nessun filtro sul solo oggetto',
-    contesto._criteriFiltro(contesto.CONFIG, mista).length === 0 &&
-    contesto._queryDellaRegola(contesto.CONFIG, mista).length === 0);
+    contesto._criteriFiltro_(contesto.CONFIG, mista).length === 0 &&
+    contesto._queryDellaRegola_(contesto.CONFIG, mista).length === 0);
   const circolari = contesto.CONFIG.regole.find(r => r.etichetta === 'Circolari');
-  verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola(contesto.CONFIG, circolari).length === 1);
+  verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola_(contesto.CONFIG, circolari).length === 1);
+  // destinatari previsti ma nessuno rimasto: niente "to:()", niente filtro
+  const aNessuno = { attiva: true, etichetta: 'Verbali', a: ['@PERSONALE@'], oggetto: ['verbale'] };
+  verifica('destinatari vuoti: nessuna ricerca e nessun filtro',
+    contesto._queryDellaRegola_(contesto.CONFIG, aNessuno).length === 0 &&
+    contesto._criteriFiltro_(contesto.CONFIG, aNessuno).length === 0);
   contesto.CONFIG.personale = personaleVero;
+}
+
+intestazione('IL FILTRO DI GMAIL PRENDE QUELLO CHE PRENDE LA RICERCA');
+{
+  // "a" (destinatari) e "haAllegato": la ricerca dello script li usa, e il
+  // filtro nativo non deve risultare piu' largo
+  const regola = { attiva: true, etichetta: 'Verbali', a: ['@PERSONALE@'], haAllegato: true, oggetto: ['verbale'] };
+  const q = contesto._queryDellaRegola_(contesto.CONFIG, regola);
+  const c = contesto._criteriFiltro_(contesto.CONFIG, regola);
+  verifica('la ricerca ha destinatari e allegato', q.length === 1 && /to:\(/.test(q[0]) && /has:attachment/.test(q[0]));
+  verifica('e il filtro anche', c.length === 1 && /mario\.rossi@/.test(c[0].to || '') && c[0].hasAttachment === true &&
+    c[0].subject === 'verbale');
+  const soloAllegato = contesto._criteriFiltro_(contesto.CONFIG, { attiva: true, etichetta: 'Allegati', haAllegato: true });
+  verifica('una regola con il solo allegato diventa un filtro sul solo allegato',
+    soloAllegato.length === 1 && soloAllegato[0].hasAttachment === true && Object.keys(soloAllegato[0]).length === 1);
+  const gia = [{ criteria: { subject: 'verbale', to: c[0].to }, action: { addLabelIds: ['id:x'] } }];
+  verifica('un filtro uguale ma senza allegato non conta come gia\' presente',
+    !contesto._filtroGiaPresente_(gia, c[0], 'id:x'));
+  gia[0].criteria.hasAttachment = true;
+  verifica('con l\'allegato si', contesto._filtroGiaPresente_(gia, c[0], 'id:x'));
 }
 
 intestazione('ANNULLA_progressoRiordino MENTRE IL RIORDINO LAVORA');
@@ -619,8 +719,12 @@ verifica('le etichette delle regole spente non le tocca, ma le nomina',
 genitori.removeFromThreads([casella[0]]);
 verifica('nessuna conversazione ha piu\' le etichette dello strumento',
   casella.every(t => [...t.labels].every(l => !l.startsWith('Scuola/'))));
-console.log(contesto.ANNULLA_automazione());
-verifica('nessun trigger residuo', trigger.length === 0);
+// la ripresa di Orari.gs, che sta nello stesso progetto, a meta' invio
+trigger.push({ fn: 'ORARI_2_invia', tipo: 'dopo', valore: 60000 });
+const spenta = contesto.ANNULLA_automazione();
+console.log(spenta);
+verifica('nessun trigger residuo, nemmeno la ripresa degli orari', trigger.length === 0);
+verifica('e lo dice', spenta.indexOf('ripresa dell\'invio degli orari') > 0);
 
 intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
 {
@@ -642,6 +746,98 @@ intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
     [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length === conGruppo);
   verifica('e ne sono nate di nuove', etichette.size > quante);
   contesto.CONFIG.prefissoEtichette = 'Scuola';
+}
+
+// il codice di stato: CMP1-giorno-etichette-automazione-conversazioni
+function leggiCodice(c) {
+  const m = /^CMP1-(\d{8})-(\d+)-([01])-(\d+)$/.exec(c);
+  return m ? { etichette: +m[2], automazione: +m[3], conversazioni: +m[4] } : null;
+}
+
+intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script');
+{
+  // da capo: nessuna etichetta, nessuna memoria, posta intatta
+  casella.forEach(t => { t.labels.clear(); t.inInbox = true; });
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  contesto.CONFIG.prefissoEtichette = '';
+  contesto.CONFIG.provaSenzaModifiche = false;
+
+  // "Colleghi" c'era gia': l'avevi messa tu, a mano, a una conversazione
+  const aMano = GmailApp.createLabel('Colleghi');
+  aMano.addToThreads([amico]);
+  // e un'etichetta tua che con la scuola non c'entra
+  GmailApp.createLabel('Viaggi').addToThreads([amico]);
+
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('il riordino riempie anche la "Colleghi" che c\'era', rossi.labels.has('Colleghi'));
+  const create = JSON.parse(proprieta.get('ORGGMAIL_ETICHETTE_CREATE') || '[]');
+  verifica('lo script si segna le etichette che crea',
+    create.indexOf('Studenti') >= 0 && create.indexOf('Colleghi/Docenti') >= 0);
+  verifica('e non quelle che c\'erano gia\'', create.indexOf('Colleghi') < 0 && create.indexOf('Viaggi') < 0);
+
+  const codice = leggiCodice(contesto.EXTRA_codiceStato());
+  const conversazioniCreate = casella.filter(t => [...t.labels].some(l => create.indexOf(l) >= 0)).length;
+  verifica('il codice di stato conta solo le etichette dello strumento, non "Viaggi"',
+    codice && codice.etichette === create.length);
+  verifica('e le loro conversazioni', codice && codice.conversazioni >= conversazioniCreate &&
+    codice.conversazioni > 0);
+  verifica('il codice di stato dice la versione dello script',
+    registro[registro.length - 1].indexOf('Versione dello script: ' + contesto._POSTA_VERSIONE) === 0);
+
+  const t = contesto.ANNULLA_etichettatura();
+  console.log(t);
+  verifica('la tua "Colleghi" resta sulla conversazione a cui l\'avevi messa', amico.labels.has('Colleghi'));
+  verifica('e anche "Viaggi"', amico.labels.has('Viaggi'));
+  verifica('le etichette nate dallo script sono vuote',
+    casella.every(x => [...x.labels].every(l => create.indexOf(l) < 0)));
+  verifica('il resoconto dice quale non ha toccato e perche\'',
+    t.indexOf('FATTO') === 0 && /Non toccate, perche' non le ha create lo script: Colleghi\./.test(t));
+  const dopo = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('dopo ANNULLA il codice di stato non dice piu\' "fatto" (conversazioni 0)',
+    dopo && dopo.conversazioni === 0);
+
+  // uno script di una versione di prima non si segnava niente: si contano le
+  // etichette delle regole, ma mai quelle che non c'entrano
+  proprieta.delete('ORGGMAIL_ETICHETTE_CREATE');
+  const vecchio = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('senza memoria il codice conta le etichette delle regole, non "Viaggi"',
+    vecchio && vecchio.conversazioni === casella.filter(x => x.labels.has('Colleghi')).length);
+  const t2 = contesto.ANNULLA_etichettatura();
+  verifica('e senza memoria ANNULLA non toglie niente, e lo dice',
+    rossi.labels.has('Colleghi') && t2.indexOf('Non toccate') > 0);
+
+  // un'etichetta nata dallo script e poi cancellata da te in Gmail viene dimenticata
+  _memoriaCon(['Circolari', 'Sparita']);
+  GmailApp.createLabel('Circolari');
+  contesto.PASSO_2_creaEtichette();
+  const memoria = JSON.parse(proprieta.get('ORGGMAIL_ETICHETTE_CREATE') || '[]');
+  verifica('le etichette cancellate da Gmail escono dalla memoria',
+    memoria.indexOf('Sparita') < 0 && memoria.indexOf('Circolari') >= 0);
+
+  // con il gruppo non cambia niente: tutto quello che sta sotto "Scuola"
+  contesto.CONFIG.prefissoEtichette = 'Scuola';
+  GmailApp.createLabel('Scuola/Circolari').addToThreads([preside]);
+  const conGruppo = leggiCodice(contesto.EXTRA_codiceStato());
+  verifica('con il gruppo conta le etichette sotto il gruppo',
+    conGruppo && conGruppo.etichette === [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length &&
+    conGruppo.conversazioni >= 1);
+}
+function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
+
+intestazione('LA POSTA VA SOLO A TE');
+{
+  // La promessa fatta al DPO: lo script manda email solo all'account in cui
+  // gira. Qui passano tutte quelle mandate durante le prove qui sopra.
+  verifica('le prove hanno mandato delle email, quindi il controllo vale (' + posta.length + ')',
+    posta.length >= 2);
+  const altrove = posta.filter(m => typeof m.a !== 'string' || m.a.trim().toLowerCase() !== IO);
+  verifica('ogni email e\' andata solo al tuo indirizzo', altrove.length === 0);
+  if (altrove.length) console.log('    verso: ' + altrove.map(m => String(m.a)).join(', '));
+  const inCopia = posta.filter(m => { const o = m.opzioni || {}; return !!(o.cc || o.bcc); });
+  verifica('nessuna in copia o in copia nascosta', inCopia.length === 0);
 }
 
 intestazione('RISULTATO');

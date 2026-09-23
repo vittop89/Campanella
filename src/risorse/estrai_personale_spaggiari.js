@@ -16,13 +16,16 @@
      3. raduna i ruoli in cinque categorie (Dirigenza, Docenti,
         Amministrativi, Tecnici, Collaboratori);
      4. copia tutto negli appunti in formato incollabile;
-     5. scarica anche un file CSV, come copia di sicurezza;
+     5. SOLO SE GLI APPUNTI NON FUNZIONANO scarica un file CSV
+        (personale_spaggiari.csv) nella cartella dei download: dopo averlo
+        caricato in Campanella cancellalo, contiene nomi e indirizzi dei
+        colleghi;
      6. stampa il riepilogo per categoria e il blocco CSV, da copiare a mano
         se gli appunti non funzionano.
 
    POI
-     Torna nell'applicazione "Organizzazione Gmail", passo 2 (Personale),
-     e premi "Incolla elenco".
+     Torna in Campanella, strumento Posta, passo 3 (Il personale), e premi
+     "Incolla elenco".
    =========================================================================== */
 
 (async () => {
@@ -139,18 +142,24 @@
     ta.remove();
   }
 
-  // --- 4. copia di sicurezza in CSV -----------------------------------------
-  try {
-    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'personale_spaggiari.csv';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  } catch (e) {
-    console.warn('CSV non scaricato (non e\' un problema): ' + e.message);
+  // --- 4. il file CSV, solo se gli appunti non hanno funzionato ---------------
+  // Un file con nomi e indirizzi nella cartella dei download resta li' finche'
+  // qualcuno non lo cancella: si scarica solo quando non c'e' altro modo.
+  let scaricato = false;
+  if (!copiato) {
+    try {
+      const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'personale_spaggiari.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      scaricato = true;
+    } catch (e) {
+      console.warn('CSV non scaricato: ' + e.message);
+    }
   }
 
   // --- 5. riepilogo ----------------------------------------------------------
@@ -185,8 +194,13 @@
   console.log(copiato
     ? 'ELENCO COPIATO NEGLI APPUNTI. Torna in Campanella, strumento Posta,\n' +
       'passo 3 (Il personale), e premi "Incolla elenco".'
-    : 'Copia automatica non riuscita: usa il file CSV scaricato, oppure\n' +
-      'seleziona il blocco CSV qui sotto e copialo a mano.');
+    : scaricato
+      ? 'Copia automatica non riuscita: ho scaricato personale_spaggiari.csv nella\n' +
+        'cartella dei download. In Campanella premi "Incolla elenco", poi "Apri un\n' +
+        'file...". Dopo CANCELLA IL FILE: contiene nomi e indirizzi dei colleghi.\n' +
+        'Oppure seleziona il blocco CSV qui sotto e copialo a mano.'
+      : 'Copia automatica non riuscita: seleziona il blocco CSV qui sotto e\n' +
+        'copialo a mano.');
   console.log('='.repeat(64) + '\n');
 
   // Il blocco CSV resta sempre stampato: Campanella lo legge tale e quale,

@@ -134,8 +134,8 @@ namespace Campanella
         /// <summary>
         /// Spiega cosa cambia nel raggruppare le etichette. Senza gruppo lo script
         /// usa i nomi cosi' come sono: se in Gmail ci sono gia' etichette con quei
-        /// nomi, applica quelle, e ANNULLA_etichettatura le toglierebbe anche dai
-        /// messaggi a cui le avevi messe tu.
+        /// nomi, applica quelle, e ANNULLA_etichettatura non le svuota, perche' non
+        /// saprebbe distinguerle dai messaggi a cui le avevi messe tu.
         /// </summary>
         void AggiornaAvvisoPrefisso()
         {
@@ -276,7 +276,8 @@ namespace Campanella
 
             p.Controls.Add(Tema.Testo1(
                 "Serve per distinguere i colleghi dagli studenti, che hanno indirizzi dello stesso " +
-                "dominio. Lo stesso elenco viene poi riusato dallo strumento Orari.",
+                "dominio. Le righe senza spunta non vanno nello script ma restano salvate: quelle " +
+                "che non servono, toglile.",
                 0, y, 860, Tema.Normale, Ruolo.Tenue));
             y += 40;
 
@@ -309,7 +310,8 @@ namespace Campanella
             clbRuoli.CheckOnClick = true;
             clbRuoli.ItemCheck += RuoloCambiato;
             p.Controls.Add(clbRuoli);
-            p.Controls.Add(Tema.Testo1("Gli studenti e i genitori partono senza spunta.",
+            p.Controls.Add(Tema.Testo1("Studenti, genitori e indirizzi presi dalla casella senza ruolo " +
+                                       "partono senza spunta.",
                                        0, y + 278, 250, Tema.Piccolo, Ruolo.Tenue));
 
             lblConteggio = Tema.Testo1("Nessuna persona caricata", 266, y, 600, Tema.Grassetto, Ruolo.Normale);
@@ -419,12 +421,13 @@ namespace Campanella
             p.Controls.Add(Tema.Aiuto(xg + 536, yr + 4, "Scrivere a un gruppo",
                 "Serve quando devi mandare un messaggio a tutta una categoria: per esempio a " +
                 "tutti gli assistenti amministrativi, senza andarli a cercare uno per uno.\r\n\r\n" +
-                "\"Scrivi in Gmail\" apre un messaggio nuovo con quegli indirizzi gia' nel campo " +
-                "Ccn (copia nascosta): scrivi e invii da Gmail, come sempre. Se sono tanti (oltre " +
-                "una cinquantina, di solito i Docenti) non entrano nel collegamento: il messaggio " +
-                "si apre vuoto e gli indirizzi finiscono negli appunti, da incollare in Ccn con " +
-                "Ctrl+V. \"Copia gli indirizzi\" li mette solo negli appunti, se preferisci incollarli " +
-                "tu.\r\n\r\n" +
+                "\"Scrivi in Gmail\" mette gli indirizzi negli appunti e apre un messaggio nuovo: " +
+                "in Gmail clicca \"Ccn\" (copia nascosta) e incolla con Ctrl+V. Scrivi e invii da " +
+                "Gmail, come sempre. \"Copia gli indirizzi\" li mette solo negli appunti.\r\n\r\n" +
+                "Gli indirizzi non passano dal collegamento che apre Gmail, che resterebbe nella " +
+                "cronologia del browser. Negli appunti Campanella chiede a Windows di non tenerli " +
+                "nella cronologia degli appunti (Win+V) e di non sincronizzarli con gli altri " +
+                "dispositivi.\r\n\r\n" +
                 "Prima di inviare guarda in alto a destra in Gmail che sia aperto l'account della " +
                 "scuola: con piu' account nel browser, Gmail apre il primo.\r\n\r\n" +
                 "Ccn e non A: cosi' ognuno riceve il messaggio senza vedere gli indirizzi degli " +
@@ -505,52 +508,44 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Apre in Gmail un messaggio nuovo con gli indirizzi del gruppo nel Ccn.
-        /// Non manda niente: il messaggio lo scrivi e lo invii tu.
+        /// Mette negli appunti gli indirizzi del gruppo e apre in Gmail un
+        /// messaggio nuovo, dove li incolli nel Ccn. Gli indirizzi non passano
+        /// dal collegamento: resterebbero nella cronologia del browser. Non
+        /// manda niente: il messaggio lo scrivi e lo invii tu.
         /// </summary>
         void ScriviAlGruppo()
         {
             List<string> indirizzi = IndirizziDelGruppo();
             if (indirizzi == null) return;
 
-            string url = "https://mail.google.com/mail/?view=cm&fs=1";
             // con piu' account nel browser, quello della scuola: Gmail lo sceglie
             // dall'indirizzo, ma solo se e' davvero del dominio della scuola
             string account = AccountDellaScuola();
-            if (account != "") url += "&authuser=" + Uri.EscapeDataString(account);
+            string url = GeneratorePosta.NuovoMessaggioGmail(account);
 
-            string conCcn = url + "&bcc=" + Uri.EscapeDataString(string.Join(",", indirizzi.ToArray()));
             // senza l'account della scuola Gmail apre il primo account del browser,
             // che puo' essere quello personale: meglio dirlo prima dell'invio
             string mittente = (account != "") ? "" :
                 "\n\nPrima di inviare guarda in alto a destra in Gmail che sia aperto l'account " +
                 "della scuola" + (S.DominioPulito() != "" ? " (@" + S.DominioPulito() + ")" : "") +
                 ": con piu' account nel browser, Gmail apre il primo.";
-            // Windows accorcia i link troppo lunghi: oltre questa misura apro il
-            // messaggio vuoto e gli indirizzi li lascio negli appunti
-            if (conCcn.Length <= 2000)
-            {
-                Guscio.Apri(conCcn);
-                Guscio.Stato1(indirizzi.Count + " indirizzi di " + CategoriaScelta() +
-                              " gia' nel Ccn: scrivi il messaggio e invialo da Gmail." +
-                              (account != "" ? "" : " Controlla che sia l'account della scuola."));
-                return;
-            }
             if (!Appunti(string.Join(", ", indirizzi.ToArray()))) return;
             // prima l'avviso, poi il browser: aperto prima, Gmail passerebbe davanti
             // e l'avviso resterebbe nascosto dietro
             MessageBox.Show(this,
-                "Gli indirizzi sono " + indirizzi.Count + ": troppi per metterli nel link.\n\n" +
-                "Li ho copiati negli appunti. Premi OK: si apre un messaggio nuovo in Gmail. Li' " +
-                "clicca \"Ccn\" (a destra del campo A) e incolla con Ctrl+V." + mittente,
+                "Ho copiato negli appunti i " + indirizzi.Count + " indirizzi di " + CategoriaScelta() + ".\n\n" +
+                "Premi OK: si apre un messaggio nuovo in Gmail. Li' clicca \"Ccn\" (a destra del " +
+                "campo A) e incolla con Ctrl+V: cosi' ognuno riceve il messaggio senza vedere gli " +
+                "indirizzi degli altri." + mittente,
                 "Incolla gli indirizzi nel Ccn", MessageBoxButtons.OK, MessageBoxIcon.Information);
             Guscio.Apri(url);
             Guscio.Stato1(indirizzi.Count + " indirizzi negli appunti: in Gmail clicca Ccn e incolla con Ctrl+V.");
         }
 
+        /// <summary>Negli appunti, fuori dalla cronologia degli appunti di Windows.</summary>
         bool Appunti(string testo)
         {
-            try { Clipboard.SetText(testo); return true; }
+            try { Guscio.MettiNegliAppunti(testo); return true; }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Non riesco a copiare negli appunti: " + ex.Message,
@@ -620,8 +615,10 @@ namespace Campanella
                 "anche la posta della scuola: le etichette nascono tutte li' dentro " +
                 "(Scuola/Circolari, Scuola/Colleghi...), restano separate dal resto e si tolgono " +
                 "in un colpo solo.\r\n\r\n" +
-                "Il prezzo dei nomi diretti: ANNULLA_etichettatura toglierebbe quelle etichette " +
-                "anche dai messaggi a cui le avevi messe tu, perche' non puo' distinguerli."));
+                "Il prezzo dei nomi diretti: sulle etichette che avevi gia', ANNULLA_etichettatura " +
+                "non puo' distinguere i messaggi etichettati da te da quelli etichettati dallo " +
+                "script. Per non toccare i tuoi le lascia come sono e te lo dice: svuota solo le " +
+                "etichette che ha creato lo script."));
             lblPrefisso = Tema.Testo1("", 346, y + 4, 480, Tema.Piccolo, Ruolo.Tenue);
             lblPrefisso.Height = 20;
             p.Controls.Add(lblPrefisso);
@@ -805,9 +802,10 @@ namespace Campanella
                 "Alla fine, in basso, leggi il registro con il conteggio dei messaggi.",
                 new string[] { }, new EventHandler[] { });
 
-            Cartellino(5, "Crea le etichette",
-                "Scegli la funzione  PASSO_2_creaEtichette  e premi Esegui. In Gmail compaiono le " +
-                "etichette vuote, nella colonna di sinistra.",
+            Cartellino(5, "Guarda le etichette che nasceranno",
+                "Scegli la funzione  PASSO_2_creaEtichette  e premi Esegui. In modalita' prova non " +
+                "crea niente: nel registro elenca le etichette che nasceranno. Le crea davvero il " +
+                "passo 6, quando togli la prova; da li' le vedi in Gmail, nella colonna di sinistra.",
                 new string[] { "Apri Gmail" },
                 new EventHandler[] { delegate { Guscio.Apri("https://mail.google.com/"); } });
 
@@ -830,7 +828,8 @@ namespace Campanella
                 "Nell'editor, colonna di sinistra, alla voce \"Servizi\" premi il \"+\", scegli " +
                 "\"Gmail API\" e conferma. Poi esegui  EXTRA_creaFiltriGmail. Cosi' lo smistamento " +
                 "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
-                "filtro non sa escludere chi e' gia' fra i Colleghi. Se poi cambi una regola, il " +
+                "filtro non sa escludere chi e' gia' fra i Colleghi. Con la modalita' prova accesa " +
+                "non crea niente. Se poi cambi una regola, il " +
                 "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri).",
                 new string[] { }, new EventHandler[] { });
 
@@ -919,7 +918,9 @@ namespace Campanella
                 { "Ho sbagliato: come torno indietro?",
                   "Esegui ANNULLA_etichettatura: ferma il riordino se sta ancora lavorando e toglie " +
                   "dalle conversazioni le etichette delle regole accese (quelle delle regole spente " +
-                  "le nomina ma non le tocca). Con molta posta il tempo di Google finisce prima e lo " +
+                  "le nomina ma non le tocca). Senza gruppo toglie solo le etichette che ha creato " +
+                  "lo script: quelle che avevi gia' in Gmail le nomina e le lascia come sono. " +
+                  "Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
                   "(Gmail -> Impostazioni -> Filtri). Nulla viene mai cancellato, quindi non si perde posta." },
@@ -940,11 +941,13 @@ namespace Campanella
                   "Se hai creato i filtri veri di Gmail con una versione di Campanella precedente " +
                   "alla 1.4.6, c'e' anche un filtro \"Studenti\" su tutto il dominio: cancellalo in " +
                   "Gmail -> Impostazioni -> Filtri." },
-                { "Il registro dice \"Logging output too large. Truncating output.\"",
-                  "Non e' un errore: e' Google che accorcia quello che lo script scrive nel " +
-                  "registro. Succede con EXTRA_elencaIndirizziScuola, che di indirizzi ne trova " +
-                  "centinaia. L'elenco intero non passa da li': arriva nell'email che lo script " +
-                  "manda a te stesso, con oggetto \"[Organizzazione Gmail] Indirizzi ...\"." },
+                { "Dove trovo l'elenco di EXTRA_elencaIndirizziScuola?",
+                  "Nell'email che lo script manda a te stesso, con oggetto \"[Organizzazione " +
+                  "Gmail] Indirizzi ...\". Nel registro dell'editor resta solo quanti ne ha " +
+                  "trovati: l'elenco ci finisce, a blocchi, soltanto se l'email non e' partita. " +
+                  "Il registro delle esecuzioni Google lo conserva per un po': se ci e' finito " +
+                  "l'elenco, sappi che resta li'. Se compare \"Logging output too large\" non e' " +
+                  "un errore: e' Google che accorcia le scritte lunghe." },
                 { "Quanto tempo ci mette?",
                   "Dipende da quanta posta hai. Indicativamente un migliaio di conversazioni al " +
                   "minuto. Con caselle molto grandi lo script lavora a riprese, in automatico, " +
@@ -1043,6 +1046,10 @@ namespace Campanella
             Regex reEmail = new Regex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}");
             Regex reRuolo = new Regex(@"^[^\w]*([\p{Lu}][\p{Lu}\s\.'\-]{2,})\s*\(\s*\d+\s*\)\s*$");
             string ruoloCorrente = "";
+            // Le righe dell'email di EXTRA_elencaIndirizziScuola (indirizzo, nome,
+            // quanti messaggi): sono tutti gli indirizzi del dominio visti nella
+            // casella, studenti compresi. Senza un ruolo partono senza spunta.
+            List<Persona> dallaCasella = new List<Persona>();
 
             string[] righe = testo.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
             foreach (string rigaGrezza in righe)
@@ -1092,6 +1099,7 @@ namespace Campanella
                         p.Email = reEmail.Match(campi[0]).Value.ToLowerInvariant();
                         p.Nome = (campi.Length > 1) ? PulisciNome(campi[1]) : "";
                         p.Ruolo = ruoloCorrente;
+                        if (campi.Length > 2 && Regex.IsMatch(campi[2], @"^\d+$")) dallaCasella.Add(p);
                     }
                     else
                     {
@@ -1120,6 +1128,11 @@ namespace Campanella
                         if (dentro.Count == 0) continue;
                         string resto = spezzone;
                         foreach (Match m in dentro) resto = resto.Replace(m.Value, " ");
+                        // la stessa riga dell'email dello script, se copiando le
+                        // tabulazioni sono diventate spazi: "indirizzo nome 12"
+                        bool casella = dentro.Count == 1 && spezzone.TrimStart().StartsWith(dentro[0].Value) &&
+                                       Regex.IsMatch(resto, @"\s\d+\s*$");
+                        if (casella) resto = Regex.Replace(resto, @"\s\d+\s*$", "");
                         string nome = (dentro.Count == 1) ? PulisciNome(resto) : "";
                         foreach (Match m in dentro)
                         {
@@ -1128,6 +1141,7 @@ namespace Campanella
                             p.Nome = nome;
                             p.Ruolo = ruoloCorrente;
                             fuori.Add(p);
+                            if (casella) dallaCasella.Add(p);
                             nome = "";
                         }
                     }
@@ -1149,8 +1163,9 @@ namespace Campanella
 
             foreach (Persona p in fuori)
             {
-                if (p.Ruolo == "") p.Ruolo = "Non specificato";
-                p.Incluso = !RuoloDaEscludere(p.Ruolo);
+                bool senzaRuolo = (p.Ruolo == "");
+                if (senzaRuolo) p.Ruolo = "Non specificato";
+                p.Incluso = !RuoloDaEscludere(p.Ruolo) && !(senzaRuolo && dallaCasella.Contains(p));
             }
             return fuori;
         }
@@ -1548,7 +1563,11 @@ namespace Campanella
                 "nelle cinque categorie che servono alle sottoetichette di Gmail.\n" +
                 "Nella Console restano stampati il riepilogo per categoria e il\n" +
                 "blocco CSV: se gli appunti non funzionano, seleziona quel blocco,\n" +
-                "copialo a mano e incollalo lo stesso con \"Incolla elenco\".\n\n" +
+                "copialo a mano e incollalo lo stesso con \"Incolla elenco\".\n" +
+                "Solo in quel caso la funzione scarica anche personale_spaggiari.csv\n" +
+                "nella cartella dei download: lo carichi con \"Incolla elenco\" ->\n" +
+                "\"Apri un file...\", e poi lo cancelli, perche' contiene nomi e\n" +
+                "indirizzi dei colleghi.\n\n" +
                 "Se il browser chiede di scrivere \"consentimi\" (o \"allow pasting\")\n" +
                 "prima di poter incollare nella Console, scrivilo e premi Invio:\n" +
                 "e' una protezione di Chrome, va fatto una volta sola.";
@@ -1585,6 +1604,9 @@ namespace Campanella
                 {
                     string testo = Guscio.LeggiRisorsa("estensione_" + f);
                     if (testo == "") throw new Exception("manca la risorsa " + f + ": ricompila l'applicazione");
+                    // la versione di chi l'ha scritta: in chrome://extensions si riconosce una copia vecchia
+                    if (f == "manifest.json")
+                        testo = GeneratorePosta.ManifestEstensione(testo, Aggiornamenti.VersioneCampanella);
                     File.WriteAllText(Path.Combine(cartella, f), testo, new UTF8Encoding(false));
                 }
             }
@@ -1613,9 +1635,14 @@ namespace Campanella
                 "3.  Scorre la pagina da sola, legge nominativi, ruoli e indirizzi e\n" +
                 "    li mostra: premi \"Copia\", torna qui e premi \"Incolla elenco\".\n\n" +
                 "L'estensione legge solo quello che vedi gia' tu sullo schermo, non\n" +
-                "manda niente a nessuno e non ha bisogno del Web Store. Se la\n" +
-                "cartella sta nel Drive, la ritrovi uguale su tutti i computer\n" +
-                "(su ognuno va caricata una volta da chrome://extensions).\n\n" +
+                "manda niente a nessuno e non ha bisogno del Web Store. Lavora solo\n" +
+                "sulle pagine di ClasseViva (spaggiari.eu): su ogni altra pagina non\n" +
+                "fa niente e te lo dice. Se la cartella sta nel Drive, la ritrovi\n" +
+                "uguale su tutti i computer (su ognuno va caricata una volta da\n" +
+                "chrome://extensions).\n\n" +
+                "In chrome://extensions porta la versione di Campanella che l'ha\n" +
+                "scritta (" + Aggiornamenti.VersioneCampanella + "). Con una Campanella piu' nuova premi di\n" +
+                "nuovo \"Estensione...\" e poi, in chrome://extensions, \"Ricarica\".\n\n" +
                 "Le condizioni d'uso di ClasseViva non vietano gli script, ma vietano\n" +
                 "di scaricare e riformattare i contenuti della piattaforma senza\n" +
                 "permesso: usala una volta, per il tuo elenco, non in modo sistematico.\n" +
@@ -1643,17 +1670,21 @@ namespace Campanella
                 "    l'oggetto \"[Organizzazione Gmail] Indirizzi ...\".\n" +
                 "4.  Apri quella email, seleziona l'elenco e copialo.\n" +
                 "5.  Torna qui e premi \"Incolla elenco\".\n\n" +
-                "Il registro dell'editor mostra solo quanti ne ha trovati: se\n" +
-                "scrive \"Logging output too large\" non e' un errore, l'elenco\n" +
-                "intero sta nell'email.\n\n" +
+                "Il registro dell'editor mostra solo quanti ne ha trovati:\n" +
+                "l'elenco sta nell'email, e nel registro finisce (a blocchi)\n" +
+                "soltanto se l'email non e' partita.\n\n" +
                 "LO STESSO ELENCO SERVE A CONTROLLARE\n" +
                 "Se l'elenco del personale lo hai gia' preso dal registro, gli\n" +
                 "indirizzi costruiti dai nomi sono solo un'ipotesi. Premi\n" +
                 "\"Controlla gli indirizzi...\": incolli questa stessa email e\n" +
                 "Campanella corregge da sola quelli che puo' attribuire senza\n" +
                 "dubbi, segnalando gli altri. Nessuno viene aggiunto all'elenco.\n\n" +
-                "Nell'elenco ci sono anche gli studenti: qui nella tabella togli\n" +
-                "la spunta a chi non e' personale, oppure usa i ruoli a sinistra.";
+                "Nell'elenco ci sono anche gli studenti: per questo gli indirizzi\n" +
+                "arrivano in tabella senza spunta. Prima togli le righe degli\n" +
+                "studenti (selezionale e premi \"Togli le righe selezionate\"):\n" +
+                "le righe senza spunta non vanno nello script, ma restano\n" +
+                "salvate nell'elenco. Poi metti la spunta ai colleghi, anche\n" +
+                "tutti insieme con \"Non specificato\" fra i ruoli a sinistra.";
             using (FormTesto f = new FormTesto("Indirizzi dalla casella", guida, null, null))
                 f.ShowDialog(this);
         }
@@ -1766,237 +1797,21 @@ namespace Campanella
 
         // ===================================================================
         //  GENERAZIONE
+        //  Il testo lo scrive GeneratorePosta, che lavora solo sui dati: qui
+        //  si raccolgono i valori dei controlli nello Stato e basta.
         // ===================================================================
-        static List<string> Righe(string testo)
-        {
-            List<string> fuori = new List<string>();
-            if (string.IsNullOrEmpty(testo)) return fuori;
-            foreach (string p in testo.Split(new char[] { '\r', '\n', ',', ';', ' ', '\t' },
-                                             StringSplitOptions.RemoveEmptyEntries))
-            {
-                string s = p.Trim();
-                if (s != "" && !fuori.Contains(s)) fuori.Add(s);
-            }
-            return fuori;
-        }
-
-        static string Js(string s)
-        {
-            return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
-                            .Replace("\r", "").Replace("\n", "\\n");
-        }
-
-        static string ListaJs(List<string> valori)
-        {
-            if (valori.Count == 0) return "[]";
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < valori.Count; i++)
-            {
-                if (i > 0) sb.Append(", ");
-                sb.Append("\"").Append(Js(valori[i])).Append("\"");
-            }
-            return sb.Append("]").ToString();
-        }
-
-        static string SoloUnaRiga(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
+        static List<string> Righe(string testo) { return GeneratorePosta.Righe(testo); }
 
         public string GeneraConfigurazione() { return GeneraConfigurazione(chkProva.Checked); }
 
         public string GeneraConfigurazione(bool prova)
         {
             Raccogli();
-            List<string> indirizzi = S.IndirizziPersonale();
-            int mesi = 0;
-            if (cmbPeriodo.SelectedIndex == 1) mesi = 12;
-            else if (cmbPeriodo.SelectedIndex == 2) mesi = 24;
-            else if (cmbPeriodo.SelectedIndex == 3) mesi = 36;
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("/* =========================================================================");
-            sb.AppendLine("   CONFIGURAZIONE DI \"ORGANIZZAZIONE GMAIL\"");
-            sb.AppendLine("   Generata il " + DateTime.Now.ToString("dd/MM/yyyy HH:mm") +
-                          " dall'applicazione Campanella.");
-            sb.AppendLine();
-            sb.AppendLine("   Puoi modificare i valori a mano: sono tutti scritti in chiaro.");
-            sb.AppendLine("   Dopo ogni modifica salva con Ctrl+S.");
-            sb.AppendLine("   ========================================================================= */");
-            sb.AppendLine();
-            sb.AppendLine("var CONFIG = {");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- la tua scuola ---------------------------------------------------");
-            sb.AppendLine("  dominioScuola:     \"" + Js(S.DominioPulito()) + "\",");
-            sb.AppendLine("  prefissoEtichette: \"" + Js(S.PrefissoPulito()) + "\",");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- come lavorare ---------------------------------------------------");
-            sb.AppendLine("  provaSenzaModifiche: " + (prova ? "true" : "false") +
-                          ",   // true = conta soltanto, non tocca niente");
-            sb.AppendLine("  soloUltimiMesi:      " + mesi + ",       // 0 = tutta la posta");
-            sb.AppendLine("  ogniQuanteOre:       " + (int)numOre.Value + ",");
-            sb.AppendLine("  giorniPostaNuova:    3,");
-            sb.AppendLine("  inviaReport:         " + (chkReport.Checked ? "true" : "false") + ",");
-            sb.AppendLine("  escludiPostaInviata: " + (chkEscludiInviata.Checked ? "true" : "false") + ",");
-            sb.AppendLine("  escludiGiaArchiviati: false,");
-            sb.AppendLine("  anniDaEsaminare:     3,       // per EXTRA_elencaIndirizziScuola");
-            sb.AppendLine();
-            sb.AppendLine("  // ---- il personale della scuola (" + indirizzi.Count + " indirizzi) ----");
-            if (indirizzi.Count == 0)
-            {
-                sb.AppendLine("  //  ATTENZIONE: elenco vuoto. La regola \"Colleghi\" non fara' niente e");
-                sb.AppendLine("  //  tutta la posta del dominio finira' sotto \"Studenti\".");
-                sb.AppendLine("  personale: [],");
-            }
-            else
-            {
-                sb.AppendLine("  personale: [");
-                Dictionary<string, string> nota = new Dictionary<string, string>();
-                foreach (Persona p in S.Personale)
-                {
-                    string e = (p.Email ?? "").Trim().ToLowerInvariant();
-                    if (e == "" || nota.ContainsKey(e)) continue;
-                    string n = p.Nome;
-                    if (p.Ruolo != "" && p.Ruolo != "Non specificato")
-                        n = (n == "" ? "" : n + " - ") + p.Ruolo;
-                    nota[e] = n;
-                }
-                int larghezza = 0;
-                foreach (string a in indirizzi) if (a.Length > larghezza) larghezza = a.Length;
-                for (int i = 0; i < indirizzi.Count; i++)
-                {
-                    string virgola = (i < indirizzi.Count - 1) ? "," : " ";
-                    string riga = "    \"" + Js(indirizzi[i]) + "\"" + virgola;
-                    string commento = nota.ContainsKey(indirizzi[i]) ? nota[indirizzi[i]] : "";
-                    if (commento != "")
-                    {
-                        while (riga.Length < larghezza + 9) riga += " ";
-                        riga += "  // " + SoloUnaRiga(commento);
-                    }
-                    sb.AppendLine(riga.TrimEnd());
-                }
-                sb.AppendLine("  ],");
-            }
-            // ---- lo stesso personale, diviso per ruolo ----
-            Dictionary<string, List<string>> gruppi = S.EtichettaPerRuolo
-                ? S.GruppiPerRuolo() : new Dictionary<string, List<string>>();
-            if (gruppi.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("  // ---- lo stesso personale, diviso per ruolo ---------------------------");
-                sb.AppendLine("  //  Da qui nascono le sottoetichette " + EtichettaColleghi() + "/Docenti,");
-                sb.AppendLine("  //  " + EtichettaColleghi() + "/Amministrativi e cosi' via.");
-                sb.AppendLine("  gruppi: {");
-                List<string> nomi = CategoriePresenti(gruppi);
-                for (int g = 0; g < nomi.Count; g++)
-                {
-                    List<string> dentro = gruppi[nomi[g]];
-                    sb.AppendLine("    \"" + Js(nomi[g]) + "\": [        // " + dentro.Count +
-                                  (dentro.Count == 1 ? " indirizzo" : " indirizzi"));
-                    for (int k = 0; k < dentro.Count; k += 3)
-                    {
-                        List<string> pezzo = new List<string>();
-                        for (int j = k; j < Math.Min(k + 3, dentro.Count); j++)
-                            pezzo.Add("\"" + Js(dentro[j]) + "\"");
-                        bool ultima = (k + 3 >= dentro.Count);
-                        sb.AppendLine("      " + string.Join(", ", pezzo.ToArray()) + (ultima ? "" : ","));
-                    }
-                    sb.AppendLine("    ]" + (g < nomi.Count - 1 ? "," : ""));
-                }
-                sb.AppendLine("  },");
-            }
-
-            sb.AppendLine();
-            sb.AppendLine("  // ---- le regole --------------------------------------------------------");
-            sb.AppendLine("  //  Le etichette si sommano: un messaggio puo' prenderne piu' d'una.");
-            sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti va sotto le regole");
-            sb.AppendLine("  //  che esclude (Colleghi, Dirigenza, Segreteria).");
-            sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   ·   @DOMINIO@ = tutto il dominio");
-            if (gruppi.Count > 0)
-                sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
-            sb.AppendLine("  regole: [");
-
-            List<string> blocchi = new List<string>();
-            for (int i = 0; i < S.Regole.Count; i++)
-            {
-                Regola r = S.Regole[i];
-                List<string> da;
-                if (r.Sorgente == "dirigenza") da = Righe(S.Dirigenza);
-                else if (r.Sorgente == "segreteria") da = Righe(S.Segreteria);
-                else if (r.Sorgente == "registro") da = Righe(S.Registro);
-                else da = new List<string>(r.Da);
-
-                bool inutile = da.Count == 0 && r.Oggetto.Count == 0 &&
-                               r.Contiene.Count == 0 && r.QueryLibera == "";
-                bool attiva = r.Attiva && !inutile;
-                if (da.Count == 1 && da[0] == "@DOMINIO@" && S.DominioPulito() == "") attiva = false;
-                // senza elenco del personale, Colleghi non ha nessuno da riconoscere
-                if (da.Count == 1 && da[0] == "@PERSONALE@" && indirizzi.Count == 0) attiva = false;
-
-                StringBuilder b = new StringBuilder();
-                b.AppendLine("    {");
-                b.AppendLine("      attiva:    " + (attiva ? "true" : "false") + ",");
-                b.AppendLine("      etichetta: \"" + Js(r.Etichetta) + "\",");
-                if (da.Count > 0) b.AppendLine("      da:        " + ListaJs(da) + ",");
-                if (r.Oggetto.Count > 0) b.AppendLine("      oggetto:   " + ListaJs(r.Oggetto) + ",");
-                if (r.Contiene.Count > 0) b.AppendLine("      contiene:  " + ListaJs(r.Contiene) + ",");
-                if (r.QueryLibera != "") b.AppendLine("      queryLibera: \"" + Js(r.QueryLibera) + "\",");
-                if (r.EscludiEtichette.Count > 0)
-                    b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
-                if (r.Archivia) b.AppendLine("      archivia:  true,");
-                if (r.SegnaComeLette) b.AppendLine("      segnaComeLette: true,");
-                b.AppendLine("      nota:      \"" + Js(SoloUnaRiga(r.Descrizione)) + "\"");
-                b.Append("    }");
-                blocchi.Add(b.ToString());
-
-                // subito sotto ai colleghi vanno le sottoetichette dei ruoli:
-                // chi ci finisce dentro e' un sottoinsieme di quella regola
-                if (gruppi.Count > 0 && EtichettaColleghi() == r.Etichetta)
-                    foreach (string nome in CategoriePresenti(gruppi))
-                        blocchi.Add(BloccoRuolo(r.Etichetta, nome, gruppi[nome].Count));
-            }
-            if (gruppi.Count > 0 && !ColleghiInElenco())
-                foreach (string nome in CategoriePresenti(gruppi))
-                    blocchi.Add(BloccoRuolo(EtichettaColleghi(), nome, gruppi[nome].Count));
-
-            sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
-            sb.AppendLine("  ]");
-            sb.AppendLine("};");
-            return sb.ToString();
+            return GeneratorePosta.Configurazione(S, prova, DateTime.Now);
         }
 
         /// <summary>L'etichetta sotto cui mettere i ruoli: quella dei colleghi.</summary>
-        string EtichettaColleghi()
-        {
-            foreach (Regola r in S.Regole)
-                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return r.Etichetta;
-            return "Colleghi";
-        }
-
-        bool ColleghiInElenco()
-        {
-            foreach (Regola r in S.Regole)
-                if (r.Etichetta.Trim().ToLowerInvariant() == "colleghi") return true;
-            return false;
-        }
-
-        static List<string> CategoriePresenti(Dictionary<string, List<string>> gruppi)
-        {
-            List<string> fuori = new List<string>();
-            foreach (string c in Stato.Categorie) if (gruppi.ContainsKey(c)) fuori.Add(c);
-            return fuori;
-        }
-
-        static string BloccoRuolo(string baseEtichetta, string categoria, int quanti)
-        {
-            StringBuilder b = new StringBuilder();
-            b.AppendLine("    {");
-            b.AppendLine("      attiva:    true,");
-            b.AppendLine("      etichetta: \"" + Js(baseEtichetta + "/" + categoria) + "\",");
-            b.AppendLine("      da:        [\"@GRUPPO:" + Js(categoria) + "@\"],");
-            b.AppendLine("      nota:      \"" + Js(categoria + ": " + quanti +
-                         (quanti == 1 ? " indirizzo" : " indirizzi") +
-                         " dall'elenco del personale.") + "\"");
-            b.Append("    }");
-            return b.ToString();
-        }
+        string EtichettaColleghi() { return GeneratorePosta.EtichettaColleghi(S.Regole); }
 
         string RiepilogoEtichette()
         {
@@ -2017,7 +1832,7 @@ namespace Campanella
                 sb.AppendLine((prefisso != "" ? "  +-- " : "") + r.Etichetta +
                               (r.Archivia ? "      (i messaggi escono dalla Posta in arrivo)" : ""));
                 if (gruppiEtichette.Count > 0 && EtichettaColleghi() == r.Etichetta)
-                    foreach (string c in CategoriePresenti(gruppiEtichette))
+                    foreach (string c in GeneratorePosta.CategoriePresenti(gruppiEtichette))
                     {
                         n++;
                         sb.AppendLine((prefisso != "" ? "  |     " : "  ") + "+-- " + c +

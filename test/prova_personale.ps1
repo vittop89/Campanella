@@ -43,6 +43,22 @@ function Leggi($p, $campo) { return $tPersona.GetField($campo, $FI).GetValue($p)
 function Analizza($testo) { return $mAnalizza.Invoke($null, @([string]$testo)) }
 function Categoria($ruolo) { return $mCategoria.Invoke($null, @([string]$ruolo)) }
 
+# Uno Stato senza costruttore: "new Stato()" cerca il Drive vero del PC, e
+# una prova non deve nemmeno guardarci. Il Drive e la cartella dei dati sono
+# una cartella temporanea, e l'elenco del personale parte vuoto.
+$temporanea = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-posta-personale-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $temporanea | Out-Null
+$tListaPersone = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tPersona)
+function NuovoStato {
+    $s = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tStato)
+    $tStato.GetField('Drive', $FI).SetValue($s, $temporanea)
+    $tStato.GetField('CartellaDati', $FI).SetValue($s, $temporanea)
+    $tStato.GetField('DatiNelDrive', $FI).SetValue($s, $false)
+    $tStato.GetField('Dominio', $FI).SetValue($s, '')
+    $tStato.GetField('Personale', $FI).SetValue($s, [Activator]::CreateInstance($tListaPersone))
+    return $s
+}
+
 # ---------------------------------------------------------------------------
 Intestazione 'I RUOLI VERI DEL REGISTRO, RADUNATI IN CATEGORIE'
 $attesi = @{
@@ -59,6 +75,21 @@ foreach ($r in $attesi.Keys) {
     Verifica "$r -> $($attesi[$r])" ((Categoria $r) -eq $attesi[$r])
 }
 Verifica "il maiuscolo non conta" ((Categoria 'Docente laureato scuola secondaria II grado') -eq 'Docenti')
+
+# le stesse categorie le calcolano anche l'estensione e la funzione da console,
+# ognuna con la sua copia: test/invarianti_script.js le fa girare su una
+# pagina finta, e qui si confrontano con quelle del C#
+$js = (& node (Join-Path $radice 'test\invarianti_script.js') --categorie) | ConvertFrom-Json
+Verifica "estensione e funzione da console rispondono" ($LASTEXITCODE -eq 0 -and $js.ruoli.Count -ge 15)
+$diverse = @()
+for ($i = 0; $i -lt $js.ruoli.Count; $i++) {
+    $cs = Categoria $js.ruoli[$i]
+    if ($js.estensione[$i] -ne $cs -or $js.console[$i] -ne $cs) {
+        $diverse += "$($js.ruoli[$i]): C# '$cs', estensione '$($js.estensione[$i])', console '$($js.console[$i])'"
+    }
+}
+Verifica "C#, estensione e funzione da console danno la stessa categoria a ogni ruolo ($($js.ruoli.Count))" ($diverse.Count -eq 0)
+$diverse | ForEach-Object { Write-Host "          $_" }
 Verifica "un ruolo che non conosco non inventa categorie" ((Categoria 'Ruolo non specificato') -eq '')
 Verifica "gli studenti non sono una categoria del personale" ((Categoria 'Studente') -eq '')
 
@@ -123,10 +154,32 @@ Verifica "sono gli indirizzi giusti" ((Leggi $p[1] 'Email') -eq 'b.due@scuola.ed
 $p = Analizza "Mario Rossi <m.rossi@scuola.edu.it>"
 Verifica "nome e indirizzo fra parentesi angolari" (
     (Leggi $p[0] 'Email') -eq 'm.rossi@scuola.edu.it' -and (Leggi $p[0] 'Nome') -eq 'Mario Rossi')
+Verifica "un indirizzo della rubrica parte con la spunta" ((Leggi $p[0] 'Incluso') -eq $true)
+
+# ---------------------------------------------------------------------------
+Intestazione 'GLI INDIRIZZI PRESI DALLA CASELLA PARTONO SENZA SPUNTA'
+# l'email di EXTRA_elencaIndirizziScuola: indirizzo, nome, quanti messaggi.
+# Dentro ci sono anche gli studenti, e senza un ruolo nessuno puo' dire chi e' chi.
+$casella = "INDIRIZZO`tNOME`tN. MESSAGGI`n" +
+           "mario.rossi@scuola.edu.it`tMario Rossi`t41`n" +
+           "studente.uno@scuola.edu.it`t`t3"
+$p = Analizza $casella
+Verifica "due righe, l'intestazione salta" ($p.Count -eq 2)
+Verifica "nessuna parte con la spunta" (
+    (Leggi $p[0] 'Incluso') -eq $false -and (Leggi $p[1] 'Incluso') -eq $false)
+Verifica "il nome resta, senza il numero dei messaggi" ((Leggi $p[0] 'Nome') -eq 'Mario Rossi')
+# copiata dal browser, a volte le tabulazioni diventano spazi
+$p = Analizza "mario.rossi@scuola.edu.it   Mario Rossi   41"
+Verifica "anche con gli spazi al posto delle tabulazioni" (
+    $p.Count -eq 1 -and (Leggi $p[0] 'Incluso') -eq $false -and (Leggi $p[0] 'Nome') -eq 'Mario Rossi' -and
+    (Leggi $p[0] 'Email') -eq 'mario.rossi@scuola.edu.it')
+# chi arriva dal registro, con il suo ruolo, parte con la spunta come prima
+$p = Analizza "ROSSI MARIO`tDOCENTE LAUREATO SCUOLA SECONDARIA II GRADO`tm.rossi@scuola.edu.it"
+Verifica "chi ha un ruolo del personale parte con la spunta" ((Leggi $p[0] 'Incluso') -eq $true)
 
 # ---------------------------------------------------------------------------
 Intestazione 'DALL"ELENCO AI GRUPPI CHE FINISCONO IN GMAIL'
-$stato = [Activator]::CreateInstance($tStato)
+$stato = NuovoStato
 $personale = $tStato.GetField('Personale', $FI).GetValue($stato)
 foreach ($riga in @(
     @('ROSSI MARIO',   'ASSISTENTE AMMINISTRATIVO',                    'm.rossi@scuola.edu.it'),
@@ -177,7 +230,7 @@ Verifica "le cifre in coda non contano: m.rossi2@"         (Stessa 'ROSSI MARIO'
 
 # ---------------------------------------------------------------------------
 Intestazione 'IL CONFRONTO CON GLI INDIRIZZI VERI DELLA CASELLA'
-$stato2 = [Activator]::CreateInstance($tStato)
+$stato2 = NuovoStato
 $tStato.GetField('Dominio', $FI).SetValue($stato2, 'scuola.edu.it')
 $elenco = $tStato.GetField('Personale', $FI).GetValue($stato2)
 function Aggiungi($lista, $nome, $ruolo, $mail) {
@@ -229,7 +282,7 @@ Verifica "la segreteria non viene attaccata a nessuno" (
     @($elenco | ForEach-Object { $tPersona.GetField('Email', $FI).GetValue($_) }) -notcontains 'segreteria@scuola.edu.it')
 
 # due omonimi: meglio non scegliere a caso
-$stato3 = [Activator]::CreateInstance($tStato)
+$stato3 = NuovoStato
 $elenco3 = $tStato.GetField('Personale', $FI).GetValue($stato3)
 $amb = Aggiungi $elenco3 'ROSSI MARIO' 'DOCENTE' ''
 $veri3 = [Activator]::CreateInstance($tLista)
@@ -241,6 +294,8 @@ $esito3 = $tStato.GetMethod('ConfrontaConLaCasella', $FI).Invoke($stato3, $arg3)
 Verifica "due indirizzi possibili: non sceglie" ((Campo $esito3 'Ambigui') -eq 1)
 Verifica "e lascia la casella vuota com'era" (
     ($tPersona.GetField('Email', $FI).GetValue($amb)) -eq '')
+
+Remove-Item -Recurse -Force $temporanea
 
 # ---------------------------------------------------------------------------
 Write-Host ""
