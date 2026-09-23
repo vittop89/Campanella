@@ -264,6 +264,17 @@ namespace Campanella
             return r;
         }
 
+        /// <summary>
+        /// L'avviso che sta al posto dei mittenti nelle regole che li prendono da
+        /// "La tua scuola" (lo stesso testo del costruttore). Componi non rilegge
+        /// quella casella, ma se il testo arrivasse qui non deve diventare un mittente.
+        /// </summary>
+        const string AvvisoMittenti = "(i mittenti di questa regola si scrivono nella pagina \"La tua scuola\")";
+
+        /// <summary>
+        /// Una voce per riga, senza doppioni. Salta solo l'avviso qui sopra, non
+        /// ogni riga che comincia con "(": "(urgente)" e' una parola dell'oggetto.
+        /// </summary>
         static List<string> Spezza(string testo)
         {
             List<string> fuori = new List<string>();
@@ -271,7 +282,7 @@ namespace Campanella
             foreach (string riga in testo.Replace("\r\n", "\n").Split('\n'))
             {
                 string s = riga.Trim();
-                if (s == "" || s.StartsWith("(")) continue;
+                if (s == "" || s == AvvisoMittenti) continue;
                 if (!fuori.Contains(s)) fuori.Add(s);
             }
             return fuori;

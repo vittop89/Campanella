@@ -195,6 +195,16 @@ try {
     Verifica "i due indirizzi ci sono" ($letta.CONFIG.personale.Count -eq 2)
 
     # -----------------------------------------------------------------------
+    Intestazione 'LE PAROLE DELL''OGGETTO DI UNA REGOLA'
+    $mSpezza = $asm.GetType('Campanella.FormRegola').GetMethod('Spezza', $FS)
+    $parole = $mSpezza.Invoke($null, @([string]"(urgente)`r`nverbale`r`n`r`n(urgente)`r`n  consiglio di classe  "))
+    Verifica "una parola fra parentesi resta, una volta sola" (
+        $parole.Count -eq 3 -and $parole[0] -eq '(urgente)' -and $parole[1] -eq 'verbale' -and
+        $parole[2] -eq 'consiglio di classe')
+    $avviso = $mSpezza.Invoke($null, @([string]'(i mittenti di questa regola si scrivono nella pagina "La tua scuola")'))
+    Verifica "l'avviso al posto dei mittenti non diventa un mittente" ($avviso.Count -eq 0)
+
+    # -----------------------------------------------------------------------
     Intestazione 'UNA SOLA FUNZIONE DI ESCAPE PER JAVASCRIPT'
     $pagina = Get-Content -Raw (Join-Path $radice 'src\PaginaPosta.cs')
     $generatore = Get-Content -Raw (Join-Path $radice 'src\GeneratorePosta.cs')
