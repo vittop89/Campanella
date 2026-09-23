@@ -31,16 +31,19 @@ function Verifica($testo, $ok) {
     else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
 }
 
-# Le impostazioni: mai quelle vere, e mai il Drive vero. Oggi "new Stato()"
-# punta da solo al Drive del computer: lo sposto subito su cartelle finte in
-# %TEMP%. Il Drive finto ha MODELLI e un modulo, cosi' ne' la pagina iniziale
-# ne' Cartelle vanno a cercare negli altri Drive del computer.
+# Le impostazioni: mai quelle vere, e mai il Drive vero. Lo Stato nasce con
+# il Drive vuoto e lo metto su cartelle finte in %TEMP%. Il Drive finto ha
+# MODELLI e un modulo, cosi' ne' la pagina iniziale ne' Cartelle vanno a
+# cercare negli altri Drive del computer.
 $tStato = $asm.GetType('Campanella.Stato')
 $FS = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
 $FI = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
 $prova = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-guscio-disposizione-' + (Get-Random))
 $driveFinto = Join-Path $prova 'Il mio Drive'
 New-Item -ItemType Directory -Force (Join-Path $driveFinto 'MODELLI') | Out-Null
+# campanella.json, e la prova di scrittura delle Impostazioni, nella cartella
+# della prova: altrimenti "accanto al programma" e' accanto a powershell.exe
+$tStato.GetField('CartellaDiProva', $FS).SetValue($null, $prova)
 Set-Content -Path (Join-Path $driveFinto 'MODELLI\Modulo di prova.gform') -Value '{}'
 $stato = [Activator]::CreateInstance($tStato)
 $tStato.GetField('Drive', $FI).SetValue($stato, $driveFinto)

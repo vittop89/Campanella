@@ -90,6 +90,10 @@ $sezioni = [System.Security.AccessControl.AccessControlSections]::Access
 
 New-Item -ItemType Directory -Path $dove | Out-Null
 Copy-Item $exe -Destination $dove
+# un campanella.json che dice gia' dov'e' il Drive (una cartella finta che non
+# c'e'): senza, all'avvio Campanella cercherebbe i Drive veri del computer
+$finto = (@{ drive = (Join-Path $dove 'Drive finto') } | ConvertTo-Json)
+[System.IO.File]::WriteAllText((Join-Path $dove 'campanella.json'), $finto, (New-Object System.Text.UTF8Encoding($false)))
 $p = $null
 $divietoMesso = $false
 try {
