@@ -311,9 +311,13 @@ function verifica(descrizione, condizione) {
 
 intestazione('PASSO 1 - anteprima (non deve modificare niente)');
 const etichettePrima = new Set(casella.flatMap(t => [...t.labels]));
-console.log(contesto.PASSO_1_anteprima());
+const anteprima = contesto.PASSO_1_anteprima();
+console.log(anteprima);
 verifica('nessuna etichetta applicata durante l\'anteprima',
   casella.every(t => t.labels.size === 0) && etichettePrima.size === 0);
+verifica('l\'anteprima dice la versione dello script',
+  /Versione dello script: \d+\.\d+\.\d+/.test(anteprima) &&
+  anteprima.indexOf(contesto._POSTA_VERSIONE) >= 0);
 
 intestazione('PASSO 3 in modalita\' prova: conta e basta');
 verifica('la configurazione di partenza e\' in prova', contesto.CONFIG.provaSenzaModifiche === true);

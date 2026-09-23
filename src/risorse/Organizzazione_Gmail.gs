@@ -38,6 +38,9 @@
  *                                    dominio della scuola, per compilare
  *                                    l'elenco del personale nell'applicazione
  *    EXTRA_creaFiltriGmail ......... crea i filtri veri di Gmail (facoltativo)
+ *    EXTRA_codiceStato ............. stampa il codice da incollare in
+ *                                    Campanella (Impostazioni): dice se il
+ *                                    riordino e' fatto
  *
  *    ANNULLA_automazione ........... spegne lo smistamento automatico
  *    ANNULLA_etichettatura ......... toglie dalle mail le etichette applicate
@@ -45,12 +48,16 @@
  *
  *  Le funzioni che finiscono con "_" sono interne: Apps Script non le mostra
  *  nel menu a tendina, cosi' non si lanciano per sbaglio.
+ *
+ *  VERSIONE: la stampano PASSO_1_anteprima ed EXTRA_codiceStato. Se in
+ *  Campanella la versione e' piu' nuova, reincolla questo file.
  * ============================================================================
  */
 
 // ---------------------------------------------------------------------------
 // Limiti e costanti interne
 // ---------------------------------------------------------------------------
+var _POSTA_VERSIONE         = '1.4.6'; // versione di questo file (vedi l'intestazione)
 var _MAX_SECONDI_ESECUZIONE = 260;   // ~4 min 20 s: sotto il limite di Google
 var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
 var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
@@ -68,6 +75,7 @@ function PASSO_1_anteprima() {
   var cfg = _config_();
   var righe = [];
   righe.push('ANTEPRIMA - nessun messaggio verra\' modificato.');
+  righe.push('Versione dello script: ' + _POSTA_VERSIONE);
   righe.push('Account: ' + _mioIndirizzo_());
   righe.push('Dominio scuola: ' + (cfg.dominioScuola || '(non impostato)'));
   righe.push('Persone in elenco: ' + ((cfg.personale || []).length));
@@ -550,7 +558,8 @@ function EXTRA_codiceStato() {
   var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
   var codice = 'CMP1-' + oggi + '-' + nostre + '-' + automazione + '-' + conversazioni;
 
-  var testo = 'Etichette dello strumento: ' + nostre +
+  var testo = 'Versione dello script: ' + _POSTA_VERSIONE +
+              '\nEtichette dello strumento: ' + nostre +
               '\nConversazioni etichettate: ' + conversazioni +
               (conversazioni >= 500 ? ' o piu\'' : '') +
               '\nSmistamento automatico: ' + (automazione ? 'attivo' : 'spento') +
