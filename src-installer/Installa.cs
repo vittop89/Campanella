@@ -118,6 +118,7 @@ namespace Campanella
         Button btnAvanti, btnIndietro, btnEsci;
         Thread lavoro;
         volatile bool interrompi = false;
+        FermoScarico fermo = new FermoScarico();   // chiude lo scarico anche su una rete ferma
         string cartellaInstallata = "";
 
         public FormInstalla()
@@ -188,7 +189,10 @@ namespace Campanella
                             "Interrompere?", MessageBoxButtons.YesNo,
                             MessageBoxIcon.Question) != DialogResult.Yes)
                     { e.Cancel = true; return; }
-                    interrompi = true;
+                    // il thread e' in background: senza aspettarlo moriva con la
+                    // finestra, e l'installer di rizzo-pii a meta' restava in %TEMP%
+                    Interrompi();
+                    lavoro.Join(3000);
                 }
             };
         }
@@ -396,8 +400,16 @@ namespace Campanella
 
         void Chiudi()
         {
-            if (lavoro != null && lavoro.IsAlive) { interrompi = true; return; }
+            if (lavoro != null && lavoro.IsAlive) { Interrompi(); return; }
             Close();
+        }
+
+        /// <summary>Niente rizzo-pii se non e' ancora partito; se si sta
+        /// scaricando, chiude la connessione e il file a meta' viene tolto.</summary>
+        void Interrompi()
+        {
+            interrompi = true;
+            fermo.Ferma();
         }
 
         void Avanti()
@@ -453,6 +465,7 @@ namespace Campanella
 
             VaiA(2);
             interrompi = false;
+            fermo = new FermoScarico();
             AggiornaBottoni();
 
             bool menu = chkMenu.Checked, scrivania = chkScrivania.Checked, rizzo = chkRizzo.Checked;
@@ -575,7 +588,7 @@ namespace Campanella
                                                Math.Round(tot / 1048576.0) + " MB  (" + pc + "%)");
                                     }
                                     return !interrompi;
-                                });
+                                }, fermo);
                         }
                         catch (Exception ex) { errore = ex.Message; }
                         if (errore != null)

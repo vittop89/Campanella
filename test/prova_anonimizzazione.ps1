@@ -255,7 +255,7 @@ Cordiali saluti, Anna Verdi
     New-Item -ItemType Directory -Path $scarichi | Out-Null
     $env:TMP = $scarichi
     $ag = $asm.GetType('Campanella.Aggiornamenti')
-    $scarica = $ag.GetMethod('Scarica')
+    $scarica = $ag.GetMethod('Scarica', [type[]]@([string], [string], [long], [string], [Func[int,long,long,bool]]))
     $sha = [System.Security.Cryptography.SHA256]::Create()
     $giusta = (($sha.ComputeHash((New-Object byte[] 1000000)) | ForEach-Object { $_.ToString('x2') }) -join '')
     $sbagliata = ('0' * 64)
@@ -307,6 +307,103 @@ Cordiali saluti, Anna Verdi
     Verifica "su una rete lenta si ferma in fretta ($($cronometro.ElapsedMilliseconds) ms)" (
         $r7.Errore -eq $null -and $r7.File -eq $null -and $cronometro.ElapsedMilliseconds -lt 3000)
     Verifica '... e non lascia file'               ((Rimasti) -eq 0)
+
+    # una rete ferma: il server manda un pezzo e poi tace, e la lettura resta
+    # bloccata. La domanda "vado avanti?" non arriva piu', e "Ferma lo
+    # scarico" (o Esci nell'installer C#) aspettava i due minuti del timeout.
+    # Adesso chi ferma chiude anche la connessione: lo scarico finisce subito
+    # e il file a meta' se ne va
+    Add-Type -TypeDefinition @'
+public static class AiutoProvaScarico
+{
+    public static object Risultato;
+    public static string Errore;
+
+    /// <summary>Chiama azione fra ms millisecondi da un altro thread: come chi
+    /// preme "Ferma lo scarico" mentre lo scarico aspetta la rete.</summary>
+    public static void Fra(int ms, System.Action azione)
+    {
+        System.Threading.Thread t = new System.Threading.Thread(delegate()
+        {
+            System.Threading.Thread.Sleep(ms);
+            azione();
+        });
+        t.IsBackground = true;
+        t.Start();
+    }
+
+    /// <summary>Uno scarico su un altro thread, come quello delle Impostazioni.</summary>
+    public static System.Threading.Thread InBackground(System.Reflection.MethodInfo m, object[] argomenti)
+    {
+        Risultato = null;
+        Errore = null;
+        System.Threading.Thread t = new System.Threading.Thread(delegate()
+        {
+            try { Risultato = m.Invoke(null, argomenti); }
+            catch (System.Exception ex) { Errore = ex.GetBaseException().Message; }
+        });
+        t.IsBackground = true;
+        t.Start();
+        return t;
+    }
+}
+'@
+    $FI = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+    $tFermo = $asm.GetType('Campanella.FermoScarico')
+    $scaricaFermabile = $null
+    if ($tFermo -ne $null) {
+        $scaricaFermabile = $ag.GetMethod('Scarica', [type[]]@([string], [string], [long], [string],
+                                                               [Func[int,long,long,bool]], $tFermo))
+    }
+    Verifica 'lo scarico si puo'' fermare da un altro thread' ($scaricaFermabile -ne $null)
+    if ($scaricaFermabile -ne $null) {
+        $fermo = [Activator]::CreateInstance($tFermo)
+        [AiutoProvaScarico]::Fra(500, [Delegate]::CreateDelegate([Action], $fermo, 'Ferma'))
+        $r8 = @{ File = $null; Errore = $null }
+        $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $r8.File = $scaricaFermabile.Invoke($null, [object[]]@(
+                "http://127.0.0.1:$Porta/scarico/fermo", 'fermo.exe', [long]0, '', $null, $fermo))
+        } catch { $r8.Errore = $_.Exception.GetBaseException().Message }
+        $cronometro.Stop()
+        Verifica "su una rete ferma si ferma subito ($($cronometro.ElapsedMilliseconds) ms, fermato a 500)" (
+            $r8.Errore -eq $null -and $r8.File -eq $null -and $cronometro.ElapsedMilliseconds -lt 2000)
+        Verifica '... e non lascia file'               ((Rimasti) -eq 0)
+
+        # fermato prima ancora di partire: la richiesta non parte nemmeno
+        $fermo = [Activator]::CreateInstance($tFermo)
+        $fermo.Ferma()
+        $r9 = @{ File = $null; Errore = $null }
+        try {
+            $r9.File = $scaricaFermabile.Invoke($null, [object[]]@(
+                "http://127.0.0.1:$Porta/scarico/intero", 'prima.exe', [long]1000000, $giusta, $null, $fermo))
+        } catch { $r9.Errore = $_.Exception.GetBaseException().Message }
+        Verifica 'fermato prima di partire: niente file e nessun errore' (
+            $r9.Errore -eq $null -and $r9.File -eq $null -and (Rimasti) -eq 0)
+
+        # "Ferma lo scarico" e la chiusura di Campanella passano da
+        # FermaScarico delle Impostazioni, che aspetta lo scarico al massimo
+        # tre secondi: su una rete ferma finivano tutti, e il thread (in
+        # background) moriva con il programma lasciando il file a meta'
+        $tImp = $asm.GetType('Campanella.PaginaImpostazioni')
+        $imp = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tImp)
+        [GC]::SuppressFinalize($imp)     # un controllo mai costruito: niente pulizia alla fine
+        $fermo = [Activator]::CreateInstance($tFermo)
+        $thread = [AiutoProvaScarico]::InBackground($scaricaFermabile, [object[]]@(
+            "http://127.0.0.1:$Porta/scarico/fermo", 'impostazioni.exe', [long]0, '', $null, $fermo))
+        $tImp.GetField('fermo', $FI).SetValue($imp, $fermo)
+        $tImp.GetField('lavoro', $FI).SetValue($imp, $thread)
+        $tImp.GetField('scaricando', $FI).SetValue($imp, $true)
+        Start-Sleep -Milliseconds 600     # arriva il primo pezzo, poi la rete tace
+        $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+        [void]$tImp.GetMethod('FermaScarico').Invoke($imp, @([int]3000))
+        $cronometro.Stop()
+        Verifica "Impostazioni ferma lo scarico su una rete ferma ($($cronometro.ElapsedMilliseconds) ms)" (
+            $cronometro.ElapsedMilliseconds -lt 2000 -and -not $thread.IsAlive)
+        Verifica '... come un annullamento, non un errore' (
+            [AiutoProvaScarico]::Errore -eq $null -and [AiutoProvaScarico]::Risultato -eq $null)
+        Verifica '... e non lascia file'               ((Rimasti) -eq 0)
+    }
     $env:TMP = $tmpPrima
 
     Write-Host "`n=== VERSIONI (Cerca aggiornamenti) ===" -ForegroundColor Cyan

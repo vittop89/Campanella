@@ -23,6 +23,7 @@ namespace Campanella
         System.Threading.Thread lavoro;
         volatile bool interrompi = false;
         volatile bool scaricando = false;
+        FermoScarico fermo;                  // chiude la connessione anche se la rete e' ferma
         int giroSalute = 0;                  // l'ultimo controllo di rizzo-pii chiesto
         Label lblCampanella;                 // c'e' una Campanella piu' nuova?
         Button btnRilasci;
@@ -43,9 +44,19 @@ namespace Campanella
         public void FermaScarico(int millisecondi)
         {
             if (!scaricando) return;
-            interrompi = true;
+            Ferma();
             System.Threading.Thread t = lavoro;
             if (t != null && t.IsAlive) t.Join(millisecondi);
+        }
+
+        /// <summary>Ferma lo scarico: alza la bandierina e chiude la
+        /// connessione, cosi' si ferma subito anche su una rete che non manda
+        /// piu' niente, e il file a meta' viene tolto.</summary>
+        void Ferma()
+        {
+            interrompi = true;
+            FermoScarico f = fermo;
+            if (f != null) f.Ferma();
         }
 
         public override string Nome { get { return "Impostazioni"; } }
@@ -617,7 +628,7 @@ namespace Campanella
             // durante lo scarico lo stesso pulsante lo ferma
             if (scaricando)
             {
-                interrompi = true;
+                Ferma();
                 btnInstalla.Enabled = false;
                 Messaggio("Fermo lo scarico...", Ruolo.Tenue);
                 return;
@@ -636,6 +647,8 @@ namespace Campanella
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             interrompi = false;
+            FermoScarico questo = new FermoScarico();
+            fermo = questo;
             scaricando = true;
             string testoBottone = btnInstalla.Text;
             btnInstalla.Text = "Ferma lo scarico";
@@ -668,7 +681,7 @@ namespace Campanella
                                       Ruolo.Tenue);
                         });
                         return !interrompi;
-                    });
+                    }, questo);
                 }
                 catch (Exception ex) { errore = ex.Message; }
 
