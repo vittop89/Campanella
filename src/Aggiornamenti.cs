@@ -86,7 +86,7 @@ namespace Campanella
 
     static class Aggiornamenti
     {
-        public const string VersioneCampanella = "1.5.0";
+        public const string VersioneCampanella = "1.5.1";
         const string ApiRizzo = "https://api.github.com/repos/Rizzo-AI-Academy/rizzo-pii/releases/latest";
         public const string PaginaRizzo = "https://github.com/Rizzo-AI-Academy/rizzo-pii/releases/latest";
         // si scarica solo un file pubblicato fra i rilasci di rizzo-pii, in https
