@@ -666,8 +666,13 @@ namespace Campanella
                 "Piu' moduli? Le voci 4 e 5 qui sotto preparano un foglio di controllo.",
                 0, y, Tema.Piccolo, Ruolo.Tenue, "Il foglio di controllo",
                 "Le voci 4 e 5 del menu preparano un foglio Google con una riga per modulo: da " +
-                "li' si prepara l'anno nuovo per tutti insieme, e il foglio si aggiorna da solo " +
-                "quando aggiungi o togli un modulo.\r\n\r\n" +
+                "li' si prepara l'anno nuovo per tutti insieme.\r\n\r\n" +
+                "Il foglio non si aggiorna da solo quando aggiungi o togli un modulo: le righe le " +
+                "cambi tu (un modulo nuovo e' una riga in piu', uno che non serve piu' e' la spunta " +
+                "\"Attivo\" tolta), e il resto cambia quando usi il suo menu Campanella (\"Prepara " +
+                "l'anno nuovo\", \"Trova i moduli nel Drive\", \"Controlla com'e' messo adesso\" e le " +
+                "altre voci). Da solo scrive soltanto l'esito della chiusura programmata, il giorno " +
+                "in cui scatta.\r\n\r\n" +
                 "Quello script pero' chiede il permesso su tutti i tuoi moduli, non su uno solo: " +
                 "con pochi moduli conviene questa strada.");
             y += 36;
