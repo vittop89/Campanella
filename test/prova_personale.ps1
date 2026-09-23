@@ -75,6 +75,21 @@ foreach ($r in $attesi.Keys) {
     Verifica "$r -> $($attesi[$r])" ((Categoria $r) -eq $attesi[$r])
 }
 Verifica "il maiuscolo non conta" ((Categoria 'Docente laureato scuola secondaria II grado') -eq 'Docenti')
+
+# le stesse categorie le calcolano anche l'estensione e la funzione da console,
+# ognuna con la sua copia: test/invarianti_script.js le fa girare su una
+# pagina finta, e qui si confrontano con quelle del C#
+$js = (& node (Join-Path $radice 'test\invarianti_script.js') --categorie) | ConvertFrom-Json
+Verifica "estensione e funzione da console rispondono" ($LASTEXITCODE -eq 0 -and $js.ruoli.Count -ge 15)
+$diverse = @()
+for ($i = 0; $i -lt $js.ruoli.Count; $i++) {
+    $cs = Categoria $js.ruoli[$i]
+    if ($js.estensione[$i] -ne $cs -or $js.console[$i] -ne $cs) {
+        $diverse += "$($js.ruoli[$i]): C# '$cs', estensione '$($js.estensione[$i])', console '$($js.console[$i])'"
+    }
+}
+Verifica "C#, estensione e funzione da console danno la stessa categoria a ogni ruolo ($($js.ruoli.Count))" ($diverse.Count -eq 0)
+$diverse | ForEach-Object { Write-Host "          $_" }
 Verifica "un ruolo che non conosco non inventa categorie" ((Categoria 'Ruolo non specificato') -eq '')
 Verifica "gli studenti non sono una categoria del personale" ((Categoria 'Studente') -eq '')
 

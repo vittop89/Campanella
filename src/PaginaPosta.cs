@@ -1603,6 +1603,9 @@ namespace Campanella
                 {
                     string testo = Guscio.LeggiRisorsa("estensione_" + f);
                     if (testo == "") throw new Exception("manca la risorsa " + f + ": ricompila l'applicazione");
+                    // la versione di chi l'ha scritta: in chrome://extensions si riconosce una copia vecchia
+                    if (f == "manifest.json")
+                        testo = GeneratorePosta.ManifestEstensione(testo, Aggiornamenti.VersioneCampanella);
                     File.WriteAllText(Path.Combine(cartella, f), testo, new UTF8Encoding(false));
                 }
             }
@@ -1631,9 +1634,14 @@ namespace Campanella
                 "3.  Scorre la pagina da sola, legge nominativi, ruoli e indirizzi e\n" +
                 "    li mostra: premi \"Copia\", torna qui e premi \"Incolla elenco\".\n\n" +
                 "L'estensione legge solo quello che vedi gia' tu sullo schermo, non\n" +
-                "manda niente a nessuno e non ha bisogno del Web Store. Se la\n" +
-                "cartella sta nel Drive, la ritrovi uguale su tutti i computer\n" +
-                "(su ognuno va caricata una volta da chrome://extensions).\n\n" +
+                "manda niente a nessuno e non ha bisogno del Web Store. Lavora solo\n" +
+                "sulle pagine di ClasseViva (spaggiari.eu): su ogni altra pagina non\n" +
+                "fa niente e te lo dice. Se la cartella sta nel Drive, la ritrovi\n" +
+                "uguale su tutti i computer (su ognuno va caricata una volta da\n" +
+                "chrome://extensions).\n\n" +
+                "In chrome://extensions porta la versione di Campanella che l'ha\n" +
+                "scritta (" + Aggiornamenti.VersioneCampanella + "). Con una Campanella piu' nuova premi di\n" +
+                "nuovo \"Estensione...\" e poi, in chrome://extensions, \"Ricarica\".\n\n" +
                 "Le condizioni d'uso di ClasseViva non vietano gli script, ma vietano\n" +
                 "di scaricare e riformattare i contenuti della piattaforma senza\n" +
                 "permesso: usala una volta, per il tuo elenco, non in modo sistematico.\n" +

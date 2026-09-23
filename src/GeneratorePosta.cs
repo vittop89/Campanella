@@ -200,6 +200,16 @@ namespace Campanella
             return url;
         }
 
+        /// <summary>
+        /// Il manifest dell'estensione per Chrome con la versione di Campanella
+        /// che la scrive: in chrome://extensions si vede quale copia e' caricata.
+        /// </summary>
+        public static string ManifestEstensione(string manifest, string versione)
+        {
+            return Regex.Replace(manifest ?? "", "(\"version\"\\s*:\\s*\")[^\"]*(\")",
+                                 "${1}" + versione + "${2}");
+        }
+
         /// <summary>Gli indirizzi scritti in una casella: uno per riga, o separati da virgole e spazi.</summary>
         public static List<string> Righe(string testo)
         {

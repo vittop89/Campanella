@@ -416,6 +416,65 @@ async function eseguiConsole(pagina, file) {
   return await vm.runInContext(codice, pagina.contesto, { filename: 'estrai_personale_spaggiari.js' });
 }
 
+const FILE_POPUP = path.join(risorse, 'estensione_personale', 'popup.js');
+
+/**
+ * Apre il popup dell'estensione su una scheda con quell'indirizzo. "risposta"
+ * e' quello che torna dalla pagina dopo executeScript (se manca, niente).
+ */
+function apriPopup(indirizzo, risposta) {
+  const elemento = () => ({ value: '', disabled: true, textContent: '', className: '', addEventListener: () => {} });
+  const elementi = { risultato: elemento(), copiaBtn: elemento(), stato: elemento() };
+  const eseguiti = [];
+  const chrome = {
+    runtime: {},
+    tabs: { query: (q, cb) => cb([{ id: 7, url: indirizzo }]) },
+    scripting: { executeScript: (opzioni, cb) => {
+      eseguiti.push(opzioni);
+      if (risposta !== undefined) cb([{ result: risposta }]);
+    } }
+  };
+  const contesto = vm.createContext({ document: { getElementById: id => elementi[id] }, chrome, navigator: {}, URL });
+  vm.runInContext(fs.readFileSync(FILE_POPUP, 'utf8'), contesto, { filename: 'popup.js' });
+  return { elementi, eseguiti, contesto };
+}
+
+/** La funzione che l'estensione inietta, eseguita dentro la pagina finta come fa Chrome. */
+function sorgenteEstensione() {
+  return apriPopup('https://web.spaggiari.eu/').contesto.estraiPersonale.toString();
+}
+async function eseguiEstensione(pagina) {
+  return await vm.runInContext('(' + sorgenteEstensione() + ')()', pagina.contesto);
+}
+
+/**
+ * La categoria che estensione e funzione da console danno a ogni ruolo, lette
+ * dal loro elenco su una pagina finta con una persona per ruolo.
+ */
+async function categorieJs(ruoli) {
+  const persone = ruoli.map((r, i) => ({ nome: 'PERSONA ' + (100 + i), ruolo: r, email: '' }));
+  const daTesto = testo => {
+    const per = {};
+    testo.split('\n').slice(1).forEach(riga => { const c = riga.split('\t'); per[c[0]] = c[3]; });
+    return persone.map(p => per[p.nome]);
+  };
+  const p1 = paginaFinta('web.spaggiari.eu', persone, {});
+  const estensione = daTesto((await eseguiEstensione(p1)).testo);
+  const p2 = paginaFinta('web.spaggiari.eu', persone, { copy: true });
+  await eseguiConsole(p2);
+  return { estensione, console: daTesto(p2.esito.copiato) };
+}
+
+// i ruoli del registro, con qualche variante: la stessa lista la usa
+// test/prova_personale.ps1 per il confronto con Stato.CategoriaRuolo
+const RUOLI = [
+  'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO', 'DOCENTE DIPLOMATO SCUOLA SECONDARIA II GRADO',
+  'DOCENTE DI RELIGIONE', 'INSEGNANTE TECNICO PRATICO (ITP)', 'EDUCATORE', 'PROFESSORE',
+  'ASSISTENTE AMMINISTRATIVO', 'DIRETTORE SGA', 'D.S.G.A.', 'DIRETTORE DEI SERVIZI GENERALI E AMMINISTRATIVI',
+  'SEGRETERIA DIDATTICA', 'ASSISTENTE TECNICO', 'TECNICO DI LABORATORIO', 'COLLABORATORE SCOLASTICO',
+  'AUSILIARIO', 'DIRIGENTE SCOLASTICO', 'PRESIDE', 'Ruolo non specificato', 'STUDENTE', 'GENITORE'
+];
+
 async function estrattori() {
   intestazione('LA FUNZIONE DA CONSOLE: IL CSV SOLO SE GLI APPUNTI NON FUNZIONANO');
   const HOST = 'web.spaggiari.eu';
@@ -438,6 +497,47 @@ async function estrattori() {
     senzaAppunti.esito.scaricati.length === 1 && senzaAppunti.esito.scaricati[0] === 'personale_spaggiari.csv');
   verifica('e dice di cancellarlo dopo averlo usato',
     senzaAppunti.esito.scritte.some(s => /CANCELLA IL FILE/.test(s)));
+
+  intestazione('L\'ESTENSIONE LAVORA SOLO SUL REGISTRO');
+  const FUORI = /non e' la pagina del registro/;
+  const altrove = apriPopup('https://www.esempio.example/pagina');
+  verifica('su un altro sito non esegue niente nella pagina', altrove.eseguiti.length === 0);
+  verifica('e lo dice', FUORI.test(altrove.elementi.stato.textContent));
+  const imitazione = apriPopup('https://spaggiari.eu.esempio.example/personale');
+  verifica('un sito che imita il nome non basta', imitazione.eseguiti.length === 0);
+  const registro = apriPopup('https://web.spaggiari.eu/sif/app/default/personale', { righe: 2, conEmail: 1, testo: 'X' });
+  verifica('sul registro esegue la lettura e mostra l\'elenco',
+    registro.eseguiti.length === 1 && registro.elementi.risultato.value === 'X' &&
+    registro.elementi.copiaBtn.disabled === false);
+  const nascosto = apriPopup(undefined, { fuoriSito: true });
+  verifica('se l\'indirizzo non si vede decide la pagina, e il popup lo dice',
+    nascosto.eseguiti.length === 1 && FUORI.test(nascosto.elementi.stato.textContent));
+  const paginaAltrove = paginaFinta('www.esempio.example', PERSONE, {});
+  const r1 = await eseguiEstensione(paginaAltrove);
+  verifica('dentro un\'altra pagina non scorre e non legge',
+    r1 && r1.fuoriSito === true && paginaAltrove.esito.scorrimenti === 0);
+  const paginaRegistro = paginaFinta(HOST, PERSONE, {});
+  const r2 = await eseguiEstensione(paginaRegistro);
+  verifica('sul registro legge tutte le persone', r2 && r2.righe === PERSONE.length && r2.conEmail === 4);
+  const manifest = JSON.parse(fs.readFileSync(path.join(risorse, 'estensione_personale', 'manifest.json'), 'utf8'));
+  verifica('il manifest chiede solo activeTab e scripting, nessun sito fisso',
+    JSON.stringify((manifest.permissions || []).slice().sort()) === '["activeTab","scripting"]' &&
+    !manifest.host_permissions && !manifest.content_scripts);
+
+  intestazione('ESTENSIONE E FUNZIONE DA CONSOLE LEGGONO ALLO STESSO MODO');
+  const selettori = testo => [...new Set([...testo.matchAll(/\b(?:querySelectorAll|querySelector|closest)\(\s*'([^']+)'/g)]
+    .map(m => m[1]))].sort();
+  const selEstensione = selettori(sorgenteEstensione());
+  const selConsole = selettori(fs.readFileSync(FILE_CONSOLE, 'utf8'));
+  verifica('gli stessi selettori della pagina del registro (' + selEstensione.join('  ') + ')',
+    selEstensione.length >= 4 && JSON.stringify(selEstensione) === JSON.stringify(selConsole));
+  const perConsole = paginaFinta(HOST, PERSONE, { copy: true });
+  await eseguiConsole(perConsole);
+  verifica('sulla stessa pagina lo stesso elenco, categorie comprese', perConsole.esito.copiato === r2.testo);
+  const categorie = await categorieJs(RUOLI);
+  verifica('la stessa categoria per ' + RUOLI.length + ' ruoli',
+    JSON.stringify(categorie.estensione) === JSON.stringify(categorie.console) &&
+    categorie.estensione.filter(c => c).length >= 15);
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +556,12 @@ async function principale() {
   }
 }
 
-module.exports = { smonta, controlla, paginaFinta, eseguiConsole, PERSONE };
+module.exports = { smonta, controlla, paginaFinta, eseguiConsole, eseguiEstensione, categorieJs, PERSONE, RUOLI };
 if (require.main === module) {
-  principale().catch(e => { console.error(e); process.exitCode = 1; });
+  if (process.argv[2] === '--categorie') {
+    // per test/prova_personale.ps1: le categorie dei due estrattori, in JSON
+    categorieJs(RUOLI).then(c => process.stdout.write(JSON.stringify({ ruoli: RUOLI, estensione: c.estensione, console: c.console })));
+  } else {
+    principale().catch(e => { console.error(e); process.exitCode = 1; });
+  }
 }

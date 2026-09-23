@@ -270,6 +270,19 @@ public static class ComeLoVedeWindows
     Verifica "e niente Clipboard.SetText, che finirebbe nella cronologia" (-not $pagina.Contains('Clipboard.SetText'))
 
     # -----------------------------------------------------------------------
+    Intestazione 'L''ESTENSIONE PORTA LA VERSIONE DI CAMPANELLA'
+    $versione = $asm.GetType('Campanella.Aggiornamenti').GetField('VersioneCampanella', $FS).GetValue($null)
+    $risorsa = $asm.GetType('Campanella.Guscio').GetMethod('LeggiRisorsa', $FS).Invoke($null, @([string]'estensione_manifest.json'))
+    $scritto = $tGen.GetMethod('ManifestEstensione', $FS).Invoke($null, @([string]$risorsa, [string]$versione)) | ConvertFrom-Json
+    $originale = $risorsa | ConvertFrom-Json
+    Verifica "il manifest scritto ha la versione dell'app ($versione)" ($scritto.version -eq $versione)
+    Verifica "e per Chrome e' una versione valida" ($scritto.version -match '^\d{1,5}(\.\d{1,5}){0,3}$')
+    Verifica "il resto non cambia" ($scritto.name -eq $originale.name -and
+        (@($scritto.permissions) -join ',') -eq (@($originale.permissions) -join ','))
+    Verifica "ed e' quello che scrive il pulsante Estensione..." (
+        $pagina.Contains('GeneratorePosta.ManifestEstensione(testo, Aggiornamenti.VersioneCampanella)'))
+
+    # -----------------------------------------------------------------------
     Intestazione 'UNA SOLA FUNZIONE DI ESCAPE PER JAVASCRIPT'
     $pagina = Get-Content -Raw (Join-Path $radice 'src\PaginaPosta.cs')
     $generatore = Get-Content -Raw (Join-Path $radice 'src\GeneratorePosta.cs')

@@ -6,19 +6,34 @@
 //  nominativo, ruolo e indirizzo di ogni voce e li riporta qui come testo
 //  separato da tabulazioni, lo stesso formato che Campanella riconosce con
 //  "Incolla elenco". Niente esce dal browser: il pulsante copia negli appunti.
+//  Lavora solo sul registro ClasseViva (spaggiari.eu): su ogni altra pagina
+//  non esegue niente, nemmeno lo scorrimento, e lo dice.
 // ===========================================================================
 
 const area = document.getElementById('risultato');
 const bottone = document.getElementById('copiaBtn');
 const stato = document.getElementById('stato');
 
+const FUORI_SITO = 'Questa non e\' la pagina del registro. Apri ClasseViva (Spaggiari): ' +
+  'profilo -> Network -> Tutto il personale, e premi di nuovo l\'icona.';
+
 function mostra(testo, classe) {
   stato.textContent = testo;
   stato.className = classe || '';
 }
 
+function sulRegistro(indirizzo) {
+  try {
+    const host = new URL(indirizzo).hostname;
+    return host === 'spaggiari.eu' || host.endsWith('.spaggiari.eu');
+  } catch (e) { return false; }
+}
+
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tabs || !tabs[0]) { mostra('Nessuna scheda attiva.', 'no'); return; }
+  // dopo il clic sull'icona (activeTab) l'indirizzo della scheda si vede; se
+  // non si vedesse, decide il controllo dentro la pagina, in estraiPersonale
+  if (tabs[0].url && !sulRegistro(tabs[0].url)) { mostra(FUORI_SITO, 'no'); return; }
   chrome.scripting.executeScript(
     { target: { tabId: tabs[0].id }, func: estraiPersonale },
     (risultati) => {
@@ -27,6 +42,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         return;
       }
       const esito = risultati && risultati[0] && risultati[0].result;
+      if (esito && esito.fuoriSito) { area.value = ''; mostra(FUORI_SITO, 'no'); return; }
       if (!esito || !esito.righe) {
         area.value = '';
         mostra('Nessun nominativo trovato: apri "Tutto il personale" di ClasseViva (Spaggiari) e riprova. ' +
@@ -49,6 +65,10 @@ bottone.addEventListener('click', () => {
 
 // --- questa funzione gira DENTRO la pagina di ClasseViva -------------------
 async function estraiPersonale() {
+  // fuori dal registro non scorre e non legge niente
+  const host = location.hostname;
+  if (host !== 'spaggiari.eu' && !host.endsWith('.spaggiari.eu')) return { fuoriSito: true };
+
   const attesa = (ms) => new Promise((r) => setTimeout(r, ms));
   const conta = () => document.querySelectorAll('[account_id]').length ||
                       document.querySelectorAll('.sing_user_nominativo').length;
