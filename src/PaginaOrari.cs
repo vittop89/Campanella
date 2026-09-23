@@ -857,13 +857,5 @@ namespace Campanella
             sb.AppendLine("se la scuola ha un intervallo, scrivi l'inizio di ogni ora.");
             return sb.ToString();
         }
-
-        Panel NuovaPagina(string titolo)
-        {
-            Panel p = new Panel();
-            p.AutoScroll = true;
-            p.Controls.Add(Tema.Testo1(titolo, 0, 6, 0, Tema.Sezione, Ruolo.Sezione));
-            return p;
-        }
     }
 }

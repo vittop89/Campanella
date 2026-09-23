@@ -163,7 +163,8 @@ namespace Campanella
         public string ModuloPercorso = "";       // relativo al Drive, oppure solo il nome
         public string ModuloCartella = "";       // dentro la cartella dell'anno
         public string ModuloFoglio = "";         // nome del foglio, puo' contenere {anno}
-        public string ModuloChiusura = "31/08";  // giorno/mese della chiusura automatica
+        public const string ModuloChiusuraDiDefault = "31/08";   // l'unico posto dove sta scritto (anche per ScriptModuli)
+        public string ModuloChiusura = ModuloChiusuraDiDefault;  // giorno/mese della chiusura automatica
         public bool ModuloChiudi = true;         // falso = nessuna chiusura automatica
         public bool ModuloSvuota = false;
         public bool ModuloDrive = true;
@@ -827,7 +828,7 @@ namespace Campanella
                 s.ModuloPercorso = Str(r, "moduloPercorso", "");
                 s.ModuloCartella = Str(r, "moduloCartella", "");
                 s.ModuloFoglio = Str(r, "moduloFoglio", "");
-                s.ModuloChiusura = Str(r, "moduloChiusura", "31/08");
+                s.ModuloChiusura = Str(r, "moduloChiusura", ModuloChiusuraDiDefault);
                 s.ModuloChiudi = Bool(r, "moduloChiudi", true);
                 s.ModuloSvuota = Bool(r, "moduloSvuota", false);
                 s.ModuloDrive = Bool(r, "moduloDrive", true);

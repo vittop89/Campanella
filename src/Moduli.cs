@@ -37,7 +37,8 @@ namespace Campanella
     static class ScriptModuli
     {
         public const string Risorsa = "Moduli.gs";
-        public const string ChiusuraDiDefault = "31/08";
+        // scritto in Stato, che l'installer compila da solo e non puo' guardare qui
+        public const string ChiusuraDiDefault = Stato.ModuloChiusuraDiDefault;
         public const string FusoDiDefault = "Europe/Rome";            // quello delle scuole italiane
         public const string CartellaAnnoDiDefault = "A.S. {anno}";    // come la crea lo strumento Cartelle
 

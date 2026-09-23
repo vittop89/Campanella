@@ -309,14 +309,6 @@ namespace Campanella
             return p;
         }
 
-        Anonimizzatore Servizio()
-        {
-            Anonimizzatore a = new Anonimizzatore();
-            a.Indirizzo = (S.AnonIndirizzo != "" ? S.AnonIndirizzo : Stato.AnonIndirizzoDiDefault)
-                          .Trim().TrimEnd('/');
-            return a;
-        }
-
         /// <summary>Esegue sul thread dell'interfaccia, se la pagina c'e' ancora.</summary>
         void SulThread(MethodInvoker m)
         {
@@ -328,7 +320,7 @@ namespace Campanella
         /// nuovo (magari dopo averlo avviato), vale solo l'ultima risposta.</summary>
         void ControllaRizzo()
         {
-            Anonimizzatore a = Servizio();
+            Anonimizzatore a = Anonimizzatore.Servizio(S);
             int giro = ++giroSalute;
             lblSalute2.Text = "Controllo rizzo-pii su " + a.Indirizzo + "...";
             lblSalute2.Tag = Ruolo.Tenue;
@@ -377,7 +369,7 @@ namespace Campanella
                 return;
             }
 
-            Anonimizzatore a = Servizio();
+            Anonimizzatore a = Anonimizzatore.Servizio(S);
             a.ConDizionario = chkReversibile.Checked;
             bool reversibile = a.ConDizionario;
             int giro = ++giroTesto;
@@ -718,7 +710,7 @@ namespace Campanella
                 return;
             }
 
-            Anonimizzatore a = Servizio();
+            Anonimizzatore a = Anonimizzatore.Servizio(S);
             a.ConDizionario = false;      // sui file l'anonimizzazione e' definitiva
 
             log3.Clear();
@@ -790,14 +782,6 @@ namespace Campanella
                 Scrivi3("ERRORE: " + Anonimizzatore.Spiega(ex));
             }
             finally { Bottoni3(false); }
-        }
-
-        Panel NuovaPagina(string titolo)
-        {
-            Panel p = new Panel();
-            p.AutoScroll = true;
-            p.Controls.Add(Tema.Testo1(titolo, 0, 6, 0, Tema.Sezione, Ruolo.Sezione));
-            return p;
         }
     }
 }
