@@ -117,13 +117,16 @@ function PANNELLO_3_anteprima() {
 }
 
 function PANNELLO_4_preparaAnno() {
+  // i 6 minuti di Google contano da qui, dal clic sul menu: anche la conferma lasciata aperta
+  // li consuma. Il limite di "Prepara l'anno nuovo" parte adesso, non dopo la risposta
+  var inizio = new Date().getTime();
   if (!_panConferma_('Preparo l\'anno scolastico ' + _panAnno_() + ' per tutte le righe attive.\n\n' +
                     (_panQualcunaDaSvuotare_()
                       ? 'Nelle righe con "Svuota" tolgo dal modulo le risposte degli anni scorsi, ma solo se le ' +
                         'ritrovo tutte, una per una, in un foglio vecchio: toglierle non si puo\' annullare. ' +
                         'Fogli e cartelle non li cancello. Procedo?'
                       : 'Non cancello niente. Procedo?'))) return '';
-  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(true); }));
+  return _panRacconta_(_panUnoAllaVolta_(function () { return _panEsegui_(true, inizio); }));
 }
 
 /** C'e' una riga attiva con "Svuota"? Allora la conferma non puo' dire che non cancello niente. */
@@ -595,8 +598,9 @@ function _panTrovaIModuli_() {
 // ===========================================================================
 //  IL LAVORO
 // ===========================================================================
-function _panEsegui_(davvero) {
-  var inizio = new Date().getTime();
+/** inizioEsecuzione: quando e' cominciata l'esecuzione (il clic sul menu); se manca, adesso. */
+function _panEsegui_(davvero, inizioEsecuzione) {
+  var inizio = inizioEsecuzione || new Date().getTime();
   var foglio = _panScheda_(true);
   var dati = _panLeggi_(foglio);
   var anno = _panAnno_();

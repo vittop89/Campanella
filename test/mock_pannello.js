@@ -420,6 +420,7 @@ function nuovoMondo(opzioni) {
     alert(titolo, testo, bottoni) {
       m.avvisi.push({ titolo, testo, bottoni });
       if (bottoni !== 'YES_NO') return 'OK';
+      m.adesso += m.costoConferma || 0;             // per le prove sul tempo: la conferma resta aperta un po'
       return m.risposteUi.length ? m.risposteUi.shift() : 'YES';   // di norma si conferma
     },
     createMenu(nome) {
@@ -1682,6 +1683,34 @@ titolo('30 RIGHE LENTE: MI FERMO PRIMA DEI 6 MINUTI DI GOOGLE');
   verifica('rieseguito: riparte dalle righe mancanti e le finisce tutte',
     scheda(m).every(r => r[7] === 'pronto per 2026-27') && t2.indexOf('FATTO') >= 0 && m.fogliCreati === 30);
   verifica('e dice quali righe gia\' pronte non ha ricontrollato', t2.indexOf('non ricontrollate adesso') >= 0);
+}
+{
+  // le stesse 30 righe lente, con il foglio preparato e i link trovati
+  const trentaRighe = () => {
+    const moduli = [];
+    for (let i = 1; i <= 30; i++) {
+      const n = ('0' + i).slice(-2);
+      moduli.push({ modulo: 'Modulo ' + n, cartella: '', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+    }
+    const m = nuovoMondo();
+    for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+    const c = carica(m, { config: { moduli } });
+    c.PANNELLO_1_preparaIlFoglio();
+    c.PANNELLO_2_trovaIModuli();
+    m.costoApertura = 15 * 1000;
+    return { m, c };
+  };
+
+  // i 6 minuti di Google contano dal clic sul menu: anche la conferma lasciata aperta li consuma
+  const lenta = trentaRighe();
+  lenta.m.costoConferma = 120 * 1000;                         // la conferma resta aperta due minuti
+  const inizio = lenta.m.adesso;
+  const t = lenta.c.PANNELLO_4_preparaAnno();
+  const pronte = scheda(lenta.m).filter(r => r[7] === 'pronto per 2026-27').length;
+  verifica('con la conferma aperta due minuti si ferma lo stesso prima dei 6 minuti, contati dal clic (' +
+    Math.round((lenta.m.adesso - inizio) / 1000) + ' s)', lenta.m.adesso - inizio <= 280 * 1000);
+  verifica('e le righe fatte sono salvate, con la loro chiusura', t.indexOf('NON HO FINITO') >= 0 && pronte > 0 &&
+    lenta.m.trigger.length === 1);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------
