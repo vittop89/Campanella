@@ -18,10 +18,11 @@ for the open-source audience.
 
 The application **never touches mail, calendar or Drive on its own**: it
 prepares the code of a Google Apps Script that the user pastes into their own
-account and runs. The scripts write to nobody else. The executable connects to
-the network only when the user presses a button: to ask GitHub for the latest
+account and runs. The scripts write to nobody else. The executable goes on the
+internet only when the user presses a button: to ask GitHub for the latest
 release of Campanella and of rizzo-pii, and to download rizzo-pii. rizzo-pii
-itself is reached only at an address on the same computer.
+itself is reached only at an address on the same computer, and Settings
+checks it when opened.
 
 ## Download
 
@@ -80,16 +81,19 @@ every push. `dist\Installa Campanella.exe` (C#, `src-installer/`) is built
 by `build.ps1` and copied by `-Pubblica`, for local distribution only; it is
 never published. When its uninstaller runs in a folder that also holds the
 Inno installation, it removes only its own uninstaller and its entry in
-"Installed apps".
+"Installed apps". The other way round, `Installa-Campanella.exe` installed
+over an old C# installation in the same folder removes the old C#
+uninstaller and its entry: before 1.5.0 that uninstaller also deleted the
+program.
 
 **`-Firma` and `-Pubblica` install a certificate.** They sign through
 `strumenti\firma.ps1`, which the first time creates a code-signing
 certificate in your Windows user's personal store (with a non-exportable
 key) and adds its public part to that user's *Trusted Root Certification
 Authorities* and *Trusted Publishers*; Windows asks for confirmation before
-the root store. From then on that user trusts anything signed with it. It
-stays until you remove it with `certmgr.msc`, and other computers do not
-know it. The executable is signed before it goes into the C# installer, and
+adding it to the root store. From then on that user trusts anything signed
+with it. It stays until you remove it with `certmgr.msc`, and other
+computers do not know it. The executable is signed before it goes into the C# installer, and
 a failed signature stops the build. `-Pubblica` has no default folder:
 `-Produzione` is required, as a full path, and is checked before anything is
 built or signed.
@@ -146,11 +150,13 @@ and colouring each control by the **role** written in its `Tag`.
 
 ## Testing
 
-Before the tests run `.\build.ps1`: the PowerShell tests load
-`dist\Campanella.exe`, and `test\tutte.ps1` refuses an executable older than
-the sources. They need **Node 18** or later (CI uses 24) and **Python 3.7**
-or later, on the PATH as `python` (CI uses 3.13), for the fake rizzo-pii of
-`prova_anonimizzazione.ps1`.
+Run `.\build.ps1` before the tests: most PowerShell tests load
+`dist\Campanella.exe` (`prova_stato.ps1` and `prova_disinstallazione.ps1`
+compile the sources themselves, `prova_versioni.ps1` uses the executable
+only if it is there), and `test\tutte.ps1` marks them as failed when that
+executable is missing or older than the sources. The tests need **Node 18**
+or later (CI uses 24) and **Python 3.7** or later, on the PATH as `python`
+(CI uses 3.13), for the fake rizzo-pii of `prova_anonimizzazione.ps1`.
 
 ```powershell
 .\test\tutte.ps1                                 # every CI test below, with a summary at the end
@@ -176,7 +182,7 @@ node test\invarianti_script.js    # mail and timetable scripts: no mail to other
 .\test\prova_personale.ps1        # staff list: paste formats, roles grouped into five categories
 .\test\prova_stato.ps1            # loading and saving settings and Drive data, in temporary folders
 .\test\prova_guscio.ps1           # the main window, never shown: error message, status code, closing
-.\test\prova_disinstallazione.ps1 # what the C# and Inno uninstallers remove, on fake folders
+.\test\prova_disinstallazione.ps1 # what the C# uninstaller removes, on fake folders, and that Campanella.iss removes the same settings
 .\test\prova_posta.ps1            # the real Configurazione.gs generator through the Gmail bench
 .\test\prova_cartelle.ps1         # the year folders on a fake Drive
 .\test\prova_versioni.ps1         # consent version and text, product and script versions, document names
@@ -197,6 +203,12 @@ user that never had Campanella. `prova_versioni.ps1` only reads: run it
 before tagging a release. `genera_dati_prova.ps1` is not a test: it writes a
 `DatiOrari_prova.gs` into `%TEMP%` from a timetable.
 
+To change the terms of use, edit `installer\CONDIZIONI-it.txt`,
+`installer\CONDIZIONI-en.txt` and `Consenso.Testo` in `src\Consenso.cs`
+together, raise `Consenso.Versione` and `#define ConsensoVersione` in
+`installer\Campanella.iss`, then add to the table at the top of
+`test\prova_versioni.ps1` the row that the test prints.
+
 The benches simulate `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
 `SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` and
 `ScriptApp`, including a fake clock and a simplified interpreter of Gmail's
@@ -212,11 +224,14 @@ of Cartelle writes an Apps Script to paste once inside the form. Every year it
 creates the response sheet in the year folder, links the form to it and reopens
 the form; at the end of the year it closes the form and unlinks the sheet,
 which stays as it is. From the second year it is one click inside the form.
+The script opens only its own form, but Google gives it access to *all* the
+account's forms unless the optional manifest the step prepares is added
+before the first run; with the manifest, only to that form.
 
 For several forms the same step writes a **control sheet** instead: one Google
 Sheet with a row per form, from which the whole year is prepared at once. It is
 more convenient and more expensive: a sheet-bound script opens forms that live
-outside it, so Google asks for access to *all* the account's forms, not one,
+outside it, so Google always asks for access to *all* the account's forms,
 besides Sheets and Drive, and its scheduled closings run on their own.
 
 Nothing is deleted. Last year's answers stay in the form unless you ask for

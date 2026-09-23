@@ -56,11 +56,12 @@ Quattro funzioni, tutte facoltative e indipendenti:
 
 ## 2. Che cosa non fa
 
-- **Non cancella dati**: nessuna funzione elimina messaggi, file, cartelle o
-  fogli delle risposte. Toglie soltanto ciò che gli strumenti hanno messo, e
-  solo quando il docente esegue una funzione di annullamento (punto 6): le
-  etichette dai messaggi, che restano vuote nell'elenco di Gmail, e gli
-  eventi dell'orario creati dallo script, riconoscibili da un contrassegno.
+- **Non cancella dati**: nessuna funzione elimina messaggi, file del docente,
+  cartelle o fogli delle risposte. Toglie soltanto ciò che gli strumenti
+  hanno messo, e solo quando il docente esegue una funzione di annullamento
+  (punto 6): le etichette dai messaggi, che restano vuote nell'elenco di
+  Gmail, e gli eventi dell'orario creati dallo script, riconoscibili da un
+  contrassegno.
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -70,6 +71,12 @@ Quattro funzioni, tutte facoltative e indipendenti:
   una e dall'ora in cui è arrivata, in un foglio degli anni scorsi; se ne
   manca anche una non tocca niente e lo segnala. È l'unica cancellazione che
   non si può annullare.
+  Il programma sul computer cancella soltanto il proprio file dei dati
+  (`campanella-dati.json`): quando il docente, dalle Impostazioni e dopo una
+  conferma, sposta i dati in un'altra cartella del Drive o di nuovo sul
+  computer, oppure sceglie di usare un file dei dati già presente nel Drive,
+  toglie la copia di prima; se quella copia non l'ha letta, o nel frattempo
+  l'ha cambiata un altro computer, la lascia e lo segnala.
   L'unica azione sulla posta oltre all'etichettatura è l'archiviazione
   (rimozione dalla Posta in arrivo, reversibile), attivata solo per le
   categorie che il docente sceglie (di partenza: newsletter e comunicati
@@ -86,13 +93,14 @@ Quattro funzioni, tutte facoltative e indipendenti:
   aggiornamenti» chiede a GitHub (api.github.com) l'ultima versione
   pubblicata di Campanella e di rizzo-pii, senza scaricare niente; «Scarica
   e installa rizzo-pii» scarica da GitHub l'installer di rizzo-pii e, prima
-  di avviarlo, ne controlla dimensione e impronta SHA-256. Campanella non si
-  aggiorna da sola: se c'è una versione nuova lo dice e rimanda alla pagina
-  dei rilasci. Con rizzo-pii il programma parla soltanto a un indirizzo di
-  questo computer (localhost, 127.0.0.1 o ::1), anche quando Impostazioni
-  controlla all'apertura se il servizio è avviato: un indirizzo diverso
-  viene rifiutato prima di aprire la connessione, e le richieste non passano
-  da proxy né seguono reindirizzamenti.
+  di avviarlo, ne controlla la dimensione e, quando GitHub la pubblica,
+  l'impronta SHA-256. Campanella non si aggiorna da sola: se c'è una
+  versione nuova lo dice e rimanda alla pagina dei rilasci. Con rizzo-pii il
+  programma parla soltanto a un indirizzo di questo computer (localhost,
+  127.0.0.1 o ::1), anche quando Impostazioni controlla all'apertura se il
+  servizio è avviato: un indirizzo diverso viene rifiutato prima di aprire
+  la connessione, e le richieste non passano da proxy né seguono
+  reindirizzamenti.
 - **Non crea trattamenti nuovi**: i dati sono quelli già presenti
   nell'account istituzionale del docente (mittenti, oggetti, etichette) e il
   tabellone orario già distribuito dalla scuola.
@@ -122,9 +130,10 @@ dominio dell'istituto, per uno script di proprietà dello stesso utente, la
 documentazione di Google prevede la procedura ordinaria, senza avviso. Le autorizzazioni le calcola Google leggendo il codice di tutti i file del progetto, e le chiede tutte insieme alla prima esecuzione, qualunque sia la funzione eseguita:
 
 - **Gmail** (`GmailApp`): ricerca dei messaggi, creazione e applicazione di
-  etichette, archiviazione e, per le regole che lo prevedono, segnatura come
-  letti. Apps Script richiede per `GmailApp` l'ambito completo di Gmail; il
-  codice ne usa solo le operazioni elencate, tutte leggibili nel sorgente.
+  etichette, archiviazione e, per le regole che lo prevedono, il segno di
+  «letto» sui messaggi. Apps Script richiede per `GmailApp` l'ambito
+  completo di Gmail; il codice ne usa solo le operazioni elencate, tutte
+  leggibili nel sorgente.
 - **Invio di email** (`MailApp`): i riepiloghi e gli orari, sempre e solo al
   proprio indirizzo.
 - **Indirizzo del docente** (`Session`): per sapere a quale indirizzo, il
@@ -152,7 +161,14 @@ sommano a quelle dello script della posta:
 - **Moduli** (`FormApp`): legge lo stato del modulo (foglio collegato, numero
   di risposte, aperto o chiuso), lo collega al foglio dell'anno, lo riapre e,
   a fine anno, lo chiude e scollega il foglio. Per la sola verifica descritta
-  al punto 2 legge l'ora di arrivo di ogni risposta.
+  al punto 2 legge l'ora di arrivo di ogni risposta. Il codice apre soltanto
+  il modulo in cui si trova, ma il permesso dipende dal manifest
+  (`appsscript.json`), facoltativo, che l'applicazione prepara da mettere
+  prima della prima esecuzione: senza manifest Google ricava i permessi dal
+  codice e concede l'ambito completo di Google Moduli, cioè su tutti i
+  moduli dell'account; con il manifest, che per i moduli elenca solo
+  l'ambito limitato al modulo corrente (`forms.currentonly`), il permesso
+  vale solo per quel modulo.
 - **Fogli** (`SpreadsheetApp`): crea il foglio delle risposte dell'anno e, per
   la sola verifica descritta al punto 2, legge nei fogli degli anni
   precedenti la colonna con l'ora di arrivo delle risposte.
@@ -172,18 +188,20 @@ condivide file e non modifica le domande del modulo.
 Se i moduli sono più di uno, l'applicazione può generare in alternativa un
 **foglio di controllo**: lo stesso lavoro, ma lo script risiede in un foglio
 Google e opera sui moduli elencati in una sua scheda. Poiché in questo caso
-apre moduli esterni al file che lo ospita, Apps Script richiede l'ambito
-completo di Google Moduli (tutti i moduli dell'account) invece di quello
-limitato al modulo corrente; lo script apre soltanto quelli elencati, e il
-codice è leggibile. Usa inoltre i Fogli (la scheda con l'elenco, i fogli
-delle risposte e, per la verifica del punto 2, l'ora di arrivo delle
-risposte nei fogli degli anni precedenti), Drive (per trovare i moduli per
-nome, cercare o creare le cartelle dell'anno e mettervi i fogli; questa
-variante non ha una versione senza Drive) e le attività programmate: una
-chiusura per ogni data diversa e, se una chiusura non riesce, un nuovo
-tentativo ogni ora. Le chiusure scattano da sole, nel giorno indicato, e
-`PANNELLO_ANNULLA` le rimuove. L'applicazione segnala la differenza e
-consiglia lo script dentro il modulo quando i moduli sono pochi.
+apre moduli esterni al file che lo ospita, Apps Script richiede sempre
+l'ambito completo di Google Moduli (tutti i moduli dell'account), lo stesso
+che riceve lo script dentro il modulo senza manifest, e l'ambito limitato
+al modulo corrente non è disponibile; lo script apre soltanto quelli
+elencati, e il codice è leggibile. Usa inoltre i Fogli (la scheda con
+l'elenco, i fogli delle risposte e, per la verifica del punto 2, l'ora di
+arrivo delle risposte nei fogli degli anni precedenti), Drive (per trovare
+i moduli per nome, cercare o creare le cartelle dell'anno e mettervi i
+fogli; questa variante non ha una versione senza Drive) e le attività
+programmate: una chiusura per ogni data diversa e, se una chiusura non
+riesce, un nuovo tentativo ogni ora. Le chiusure scattano da sole, nel
+giorno indicato, e `PANNELLO_ANNULLA` le rimuove. L'applicazione segnala la
+differenza e consiglia lo script dentro il modulo quando i moduli sono
+pochi.
 
 L'esecuzione di script Apps Script è una funzione del Google Workspace che
 l'amministratore del dominio può consentire o bloccare per tutti gli utenti:
@@ -214,7 +232,9 @@ eseguendo lo script il [data].]*
   e i messaggi che una regola ha segnato come letti restano letti.
 - Lo script usa un **blocco di esecuzione** per non far girare due copie
   contemporaneamente, e in caso di errore in una regola passa alla
-  successiva senza interrompere il resto.
+  successiva senza interrompere il resto. Anche `ANNULLA_automazione`
+  aspetta che le altre esecuzioni dello script finiscano prima di togliere
+  i trigger.
 - Il programma sul computer non richiede diritti di amministratore, non tocca
   il registro di sistema (salvo la voce «Programmi installati», se si usa
   l'installer), e si collega alla rete solo nei casi descritti al punto 2.
@@ -222,8 +242,10 @@ eseguendo lo script il [data].]*
   avvio (e di nuovo quando cambiano) ricordano che il titolare dei dati è la
   scuola, che i dati degli studenti restano fuori dal computer, e che i testi
   dati a un'IA vanno prima anonimizzati. Descrivono anche il foglio di
-  controllo dei moduli, con il suo permesso più largo e le chiusure che
-  scattano da sole.
+  controllo dei moduli, con il permesso su tutti i moduli dell'account e le
+  chiusure che scattano da sole, e dicono che anche lo script dentro il
+  modulo, senza il manifest facoltativo, riceve il permesso su tutti i
+  moduli dell'account.
 
 ## 6. Come si disattiva tutto
 

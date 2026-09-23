@@ -15,10 +15,11 @@ runtime da installare.
 
 L'applicazione **non tocca mai la posta, il calendario né il Drive da sola**:
 prepara il codice di uno script Google Apps Script che l'utente incolla nel
-proprio account ed esegue. Gli script non scrivono a nessun altro. Si collega a
-internet solo quando premi un pulsante: per chiedere a GitHub l'ultima
-versione di Campanella e di rizzo-pii, e per scaricare rizzo-pii. rizzo-pii lo
-raggiunge solo a un indirizzo dello stesso computer.
+proprio account ed esegue. Gli script non scrivono a nessun altro.
+L'applicazione si collega a internet solo quando premi un pulsante: per
+chiedere a GitHub l'ultima versione di Campanella e di rizzo-pii, e per
+scaricare rizzo-pii. Con rizzo-pii parla solo a un indirizzo dello stesso
+computer, e le Impostazioni lo controllano quando le apri.
 
 ## Scarica
 
@@ -76,7 +77,10 @@ delle prove lo compila a ogni push. `dist\Installa Campanella.exe` (C#,
 `src-installer/`) lo compila `build.ps1` e lo copia `-Pubblica`, solo per
 la distribuzione in locale: non viene mai pubblicato. Quando il suo
 disinstallatore lavora in una cartella dove c'è anche l'installazione Inno,
-toglie solo sé stesso e la propria voce fra i programmi installati.
+toglie solo sé stesso e la propria voce fra i programmi installati. Al
+contrario, `Installa-Campanella.exe` eseguito sopra una vecchia installazione
+C# nella stessa cartella toglie il vecchio disinstallatore C# e la sua voce:
+prima della 1.5.0 quel disinstallatore cancellava anche il programma.
 
 **`-Firma` e `-Pubblica` installano un certificato.** Firmano con
 `strumenti\firma.ps1`, che la prima volta crea un certificato di firma del
@@ -144,9 +148,12 @@ nella loro `Tag`.
 
 ## Come si prova
 
-Prima delle prove serve `.\build.ps1`: le prove PowerShell caricano
-`dist\Campanella.exe`, e `test\tutte.ps1` rifiuta un eseguibile più vecchio
-dei sorgenti. Servono **Node 18** o successivo (la CI usa il 24) e **Python
+Prima delle prove serve `.\build.ps1`: quasi tutte le prove PowerShell
+caricano `dist\Campanella.exe` (`prova_stato.ps1` e
+`prova_disinstallazione.ps1` compilano i sorgenti da sole,
+`prova_versioni.ps1` usa l'eseguibile solo se c'è), e `test\tutte.ps1` le
+segna fallite se l'eseguibile manca o è più vecchio dei sorgenti. Le prove
+chiedono **Node 18** o successivo (la CI usa il 24) e **Python
 3.7** o successivo, raggiungibile come `python` (la CI usa il 3.13), per il
 finto rizzo-pii di `prova_anonimizzazione.ps1`.
 
@@ -175,7 +182,7 @@ node test\invarianti_script.js    # script di posta e orari: niente posta ad alt
 .\test\prova_personale.ps1        # elenco del personale: formati da incollare, ruoli nelle cinque categorie
 .\test\prova_stato.ps1            # caricamento e salvataggio di impostazioni e dati nel Drive, in cartelle temporanee
 .\test\prova_guscio.ps1           # la finestra principale, senza mostrarla: errori, codice di stato, chiusura
-.\test\prova_disinstallazione.ps1 # cosa tolgono i disinstallatori C# e Inno, su cartelle finte
+.\test\prova_disinstallazione.ps1 # cosa toglie il disinstallatore C#, su cartelle finte, e che Campanella.iss tolga le stesse impostazioni
 .\test\prova_posta.ps1            # il generatore vero di Configurazione.gs nel banco di Gmail
 .\test\prova_cartelle.ps1         # le cartelle dell'anno su un Drive finto
 .\test\prova_versioni.ps1         # versione e testo del consenso, versioni del prodotto e degli script, nomi dei documenti
@@ -197,6 +204,12 @@ e basta: va lanciata prima di creare il tag di un rilascio.
 `genera_dati_prova.ps1` non è una prova: scrive in `%TEMP%` un
 `DatiOrari_prova.gs` a partire da un tabellone.
 
+Per cambiare le condizioni d'uso si modificano insieme
+`installer\CONDIZIONI-it.txt`, `installer\CONDIZIONI-en.txt` e
+`Consenso.Testo` in `src\Consenso.cs`, si alzano `Consenso.Versione` e
+`#define ConsensoVersione` in `installer\Campanella.iss`, e si aggiunge alla
+tabella in cima a `test\prova_versioni.ps1` la riga che la prova stampa.
+
 I banchi simulano `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
 `SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` e `ScriptApp`,
 con un orologio finto e un interprete semplificato della ricerca di Gmail.
@@ -212,13 +225,17 @@ risposte. Il passo 2 di Cartelle scrive uno script da incollare una volta
 dentro il modulo. Ogni anno crea il foglio delle risposte nella cartella
 dell'anno, ci collega il modulo e lo riapre; a fine anno chiude il modulo e
 scollega il foglio, che resta com'è. Dal secondo anno è un clic dentro il
-modulo.
+modulo. Lo script apre solo il suo modulo, ma Google gli dà il permesso su
+*tutti* i moduli dell'account, a meno che prima della prima esecuzione non
+si aggiunga il manifest facoltativo che il passo prepara; con il manifest,
+solo su quel modulo.
 
 Se i moduli sono più di uno, lo stesso passo prepara un **foglio di controllo**:
 un foglio Google con una riga per modulo, da cui si fa tutto insieme. È più
 comodo e costa di più: uno script dentro un foglio apre moduli che stanno
-fuori, quindi Google chiede il permesso su *tutti* i moduli dell'account,
-oltre che sui fogli e sul Drive, e le chiusure che programma scattano da sole.
+fuori, quindi Google chiede sempre il permesso su *tutti* i moduli
+dell'account, oltre che sui fogli e sul Drive, e le chiusure che programma
+scattano da sole.
 
 Non si cancella niente. Le risposte dell'anno prima restano nel modulo, a meno
 che tu non chieda di toglierle, e anche allora solo dopo averle ritrovate

@@ -4,11 +4,13 @@
 
 **Before you update.** Update Campanella on every PC that shares the same
 data file in Drive: versions up to 1.4.6 do not know the new format number
-and, when they save, drop the fields they do not know (the calendar name,
-the address check, the timetable layout). The terms of use move to version
-4: point 1 now also covers the control sheet, which asks for permission on
-all the account's forms, sheets and Drive, and whose scheduled closings run
-on their own. Campanella asks you to accept them again at the first start.
+and, when they save, drop the fields they do not know (the calendar name and
+the timetable layout). The terms of use move to version 4: point 1 now also
+covers the control sheet, which asks for permission on all the account's
+forms, sheets and Drive, and whose scheduled closings run on their own, and
+says that the script inside a form, without the optional manifest, gets
+permission on all the account's forms too. Campanella asks you to accept
+them again at the first start.
 
 Scripts to paste again: Organizzazione_Gmail.gs (and regenerate
 Configurazione.gs), Orari.gs (and regenerate DatiOrari.gs), the form script
@@ -20,22 +22,29 @@ version, so you can tell which one is pasted.
 **Your data are no longer overwritten by mistake.**
 
 - Closing Campanella without opening Orari, Cartelle or Privacy saved them
-  empty: the timetable, the Drive path, the year, the classes, the form
-  choices and the privacy rules were wiped. A page never opened now touches
-  nothing, and a timetable file that is not recognised no longer erases the
-  one already saved.
+  empty: the timetable, the Drive path, the year, the classes and the form
+  choices were wiped, and the Privacy "read" tick and reversible-cleaning
+  choice were reset. A page never opened now touches nothing, and a
+  timetable file that is not recognised no longer erases the one already
+  saved.
 - `campanella-dati.json` in Drive is never overwritten when it could not be
-  read at startup (missing, truncated, empty, locked, or written by a newer
-  version): Campanella warns at start and again at close, and no longer
-  creates it empty when nothing was entered.
+  read at startup (truncated, empty, locked, or written by a newer version),
+  when it appeared only after startup, or when another computer changed it
+  while Campanella was open. Campanella says so at start or at close, and
+  Settings > Apply lets you use that file or replace it. If another computer
+  changed it and you changed something too, closing asks whether to close
+  anyway (default No, as your changes would be lost); No opens Settings,
+  where you choose whether to replace that file or use it. A file missing at
+  startup is no longer created empty when nothing was entered.
 - An unreadable `campanella.json` is left alone instead of being reset, and
   you are told how to start over; it is now saved atomically.
 - Both files carry a format number: fields this version does not know are
   kept, and a file written by a newer version is read but never overwritten.
 - Settings > Apply asks whether to use or replace a data file already in the
-  chosen Drive folder; moving between Drive folders removes the old copy, and
-  a failed move rolls back. With data in Drive, the calendar name lives there
-  too, so `campanella.json` holds no names.
+  chosen Drive folder; moving the data removes the old copy, unless it was
+  never read here or another computer changed it meanwhile (then Campanella
+  says so and leaves it), and a failed move rolls back. With data in Drive,
+  the calendar name lives there too, so `campanella.json` holds no names.
 
 **Posta**
 
@@ -53,12 +62,20 @@ version, so you can tell which one is pasted.
   longer crashes Home or Settings, and "Gia' fatto" from the guided
   installation needs every mandatory step and names the missing one.
 - ANNULLA_automazione also stops a pending resume of the Orari sending,
-  ORARI_2_invia and ORARI_3_inviaOrariClassi.
+  ORARI_2_invia and ORARI_3_inviaOrariClassi, and first waits for other runs
+  of the script to finish, so a sending in progress can no longer schedule
+  its resume again right after.
 - EXTRA_elencaIndirizziScuola puts the address list only in the email to
   yourself; the execution log gets it only if that email fails. Addresses
   imported from it without a role arrive unchecked, and the new "Togli le
   righe senza spunta" removes the unchecked rows, for example pupils found in
   the mailbox.
+- The staff grid can no longer be sorted by clicking the column headers:
+  after sorting, editing a row changed another person's entry, and removing
+  rows removed the wrong ones.
+- When Google gives the mail script an empty active user, it now takes your
+  address from the account running it, so the summary and the address list
+  still reach you by email and your own address stays out of that list.
 - "Scrivere a un gruppo" never puts colleagues' addresses in the Gmail link:
   they go through the clipboard, to paste into Bcc. The configuration, the
   timetable data, group addresses and Privacy texts are kept out of Windows
@@ -85,16 +102,24 @@ version, so you can tell which one is pasted.
   it exists.
 - Timetables that do not start on Monday keep every lesson on the right day,
   also after a restart; CSV files in ANSI or UTF-16 keep their accents;
-  `.xlsx` cells without a reference are read, and references beyond Excel's
-  limits are ignored. Subject and room are no longer stored.
+  `.xlsx` cells without a reference are read and references beyond Excel's
+  limits are ignored. A file whose cells would fill more than 5 million
+  slots (a few KB with cells scattered as far as column XFD) is refused with
+  "Il foglio e' troppo grande..." instead of taking hundreds of MB. Subject
+  and room are no longer stored.
+- A timetable saved by 1.4.x lacks the list of its days, so one from a table
+  that did not start on Monday may stay one day off: Orari asks you to
+  reload the timetable file, and once is enough.
 - A crafted timetable header containing `*/` can no longer inject code into
   DatiOrari.gs.
 
 **Cartelle and Google Forms**
 
 - Classes are split only on new lines: "1A: Maths; Physics" no longer
-  creates a class "Physics", and a line with several classes is reported
-  instead of becoming a folder.
+  creates a class "Physics", and a line with several classes ("3C; 3D") is
+  reported instead of becoming a folder. If you listed several classes on
+  one line with ";", put one per line: a subject that looks like a class, as
+  in "1A: Maths; 2B", is reported too.
 - "Genera la struttura" runs in the background with live progress; closing
   the window stops it after the file being copied. The summary separates
   what was created now from what was already there, and a "DUPLICA IN GOOGLE
@@ -110,25 +135,28 @@ version, so you can tell which one is pasted.
 - Script inside the form: re-running "Prepara l'anno nuovo" mid-year no
   longer reopens a form closed by hand, nor relinks one already closed or
   unlinked by hand. The optional manifest step now comes before the first
-  run.
+  run: without the manifest Google gives the script permission on all the
+  account's forms, with it only on that form.
 - Control sheet: failed rows keep their closing and retry without piling up
   triggers; "Prepara l'anno nuovo" stops safely before Google's time limit
   and resumes from the rows left; a closing that fires a few minutes before
-  midnight still closes the form; the memory of each year stays under
-  Google's 9 KB limit. The help bubble no longer says the sheet updates by
-  itself.
+  midnight still closes the form; the sheets of each year now sit in their
+  own script property and only the current year's marks are kept, so the
+  memory no longer grows year after year toward Google's 9 KB limit per
+  property. The help bubble no longer says the sheet updates by itself.
 
 **Privacy and updates**
 
 - "Cerca aggiornamenti" also tells you when a newer Campanella is out, with a
-  button to the releases page. Nothing is downloaded, and nothing connects
-  without a click.
+  button to the releases page. Nothing is downloaded, and nothing goes on
+  the internet without a click; opening Settings only asks rizzo-pii, on
+  this computer, whether it is running.
 - The rizzo-pii address must be on this computer (localhost, 127.0.0.0/8 or
   ::1): any other is refused before anything is sent, with no proxy and no
   redirects.
-- The rizzo-pii installer is checked against the size and SHA-256 published
-  on GitHub; a bad or stopped download is deleted and never launched, and
-  "Ferma lo scarico" stops it. TLS 1.2 only.
+- The rizzo-pii installer is checked against the size and, when GitHub
+  publishes it, the SHA-256; a bad or stopped download is deleted and never
+  launched, and "Ferma lo scarico" stops it. TLS 1.2 only.
 - A rizzo-pii answer without the anonymised text is an error, not an empty
   clean copy; a clean copy never overwrites its original; one list of formats
   (PDF, TXT, MD, CSV, HTM, HTML) everywhere; Settings and Privacy no longer
@@ -140,6 +168,10 @@ version, so you can tell which one is pasted.
 - `Installa-Campanella.exe` (Inno Setup, the one published here) no longer
   records a consent nobody gave in silent installs, installs for the current
   user only, and requires Windows 10 or 11, like the application manifest.
+  Installed over an old C# installation in the same folder, it removes the
+  old C# uninstaller and its entry in "Installed apps": before 1.5.0 that
+  uninstaller also deleted the program, so do not use it while Campanella
+  shares the folder.
 - The C# installer, built only locally by `build.ps1`: its uninstaller
   removes only the files it installed, keeps `struttura.json` with the
   settings unless you ask, never touches other files and refuses a folder
