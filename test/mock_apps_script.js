@@ -349,6 +349,27 @@ verifica('nessuna etichetta applicata durante l\'anteprima',
 verifica('l\'anteprima dice la versione dello script',
   /Versione dello script: \d+\.\d+\.\d+/.test(anteprima) &&
   anteprima.indexOf(contesto._POSTA_VERSIONE) >= 0);
+{
+  const righe = anteprima.split('\n');
+  verifica('le prime righe restano quelle di prima: versione, account, dominio, persone, periodo',
+    righe[0].indexOf('ANTEPRIMA - ') === 0 && righe[1].indexOf('Versione dello script: ') === 0 &&
+    righe[2].indexOf('Account: ') === 0 && righe[3].indexOf('Dominio scuola: ') === 0 &&
+    righe[4].indexOf('Persone in elenco: ') === 0 && righe[5].indexOf('Periodo: ') === 0);
+  verifica('e subito dopo l\'impronta della configurazione',
+    /^Configurazione: impronta [0-9A-F]{8}$/.test(righe[6]) && righe[6].indexOf(contesto.CONFIG.impronta) > 0);
+  verifica('nessuna riga dell\'anteprima supera i 100 caratteri',
+    righe.every(r => r.length <= 100));
+  const piatta = anteprima.replace(/\s+/g, ' ');
+  // le etichette escluse da Studenti non ci sono ancora e le loro regole hanno
+  // da etichettare: qui quei messaggi finiscono anche in Studenti
+  verifica('Studenti e\' una stima per eccesso, e dice perche\'',
+    piatta.indexOf('Nota: Scuola/Studenti e\' una stima per eccesso. Esclude le conversazioni con ' +
+                   'Scuola/Colleghi (non esiste ancora), Scuola/Dirigenza (non esiste ancora), ' +
+                   'Scuola/Segreteria (non esiste ancora)') >= 0);
+  verifica('le altre regole no', (anteprima.match(/stima per eccesso/g) || []).length === 1 &&
+    anteprima.indexOf('non esistono ancora') < 0);
+  verifica('le regole che archiviano lo dicono', /^  Scuola\/Sindacati .*\(archivia\)$/m.test(anteprima));
+}
 
 intestazione('PASSO 3 in modalita\' prova: conta e basta');
 verifica('la configurazione di partenza e\' in prova', contesto.CONFIG.provaSenzaModifiche === true);
@@ -494,6 +515,14 @@ GmailApp.search = (query, inizio, quanti) => {
   return cercaVera(query, inizio, quanti);
 };
 contesto.CONFIG.regole.unshift({ attiva: true, etichetta: 'Rotta', oggetto: ['rotta'], nota: 'prova' });
+{
+  // anche l'anteprima: la regola rotta la segnala, e le altre le conta lo stesso
+  let a = '';
+  try { a = contesto.PASSO_1_anteprima(); } catch (e) { a = 'ERRORE: ' + e.message; }
+  verifica('l\'anteprima non si ferma su una ricerca rifiutata, e la segnala',
+    /^  Scuola\/Rotta +\? /m.test(a) && a.indexOf('Gmail non accetta la ricerca di questa regola') > 0 &&
+    /^  Scuola\/Circolari +\d+ /m.test(a));
+}
 proprieta.clear();
 const primaDellaRotta = registro.length;
 contesto.PASSO_3_riordinaPostaEsistente();
@@ -949,6 +978,188 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
   verifica('e sono tutte sue (S)', conGruppo && conGruppo.soloSue);
 }
 function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
+
+// La riga di una regola nella tabella dell'anteprima, divisa nelle colonne
+// (nome, da etichettare, gia' etichettate, in Gmail, archivia), o null.
+function colonneAnteprima(testo, nome) {
+  const r = testo.split('\n').find(x => x.indexOf('  ' + nome + ' ') === 0 &&
+                                        x.trim().split(/\s{2,}/)[0] === nome);
+  return r ? r.trim().split(/\s{2,}/) : null;
+}
+function stesseColonne(testo, nome, attese) {
+  const c = colonneAnteprima(testo, nome);
+  return !!c && c.join(' | ') === attese.join(' | ');
+}
+
+intestazione('ANTEPRIMA DI UNA SCUOLA INVENTATA: NUMERI, ETICHETTE CHE CI SONO GIA\', DOPPIONI');
+const configDiPrima = contesto.CONFIG;
+{
+  // Come la casella di chi ha trovato numeri strani nell'anteprima della
+  // 1.5.0: nessun gruppo, le sottoetichette dei ruoli, una "Colleghi" fatta a
+  // mano, la Dirigenza del passo 2 uguale al ruolo Dirigenza dell'elenco,
+  // tanta posta dalla segreteria e il registro scritto con l'indirizzo sbagliato.
+  casella.length = 0;
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  const S = 'scuola.example';
+  indirizzoAttivo = 'docente@' + S;
+  const preside = 'preside@' + S;
+  const docenti = ['anna.bianchi', 'carlo.verdi', 'elena.neri', 'gino.gialli', 'ivo.viola', 'lia.rosa']
+    .map(n => n + '@' + S);
+  const amministrativi = ['marco.azzurri', 'nora.grigi'].map(n => n + '@' + S);
+  contesto.CONFIG = {
+    impronta: 'A1B2C3D4',
+    dominioScuola: S,
+    prefissoEtichette: '',
+    provaSenzaModifiche: true,
+    soloUltimiMesi: 0,
+    escludiPostaInviata: true,
+    personale: [preside].concat(docenti, amministrativi),
+    gruppi: { Dirigenza: [preside], Docenti: docenti, Amministrativi: amministrativi },
+    regole: [
+      { attiva: true, etichetta: 'Dirigenza', da: [preside] },
+      { attiva: true, etichetta: 'Segreteria', da: ['segreteria@' + S] },
+      { attiva: true, etichetta: 'Circolari', oggetto: ['circolare'] },
+      { attiva: true, etichetta: 'Registro elettronico', da: ['avvisi@registro.example'] },
+      { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] },
+      { attiva: true, etichetta: 'Colleghi/Dirigenza', da: ['@GRUPPO:Dirigenza@'] },
+      { attiva: true, etichetta: 'Colleghi/Docenti', da: ['@GRUPPO:Docenti@'] },
+      { attiva: true, etichetta: 'Colleghi/Amministrativi', da: ['@GRUPPO:Amministrativi@'] },
+      { attiva: true, etichetta: 'Studenti', da: ['@DOMINIO@'],
+        escludiEtichette: ['Colleghi', 'Dirigenza', 'Segreteria'] },
+      { attiva: true, etichetta: 'Ministero e USR', da: ['@istruzione.it', '@mim.gov.it'] },
+      { attiva: true, etichetta: 'Sindacati', da: ['@sindacato.example'], archivia: true },
+      { attiva: false, etichetta: 'Formazione e corsi', oggetto: ['corso'] }
+    ]
+  };
+  const dalPreside = [];
+  for (let i = 0; i < 13; i++) dalPreside.push(aggiungi(preside, 'Comunicazione del dirigente ' + i, ''));
+  for (let i = 0; i < 520; i++) aggiungi('segreteria@' + S, 'Pratica ' + i, '');
+  for (let i = 0; i < 4; i++) aggiungi('segreteria@' + S, 'Circolare n. ' + (i + 1), '');
+  const dalPersonale = [];
+  for (let i = 0; i < 40; i++) dalPersonale.push(aggiungi(docenti[i % docenti.length], 'Dipartimento ' + i, ''));
+  for (let i = 0; i < 5; i++) dalPersonale.push(aggiungi(amministrativi[i % 2], 'Pratica del personale ' + i, ''));
+  for (let i = 0; i < 30; i++) aggiungi('studente' + i + '@' + S, 'Domanda ' + i, '');
+  // il registro scrive da un indirizzo, nell'app ne e' stato scritto un altro
+  for (let i = 0; i < 25; i++) aggiungi('noreply@registro.example', 'Nuova valutazione ' + i, '');
+  for (let i = 0; i < 37; i++) aggiungi('comunicazioni@istruzione.it', 'Nota ministeriale ' + i, '');
+  const sindacali = [];
+  for (let i = 0; i < 15; i++) sindacali.push(aggiungi('info@sindacato.example', 'Assemblea ' + i, ''));
+  // "Colleghi" c'era gia': un filtro fatto a mano l'ha messa a quasi tutta la
+  // posta del personale; "Sindacati" l'ha creata lo script, e se l'e' segnata
+  GmailApp.createLabel('Colleghi').addToThreads(dalPersonale.slice(6).concat(dalPreside));
+  GmailApp.createLabel('Sindacati').addToThreads(sindacali.slice(0, 12));
+  _memoriaCon(['Sindacati']);
+  const primaDellAnteprima = casella.map(t => [...t.labels].sort().join('|')).join('\n');
+
+  const a = contesto.PASSO_1_anteprima();
+  console.log(a);
+  const piatta = a.replace(/\s+/g, ' ');
+  verifica('l\'anteprima non tocca niente, nemmeno la memoria delle etichette create',
+    casella.map(t => [...t.labels].sort().join('|')).join('\n') === primaDellAnteprima &&
+    etichette.size === 2 && proprieta.get('ORGGMAIL_ETICHETTE_CREATE') === '["Sindacati"]');
+  verifica('scrive l\'impronta della configurazione', a.split('\n')[6] === 'Configurazione: impronta A1B2C3D4');
+  verifica('nessuna riga supera i 100 caratteri', a.split('\n').every(r => r.length <= 100));
+  verifica('i numeri al tetto delle ricerche hanno il +: Segreteria 500+',
+    stesseColonne(a, 'Segreteria', ['Segreteria', '500+', '-', 'da creare']) &&
+    stesseColonne(a, 'Studenti', ['Studenti', '500+', '-', 'da creare']));
+  verifica('e gli altri no: Dirigenza 13, Colleghi/Docenti 40',
+    stesseColonne(a, 'Dirigenza', ['Dirigenza', '13', '-', 'da creare']) &&
+    stesseColonne(a, 'Colleghi/Docenti', ['Colleghi/Docenti', '40', '-', 'da creare']));
+  verifica('una "Colleghi" che c\'era gia\': 6 da etichettare, 52 gia\' etichettate, "esisteva gia\'"',
+    stesseColonne(a, 'Colleghi', ['Colleghi', '6', '52', 'esisteva gia\'']));
+  verifica('una creata dallo script lo dice, con quelle che ha gia\'',
+    stesseColonne(a, 'Sindacati', ['Sindacati', '3', '12', 'creata dallo script', '(archivia)']));
+  verifica('una regola spenta non c\'e\'', a.indexOf('Formazione e corsi') < 0);
+  verifica('il totale ha il + perche\' qualche ricerca e\' al tetto', /^Totale da etichettare: \d+\+ /m.test(a));
+  verifica('dice che cosa vuol dire "esisteva gia\'" e che cosa fanno le due ANNULLA',
+    piatta.indexOf('ESISTEVA GIA\': l\'etichetta c\'era prima dello script') >= 0 &&
+    piatta.indexOf('ANNULLA_etichettatura non la svuota, ANNULLA_etichettaturaCompleta si\'') >= 0);
+  {
+    const righe = a.split('\n');
+    const i = righe.findIndex(r => r.indexOf('  Registro elettronico ') === 0);
+    verifica('il registro con l\'indirizzo sbagliato: 0, e sotto il consiglio di controllare il mittente',
+      stesseColonne(a, 'Registro elettronico', ['Registro elettronico', '0', '-', 'da creare']) &&
+      i > 0 && (righe[i + 1] + ' ' + righe[i + 2]).replace(/\s+/g, ' ').trim() ===
+        'nessun messaggio da questi mittenti: controlla gli indirizzi (per il registro elettronico, ' +
+        'guarda il mittente vero di una notifica)');
+    verifica('e solo li\'', (a.match(/nessun messaggio da questi mittenti/g) || []).length === 1);
+  }
+  verifica('Studenti e\' una stima per eccesso, per le escluse che devono ancora prendere messaggi',
+    piatta.indexOf('Nota: Studenti e\' una stima per eccesso. Esclude le conversazioni con Colleghi ' +
+      '(deve prenderne ancora 6), Dirigenza (non esiste ancora), Segreteria (non esiste ancora)') >= 0);
+  verifica('il doppione della Dirigenza, con il consiglio',
+    piatta.indexOf('Regole che mettono due etichette agli stessi messaggi: - Dirigenza e ' +
+      'Colleghi/Dirigenza: stessi mittenti, ogni messaggio prende tutte e due. Se ne vuoi una sola, ' +
+      'spegni la regola Dirigenza nel passo 4 di Campanella (la sottoetichetta per ruolo resta).') >= 0);
+  verifica('e nessun altro: non Colleghi con le sue sottoetichette, non Dirigenza con tutto il personale',
+    a.split('\n').filter(r => r.indexOf('  - ') === 0).length === 1);
+
+  // la configurazione di prima della 1.5.1 non ha l'impronta
+  delete contesto.CONFIG.impronta;
+  const senza = contesto.PASSO_1_anteprima();
+  verifica('senza impronta lo dice: generata da una versione precedente',
+    senza.split('\n')[6] === 'Configurazione: senza impronta: generata da una versione precedente di Campanella.');
+  contesto.CONFIG.impronta = 'A1B2C3D4';
+
+  // Dopo il riordino vero le etichette escluse sono piene e le loro regole non
+  // hanno piu' niente da etichettare: il conto di Studenti e' giusto
+  contesto.CONFIG.provaSenzaModifiche = false;
+  contesto.PASSO_3_riordinaPostaEsistente();
+  aggiungi('studente.nuovo@' + S, 'Domanda nuova', '');
+  // un ruolo senza posta: 0, ma nessun indirizzo scritto a mano da controllare
+  contesto.CONFIG.gruppi.Tecnici = ['tecnico@' + S];
+  contesto.CONFIG.regole.splice(8, 0, { attiva: true, etichetta: 'Colleghi/Tecnici', da: ['@GRUPPO:Tecnici@'] });
+  const dopo = contesto.PASSO_1_anteprima();
+  console.log(dopo);
+  verifica('dopo il riordino nessuna stima per eccesso: le escluse sono piene',
+    dopo.indexOf('stima per eccesso') < 0 && dopo.indexOf('non esist') < 0 &&
+    stesseColonne(dopo, 'Studenti', ['Studenti', '1', '30', 'creata dallo script']));
+  verifica('le etichette create dal riordino sono "creata dallo script", la Colleghi di prima no',
+    stesseColonne(dopo, 'Dirigenza', ['Dirigenza', '0', '13', 'creata dallo script']) &&
+    stesseColonne(dopo, 'Colleghi', ['Colleghi', '0', '58', 'esisteva gia\'']));
+  verifica('anche le gia\' etichettate si fermano al tetto: Segreteria 500+',
+    stesseColonne(dopo, 'Segreteria', ['Segreteria', '0', '500+', 'creata dallo script']));
+  verifica('una regola che ha gia\' etichettato tutto non riceve il consiglio sugli indirizzi, ' +
+    'ne\' un ruolo senza posta: resta solo il registro',
+    stesseColonne(dopo, 'Colleghi/Tecnici', ['Colleghi/Tecnici', '0', '-', 'da creare']) &&
+    (dopo.match(/nessun messaggio da questi mittenti/g) || []).length === 1);
+  contesto.CONFIG.regole.splice(8, 1);
+  delete contesto.CONFIG.gruppi.Tecnici;
+
+  // i doppioni, regola per regola
+  const cfgD = { dominioScuola: S, prefissoEtichette: '', personale: [preside].concat(docenti),
+                 gruppi: { Dirigenza: [preside], Docenti: docenti } };
+  const preside1 = { attiva: true, etichetta: 'Preside', da: ['PRESIDE@' + S] };
+  const vice = { attiva: true, etichetta: 'Vicepresidenza', da: [preside, 'vice@' + S] };
+  const verbali = { attiva: true, etichetta: 'Verbali', da: [preside], oggetto: ['verbale'] };
+  const dominio = { attiva: true, etichetta: 'Tutta la scuola', da: ['@DOMINIO@'] };
+  const ruolo = { attiva: true, etichetta: 'Colleghi/Dirigenza', da: ['@GRUPPO:Dirigenza@'] };
+  const tutti = { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] };
+  const d = contesto._doppioni_(cfgD, [preside1, vice, verbali, dominio, ruolo, tutti]);
+  console.log('    ' + d.join('\n    '));
+  verifica('mittenti dentro quelli di un\'altra regola: lo dice, e consiglia di spegnere la piu\' piccola',
+    d.indexOf('Preside e Vicepresidenza: i mittenti di Preside sono tutti anche in Vicepresidenza, ' +
+      'quindi ogni messaggio di Preside prende tutte e due. Se ti basta Vicepresidenza, spegni la ' +
+      'regola Preside nel passo 4 di Campanella.') >= 0);
+  verifica('gli indirizzi si confrontano in minuscolo, e i gruppi espansi',
+    d.indexOf('Preside e Colleghi/Dirigenza: stessi mittenti, ogni messaggio prende tutte e due. ' +
+      'Se ne vuoi una sola, spegni la regola Preside nel passo 4 di Campanella (la sottoetichetta ' +
+      'per ruolo resta).') >= 0);
+  verifica('una sottoetichetta per ruolo dentro un\'altra regola: niente consiglio, non si spegne da sola',
+    d.indexOf('Colleghi/Dirigenza e Vicepresidenza: i mittenti di Colleghi/Dirigenza sono tutti anche ' +
+      'in Vicepresidenza, quindi ogni messaggio di Colleghi/Dirigenza prende tutte e due.') >= 0);
+  verifica('e nient\'altro: non con altri criteri, non con @DOMINIO@, non la madre con la figlia (' +
+    d.length + ' coppie)', d.length === 3 && !d.some(f => /Verbali|Tutta la scuola|^Colleghi e /.test(f)));
+  verifica('due regole uguali qualsiasi: spegnine una',
+    contesto._doppioni_(cfgD, [vice, { attiva: true, etichetta: 'Presidenza', da: ['vice@' + S, preside] }])
+      .join('') === 'Vicepresidenza e Presidenza: stessi mittenti, ogni messaggio prende tutte e due. ' +
+      'Se ne vuoi una sola, spegni una delle due regole nel passo 4 di Campanella.');
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
 
 intestazione('LA POSTA VA SOLO A TE');
 {

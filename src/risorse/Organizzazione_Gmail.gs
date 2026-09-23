@@ -59,6 +59,9 @@
  *
  *  VERSIONE: la stampano PASSO_1_anteprima ed EXTRA_codiceStato. Se in
  *  Campanella la versione e' piu' nuova, reincolla questo file.
+ *  PASSO_1_anteprima stampa anche l'impronta di Configurazione.gs: deve
+ *  essere quella che Campanella mostra al passo 5 della Posta, se no la
+ *  configurazione incollata e' vecchia e va copiata di nuovo.
  * ============================================================================
  */
 
@@ -71,6 +74,8 @@ var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
 var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
 var _THREAD_INDIRIZZI       = 4000;  // tetto di EXTRA_elencaIndirizziScuola
 var _RIGHE_PER_SCRITTA      = 40;    // il registro taglia le scritte lunghe
+var _TETTO_ANTEPRIMA        = 500;   // PASSO_1 conta fino a qui per ricerca (massimo di Gmail)
+var _LARGHEZZA_RIGA         = 96;    // le note dell'anteprima vanno a capo qui
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
@@ -91,27 +96,80 @@ function PASSO_1_anteprima() {
   righe.push('Dominio scuola: ' + (cfg.dominioScuola || '(non impostato)'));
   righe.push('Persone in elenco: ' + ((cfg.personale || []).length));
   righe.push('Periodo: ' + _descrizionePeriodo_(cfg));
-  righe.push('');
-
-  var totale = 0;
-  var regole = _regoleAttive_(cfg);
-  for (var i = 0; i < regole.length; i++) {
-    var n = 0;
-    var queries = _queryDellaRegola_(cfg, regole[i]);
-    for (var q = 0; q < queries.length; q++) {
-      // il conteggio si ferma a 500 per ricerca: serve solo a dare un'idea
-      n += GmailApp.search(queries[q], 0, 500).length;
-    }
-    totale += n;
-    righe.push('  ' + _pad_(_etichettaCompleta_(cfg, regole[i]), 34) + _contaTesto_(n) +
-               (regole[i].archivia ? '   (poi archivia)' : ''));
+  // L'impronta la scrive Campanella in Configurazione.gs, e al passo 5 mostra
+  // quella delle scelte di adesso: se non sono uguali, la configurazione
+  // incollata qui e' di prima (una regola spenta nell'app qui e' ancora accesa)
+  if (cfg.impronta) {
+    righe.push('Configurazione: impronta ' + String(cfg.impronta));
+    righe = righe.concat(_aCapo_('Campanella mostra quella di adesso nella Posta, al passo 5: se e\' ' +
+      'diversa, questa configurazione e\' vecchia e va copiata di nuovo.', '  ', '  '));
+  } else {
+    righe.push('Configurazione: senza impronta: generata da una versione precedente di Campanella.');
+    righe = righe.concat(_aCapo_('Copiala di nuovo dalla Posta, passo 5: quella nuova ha l\'impronta, ' +
+      'e qui potrai controllare che sia quella di adesso.', '  ', '  '));
   }
   righe.push('');
-  righe.push('Totale conversazioni interessate (stima): ' + totale);
+
+  var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
+  var create = _etichetteCreate_();
+  var regole = _regoleAttive_(cfg);
+  var conti = [];
+  var totale = 0, totalePieno = false, giaDiPrima = false;
+  righe.push('  ' + _pad_('ETICHETTA', 30) + _aDestra_('DA ETICHETTARE', 15) +
+             _aDestra_('GIA\' ETICHETTATE', 18) + '  IN GMAIL');
+  for (var i = 0; i < regole.length; i++) {
+    var nome = _etichettaCompleta_(cfg, regole[i]);
+    var c = _contaAnteprima_(cfg, regole[i], nome);
+    conti.push(c);
+    totale += c.nuove;
+    if (c.pieno) totalePieno = true;
+    var sua = create.indexOf(nome) >= 0;
+    if (c.etichetta && !sua) giaDiPrima = true;
+    righe.push('  ' + _pad_(nome, 30) +
+               _aDestra_(c.rifiutata ? '?' : _numeroAnteprima_(c.nuove, c.pieno), 15) +
+               _aDestra_(c.etichetta ? _numeroAnteprima_(c.gia, c.giaPiena) : '-', 18) + '  ' +
+               (!c.etichetta ? 'da creare' : sua ? 'creata dallo script' : 'esisteva gia\'') +
+               (regole[i].archivia ? '  (archivia)' : ''));
+    if (c.rifiutata) {
+      righe = righe.concat(_aCapo_('Gmail non accetta la ricerca di questa regola: controlla la ' +
+        'ricerca avanzata (queryLibera). Il riordino la salta.', '      ', '      '));
+    } else if (c.senzaPosta) {
+      righe = righe.concat(_aCapo_('nessun messaggio da questi mittenti: controlla gli indirizzi ' +
+        '(per il registro elettronico, guarda il mittente vero di una notifica)', '      ', '      '));
+    }
+  }
   righe.push('');
-  righe.push('Nota: i numeri sono una stima per eccesso. Le regole che escludono');
-  righe.push('altre etichette (per esempio Studenti, che esclude Colleghi) qui');
-  righe.push('contano di piu\' del reale, perche\' le etichette non esistono ancora.');
+  righe.push('Totale da etichettare: ' + _numeroAnteprima_(totale, totalePieno) +
+             '  (una conversazione con due etichette conta due volte)');
+  righe = righe.concat(_aCapo_('DA ETICHETTARE: le conversazioni che prenderanno l\'etichetta (quelle ' +
+    'che ce l\'hanno gia\' non si contano). GIA\' ETICHETTATE: quelle che ce l\'hanno adesso. ' +
+    'Un numero con il + e\' un minimo: il conteggio si ferma a ' + _TETTO_ANTEPRIMA +
+    ' conversazioni per ricerca.', '', ''));
+
+  if (giaDiPrima) {
+    righe.push('');
+    righe = righe.concat(_aCapo_(prefisso
+      ? 'ESISTEVA GIA\': l\'etichetta c\'era prima dello script, che la riusa e ci aggiunge i suoi ' +
+        'messaggi. Sta dentro "' + prefisso + '", quindi ANNULLA_etichettatura la toglie da tutti ' +
+        'i messaggi, anche da quelli a cui l\'avevi messa tu.'
+      : 'ESISTEVA GIA\': l\'etichetta c\'era prima dello script (o l\'ha creata una versione fino ' +
+        'alla 1.4.6, che non se lo segnava). Lo script la riusa e ci aggiunge i suoi messaggi; ' +
+        'ANNULLA_etichettatura non la svuota, ANNULLA_etichettaturaCompleta si\' (anche dai ' +
+        'messaggi a cui l\'avevi messa tu).', '', ''));
+  }
+
+  var eccesso = _stimePerEccesso_(cfg, regole, conti);
+  for (var s = 0; s < eccesso.length; s++) {
+    righe.push('');
+    righe = righe.concat(_aCapo_(eccesso[s], '', ''));
+  }
+
+  var doppi = _doppioni_(cfg, regole);
+  if (doppi.length) {
+    righe.push('');
+    righe.push('Regole che mettono due etichette agli stessi messaggi:');
+    for (var d = 0; d < doppi.length; d++) righe = righe.concat(_aCapo_(doppi[d], '  - ', '    '));
+  }
   righe.push('');
   if (cfg.provaSenzaModifiche) {
     // in prova PASSO_2 elenca soltanto: le etichette le crea il riordino vero
@@ -126,6 +184,215 @@ function PASSO_1_anteprima() {
   var testo = righe.join('\n');
   Logger.log(testo);
   return testo;
+}
+
+/**
+ * I numeri di una regola per l'anteprima: quante conversazioni prenderebbero
+ * l'etichetta (nuove), se l'etichetta c'e' gia' in Gmail e quante ce l'hanno
+ * (gia). Ogni ricerca si ferma a _TETTO_ANTEPRIMA: "pieno" e "giaPiena"
+ * dicono che il tetto e' stato toccato, e che il numero vero e' piu' alto.
+ */
+function _contaAnteprima_(cfg, regola, nome) {
+  var c = { nuove: 0, pieno: false, rifiutata: false, etichetta: false, gia: 0, giaPiena: false,
+            senzaPosta: false };
+  var queries = _queryDellaRegola_(cfg, regola);
+  for (var q = 0; q < queries.length; q++) {
+    var trovate;
+    try { trovate = GmailApp.search(queries[q], 0, _TETTO_ANTEPRIMA).length; }
+    catch (e) { c.rifiutata = true; continue; }     // come nel PASSO_3: la regola e' saltata
+    c.nuove += trovate;
+    if (trovate >= _TETTO_ANTEPRIMA) c.pieno = true;
+  }
+  var etichetta = GmailApp.getUserLabelByName(nome);
+  if (etichetta) {
+    c.etichetta = true;
+    c.gia = etichetta.getThreads(0, _TETTO_ANTEPRIMA).length;
+    c.giaPiena = c.gia >= _TETTO_ANTEPRIMA;
+  }
+  // indirizzi scritti a mano che non trovano niente, nemmeno fra i messaggi
+  // che hanno gia' l'etichetta: di solito sono sbagliati
+  if (!c.nuove && !c.rifiutata && _indirizziScritti_(regola)) c.senzaPosta = _nessunMittente_(cfg, regola);
+  return c;
+}
+
+/** Un conteggio dell'anteprima: con il "+" quando una ricerca ha toccato il tetto. */
+function _numeroAnteprima_(n, pieno) { return String(n) + (pieno ? '+' : ''); }
+
+/** Vero se fra i mittenti c'e' un indirizzo (o un dominio) scritto a mano, non un segnaposto. */
+function _indirizziScritti_(regola) {
+  var da = regola.da || [];
+  for (var i = 0; i < da.length; i++) {
+    var v = String(da[i] || '').trim();
+    if (!v || v === '@PERSONALE@' || v === '@DOMINIO@') continue;
+    if (v.indexOf('@GRUPPO:') === 0 && v.charAt(v.length - 1) === '@') continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Vero se dai mittenti della regola non arriva niente, nel periodo scelto:
+ * la stessa ricerca con i soli mittenti, contando anche le conversazioni che
+ * hanno gia' l'etichetta.
+ */
+function _nessunMittente_(cfg, regola) {
+  var soloMittenti = { etichetta: regola.etichetta, da: regola.da };
+  var togli = ' -label:' + _virgolette_(_etichettaCompleta_(cfg, soloMittenti));
+  var queries = _queryDellaRegola_(cfg, soloMittenti);
+  for (var q = 0; q < queries.length; q++) {
+    try {
+      if (GmailApp.search(queries[q].replace(togli, ''), 0, 1).length) return false;
+    } catch (e) { return false; }
+  }
+  return queries.length > 0;
+}
+
+/**
+ * Le regole che escludono altre etichette (Studenti esclude Colleghi...)
+ * contano di piu' del reale solo se una regola esclusa, che nel riordino gira
+ * prima, ha ancora conversazioni da etichettare: qui quelle non hanno ancora
+ * l'etichetta e finiscono nel conto. Una frase per regola, con le escluse
+ * che ne sono la causa; niente frase se il conto e' giusto.
+ */
+function _stimePerEccesso_(cfg, regole, conti) {
+  var frasi = [];
+  for (var i = 0; i < regole.length; i++) {
+    var escludi = regole[i].escludiEtichette || [];
+    if (!escludi.length || !conti[i].nuove || conti[i].rifiutata) continue;
+    var motivi = [];
+    for (var e = 0; e < escludi.length; e++) {
+      var esclusa = _etichettaCompleta_(cfg, { etichetta: escludi[e] });
+      for (var j = 0; j < i; j++) {
+        if (_etichettaCompleta_(cfg, regole[j]) !== esclusa || !conti[j].nuove) continue;
+        motivi.push(esclusa + (!conti[j].etichetta ? ' (non esiste ancora)'
+                             : !conti[j].gia ? ' (e\' ancora vuota)'
+                             : ' (deve prenderne ancora ' +
+                               _numeroAnteprima_(conti[j].nuove, conti[j].pieno) + ')'));
+        break;
+      }
+    }
+    if (!motivi.length) continue;
+    var nome = _etichettaCompleta_(cfg, regole[i]);
+    frasi.push('Nota: ' + nome + ' e\' una stima per eccesso. Esclude le conversazioni con ' +
+               motivi.join(', ') + ': nel riordino quelle regole girano prima, e i messaggi che ' +
+               'etichettano non finiscono in ' + nome + '.');
+  }
+  return frasi;
+}
+
+/**
+ * Le coppie di regole accese che mettono la loro etichetta agli stessi
+ * messaggi: stessi mittenti, o quelli di una tutti dentro l'altra, e nessun
+ * altro criterio. Non contano la madre con le figlie (Colleghi e
+ * Colleghi/Docenti: le sottoetichette dei ruoli sono una parte dei colleghi
+ * apposta) ne' tutto il personale (@PERSONALE@) con una sua parte. Una frase
+ * per coppia, nell'ordine delle regole.
+ */
+function _doppioni_(cfg, regole) {
+  var mittenti = [], nomi = [];
+  for (var i = 0; i < regole.length; i++) {
+    mittenti.push(_mittentiConfrontabili_(cfg, regole[i]));
+    nomi.push(_etichettaCompleta_(cfg, regole[i]));
+  }
+  var frasi = [];
+  for (var a = 0; a < regole.length; a++) {
+    if (!mittenti[a]) continue;
+    for (var b = a + 1; b < regole.length; b++) {
+      if (!mittenti[b] || nomi[a] === nomi[b]) continue;
+      if (nomi[b].indexOf(nomi[a] + '/') === 0 || nomi[a].indexOf(nomi[b] + '/') === 0) continue;
+      var aInB = _tuttiDentro_(mittenti[a], mittenti[b]);
+      var bInA = _tuttiDentro_(mittenti[b], mittenti[a]);
+      if (aInB && bInA) {
+        var ruoloA = _soloRuolo_(regole[a]), ruoloB = _soloRuolo_(regole[b]);
+        frasi.push(nomi[a] + ' e ' + nomi[b] + ': stessi mittenti, ogni messaggio prende tutte e due.' +
+          (ruoloA === ruoloB
+            ? (ruoloA ? '' : ' Se ne vuoi una sola, spegni una delle due regole nel passo 4 di Campanella.')
+            : ' Se ne vuoi una sola, spegni la regola ' + (ruoloA ? nomi[b] : nomi[a]) +
+              ' nel passo 4 di Campanella (la sottoetichetta per ruolo resta).'));
+        continue;
+      }
+      if (!aInB && !bInA) continue;
+      var piccola = aInB ? a : b, grande = aInB ? b : a;
+      if (_tuttoIlPersonale_(regole[grande])) continue;
+      frasi.push(nomi[piccola] + ' e ' + nomi[grande] + ': i mittenti di ' + nomi[piccola] +
+        ' sono tutti anche in ' + nomi[grande] + ', quindi ogni messaggio di ' + nomi[piccola] +
+        ' prende tutte e due.' +
+        (_soloRuolo_(regole[piccola]) ? ''
+          : ' Se ti basta ' + nomi[grande] + ', spegni la regola ' + nomi[piccola] +
+            ' nel passo 4 di Campanella' +
+            (_soloRuolo_(regole[grande]) ? ' (la sottoetichetta per ruolo resta).' : '.')));
+    }
+  }
+  return frasi;
+}
+
+/**
+ * I mittenti di una regola da confrontare con le altre: gli indirizzi dopo
+ * l'espansione, in minuscolo. null se la regola non si puo' confrontare:
+ * senza mittenti, con altri criteri (oggetto, testo, destinatari, allegato,
+ * ricerca avanzata, etichette escluse) o con @DOMINIO@, che non e' un elenco
+ * di indirizzi.
+ */
+function _mittentiConfrontabili_(cfg, regola) {
+  var da = regola.da || [];
+  if (!da.length) return null;
+  if ((regola.oggetto && regola.oggetto.length) || (regola.contiene && regola.contiene.length) ||
+      (regola.a && regola.a.length) || regola.haAllegato || regola.queryLibera ||
+      (regola.escludiEtichette && regola.escludiEtichette.length)) return null;
+  for (var i = 0; i < da.length; i++) {
+    if (String(da[i] || '').trim() === '@DOMINIO@') return null;
+  }
+  var espansi = _espandi_(cfg, da);
+  if (!espansi.length) return null;
+  var fuori = [];
+  for (var k = 0; k < espansi.length; k++) fuori.push(String(espansi[k]).toLowerCase());
+  return _senzaDoppioni_(fuori);
+}
+
+function _tuttiDentro_(piccolo, grande) {
+  var c = {};
+  for (var i = 0; i < grande.length; i++) c[grande[i]] = true;
+  for (var j = 0; j < piccolo.length; j++) if (!c[piccolo[j]]) return false;
+  return true;
+}
+
+/** Una sottoetichetta per ruolo: i mittenti sono un gruppo del personale e basta. */
+function _soloRuolo_(regola) {
+  var da = regola.da || [];
+  if (da.length !== 1) return false;
+  var v = String(da[0] || '').trim();
+  return v.indexOf('@GRUPPO:') === 0 && v.length > 9 && v.charAt(v.length - 1) === '@';
+}
+
+/** Tutto l'elenco del personale (la regola Colleghi): contiene ogni regola fatta di colleghi. */
+function _tuttoIlPersonale_(regola) {
+  var da = regola.da || [];
+  return da.length === 1 && String(da[0] || '').trim() === '@PERSONALE@';
+}
+
+/** Spezza un testo in righe corte per il registro: "prima" apre la prima riga, "dopo" le altre. */
+function _aCapo_(testo, prima, dopo) {
+  var parole = String(testo).split(' ');
+  var righe = [], riga = prima, vuota = true;
+  for (var i = 0; i < parole.length; i++) {
+    if (!parole[i]) continue;
+    if (!vuota && riga.length + 1 + parole[i].length > _LARGHEZZA_RIGA) {
+      righe.push(riga);
+      riga = dopo + parole[i];
+    } else {
+      riga += (vuota ? '' : ' ') + parole[i];
+    }
+    vuota = false;
+  }
+  righe.push(riga);
+  return righe;
+}
+
+/** Allinea a destra, per le colonne dei numeri. */
+function _aDestra_(s, n) {
+  s = String(s);
+  while (s.length < n) s = ' ' + s;
+  return s;
 }
 
 

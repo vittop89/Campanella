@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.5.1 — 23 September 2026
+
+Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs
+again).
+
+**Posta: a preview that says what it counts**
+
+- PASSO_1_anteprima shows, for each rule, how many conversations will get
+  the label and, when the label is already in Gmail, how many have it now
+  and whether the script created it or it existed before ("esisteva gia'":
+  the script reuses it, ANNULLA_etichettatura leaves it alone,
+  ANNULLA_etichettaturaCompleta empties it). A label you had already filled
+  no longer looks nearly empty next to its sub-labels, and a count that hit
+  Gmail's limit of 500 per search shows as "500+" instead of an exact 500.
+  Columns are aligned and lines stay short in the execution log.
+- The note saying every count is too high "because the labels do not exist
+  yet" is gone. A rule that excludes other labels, such as Studenti, is
+  called an overestimate only when an excluded rule still has conversations
+  to label, and the preview names it.
+- Rules that put two labels on the same messages are listed after the
+  table: same senders, or all of one rule's senders inside another's, with
+  no other condition. Typically Dirigenza and Colleghi/Dirigenza, when the
+  addresses in "La tua scuola" are the staff list's Dirigenza group; the
+  preview says which rule to switch off in step 4 if you want only one.
+  Colleghi with its role sub-labels, and a rule inside the whole staff list,
+  are meant that way and are not listed.
+- A rule with addresses typed by hand that finds no message at all says so,
+  and suggests checking the addresses (for the electronic register, the real
+  sender of a notification).
+- Configurazione.gs carries a fingerprint of your choices ("impronta", 8
+  characters; test mode and the date do not count, so both copies of the
+  guided installation share it). The preview prints it and Posta step 5
+  shows the current one: if they differ, the pasted configuration is older
+  than the app (a rule you switched off is still on in the script) and must
+  be copied again. A configuration without one was made by an earlier
+  version.
+- With the role sub-labels on, Posta step 4 warns in amber when an active
+  rule has the same senders as a role of the staff list, or part of them,
+  naming the rule and the sub-label.
+
+**For developers**
+
+- New `GeneratorePosta.Impronta` and `GeneratorePosta.DoppioniConIRuoli`,
+  tested headless in `prova_posta.ps1`, which also runs a generated
+  configuration through the real preview. `mock_apps_script.js` adds an
+  invented school with a hand-made label, a capped rule, a wrong register
+  address and the Dirigenza duplicate.
+
 ## 1.5.0 — 23 September 2026
 
 **Before you update.** Update Campanella on every PC that shares the same

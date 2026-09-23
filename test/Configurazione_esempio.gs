@@ -6,6 +6,11 @@
 
 var CONFIG = {
 
+  // ---- l'impronta di queste scelte ------------------------------------
+  //  PASSO_1_anteprima la scrive in cima; Campanella (Posta, passo 5)
+  //  mostra quella di adesso. Se sono diverse, copia di nuovo questo file.
+  impronta: "A1B2C3D4",
+
   // ---- la tua scuola ---------------------------------------------------
   dominioScuola:     "scuola-esempio.edu.it",
   prefissoEtichette: "Scuola",

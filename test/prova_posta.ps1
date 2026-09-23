@@ -9,7 +9,9 @@
     banco test\mock_apps_script.js, che usa lo script vero della posta. Cosi'
     una chiave rinominata da una parte sola si vede subito. Controlla anche
     che la configurazione generata sia quella d'esempio che il banco usa da
-    solo, e che nomi strani non possano uscire da stringhe e commenti.
+    solo, e che nomi strani non possano uscire da stringhe e commenti;
+    l'impronta della configurazione e le regole che si doppiano con le
+    sottoetichette dei ruoli, e che l'anteprima dello script veda le stesse.
 
     Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
     Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
@@ -105,7 +107,8 @@ vm.runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
 const globali = Object.keys(contesto).filter(k => k !== 'CONFIG');
 process.stdout.write(JSON.stringify({ CONFIG: contesto.CONFIG, altri: globali }));
 '@
-# confronto fra due configurazioni: tutto tranne le note, a chiavi ordinate
+# confronto fra due configurazioni: tutto tranne le note e l'impronta (che
+# nell'esempio e' inventata), a chiavi ordinate
 $confrontaJs = Join-Path $temporanea 'confronta.js'
 Scrivi $confrontaJs @'
 const vm = require('vm'), fs = require('fs');
@@ -113,7 +116,7 @@ function carica(f) { const c = {}; vm.runInNewContext(fs.readFileSync(f, 'utf8')
 function canonico(v) {
   if (Array.isArray(v)) return '[' + v.map(canonico).join(',') + ']';
   if (v && typeof v === 'object') {
-    return '{' + Object.keys(v).filter(k => k !== 'nota').sort()
+    return '{' + Object.keys(v).filter(k => k !== 'nota' && k !== 'impronta').sort()
       .map(k => JSON.stringify(k) + ':' + canonico(v[k])).join(',') + '}';
   }
   return JSON.stringify(v);
@@ -121,6 +124,22 @@ function canonico(v) {
 const a = canonico(carica(process.argv[2])), b = canonico(carica(process.argv[3]));
 process.stdout.write(a === b ? 'uguali' : 'diversi\n' + a + '\n' + b);
 '@
+# PASSO_1_anteprima del motore vero su una configurazione, con una casella
+# finta e vuota: basta a leggere impronta e doppioni, che vengono da CONFIG
+$anteprimaJs = Join-Path $temporanea 'anteprima.js'
+Scrivi $anteprimaJs @'
+const vm = require('vm'), fs = require('fs');
+const contesto = vm.createContext({
+  GmailApp: { search: () => [], getUserLabelByName: () => null },
+  PropertiesService: { getUserProperties: () => ({ getProperty: () => null }) },
+  Session: { getActiveUser: () => ({ getEmail: () => 'docente@scuola.example' }) },
+  Logger: { log: () => {} }
+});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto, { filename: 'Configurazione.gs' });
+vm.runInContext(fs.readFileSync(process.argv[3], 'utf8'), contesto, { filename: 'Organizzazione_Gmail.gs' });
+process.stdout.write(contesto.PASSO_1_anteprima());
+'@
+$motore = Join-Path $radice 'src\risorse\Organizzazione_Gmail.gs'
 function LeggiConfigurazione($file) { return ((& node $leggiJs $file) | ConvertFrom-Json) }
 
 try {
@@ -176,6 +195,103 @@ try {
     Verifica "personale vuoto" ($c.personale.Count -eq 0)
     Verifica "e la regola Colleghi spenta, non su tutta la casella" ($colleghi.attiva -eq $false)
     Verifica "niente sottoetichette dei ruoli" (@($c.regole | Where-Object { $_.etichetta -like 'Colleghi/*' }).Count -eq 0)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'L''IMPRONTA DELLA CONFIGURAZIONE'
+    # PASSO_1_anteprima la stampa e il passo 5 mostra quella di adesso: una
+    # configurazione incollata prima di spegnere una regola si riconosce
+    $mImpronta = $tGen.GetMethod('Impronta', $FS)
+    Verifica "il generatore calcola l'impronta" ($null -ne $mImpronta)
+    if ($null -ne $mImpronta) {
+        function Impronta($stato) { return [string]$mImpronta.Invoke($null, @($stato)) }
+        $imp = Impronta $s
+        Verifica "otto cifre esadecimali ($imp)" ($imp -cmatch '^[0-9A-F]{8}$')
+        $riga = 'impronta: "' + $imp + '",'
+        Verifica "la configurazione la scrive, con e senza modalita' prova" (
+            (Genera $s $true).Contains($riga) -and (Genera $s $false).Contains($riga))
+        $altroGiorno = $tGen.GetMethod('Configurazione', $FS).Invoke($null, @($s, $true, [datetime]'2027-01-15T08:30:00'))
+        Verifica "la data non conta" ($altroGiorno.Contains($riga))
+        Verifica "e l'esempio del banco ha la stessa riga, con un'impronta inventata" (
+            (Get-Content -Raw (Join-Path $qui 'Configurazione_esempio.gs')) -match '(?m)^  impronta: "[0-9A-F]{8}",')
+        $regoleS = Leggi $s 'Regole'
+        $regoleS[2].Attiva = $false
+        $spenta = Impronta $s
+        Verifica "una regola spenta la cambia ($spenta)" ($spenta -cmatch '^[0-9A-F]{8}$' -and $spenta -ne $imp)
+        $regoleS[2].Attiva = $true
+        Verifica "riaccesa torna quella di prima" ((Impronta $s) -eq $imp)
+        Imposta $s 'Dirigenza' 'vicepreside@scuola-esempio.edu.it'
+        Verifica "anche un indirizzo cambiato" ((Impronta $s) -ne $imp)
+        Imposta $s 'Dirigenza' 'preside@scuola-esempio.edu.it'
+    }
+
+    # -----------------------------------------------------------------------
+    Intestazione 'LA DIRIGENZA DEL PASSO 2 E LA SOTTOETICHETTA Colleghi/Dirigenza'
+    # Al passo 4, con le sottoetichette dei ruoli: una regola accesa con i
+    # mittenti di un ruolo mette la sua etichetta agli stessi messaggi
+    $d = NuovoStato
+    Imposta $d 'Dominio' 'scuola.example'
+    Imposta $d 'Prefisso' ''
+    Imposta $d 'Dirigenza' 'Preside@scuola.example'
+    Imposta $d 'Segreteria' 'segreteria@scuola.example'
+    AggiungiPersona $d 'GRIGI SARA' 'DIRIGENTE SCOLASTICO' 'preside@scuola.example' $true
+    AggiungiPersona $d 'BIANCHI ANNA' 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'anna.bianchi@scuola.example' $true
+    AggiungiPersona $d 'VERDI CARLO' 'ASSISTENTE AMMINISTRATIVO' 'carlo.verdi@scuola.example' $true
+    $mDoppi = $tGen.GetMethod('DoppioniConIRuoli', $FS)
+    Verifica "il generatore trova le regole doppie di una sottoetichetta" ($null -ne $mDoppi)
+    if ($null -ne $mDoppi) {
+        function Doppi($stato) { return ,@($mDoppi.Invoke($null, @($stato))) }
+        $h = Doppi $d
+        Verifica "Dirigenza del passo 2 uguale al ruolo Dirigenza: un avviso, con regola e sottoetichetta" (
+            $h.Count -eq 1 -and $h[0].StartsWith('Dirigenza e Colleghi/Dirigenza: stessi mittenti, ogni messaggio prende tutte e due.') -and
+            $h[0].Contains('togli la spunta a Dirigenza (la sottoetichetta per ruolo resta)'))
+        if ($h.Count -gt 0) { Write-Host "          $($h[0])" }
+        Imposta $d 'Prefisso' 'Scuola'
+        $h = Doppi $d
+        Verifica "con il gruppo i nomi sono quelli dell'elenco del passo 4" (
+            $h.Count -eq 1 -and $h[0].StartsWith('Scuola/Dirigenza e Scuola/Colleghi/Dirigenza: '))
+        Imposta $d 'Prefisso' ''
+        Imposta $d 'EtichettaPerRuolo' $false
+        Verifica "senza sottoetichette dei ruoli niente avviso" ((Doppi $d).Count -eq 0)
+        Imposta $d 'EtichettaPerRuolo' $true
+        $regoleD = Leggi $d 'Regole'
+        $regoleD[0].Attiva = $false
+        Verifica "con la regola Dirigenza spenta niente avviso" ((Doppi $d).Count -eq 0)
+        $regoleD[0].Attiva = $true
+        Imposta $d 'Dirigenza' "preside@scuola.example`r`nvicepreside@scuola.example"
+        Verifica "con un indirizzo in piu' del ruolo non e' un doppione" ((Doppi $d).Count -eq 0)
+        Imposta $d 'Dirigenza' 'preside@scuola.example'
+        AggiungiPersona $d 'NERI ELENA' 'DIRIGENTE SCOLASTICO' 'reggente@scuola.example' $true
+        $h = Doppi $d
+        Verifica "con una parte del ruolo lo dice: tutti anche in Colleghi/Dirigenza" (
+            $h.Count -eq 1 -and $h[0].StartsWith('Dirigenza e Colleghi/Dirigenza: i mittenti di Dirigenza sono tutti anche in Colleghi/Dirigenza'))
+        $soloPreside = NuovoStato
+        Imposta $soloPreside 'Dominio' 'scuola.example'
+        Imposta $soloPreside 'Dirigenza' ''
+        Imposta $soloPreside 'Segreteria' 'segreteria@scuola.example'
+        AggiungiPersona $soloPreside 'GRIGI SARA' 'DIRIGENTE SCOLASTICO' 'preside@scuola.example' $true
+        Verifica "la regola Colleghi, madre delle sottoetichette, non conta mai" ((Doppi $soloPreside).Count -eq 0)
+    }
+
+    # -----------------------------------------------------------------------
+    Intestazione 'L''ANTEPRIMA DELLO SCRIPT VEDE LE STESSE COSE'
+    # la configurazione generata, nel motore vero: la stessa impronta del
+    # passo 5, e lo stesso doppione che il passo 4 segnala
+    $e = NuovoStato
+    Imposta $e 'Dominio' 'scuola.example'
+    Imposta $e 'Prefisso' ''
+    Imposta $e 'Dirigenza' 'Preside@scuola.example'
+    Imposta $e 'Segreteria' 'segreteria@scuola.example'
+    AggiungiPersona $e 'GRIGI SARA' 'DIRIGENTE SCOLASTICO' 'preside@scuola.example' $true
+    AggiungiPersona $e 'BIANCHI ANNA' 'DOCENTE' 'anna.bianchi@scuola.example' $true
+    $fileE = Join-Path $temporanea 'Configurazione_doppioni.gs'
+    Scrivi $fileE (Genera $e $true)
+    $uscita = (& node $anteprimaJs $fileE $motore) -join "`n"
+    $piatta = $uscita -replace '\s+', ' '
+    $impE = if ($null -ne $mImpronta) { [string]$mImpronta.Invoke($null, @($e)) } else { '(nessuna)' }
+    Verifica "PASSO_1_anteprima stampa l'impronta che il passo 5 mostra ($impE)" (
+        $uscita.Contains("`nConfigurazione: impronta $impE`n"))
+    Verifica "e trova lo stesso doppione" (
+        $piatta.Contains('- Dirigenza e Colleghi/Dirigenza: stessi mittenti, ogni messaggio prende tutte e due.'))
 
     # -----------------------------------------------------------------------
     Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'

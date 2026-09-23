@@ -184,8 +184,21 @@ POSTA - riordinare la casella
    Lascia accesa la modalita' prova: in prova lo script conta soltanto, non
    crea nemmeno le etichette.
    "Mandami un riepilogo per email" manda il riepilogo al tuo stesso account.
-4) Passo 5: copia il codice.
+   Con le sottoetichette dei ruoli accese, un avviso sotto le regole dice
+   quali hanno gli stessi mittenti di un ruolo (Dirigenza e
+   Colleghi/Dirigenza): ogni messaggio prenderebbe tutte e due le etichette.
+4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
+   configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
+   configurazione incollata e' vecchia (per esempio ha ancora accesa una
+   regola che hai spento) e va copiata di nuovo.
 5) Passo 6: otto passi guidati, con i pulsanti che copiano al posto tuo.
+   L'anteprima (PASSO_1_anteprima) dice per ogni regola quante conversazioni
+   prenderanno l'etichetta e, se l'etichetta c'e' gia' in Gmail, quante ce
+   l'hanno e se l'ha creata lo script o c'era gia'. "500+" vuol dire almeno
+   500: il conteggio si ferma li'. In fondo elenca le regole che mettono due
+   etichette agli stessi messaggi, e segnala quelle con indirizzi scritti a
+   mano che non trovano niente (spesso l'indirizzo del registro elettronico:
+   guarda il mittente vero di una notifica).
 
 
 CARTELLE - il nuovo anno scolastico

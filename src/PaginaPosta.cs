@@ -47,7 +47,7 @@ namespace Campanella
 
         CheckedListBox clbRegole;
         TextBox txtPrefisso;
-        Label lblPrefisso;
+        Label lblPrefisso, lblDoppioni;
         bool zitto = false;
         TextBox txtDescrizioneRegola;
         CheckBox chkArchiviaRegola, chkProva, chkReport, chkEscludiInviata, chkFiltri;
@@ -56,6 +56,7 @@ namespace Campanella
 
         ComboBox cmbCosaVedere;
         TextBox txtAnteprima;
+        Label lblImpronta;
 
         FlowLayoutPanel pannelloPassi;
         List<CheckBox> spunte = new List<CheckBox>();
@@ -627,7 +628,10 @@ namespace Campanella
             clbRegole.ItemCheck += delegate(object s, ItemCheckEventArgs e)
             {
                 if (e.Index >= 0 && e.Index < S.Regole.Count)
+                {
                     S.Regole[e.Index].Attiva = (e.NewValue == CheckState.Checked);
+                    AggiornaDoppioni();
+                }
             };
             p.Controls.Add(clbRegole);
 
@@ -686,6 +690,12 @@ namespace Campanella
                                     14, 172, Ruolo.Normale);
             go.Controls.Add(chkFiltri);
             p.Controls.Add(go);
+
+            // regole che etichettano gli stessi messaggi di una sottoetichetta
+            // per ruolo (lo scrive AggiornaDoppioni; vuota, non si vede)
+            lblDoppioni = Tema.Testo1("", 0, y + 372, 900, Tema.Normale, Ruolo.Avviso);
+            lblDoppioni.Visible = false;
+            p.Controls.Add(lblDoppioni);
             return p;
         }
 
@@ -701,7 +711,12 @@ namespace Campanella
                 "Qui c'e' tutto il materiale pronto. Non serve capirlo: basta copiarlo e incollarlo " +
                 "dove dice il passo 6.",
                 0, y, 800, Tema.Normale, Ruolo.Tenue));
-            y += 40;
+            y += 28;
+
+            // l'impronta delle scelte di adesso: la scrive AggiornaAnteprima
+            lblImpronta = Tema.Testo1("", 0, y, 900, Tema.Normale, Ruolo.Normale);
+            p.Controls.Add(lblImpronta);
+            y += 48;
 
             cmbCosaVedere = new ComboBox();
             cmbCosaVedere.Location = new Point(0, y);
@@ -793,7 +808,9 @@ namespace Campanella
                 "poi nella schermata \"Google non ha verificato questa app\" premi \"Avanzate\" e " +
                 "quindi \"Apri Organizzazione Gmail (non sicura)\", infine \"Consenti\". " +
                 "E' il tuo script, scritto da te: l'avviso compare per tutti gli script personali. " +
-                "Alla fine, in basso, leggi il registro con il conteggio dei messaggi.",
+                "Alla fine, in basso, leggi il registro con il conteggio dei messaggi. In cima c'e' " +
+                "l'impronta della configurazione: deve essere quella del passo 5, se no copia di " +
+                "nuovo la configurazione.",
                 new string[] { }, new EventHandler[] { });
 
             Cartellino(5, "Guarda le etichette che nasceranno",
@@ -1802,6 +1819,29 @@ namespace Campanella
             if (selezione >= 0 && selezione < clbRegole.Items.Count) clbRegole.SelectedIndex = selezione;
             else if (clbRegole.Items.Count > 0) clbRegole.SelectedIndex = 0;
             MostraDescrizioneRegola();
+            AggiornaDoppioni();
+        }
+
+        /// <summary>
+        /// L'avviso ambra sotto le regole: quelle accese che mettono la loro
+        /// etichetta agli stessi messaggi di una sottoetichetta per ruolo (lo
+        /// decide GeneratorePosta.DoppioniConIRuoli). Gli indirizzi della
+        /// pagina "La tua scuola" si prendono dalle caselle, perche' nello
+        /// Stato arrivano solo uscendo dalla pagina; le spunte delle regole
+        /// invece dallo Stato e non dalla lista, che durante ItemCheck non e'
+        /// ancora cambiata (per questo qui niente Raccogli).
+        /// </summary>
+        void AggiornaDoppioni()
+        {
+            if (lblDoppioni == null) return;
+            S.Dominio = txtDominio.Text;
+            S.Dirigenza = txtDirigenza.Text;
+            S.Segreteria = txtSegreteria.Text;
+            S.Registro = txtRegistro.Text;
+            List<string> doppi = GeneratorePosta.DoppioniConIRuoli(S);
+            lblDoppioni.Text = doppi.Count == 0 ? "" : string.Join("\r\n", doppi.ToArray());
+            lblDoppioni.Height = Tema.AltezzaTesto(lblDoppioni.Text, lblDoppioni.Font, lblDoppioni.Width);
+            lblDoppioni.Visible = doppi.Count > 0;
         }
 
         void MostraDescrizioneRegola()
@@ -2010,6 +2050,21 @@ namespace Campanella
         {
             txtAnteprima.Text = TestoCorrente().Replace("\r\n", "\n").Replace("\n", "\r\n");
             txtAnteprima.Select(0, 0);
+            AggiornaImpronta();
+        }
+
+        /// <summary>
+        /// L'impronta della configurazione di adesso, quella che PASSO_1_anteprima
+        /// deve stampare: se nello script e' un'altra, la configurazione
+        /// incollata e' vecchia (una regola spenta qui, li' e' ancora accesa).
+        /// </summary>
+        void AggiornaImpronta()
+        {
+            Raccogli();
+            lblImpronta.Text = "Impronta della configurazione: " + GeneratorePosta.Impronta(S) +
+                ". PASSO_1_anteprima deve scrivere la stessa: se e' diversa, copia di nuovo " +
+                "\"2. Configurazione\".";
+            lblImpronta.Height = Tema.AltezzaTesto(lblImpronta.Text, lblImpronta.Font, lblImpronta.Width);
         }
 
         void SalvaAnteprima()

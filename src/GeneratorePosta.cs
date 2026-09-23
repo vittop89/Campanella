@@ -10,6 +10,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -33,9 +34,6 @@ namespace Campanella
         /// </summary>
         public static string Configurazione(Stato s, bool prova, DateTime quando)
         {
-            List<string> indirizzi = s.IndirizziPersonale();
-            int mesi = MesiDelPeriodo(s.Periodo);
-
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("/* =========================================================================");
             sb.AppendLine("   CONFIGURAZIONE DI \"ORGANIZZAZIONE GMAIL\"");
@@ -46,8 +44,50 @@ namespace Campanella
             sb.AppendLine("   Dopo ogni modifica salva con Ctrl+S.");
             sb.AppendLine("   ========================================================================= */");
             sb.AppendLine();
+            sb.Append(Corpo(s, prova, Impronta(s)));
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// L'impronta della configurazione: 8 cifre esadecimali (i primi 4 byte
+        /// dello SHA-1) di tutto CONFIG, tranne l'impronta stessa e
+        /// provaSenzaModifiche. Data e versione di Campanella stanno
+        /// nell'intestazione, e non contano. Cosi' le due copie del passo 6,
+        /// con e senza prova, hanno la stessa impronta, e una regola spenta o
+        /// un indirizzo cambiato la cambiano. PASSO_1_anteprima la stampa, e il
+        /// passo 5 mostra quella di adesso: se non sono uguali, la
+        /// configurazione incollata e' vecchia.
+        /// </summary>
+        public static string Impronta(Stato s)
+        {
+            string testo = Corpo(s, false, null).Replace("\r\n", "\n");
+            byte[] h;
+            using (SHA1 sha = SHA1.Create()) h = sha.ComputeHash(Encoding.UTF8.GetBytes(testo));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) sb.Append(h[i].ToString("X2"));
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Il testo da "var CONFIG = {" alla fine. Senza impronta (null) manca
+        /// la sua riga: e' il testo su cui l'impronta si calcola.
+        /// </summary>
+        static string Corpo(Stato s, bool prova, string impronta)
+        {
+            List<string> indirizzi = s.IndirizziPersonale();
+            int mesi = MesiDelPeriodo(s.Periodo);
+
+            StringBuilder sb = new StringBuilder();
             sb.AppendLine("var CONFIG = {");
             sb.AppendLine();
+            if (impronta != null)
+            {
+                sb.AppendLine("  // ---- l'impronta di queste scelte ------------------------------------");
+                sb.AppendLine("  //  PASSO_1_anteprima la scrive in cima; Campanella (Posta, passo 5)");
+                sb.AppendLine("  //  mostra quella di adesso. Se sono diverse, copia di nuovo questo file.");
+                sb.AppendLine("  impronta: \"" + impronta + "\",");
+                sb.AppendLine();
+            }
             sb.AppendLine("  // ---- la tua scuola ---------------------------------------------------");
             sb.AppendLine("  dominioScuola:     \"" + AnalisiOrario.Js(s.DominioPulito()) + "\",");
             sb.AppendLine("  prefissoEtichette: \"" + AnalisiOrario.Js(s.PrefissoPulito()) + "\",");
@@ -143,11 +183,7 @@ namespace Campanella
             for (int i = 0; i < s.Regole.Count; i++)
             {
                 Regola r = s.Regole[i];
-                List<string> da;
-                if (r.Sorgente == "dirigenza") da = Righe(s.Dirigenza);
-                else if (r.Sorgente == "segreteria") da = Righe(s.Segreteria);
-                else if (r.Sorgente == "registro") da = Righe(s.Registro);
-                else da = new List<string>(r.Da);
+                List<string> da = MittentiDellaRegola(s, r);
 
                 bool inutile = da.Count == 0 && r.Oggetto.Count == 0 &&
                                r.Contiene.Count == 0 && r.QueryLibera == "";
@@ -220,6 +256,103 @@ namespace Campanella
             {
                 string s = p.Trim();
                 if (s != "" && !fuori.Contains(s)) fuori.Add(s);
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// I mittenti di una regola come li scrive la configurazione: quelle di
+        /// Dirigenza, Segreteria e Registro li prendono dalla pagina "La tua
+        /// scuola", le altre dalla regola (segnaposto compresi).
+        /// </summary>
+        public static List<string> MittentiDellaRegola(Stato s, Regola r)
+        {
+            if (r.Sorgente == "dirigenza") return Righe(s.Dirigenza);
+            if (r.Sorgente == "segreteria") return Righe(s.Segreteria);
+            if (r.Sorgente == "registro") return Righe(s.Registro);
+            return new List<string>(r.Da);
+        }
+
+        /// <summary>
+        /// Con le sottoetichette per ruolo accese: le regole accese i cui
+        /// mittenti sono quelli di un ruolo dell'elenco del personale, o una
+        /// parte, e che quindi mettono la loro etichetta agli stessi messaggi
+        /// della sottoetichetta (Dirigenza e Colleghi/Dirigenza). Una frase per
+        /// coppia, per il passo 4; PASSO_1_anteprima lo dice di tutte le coppie
+        /// di regole. Non contano la regola dei colleghi, madre delle
+        /// sottoetichette, le regole con altri criteri (oggetto, testo, ricerca,
+        /// etichette escluse) e quelle con @DOMINIO@, che non e' un elenco di
+        /// indirizzi. Gli indirizzi si confrontano in minuscolo.
+        /// </summary>
+        public static List<string> DoppioniConIRuoli(Stato s)
+        {
+            List<string> fuori = new List<string>();
+            if (!s.EtichettaPerRuolo) return fuori;
+            Dictionary<string, List<string>> gruppi = s.GruppiPerRuolo();
+            if (gruppi.Count == 0) return fuori;
+            string colleghi = EtichettaColleghi(s.Regole);
+            string prefisso = s.PrefissoPulito();
+            string davanti = (prefisso == "") ? "" : prefisso + "/";
+            List<string> personale = s.IndirizziPersonale();
+
+            foreach (Regola r in s.Regole)
+            {
+                if (!r.Attiva) continue;
+                if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.QueryLibera.Trim() != "" ||
+                    r.EscludiEtichette.Count > 0) continue;
+                string nome = r.Etichetta.Trim();
+                // i colleghi sono la madre delle sottoetichette: e' voluto
+                if (string.Equals(nome, colleghi.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                List<string> mittenti = MittentiEspansi(MittentiDellaRegola(s, r), gruppi, personale);
+                if (mittenti == null || mittenti.Count == 0) continue;
+
+                foreach (string c in CategoriePresenti(gruppi))
+                {
+                    string sotto = colleghi + "/" + c;
+                    if (string.Equals(nome, sotto, StringComparison.OrdinalIgnoreCase)) continue;
+                    List<string> ruolo = gruppi[c];
+                    bool dentro = true;
+                    foreach (string m in mittenti) if (!ruolo.Contains(m)) { dentro = false; break; }
+                    if (!dentro) continue;
+                    string a = davanti + nome, b = davanti + sotto;
+                    fuori.Add(mittenti.Count == ruolo.Count
+                        ? a + " e " + b + ": stessi mittenti, ogni messaggio prende tutte e due. " +
+                          "Se ne vuoi una sola, togli la spunta a " + a + " (la sottoetichetta per ruolo resta)."
+                        : a + " e " + b + ": i mittenti di " + a + " sono tutti anche in " + b +
+                          ", quindi ogni suo messaggio prende tutte e due. Se ti basta " + b +
+                          ", togli la spunta a " + a + " (la sottoetichetta per ruolo resta).");
+                }
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// I mittenti con i segnaposto sciolti, in minuscolo e senza doppioni:
+        /// null con @DOMINIO@, che non e' un elenco di indirizzi. Un gruppo che
+        /// non c'e' non aggiunge nessuno, come nello script.
+        /// </summary>
+        static List<string> MittentiEspansi(List<string> da, Dictionary<string, List<string>> gruppi,
+                                            List<string> personale)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string grezzo in da)
+            {
+                string v = (grezzo ?? "").Trim();
+                if (v == "") continue;
+                List<string> piu = new List<string>();
+                if (v == "@DOMINIO@") return null;
+                if (v == "@PERSONALE@") piu.AddRange(personale);
+                else if (v.StartsWith("@GRUPPO:") && v.Length > 9 && v.EndsWith("@"))
+                {
+                    string nome = v.Substring(8, v.Length - 9);
+                    if (gruppi.ContainsKey(nome)) piu.AddRange(gruppi[nome]);
+                }
+                else piu.Add(v);
+                foreach (string p in piu)
+                {
+                    string e = p.Trim().ToLowerInvariant();
+                    if (e != "" && !fuori.Contains(e)) fuori.Add(e);
+                }
             }
             return fuori;
         }
