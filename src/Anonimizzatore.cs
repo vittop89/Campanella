@@ -123,6 +123,24 @@ namespace Campanella
                    est == ".download" || est == ".driveupload" || est == ".drivedownload";
         }
 
+        /// <summary>I formati che si possono ripulire, per i messaggi:
+        /// "PDF, TXT, MD, ...". Viene dallo stesso elenco di Trattabile.</summary>
+        public static string Formati()
+        {
+            List<string> f = new List<string>();
+            f.Add("PDF");
+            foreach (string e in EstensioniTesto) f.Add(e.TrimStart('.').ToUpperInvariant());
+            return string.Join(", ", f.ToArray());
+        }
+
+        /// <summary>Il filtro per la finestra "Apri": gli stessi formati di Trattabile.</summary>
+        public static string FiltroFile()
+        {
+            string modelli = "*.pdf";
+            foreach (string e in EstensioniTesto) modelli += ";*" + e;
+            return "Documenti (" + modelli + ")|" + modelli + "|Tutti i file (*.*)|*.*";
+        }
+
         // ===================================================================
         //  ORIGINALI AL SICURO
         // ===================================================================
@@ -224,7 +242,8 @@ namespace Campanella
                 }
 
                 e.Saltato = true;
-                e.Nota = "formato " + est + ": rizzo-pii legge solo PDF, TXT e MD";
+                e.Nota = "formato " + (est != "" ? est : "senza estensione") +
+                         " non gestito: si possono ripulire solo " + Formati();
                 return e;
             }
             catch (Exception ex)

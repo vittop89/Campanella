@@ -129,6 +129,7 @@ Cordiali saluti, Anna Verdi
     Verifica 'il PDF torna con le redazioni contate' ($e2.Entita -ge 2)
     Verifica 'il docx viene saltato, non rovinato' ($e3.Saltato -and -not (Test-Path (Join-Path $uscita 'modulo.docx')))
     Verifica 'il motivo del salto e'' spiegato'    ($e3.Nota -like '*docx*')
+    Verifica 'il salto elenca i formati veri'      ($e3.Nota -like '*PDF, TXT, MD, CSV, HTM, HTML*')
     Verifica "l'originale non viene toccato" `
         ([System.IO.File]::ReadAllText($txt).Contains('Anna Verdi'))
 

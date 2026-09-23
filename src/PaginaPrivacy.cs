@@ -409,7 +409,7 @@ namespace Campanella
             zonaTrascina.Tag = Ruolo.Scheda;
             zonaTrascina.AllowDrop = true;
             Tema.Contorna(zonaTrascina);
-            lblZona = Tema.Testo1("Trascina qui i file  (PDF, TXT, MD, CSV, HTML)",
+            lblZona = Tema.Testo1("Trascina qui i file  (" + Anonimizzatore.Formati() + ")",
                                   0, 34, 880, Tema.Sottosezione, Ruolo.Accento);
             lblZona.TextAlign = ContentAlignment.MiddleCenter;
             lblZona.Height = 24;
@@ -443,8 +443,7 @@ namespace Campanella
                 using (OpenFileDialog d = new OpenFileDialog())
                 {
                     d.Multiselect = true;
-                    d.Filter = "Documenti (*.pdf;*.txt;*.md;*.csv;*.htm;*.html)|" +
-                               "*.pdf;*.txt;*.md;*.csv;*.htm;*.html|Tutti i file (*.*)|*.*";
+                    d.Filter = Anonimizzatore.FiltroFile();
                     if (d.ShowDialog(this) == DialogResult.OK) AggiungiFile(d.FileNames);
                 }
             }));
@@ -454,7 +453,7 @@ namespace Campanella
                 {
                     d.Description = "Scegli la cartella: prendo tutti i file, anche nelle sottocartelle";
                     if (d.ShowDialog(this) != DialogResult.OK) return;
-                    AggiungiFile(Directory.GetFiles(d.SelectedPath, "*", SearchOption.AllDirectories));
+                    AggiungiFile(FileDellaCartella(d.SelectedPath));
                 }
             }));
             p.Controls.Add(Tema.Bottone("Togli i selezionati", 350, y, 170, delegate
@@ -522,7 +521,7 @@ namespace Campanella
             {
                 if (Directory.Exists(f))
                 {
-                    AggiungiFile(Directory.GetFiles(f, "*", SearchOption.AllDirectories));
+                    AggiungiFile(FileDellaCartella(f));
                     continue;
                 }
                 if (!File.Exists(f)) continue;
@@ -534,15 +533,21 @@ namespace Campanella
             if (aggiunti > 0) Guscio.Stato1("Aggiunti " + aggiunti + " file.");
         }
 
+        /// <summary>I file di una cartella e delle sottocartelle, senza quelli di
+        /// lavoro: a mezza sincronizzazione, aperti da Word, nascosti.</summary>
+        static string[] FileDellaCartella(string cartella)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string f in Directory.GetFiles(cartella, "*", SearchOption.AllDirectories))
+                if (!Anonimizzatore.Temporaneo(f)) fuori.Add(f);
+            return fuori.ToArray();
+        }
+
         void AggiornaConteggio3()
         {
             int trattabili = 0;
             foreach (object o in elencoFile.Items)
-            {
-                string est = Path.GetExtension(Convert.ToString(o)).ToLowerInvariant();
-                if (est == ".pdf" || est == ".txt" || est == ".md" || est == ".csv" ||
-                    est == ".htm" || est == ".html") trattabili++;
-            }
+                if (Anonimizzatore.Trattabile(Convert.ToString(o))) trattabili++;
             int totale = elencoFile.Items.Count;
             lblRiepilogo3.Text = (totale == 0)
                 ? ""
