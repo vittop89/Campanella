@@ -65,7 +65,7 @@
 // ---------------------------------------------------------------------------
 // Limiti e costanti interne
 // ---------------------------------------------------------------------------
-var _POSTA_VERSIONE         = '1.4.6'; // versione di questo file (vedi l'intestazione)
+var _POSTA_VERSIONE         = '1.5.0'; // versione di questo file (vedi l'intestazione)
 var _MAX_SECONDI_ESECUZIONE = 260;   // ~4 min 20 s: sotto il limite di Google
 var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
 var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe

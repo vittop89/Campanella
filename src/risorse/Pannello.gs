@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE   = '1.4.6';
+var _PAN_VERSIONE   = '1.5.0';
 var _PAN_TRIGGER    = 'PANNELLO_chiusura';
 var _PAN_CHIAVE     = 'CAMPANELLA_PANNELLO';
 var _PAN_CHIAVE_FOGLI = 'CAMPANELLA_PANNELLO_FOGLI_';   // + anno: i fogli di quell'anno

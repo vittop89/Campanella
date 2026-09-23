@@ -34,7 +34,7 @@
  * ============================================================================
  */
 
-var _ORARI_VERSIONE      = '1.4.6';
+var _ORARI_VERSIONE      = '1.5.0';
 var _ORARI_MAX_SECONDI   = 260;
 var _ORARI_CHIAVE        = 'CAMPANELLA_ORARI_PROGRESSO';
 var _ORARI_CHIAVE_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
