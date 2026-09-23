@@ -20,6 +20,11 @@ Per le prove dello scarico dell'installer ci sono anche quattro file finti:
     /scarico/fermo      dichiara cento milioni di byte, ne manda 64 KB e poi
                         tace per dieci secondi prima di chiudere: una rete
                         ferma, su cui la lettura del client resta bloccata
+
+E un controllo lento, per le risposte che arrivano fuori ordine:
+    /lento/health       risponde dopo un secondo e mezzo che il modello sta
+                        ancora caricando (503); il client lo chiama con
+                        l'indirizzo http://127.0.0.1:porta/lento
 """
 
 import json
@@ -167,6 +172,9 @@ class Gestore(BaseHTTPRequestHandler):
             # fermarsi non aspetta i due minuti del suo timeout, e la prova
             # fallisce in fretta
             time.sleep(10)
+        elif self.path == "/lento/health":
+            time.sleep(1.5)
+            self._json({"status": "loading", "model_loaded": False}, 503)
         else:
             self._json({"error": "non previsto"}, 404)
 

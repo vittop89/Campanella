@@ -428,6 +428,72 @@ public static class AiutoProvaScarico
             ($esito -eq $v[2])
     }
 
+    Write-Host "`n=== PASSO 2 DELLA PRIVACY: RISPOSTE CHE ARRIVANO DOPO ===" -ForegroundColor Cyan
+    # La pulizia e il controllo di rizzo-pii girano fuori dal thread della
+    # finestra, e la risposta arriva dopo. Una risposta vecchia non deve
+    # coprire quello che l'utente ha fatto nel frattempo: "Svuota tutto"
+    # riportava in memoria il dizionario dei nomi veri, e un controllo vecchio
+    # copriva quello nuovo. La pagina si costruisce senza finestra, sopra uno
+    # Stato vuoto (niente Carica, niente file) e un guscio mai costruito.
+    $FS = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
+    $FI = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+    $tStato = $asm.GetType('Campanella.Stato')
+    $tStato.GetField('CartellaDiProva', $FS).SetValue($null, [string](Join-Path $temp 'stato'))
+    $stato = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tStato)
+    $tStato.GetField('AnonIndirizzo').SetValue($stato, "http://127.0.0.1:$Porta")
+    $tGuscio = $asm.GetType('Campanella.Guscio')
+    $guscio = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tGuscio)
+    [GC]::SuppressFinalize($guscio)     # una finestra mai costruita: niente pulizia alla fine
+    $tGuscio.GetField('S').SetValue($guscio, $stato)
+    $tGuscio.GetField('lblStato', $FI).SetValue($guscio, (New-Object System.Windows.Forms.Label))
+    $tPrivacy = $asm.GetType('Campanella.PaginaPrivacy')
+    $privacy = [Activator]::CreateInstance($tPrivacy, [object[]]@($guscio))
+    try {
+        [void]$privacy.Handle       # le risposte arrivano con BeginInvoke: serve la maniglia, non la finestra
+        function CampoP($nome) { return $tPrivacy.GetField($nome, $FI).GetValue($privacy) }
+        function ChiamaP($nome) { [void]$tPrivacy.GetMethod($nome, $FI).Invoke($privacy, @()) }
+        # fa arrivare le risposte finche' fatto non e' vero, o per ms millisecondi
+        function Pompa([int]$ms, [scriptblock]$fatto) {
+            $fine = [DateTime]::Now.AddMilliseconds($ms)
+            while ([DateTime]::Now -lt $fine) {
+                [System.Windows.Forms.Application]::DoEvents()
+                if ($fatto -ne $null -and (& $fatto)) { return }
+                Start-Sleep -Milliseconds 20
+            }
+        }
+        $testoPrivacy = 'Colloquio con Mario Rossi, scrivere a mario.rossi@scuola.example.'
+
+        (CampoP 'txtOriginale').Text = $testoPrivacy
+        ChiamaP 'Pulisci'
+        Pompa 10000 { -not (CampoP 'pulendo') }
+        Verifica 'il testo viene ripulito'                ((CampoP 'txtAnonimo').Text -like '*`[FULLNAME_1`]*')
+        Verifica '... e il dizionario resta in memoria'   ((CampoP 'dizionario').Count -eq 2)
+
+        (CampoP 'txtOriginale').Text = $testoPrivacy
+        ChiamaP 'Pulisci'
+        ChiamaP 'Svuota'           # prima che arrivi la risposta di rizzo-pii
+        Pompa 10000 { -not (CampoP 'pulendo') }
+        Write-Host "  dopo Svuota: testo pulito '$((CampoP 'txtAnonimo').Text)', dizionario $((CampoP 'dizionario').Count) voci"
+        Verifica 'Svuota durante la pulizia: il testo pulito non torna' ((CampoP 'txtAnonimo').Text -eq '')
+        Verifica '... e nemmeno il dizionario dei nomi veri'           ((CampoP 'dizionario').Count -eq 0)
+        Verifica '... ne'' il riepilogo'                              ((CampoP 'lblTrovati').Text -eq '')
+        Verifica '... e si puo'' ripulire un altro testo'             ((CampoP 'btnPulisci').Enabled)
+
+        # il primo controllo e' lento e dice "sta caricando"; il secondo, sul
+        # servizio giusto, risponde subito "pronto". Vale l'ultimo chiesto
+        $stato.AnonIndirizzo = "http://127.0.0.1:$Porta/lento"
+        ChiamaP 'ControllaRizzo'
+        $stato.AnonIndirizzo = "http://127.0.0.1:$Porta"
+        ChiamaP 'ControllaRizzo'
+        Pompa 3500 $null           # arrivano tutte e due: il lento dopo un secondo e mezzo
+        Write-Host "  controllo: $((CampoP 'lblSalute2').Text -replace "`n", ' ')"
+        Verifica 'un controllo vecchio non copre quello nuovo' ((CampoP 'lblSalute2').Text -like 'rizzo-pii pronto*')
+    }
+    finally {
+        $privacy.Dispose()
+        $tStato.GetField('CartellaDiProva', $FS).SetValue($null, '')
+    }
+
     Write-Host "`n=== SERVIZIO SPENTO ===" -ForegroundColor Cyan
     # una porta dove non c'e' davvero nessuno: se ne cerco una fissa, basta un
     # avanzo di una prova precedente per far fallire questa senza colpa
