@@ -158,7 +158,10 @@ namespace Campanella
         public string CodiceStatoPosta = "";     // incollato dall'utente
 
         // ---- cartelle (generatore anno scolastico) --------------------------
-        public string Drive = DriveDiDefault();
+        // Vuoto finche' Carica non lo cerca sul computer o non lo legge dal
+        // file: un "new Stato()" non deve andare a frugare nelle unita', e una
+        // prova non deve finire nel Drive vero.
+        public string Drive = "";
         public string Anno = "";                 // vuoto = quello calcolato dalla data
         public string Classi = "";
         public string CartelleExtra = "";
@@ -199,8 +202,17 @@ namespace Campanella
         // ===================================================================
         //  PERCORSI
         // ===================================================================
+
+        /// <summary>
+        /// Solo per le prove: la cartella di campanella.json al posto di quella
+        /// dell'eseguibile. Se e' impostata, Carica non cerca nemmeno il Drive
+        /// sul computer: una prova non deve toccare niente di vero.
+        /// </summary>
+        public static string CartellaDiProva = "";
+
         public static string Percorso()
         {
+            if (!string.IsNullOrEmpty(CartellaDiProva)) return Path.Combine(CartellaDiProva, NomeFile);
             try
             {
                 return Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), NomeFile);
@@ -520,6 +532,8 @@ namespace Campanella
         public static Stato Carica()
         {
             Stato s = new Stato();
+            // il Drive di partenza, se il file non ne ha uno; nelle prove no
+            if (string.IsNullOrEmpty(CartellaDiProva)) s.Drive = DriveDiDefault();
             try
             {
                 string p = Percorso();
