@@ -63,7 +63,8 @@ function nuovoMondo(opzioni) {
     fogli: new Map(),
     file: new Map()
   };
-  const id = p => p + (m.prossimoId++) + 'xxxxxxxxxxxxxxxxxxxxxx';
+  // lunghi come quelli veri (44 caratteri): contano per il tetto delle proprieta'
+  const id = p => (p + (m.prossimoId++)).padEnd(44, 'x');
   const momento = r => new Date(Math.round(r.tempo / 1000) * 1000);
 
   class Iteratore {
@@ -473,7 +474,13 @@ function nuovoMondo(opzioni) {
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: k => (m.proprieta.has(k) ? m.proprieta.get(k) : null),
-        setProperty: (k, v) => { m.proprieta.set(k, v); }
+        getProperties: () => { const fuori = {}; for (const [k, v] of m.proprieta) fuori[k] = v; return fuori; },
+        getKeys: () => [...m.proprieta.keys()],
+        setProperty: (k, v) => {
+          // come quelle vere: un valore sta in circa 9 KB, oltre Google rifiuta di salvarlo
+          if (Buffer.byteLength(String(v), 'utf8') > 9 * 1024) throw new Error('Argument too large: value');
+          m.proprieta.set(k, String(v));
+        }
       })
     },
     LockService: { getUserLock: () => ({ tryLock: () => !m.lockOccupato, releaseLock() {} }) },
@@ -506,6 +513,15 @@ function carica(mondo, opzioni) {
   const contesto = vm.createContext(mondo.sandbox);
   vm.runInContext(codice, contesto, { filename: 'Pannello.gs' });
   return contesto;
+}
+
+/** La memoria dello script, con i fogli di tutti gli anni (stanno in proprieta' a parte). */
+function ricordo(m) {
+  const r = JSON.parse(m.proprieta.get('CAMPANELLA_PANNELLO'));
+  for (const [k, v] of m.proprieta) {
+    if (k.indexOf('CAMPANELLA_PANNELLO_FOGLI_') === 0) Object.assign(r.fogli, JSON.parse(v));
+  }
+  return r;
 }
 
 /** Legge la scheda del pannello come la vede l'utente. */
@@ -1466,11 +1482,56 @@ titolo('IL FOGLIO TROVATO PER NOME VIENE RICORDATO');
   const suo = new p.m.FoglioDiCalcolo('Risposte Recuperi - A.S. 2026-27', p.m.cartella('A.S. 2026-27/RECUPERI'));
   p.c.PANNELLO_4_preparaAnno();
   verifica('lo usa senza crearne un altro', p.m.recuperi.destinazione.foglio.id === suo.id && p.m.fogliCreati === 1);
-  const ricordo = JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli;
-  verifica('e se lo segna come foglio dell\'anno', ricordo[p.m.recuperi.id + '|2026-27'] === suo.id);
+  const segnati = ricordo(p.m).fogli;
+  verifica('e se lo segna come foglio dell\'anno', segnati[p.m.recuperi.id + '|2026-27'] === suo.id);
   p.c.PANNELLO_5_controlla();
   verifica('cosi" Controlla" lo riconosce come suo',
     scheda(p.m)[0][7].indexOf('collegato al foglio di quest') === 0);
+}
+
+// ---- 8f. tanti moduli per tanti anni ----------------------------------------------------------
+titolo('25 MODULI PER 10 ANNI: LA MEMORIA RESTA SOTTO IL TETTO DI GOOGLE');
+{
+  const moduli = [];
+  for (let i = 1; i <= 25; i++) {
+    const n = ('0' + i).slice(-2);
+    moduli.push({ modulo: 'Modulo ' + n, cartella: 'MODULI', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+  }
+  const m = nuovoMondo();
+  for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+  const c = carica(m, { config: { moduli } });
+  c.PANNELLO_1_preparaIlFoglio();
+  c.PANNELLO_2_trovaIModuli();
+  let problemi = 0;
+  for (let a = 2026; a < 2036; a++) {
+    m.adesso = new Date(a + '-09-02T10:00:00+02:00').getTime();
+    const t = c.PANNELLO_4_preparaAnno();
+    if (t.indexOf('PROBLEMA') >= 0 || t.indexOf('Non ho potuto') >= 0) problemi++;
+    m.adesso = new Date((a + 1) + '-09-01T00:10:00+02:00').getTime();
+    c.PANNELLO_chiusura({ triggerUid: m.trigger.length ? m.trigger[0].uid : '' });
+  }
+  const piuLunga = Math.max(...[...m.proprieta.values()].map(v => Buffer.byteLength(v, 'utf8')));
+  verifica('dieci anni di preparazioni e chiusure senza problemi, un foglio per modulo e per anno',
+    problemi === 0 && m.fogliCreati === 250);
+  verifica('ogni proprieta\' sta sotto i 9 KB (la piu\' lunga: ' + piuLunga + ' byte)', piuLunga < 9 * 1024);
+  m.adesso = new Date('2035-09-10T10:00:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();
+  verifica('rieseguito il decimo anno: nessun foglio in piu\', li ricorda tutti', m.fogliCreati === 250 &&
+    Object.keys(ricordo(m).fogli).length === 250);
+}
+
+// una memoria scritta da una versione di prima, con i fogli di tutti gli anni insieme
+{
+  const p = mondoPronto();
+  p.c.PANNELLO_4_preparaAnno();
+  const r = ricordo(p.m);
+  for (const k of [...p.m.proprieta.keys()]) p.m.proprieta.delete(k);
+  p.m.proprieta.set('CAMPANELLA_PANNELLO', JSON.stringify(r));        // com'era prima: tutto in una
+  p.c.PANNELLO_4_preparaAnno();
+  verifica('memoria di prima con tutti i fogli insieme: li riconosce e li divide per anno',
+    p.m.fogliCreati === 2 && JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli &&
+    Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli).length === 0 &&
+    Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO_FOGLI_2026-27'))).length === 2);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------

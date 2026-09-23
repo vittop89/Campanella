@@ -68,6 +68,7 @@ var PANNELLO = {
 var _PAN_VERSIONE   = '1.4.6';
 var _PAN_TRIGGER    = 'PANNELLO_chiusura';
 var _PAN_CHIAVE     = 'CAMPANELLA_PANNELLO';
+var _PAN_CHIAVE_FOGLI = 'CAMPANELLA_PANNELLO_FOGLI_';   // + anno: i fogli di quell'anno
 var _PAN_ISTRUZIONI = 'Istruzioni';       // la scheda che ricorda come si usa il foglio
 
 // le colonne della scheda, nell'ordine
@@ -1358,16 +1359,29 @@ function _panTempiNelFoglio(idFoglio) {
  * e un foglio dell'anno vuol dire una riga preparata, quindi lo ricavo da li'.
  * Dei due tengo solo l'anno in corso: sono gli unici che servono, e le
  * proprieta' dello script hanno un tetto di 9 KB per valore.
+ * Per lo stesso tetto i fogli, che crescono ogni anno, stanno ognuno nella
+ * proprieta' del suo anno (_PAN_CHIAVE_FOGLI + anno). Una memoria scritta prima
+ * li ha tutti insieme: la leggo com'e', e la prossima volta li divido.
  */
 function _panMemoria() {
   var anno = null;
   try { anno = _panAnno(); } catch (e0) { anno = null; }
   var vuota = { fogli: {}, scadenze: {}, pronti: {}, chiusi: {}, annullati: {} };
   try {
-    var testo = PropertiesService.getScriptProperties().getProperty(_PAN_CHIAVE);
+    var tutte = PropertiesService.getScriptProperties().getProperties();
+    var testo = tutte[_PAN_CHIAVE];
     if (!testo) return vuota;
     var m = JSON.parse(testo);
     if (!m || typeof m !== "object" || !m.fogli || typeof m.fogli !== "object") return vuota;
+    for (var chiave in tutte) {
+      if (!tutte.hasOwnProperty(chiave) || chiave.indexOf(_PAN_CHIAVE_FOGLI) !== 0) continue;
+      try {
+        var diUnAnno = JSON.parse(tutte[chiave]);
+        for (var f in diUnAnno) {
+          if (diUnAnno.hasOwnProperty(f) && !m.fogli.hasOwnProperty(f)) m.fogli[f] = diUnAnno[f];
+        }
+      } catch (e1) { /* un anno illeggibile: come se non ci fosse */ }
+    }
     if (!m.scadenze || typeof m.scadenze !== "object") m.scadenze = {};
     if (!m.pronti || typeof m.pronti !== "object") {
       // ereditate: so che il foglio c'era, non se la riga era finita. 'da prima'
@@ -1395,7 +1409,25 @@ function _panSoloAnno(mappa, anno) {
 }
 
 function _panRicorda(memoria) {
-  PropertiesService.getScriptProperties().setProperty(_PAN_CHIAVE, JSON.stringify(memoria));
+  var props = PropertiesService.getScriptProperties();
+  var anni = {};
+  for (var k in memoria.fogli) {
+    if (!memoria.fogli.hasOwnProperty(k)) continue;
+    var anno = k.substring(k.lastIndexOf('|') + 1);
+    if (!anni.hasOwnProperty(anno)) anni[anno] = {};
+    anni[anno][k] = memoria.fogli[k];
+  }
+  var scritte = null;
+  for (var a in anni) {
+    if (!anni.hasOwnProperty(a)) continue;
+    var testo = JSON.stringify(anni[a]);
+    if (scritte === null) scritte = props.getProperties();
+    if (scritte[_PAN_CHIAVE_FOGLI + a] !== testo) props.setProperty(_PAN_CHIAVE_FOGLI + a, testo);   // solo gli anni cambiati
+  }
+  var resto = {};
+  for (var c in memoria) if (memoria.hasOwnProperty(c)) resto[c] = memoria[c];
+  resto.fogli = {};                                    // stanno nelle proprieta' dei loro anni
+  props.setProperty(_PAN_CHIAVE, JSON.stringify(resto));
 }
 
 function _panUnoAllaVolta(f) {
