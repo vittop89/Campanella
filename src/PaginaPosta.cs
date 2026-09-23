@@ -278,7 +278,7 @@ namespace Campanella
             p.Controls.Add(Tema.Testo1(
                 "Serve per distinguere i colleghi dagli studenti, che hanno indirizzi dello stesso " +
                 "dominio. Le righe senza spunta non vanno nello script ma restano salvate: quelle " +
-                "che non servono, toglile.",
+                "che non servono toglile con \"Togli le righe senza spunta\".",
                 0, y, 860, Tema.Normale, Ruolo.Tenue));
             y += 40;
 
@@ -358,6 +358,10 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Esporta CSV", 770, yb, 110, delegate { EsportaCsv(); }));
 
             int ys = yb + 40;
+            // sotto la nota sulle righe che partono senza spunta: le toglie tutte,
+            // cosi' non restano nel file dei dati
+            p.Controls.Add(Tema.Bottone("Togli le righe senza spunta", 0, ys + 27, 200,
+                delegate { TogliRigheSenzaSpunta(); }));
             p.Controls.Add(Tema.Testo1("Se hai solo i nomi, costruisco gli indirizzi cosi':",
                                        266, ys + 5, 0, Tema.Normale, Ruolo.Tenue));
             cmbSchema = new ComboBox();
@@ -1519,6 +1523,48 @@ namespace Campanella
             Guscio.Stato1("Tolte " + indici.Count + " righe.");
         }
 
+        /// <summary>
+        /// Toglie le righe senza spunta: non vanno nello script, ma finche' stanno
+        /// in elenco restano nel file dei dati (anche nel Drive). Sono soprattutto
+        /// gli indirizzi presi dalla casella, studenti compresi.
+        /// </summary>
+        void TogliRigheSenzaSpunta()
+        {
+            int quante = ContaSenzaSpunta(S.Personale);
+            if (quante == 0)
+            {
+                MessageBox.Show(this, "Tutte le righe hanno la spunta: non c'e' niente da togliere.",
+                    "Nessuna riga senza spunta", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (MessageBox.Show(this, DomandaSenzaSpunta(quante),
+                    "Conferma", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            int tolte = TogliSenzaSpunta(S.Personale);
+            AggiornaPersonale();
+            Guscio.Stato1("Tolte " + tolte + (tolte == 1 ? " riga senza spunta" : " righe senza spunta") +
+                          ". In elenco: " + S.Personale.Count + ".");
+        }
+
+        static int ContaSenzaSpunta(List<Persona> elenco)
+        {
+            int n = 0;
+            foreach (Persona p in elenco) if (!p.Incluso) n++;
+            return n;
+        }
+
+        /// <summary>Toglie le persone senza spunta; le altre restano nel loro ordine. Dice quante ne ha tolte.</summary>
+        static int TogliSenzaSpunta(List<Persona> elenco)
+        {
+            return elenco.RemoveAll(delegate(Persona p) { return !p.Incluso; });
+        }
+
+        static string DomandaSenzaSpunta(int quante)
+        {
+            return "Tolgo dall'elenco " + quante + (quante == 1 ? " riga senza spunta?" : " righe senza spunta?") +
+                   "\n\nNon vanno nello script, ma finche' restano in elenco restano anche nel file " +
+                   "dei dati di Campanella. Le righe con la spunta non cambiano.";
+        }
+
         void Svuota()
         {
             if (S.Personale.Count == 0) return;
@@ -1690,11 +1736,13 @@ namespace Campanella
                 "Campanella corregge da sola quelli che puo' attribuire senza\n" +
                 "dubbi, segnalando gli altri. Nessuno viene aggiunto all'elenco.\n\n" +
                 "Nell'elenco ci sono anche gli studenti: per questo gli indirizzi\n" +
-                "arrivano in tabella senza spunta. Prima togli le righe degli\n" +
-                "studenti (selezionale e premi \"Togli le righe selezionate\"):\n" +
-                "le righe senza spunta non vanno nello script, ma restano\n" +
-                "salvate nell'elenco. Poi metti la spunta ai colleghi, anche\n" +
-                "tutti insieme con \"Non specificato\" fra i ruoli a sinistra.";
+                "arrivano in tabella senza spunta. Metti la spunta ai colleghi\n" +
+                "(anche tutti insieme con \"Non specificato\" fra i ruoli a\n" +
+                "sinistra, togliendola poi agli studenti) e premi \"Togli le\n" +
+                "righe senza spunta\": le righe senza spunta non vanno nello\n" +
+                "script, ma finche' restano in elenco restano salvate nel file\n" +
+                "dei dati. Oppure seleziona le righe degli studenti e premi\n" +
+                "\"Togli le righe selezionate\".";
             using (FormTesto f = new FormTesto("Indirizzi dalla casella", guida, null, null))
                 f.ShowDialog(this);
         }

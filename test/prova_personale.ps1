@@ -11,6 +11,9 @@
         da Campanella, un elenco secco di indirizzi;
       - i ruoli del registro, che sono lunghi e tanti, devono finire nelle
         cinque categorie con cui Campanella etichetta la posta.
+
+    E le righe senza spunta (gli indirizzi presi dalla casella, studenti
+    compresi) si tolgono tutte insieme, dopo una domanda che dice quante sono.
 #>
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -294,6 +297,44 @@ $esito3 = $tStato.GetMethod('ConfrontaConLaCasella', $FI).Invoke($stato3, $arg3)
 Verifica "due indirizzi possibili: non sceglie" ((Campo $esito3 'Ambigui') -eq 1)
 Verifica "e lascia la casella vuota com'era" (
     ($tPersona.GetField('Email', $FI).GetValue($amb)) -eq '')
+
+# ---------------------------------------------------------------------------
+Intestazione 'LE RIGHE SENZA SPUNTA SI TOLGONO CON UN PULSANTE'
+# Gli indirizzi presi dalla casella partono senza spunta, e fra loro ci sono
+# gli studenti: non vanno nello script, ma restano nel file dei dati (anche
+# nel Drive) finche' non si tolgono. "Togli le righe senza spunta" li toglie
+# tutti insieme, dopo una domanda che dice quanti sono.
+$mTogli = $tPosta.GetMethod('TogliSenzaSpunta', $FS)
+$mConta = $tPosta.GetMethod('ContaSenzaSpunta', $FS)
+$mDomanda = $tPosta.GetMethod('DomandaSenzaSpunta', $FS)
+Verifica "c'e' il modo di togliere le righe senza spunta" (
+    $mTogli -ne $null -and $mConta -ne $null -and $mDomanda -ne $null)
+if ($mTogli -ne $null -and $mConta -ne $null -and $mDomanda -ne $null) {
+    $stato4 = NuovoStato
+    $elenco4 = $tStato.GetField('Personale', $FI).GetValue($stato4)
+    $s1 = Aggiungi $elenco4 '' '' 'studente.uno@scuola.example'
+    $c1 = Aggiungi $elenco4 'ROSSI MARIO' 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'mario.rossi@scuola.example'
+    $s2 = Aggiungi $elenco4 '' '' 'studente.due@scuola.example'
+    $c2 = Aggiungi $elenco4 'VERDI GIUSEPPE' 'COLLABORATORE SCOLASTICO' 'g.verdi@scuola.example'
+    $s3 = Aggiungi $elenco4 'Anna Bianchi' '' 'anna.bianchi@scuola.example'
+    foreach ($x in @($s1, $s2, $s3)) { $tPersona.GetField('Incluso', $FI).SetValue($x, $false) }
+    $arg4 = New-Object object[] 1
+    $arg4[0] = $elenco4
+    $quante = $mConta.Invoke($null, $arg4)
+    Verifica "conta le righe senza spunta ($quante)" ($quante -eq 3)
+    $domanda = [string]$mDomanda.Invoke($null, @([int]3))
+    Verifica "la domanda dice quante righe toglie" ($domanda -match '\b3 righe senza spunta')
+    Verifica "e con una sola riga lo dice al singolare" (
+        ([string]$mDomanda.Invoke($null, @([int]1))) -match '\b1 riga senza spunta')
+    $tolte = $mTogli.Invoke($null, $arg4)
+    Verifica "ne toglie tre" ($tolte -eq 3)
+    $restano = @($elenco4 | ForEach-Object { $tPersona.GetField('Email', $FI).GetValue($_) })
+    Verifica "restano quelle con la spunta, nel loro ordine ($($restano -join ', '))" (
+        $restano.Count -eq 2 -and $restano[0] -eq 'mario.rossi@scuola.example' -and
+        $restano[1] -eq 'g.verdi@scuola.example')
+    Verifica "una seconda volta non toglie niente" (
+        ($mTogli.Invoke($null, $arg4)) -eq 0 -and ($mConta.Invoke($null, $arg4)) -eq 0 -and $elenco4.Count -eq 2)
+}
 
 Remove-Item -Recurse -Force $temporanea
 
