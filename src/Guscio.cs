@@ -178,7 +178,17 @@ namespace Campanella
             Tema.Applica(this);
             VaiA(0, 0);
 
-            FormClosing += delegate { SalvaTutto(); };
+            FormClosing += delegate(object o, FormClosingEventArgs e)
+            {
+                SalvaTutto();
+                // un file lasciato com'era per non rovinarlo, o un Drive che non
+                // c'era: va detto adesso, dopo sarebbe troppo tardi. Non allo
+                // spegnimento del computer, che una finestra fermerebbe.
+                if (S.DaAvvisare != "" && e.CloseReason != CloseReason.WindowsShutDown &&
+                    e.CloseReason != CloseReason.TaskManagerClosing)
+                    MessageBox.Show(this, S.DaAvvisare, "Non tutto e' stato salvato",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            };
         }
 
         public void SalvaTutto()
@@ -928,12 +938,18 @@ namespace Campanella
 
             if (S.DatiNelDrive)
             {
-                bool ce = File.Exists(S.PercorsoDati());
-                lblDati.Text = ce
-                    ? "I dati stanno in " + S.PercorsoDati() + " e vengono ricaricati a ogni avvio."
-                    : "I dati dovrebbero stare in " + S.PercorsoDati() + " ma il file non c'e' " +
+                string file = S.PercorsoDati();
+                bool ce = File.Exists(file);
+                bool letto = ce && S.DatiGiaLetti(file);
+                lblDati.Text = letto
+                    ? "I dati stanno in " + file + " e vengono ricaricati a ogni avvio."
+                    : ce
+                    ? "Non sovrascrivo " + file + ": " +
+                      (S.ErroreDati != "" ? S.ErroreDati : "e' comparso dopo l'avvio e non l'ho letto") +
+                      ". Premi Applica per scegliere se usarlo o sostituirlo."
+                    : "I dati dovrebbero stare in " + file + " ma il file non c'e' " +
                       "(Drive non sincronizzato o cartella cambiata).";
-                lblDati.Tag = ce ? Ruolo.Buono : Ruolo.Avviso;
+                lblDati.Tag = letto ? Ruolo.Buono : Ruolo.Avviso;
             }
             else
             {
@@ -954,6 +970,7 @@ namespace Campanella
         {
             bool nelDrive = rbDatiDrive.Checked;
             string cartella = txtCartellaDati.Text.Trim();
+            bool sostituisci = false, usaQuello = false;
 
             if (nelDrive)
             {
@@ -976,11 +993,42 @@ namespace Campanella
                         "Cartella non scrivibile", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                if (!S.DatiNelDrive && MessageBox.Show(this,
-                        "Sposto l'elenco del personale, gli indirizzi e gli orari in\n\n" +
-                        Path.Combine(cartella, Stato.NomeFileDati) + "\n\n" +
-                        "e li tolgo dal file accanto al programma. Il Drive li sincronizzera' " +
-                        "nell'account della scuola.\n\nProcedo?",
+                string file = Path.Combine(cartella, Stato.NomeFileDati);
+                bool stesso = S.DatiNelDrive && Stato.StessoPercorso(file, S.PercorsoDati());
+                if (File.Exists(file) && !S.DatiGiaLetti(file))
+                {
+                    // un file dei dati che qui non e' stato letto (un altro computer,
+                    // il Drive appena sincronizzato): non lo sostituisco senza chiedere
+                    DialogResult d = MessageBox.Show(this,
+                        "In\n\n" + file + "\n\nc'e' gia' un file dei dati, forse scritto da Campanella " +
+                        "su un altro computer.\n\n" +
+                        "Si' = uso quel file: Campanella si riapre con l'elenco del personale, gli " +
+                        "indirizzi e gli orari che ci sono dentro, al posto di quelli che vedi adesso.\n\n" +
+                        "No = non lo uso, e decido se sostituirlo.",
+                        "Il file dei dati c'e' gia'", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                    if (d == DialogResult.Yes) usaQuello = true;
+                    else if (d == DialogResult.No && MessageBox.Show(this,
+                            "Sostituisco il file del Drive con i dati che vedi adesso?\n\n" +
+                            "Quello che c'e' dentro andra' perso: resta solo nella cronologia delle " +
+                            "versioni del Drive.",
+                            "Sostituire il file dei dati?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                            MessageBoxDefaultButton.Button2) == DialogResult.Yes) sostituisci = true;
+                    else return;
+                }
+                else if (stesso && !File.Exists(file))
+                {
+                    if (MessageBox.Show(this,
+                            "Nel Drive non c'e' ancora il file dei dati:\n\n" + file + "\n\n" +
+                            "Se il Drive sta ancora sincronizzando, rispondi No e riapri Campanella " +
+                            "fra qualche minuto.\n\nNe creo uno con i dati che vedi adesso?",
+                            "Creare il file dei dati?", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                            MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                }
+                else if (!stesso && MessageBox.Show(this,
+                        "Sposto l'elenco del personale, gli indirizzi e gli orari in\n\n" + file + "\n\n" +
+                        "e li tolgo " + (S.DatiNelDrive ? "da\n\n" + S.PercorsoDati() + "\n\n"
+                                                        : "dal file accanto al programma. ") +
+                        "Il Drive li sincronizzera' nell'account della scuola.\n\nProcedo?",
                         "Spostare i dati nel Drive?", MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question) != DialogResult.Yes) return;
             }
@@ -994,7 +1042,22 @@ namespace Campanella
 
             Guscio.SalvaTutto();      // raccoglie quello che sta nelle altre pagine
             string errore;
-            if (S.SpostaDati(nelDrive, cartella, out errore))
+            if (usaQuello)
+            {
+                // le pagine hanno ancora i dati di prima: il file del Drive si
+                // legge riaprendo, e fino ad allora non si scrive
+                if (S.UsaDatiDelDrive(cartella, out errore))
+                {
+                    MessageBox.Show(this, "Campanella si riapre per leggere i dati da\n\n" +
+                        Path.Combine(cartella, Stato.NomeFileDati), "Dati dal Drive",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Application.Restart();
+                    return;
+                }
+                MessageBox.Show(this, "Qualcosa non e' andato: " + errore, "Attenzione",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else if (S.SpostaDati(nelDrive, cartella, sostituisci, out errore))
                 Guscio.Stato1(nelDrive ? "Dati spostati nel Drive." : "Dati riportati accanto al programma.");
             else
                 MessageBox.Show(this, "Qualcosa non e' andato: " + errore, "Attenzione",

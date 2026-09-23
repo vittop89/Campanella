@@ -170,6 +170,12 @@ namespace Campanella
                 s.ConsensoVersione = Versione;
                 s.ConsensoData = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
                 s.Salva();
+                // un file lasciato com'era per non rovinarlo (campanella.json che
+                // non si legge, il file dei dati nel Drive): meglio saperlo adesso,
+                // altrimenti le condizioni tornano a ogni avvio senza spiegazione
+                if (s.DaAvvisare != "")
+                    MessageBox.Show(padre, s.DaAvvisare, "Non tutto e' stato salvato",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return true;
             }
         }
