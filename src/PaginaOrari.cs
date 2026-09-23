@@ -115,12 +115,16 @@ namespace Campanella
 
         public override void Esce()
         {
-            S.FileOrari = txtFile.Text;
+            // il file dell'orario lo ricorda CaricaFile quando si legge davvero:
+            // la casella qui e' vuota finche' non se ne sceglie uno, e scriverla
+            // faceva dimenticare quello dell'ultima volta
             S.OggettoOrari = txtOggetto.Text;
             S.OggettoOrariClasse = txtOggettoClasse.Text;
             S.NotaOrari = txtNota.Text;
             S.InviaOrariClassi = chkClassi.Checked;
-            orario.SalvaIn(S);
+            // un foglio non riconosciuto lascia l'orario vuoto: quello salvato
+            // prima resta, invece di sparire alla chiusura
+            if (orario.Lezioni.Count > 0) orario.SalvaIn(S);
             RaccogliCalendario();
         }
 

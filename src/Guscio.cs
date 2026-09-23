@@ -155,6 +155,28 @@ namespace Campanella
         public virtual int Passo { get { return 0; } set { } }
         public virtual void Entra() { }
         public virtual void Esce() { }
+
+        // Molte pagine si riempiono dallo Stato solo in Entra: finche' non sono
+        // state aperte i loro controlli sono vuoti, ed Esce() li scriverebbe
+        // nello Stato al posto dei dati veri. Chiudendo Campanella senza passare
+        // da Orari si salvava un orario vuoto, e da Cartelle le classi vuote.
+        bool aperta = false;
+
+        /// <summary>Vero dalla prima volta che la pagina e' stata aperta (e riempita dallo Stato).</summary>
+        public bool Aperta { get { return aperta; } }
+
+        /// <summary>Il guscio apre la pagina: Entra() la riempie, e da qui in poi Esce() conta.</summary>
+        public void Apri()
+        {
+            Entra();
+            aperta = true;
+        }
+
+        /// <summary>Rimette nello Stato quello che c'e' nella pagina, ma solo se e' stata aperta.</summary>
+        public void RaccogliSeAperta()
+        {
+            if (aperta) Esce();
+        }
     }
 
     // =======================================================================
@@ -230,7 +252,9 @@ namespace Campanella
 
         public void SalvaTutto()
         {
-            foreach (Pagina p in pagine) p.Esce();
+            // una pagina mai aperta non ha niente di nuovo: i suoi controlli vuoti
+            // non devono prendere il posto di quello che c'e' nello Stato
+            foreach (Pagina p in pagine) p.RaccogliSeAperta();
             S.TemaScuro = Tema.Scuro;
             S.Salva();
         }
@@ -396,7 +420,7 @@ namespace Campanella
         {
             if (indicePagina < 0 || indicePagina >= pagine.Count) return;
             bool cambiaStrumento = (indicePagina != pagina);
-            if (cambiaStrumento) pagine[pagina].Esce();
+            if (cambiaStrumento) pagine[pagina].RaccogliSeAperta();
 
             pagina = indicePagina;
             Pagina p = pagine[pagina];
@@ -411,7 +435,7 @@ namespace Campanella
             contenuto.SuspendLayout();
             for (int i = 0; i < pagine.Count; i++) pagine[i].Visible = (i == pagina);
             contenuto.ResumeLayout();
-            p.Entra();
+            p.Apri();
 
             DisponiMenu();
             AggiornaMenu();
