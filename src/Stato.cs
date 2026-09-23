@@ -93,23 +93,16 @@ namespace Campanella
         }
     }
 
-    /// <summary>Una casella dell'orario: chi, quando, dove, con chi.</summary>
+    /// <summary>Una casella dell'orario: chi, quando, con chi.</summary>
     class Lezione
     {
         public string Docente = "";
-        public int Giorno = 0;        // 0 = lunedi'
+        public int Giorno = 0;        // il giorno della settimana, 0 = lunedi' (non la colonna)
         public int Ora = 1;           // 1 = prima ora
         public string Classe = "";
-        public string Materia = "";
-        public string Aula = "";
 
         public static readonly string[] Giorni =
         { "Lunedi'", "Martedi'", "Mercoledi'", "Giovedi'", "Venerdi'", "Sabato", "Domenica" };
-
-        public string NomeGiorno
-        {
-            get { return (Giorno >= 0 && Giorno < Giorni.Length) ? Giorni[Giorno] : "?"; }
-        }
     }
 
     // =======================================================================
@@ -183,6 +176,9 @@ namespace Campanella
 
         // ---- orari -----------------------------------------------------------
         public List<Lezione> Lezioni = new List<Lezione>();   // dato personale (cognomi)
+        public List<int> GiorniOrari = new List<int>();       // le colonne dell'orario, 0 = lunedi'
+        public int OreOrari = 0;                               // ore al giorno dell'orario
+        public string PeriodoOrari = "";                       // il periodo scritto nel tabellone
         public string FileOrari = "";
         public bool InviaOrariClassi = false;
         public string OggettoOrari = "Orario {docente}";
@@ -695,10 +691,15 @@ namespace Campanella
             {
                 Dictionary<string, object> d = new Dictionary<string, object>();
                 d["d"] = l.Docente; d["g"] = l.Giorno; d["o"] = l.Ora;
-                d["c"] = l.Classe; d["m"] = l.Materia; d["a"] = l.Aula;
+                d["c"] = l.Classe;
                 lez.Add(d);
             }
             r["lezioni"] = lez;
+            List<object> colonne = new List<object>();
+            foreach (int g in GiorniOrari) colonne.Add(g);
+            r["orariGiorni"] = colonne;
+            r["orariOre"] = OreOrari;
+            r["orariPeriodo"] = PeriodoOrari;
             return r;
         }
 
@@ -978,11 +979,25 @@ namespace Campanella
                     l.Giorno = Int(d, "g", 0);
                     l.Ora = Int(d, "o", 1);
                     l.Classe = Str(d, "c", "");
-                    l.Materia = Str(d, "m", "");
-                    l.Aula = Str(d, "a", "");
+                    // "m" e "a" (materia e aula) delle versioni precedenti non servono
                     if (l.Docente != "") Lezioni.Add(l);
                 }
             }
+
+            // le colonne dell'orario: nei file delle versioni precedenti non
+            // ci sono, e l'orario le ricava dai giorni delle lezioni
+            object[] col = r.ContainsKey("orariGiorni") ? r["orariGiorni"] as object[] : null;
+            if (col != null)
+            {
+                GiorniOrari.Clear();
+                foreach (object o in col)
+                {
+                    try { GiorniOrari.Add(Convert.ToInt32(o, CultureInfo.InvariantCulture)); }
+                    catch { /* valore strano: lo salto */ }
+                }
+            }
+            OreOrari = Int(r, "orariOre", OreOrari);
+            PeriodoOrari = Str(r, "orariPeriodo", PeriodoOrari);
         }
 
         /// <summary>

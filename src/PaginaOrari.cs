@@ -4,7 +4,7 @@
 //  Quattro passi: si carica il file, si controlla che l'orario sia stato
 //  letto bene, si preparano le email (tutte a te stesso: una per docente,
 //  per ritrovare l'orario di un collega cercando il cognome in Gmail), e si
-//  mette l'orario di un docente su Google Calendar.
+//  mette il tuo orario su Google Calendar.
 //
 //  E' uno strumento personale: non manda niente a nessun altro, e nei dati
 //  che genera non c'e' nessun indirizzo. L'invio e il calendario li fa uno
@@ -120,23 +120,15 @@ namespace Campanella
             S.OggettoOrariClasse = txtOggettoClasse.Text;
             S.NotaOrari = txtNota.Text;
             S.InviaOrariClassi = chkClassi.Checked;
-            S.Lezioni = new List<Lezione>(orario.Lezioni);
+            orario.SalvaIn(S);
             RaccogliCalendario();
         }
 
         void RipristinaDaStato()
         {
-            orario = new RisultatoOrario();
-            orario.Lezioni = new List<Lezione>(S.Lezioni);
-            int maxOra = 0, maxGiorno = 0;
-            foreach (Lezione l in S.Lezioni)
-            {
-                if (l.Ora > maxOra) maxOra = l.Ora;
-                if (l.Giorno > maxGiorno) maxGiorno = l.Giorno;
-            }
-            orario.OrePerGiorno = Math.Max(1, maxOra);
-            for (int i = 0; i <= maxGiorno; i++) orario.Giorni.Add(Lezione.Giorni[i]);
-            orario.Formato = "ripreso dalle impostazioni salvate";
+            // le colonne e il periodo sono salvati con le lezioni: dopo un
+            // riavvio l'orario torna con gli stessi giorni del tabellone
+            orario = RisultatoOrario.Ripristina(S);
         }
 
         // ===================================================================
@@ -500,6 +492,10 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("4.  Scegli la funzione  ORARI_1_anteprima  ed Esegui.");
             sb.AppendLine("    Leggi il registro: dice quante email manderebbe e ti mostra la prima.");
+            sb.AppendLine("    Google chiede le autorizzazioni per tutto il progetto: con il file");
+            sb.AppendLine("    Orari dentro, anche per il Calendario, pure se usi solo le email.");
+            sb.AppendLine("    Il calendario lo toccano soltanto ORARI_4_calendario e");
+            sb.AppendLine("    ORARI_ANNULLA_calendario, e solo se li esegui tu.");
             sb.AppendLine();
             sb.AppendLine("5.  Scegli  ORARI_2_invia  ed Esegui.");
             sb.AppendLine("    Le email arrivano tutte a te: una per docente.");
@@ -519,9 +515,12 @@ namespace Campanella
             sb.AppendLine("QUANTE EMAIL PUOI MANDARE IN UN GIORNO");
             sb.AppendLine("--------------------------------------");
             sb.AppendLine("Un account Gmail normale ne manda 100 al giorno, un account della");
-            sb.AppendLine("scuola (Workspace) 1500. Se non bastano, lo script si ferma da solo");
-            sb.AppendLine("e riprende il giorno dopo da dove era arrivato: non manda niente");
-            sb.AppendLine("due volte. Per ricominciare da capo: ORARI_ANNULLA_invio.");
+            sb.AppendLine("scuola (Workspace) 1500. Se non bastano, lo script si ferma e si");
+            sb.AppendLine("ricorda dove era arrivato: il giorno dopo riesegui tu ORARI_2_invia");
+            sb.AppendLine("(o ORARI_3_inviaOrariClassi) e riparte da li', senza mandare niente");
+            sb.AppendLine("due volte. Se invece finisce il tempo di un'esecuzione (circa quattro");
+            sb.AppendLine("minuti), riprende da solo dopo un minuto. Per ricominciare da capo:");
+            sb.AppendLine("ORARI_ANNULLA_invio.");
             return sb.ToString();
         }
 
@@ -577,16 +576,16 @@ namespace Campanella
             int y = 52;
 
             Tema.RigaAiuto(p,
-                "Scegli un docente, il nome del calendario e il periodo.",
+                "Scegli il tuo nome, il nome del calendario e il periodo.",
                 0, y, Tema.Normale, Ruolo.Tenue, "Cosa fa lo script sul calendario",
-                "Mette ogni ora di lezione come evento settimanale, dal primo giorno utile fino " +
-                "alla data di fine.\r\n\r\n" +
+                "Mette il tuo orario sul tuo calendario: ogni ora di lezione diventa un evento " +
+                "settimanale, dal primo giorno utile fino alla data di fine.\r\n\r\n" +
                 "Se un calendario con quel nome esiste gia' lo usa, altrimenti lo crea.\r\n\r\n" +
                 "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
                 "ORARI_ANNULLA_calendario, senza toccare il resto del calendario.");
             y += 40;
 
-            p.Controls.Add(Tema.Testo1("Docente  (come scritto nel tabellone)", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
+            p.Controls.Add(Tema.Testo1("Il tuo nome, come nel tabellone", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             cmbDocente = new ComboBox();
             cmbDocente.Location = new Point(0, y + 22);
             cmbDocente.Width = 300;
@@ -769,7 +768,7 @@ namespace Campanella
             }
             else if (S.CalDocente == "")
             {
-                lblCalRiepilogo.Text = "Scegli il docente di cui mettere l'orario sul calendario.";
+                lblCalRiepilogo.Text = "Scegli il tuo nome dall'elenco: sul calendario va il tuo orario.";
                 lblCalRiepilogo.Tag = Ruolo.Tenue;
             }
             else if (docente == "")
@@ -819,12 +818,15 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (qui, voce 1 del menu) e incollali nel");
             sb.AppendLine("    file  DatiOrari, al posto di quello che c'era. Adesso contengono anche");
-            sb.AppendLine("    la parte  calendario:  con il docente, il nome e il periodo. Salva.");
+            sb.AppendLine("    la parte  calendario:  con il tuo nome, il nome del calendario e il");
+            sb.AppendLine("    periodo. Salva.");
             sb.AppendLine();
             sb.AppendLine("3.  Scegli la funzione  ORARI_4_calendario  ed Esegui.");
-            sb.AppendLine("    La prima volta Google ripropone le autorizzazioni, adesso anche per il");
-            sb.AppendLine("    Calendario: e' il permesso di creare gli eventi. Il resto e' come per");
-            sb.AppendLine("    la posta: Avanzate -> Apri ... (non sicura) -> Consenti.");
+            sb.AppendLine("    Il permesso per il Calendario Google lo chiede per tutto il progetto");
+            sb.AppendLine("    appena dentro c'e' il file  Orari, alla prima esecuzione di una");
+            sb.AppendLine("    funzione qualsiasi, anche solo per le email: se l'hai gia' dato, qui");
+            sb.AppendLine("    non ti chiede niente. Se te lo chiede adesso, e' come per la posta:");
+            sb.AppendLine("    Avanzate -> Apri ... (non sicura) -> Consenti.");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
             sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");
@@ -836,7 +838,8 @@ namespace Campanella
             sb.AppendLine("nel periodo indicato), poi rigenera i dati con il nuovo tabellone e");
             sb.AppendLine("riesegui  ORARI_4_calendario. Il calendario e gli altri eventi non");
             sb.AppendLine("vengono toccati; il calendario, se non ti serve piu', lo cancelli tu");
-            sb.AppendLine("da Google Calendar.");
+            sb.AppendLine("da Google Calendar. Se riesegui  ORARI_4_calendario  senza annullare,");
+            sb.AppendLine("si ferma e te lo dice: non mette le lezioni due volte.");
             sb.AppendLine();
             sb.AppendLine("COME VENGONO GLI EVENTI");
             sb.AppendLine("-----------------------");

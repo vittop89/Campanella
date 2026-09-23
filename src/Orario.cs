@@ -30,12 +30,63 @@ namespace Campanella
     {
         public List<Lezione> Lezioni = new List<Lezione>();
         public List<string> Giorni = new List<string>();
+        // per ogni colonna di Giorni, il giorno della settimana (0 = lunedi'):
+        // Lezione.Giorno e' sempre il giorno, la colonna si cerca qui
+        public List<int> IndiciGiorni = new List<int>();
         public int OrePerGiorno = 0;
         public string Periodo = "";
         public string Titolo = "";
-        public string Disposizione = "";       // sigla usata per "a disposizione"
         public string Formato = "";
         public List<string> Avvisi = new List<string>();
+
+        /// <summary>La colonna del giorno (0 = lunedi'), oppure -1 se il giorno non c'e'.</summary>
+        public int Colonna(int giorno)
+        {
+            return IndiciGiorni.IndexOf(giorno);
+        }
+
+        /// <summary>Mette nello stato cio' che serve a ritrovare l'orario dopo un riavvio.</summary>
+        public void SalvaIn(Stato s)
+        {
+            s.Lezioni = new List<Lezione>(Lezioni);
+            s.GiorniOrari = new List<int>(IndiciGiorni);
+            s.OreOrari = OrePerGiorno;
+            s.PeriodoOrari = Periodo ?? "";
+        }
+
+        /// <summary>
+        /// L'orario salvato nello stato, con le colonne di allora. I dati di
+        /// una versione precedente non hanno l'elenco delle colonne: le
+        /// ricavo dai giorni delle lezioni.
+        /// </summary>
+        public static RisultatoOrario Ripristina(Stato s)
+        {
+            RisultatoOrario o = new RisultatoOrario();
+            o.Lezioni = new List<Lezione>(s.Lezioni);
+            o.Periodo = s.PeriodoOrari ?? "";
+            o.Formato = "ripreso dalle impostazioni salvate";
+
+            int maxOra = 0;
+            List<int> visti = new List<int>();
+            foreach (Lezione l in s.Lezioni)
+            {
+                if (l.Ora > maxOra) maxOra = l.Ora;
+                if (l.Giorno >= 0 && l.Giorno < Lezione.Giorni.Length && !visti.Contains(l.Giorno))
+                    visti.Add(l.Giorno);
+            }
+            List<int> colonne = new List<int>();
+            foreach (int g in s.GiorniOrari)
+                if (g >= 0 && g < Lezione.Giorni.Length && !colonne.Contains(g)) colonne.Add(g);
+            if (colonne.Count == 0) { visti.Sort(); colonne = visti; }
+
+            foreach (int g in colonne)
+            {
+                o.IndiciGiorni.Add(g);
+                o.Giorni.Add(Lezione.Giorni[g]);
+            }
+            o.OrePerGiorno = Math.Max(Math.Max(1, maxOra), s.OreOrari);
+            return o;
+        }
 
         public List<string> Docenti()
         {
@@ -62,11 +113,10 @@ namespace Campanella
         {
             if (cella == null) return false;
             string c = cella.Trim().ToUpperInvariant();
-            return c == "D" || c == "DISP" || c == "DISP." || c == "DISPOSIZIONE" ||
-                   (Disposizione != "" && c == Disposizione.ToUpperInvariant());
+            return c == "D" || c == "DISP" || c == "DISP." || c == "DISPOSIZIONE";
         }
 
-        /// <summary>Griglia giorni x ore di un docente: [ora, giorno] -> classe.</summary>
+        /// <summary>Griglia giorni x ore di un docente: [ora, colonna] -> classe.</summary>
         public string[,] GrigliaDocente(string docente)
         {
             string[,] g = new string[Math.Max(1, OrePerGiorno), Math.Max(1, Giorni.Count)];
@@ -74,13 +124,14 @@ namespace Campanella
             {
                 if (!string.Equals(l.Docente, docente, StringComparison.CurrentCultureIgnoreCase)) continue;
                 if (l.Ora < 1 || l.Ora > OrePerGiorno) continue;
-                if (l.Giorno < 0 || l.Giorno >= Giorni.Count) continue;
-                g[l.Ora - 1, l.Giorno] = l.Classe;
+                int d = Colonna(l.Giorno);
+                if (d < 0 || d >= Giorni.Count) continue;
+                g[l.Ora - 1, d] = l.Classe;
             }
             return g;
         }
 
-        /// <summary>Griglia giorni x ore di una classe: [ora, giorno] -> docente.</summary>
+        /// <summary>Griglia giorni x ore di una classe: [ora, colonna] -> docente.</summary>
         public string[,] GrigliaClasse(string classe)
         {
             string[,] g = new string[Math.Max(1, OrePerGiorno), Math.Max(1, Giorni.Count)];
@@ -88,10 +139,11 @@ namespace Campanella
             {
                 if (!string.Equals(l.Classe, classe, StringComparison.CurrentCultureIgnoreCase)) continue;
                 if (l.Ora < 1 || l.Ora > OrePerGiorno) continue;
-                if (l.Giorno < 0 || l.Giorno >= Giorni.Count) continue;
-                string gia = g[l.Ora - 1, l.Giorno];
+                int d = Colonna(l.Giorno);
+                if (d < 0 || d >= Giorni.Count) continue;
+                string gia = g[l.Ora - 1, d];
                 // due docenti nella stessa ora (compresenza): li metto insieme
-                g[l.Ora - 1, l.Giorno] = string.IsNullOrEmpty(gia) ? l.Docente : gia + " + " + l.Docente;
+                g[l.Ora - 1, d] = string.IsNullOrEmpty(gia) ? l.Docente : gia + " + " + l.Docente;
             }
             return g;
         }
@@ -197,7 +249,11 @@ namespace Campanella
 
             RisultatoOrario o = new RisultatoOrario();
             o.Formato = "tabellone docenti";
-            foreach (int g in indici) o.Giorni.Add(Lezione.Giorni[g]);
+            foreach (int g in indici)
+            {
+                o.Giorni.Add(Lezione.Giorni[g]);
+                o.IndiciGiorni.Add(g);
+            }
 
             // 3. la riga sotto contiene i numeri delle ore
             int rigaOre = rigaGiorni + 1;
@@ -291,11 +347,11 @@ namespace Campanella
         static RisultatoOrario AnalizzaTabella(FoglioExcel f)
         {
             int rigaTitoli = -1;
-            int cDocente = -1, cGiorno = -1, cOra = -1, cClasse = -1, cMateria = -1, cAula = -1;
+            int cDocente = -1, cGiorno = -1, cOra = -1, cClasse = -1;
 
             for (int r = 0; r < Math.Min(f.NumeroRighe, 20) && rigaTitoli < 0; r++)
             {
-                int d = -1, g = -1, o = -1, cl = -1, m = -1, a = -1;
+                int d = -1, g = -1, o = -1, cl = -1;
                 for (int c = 0; c < f.Colonne; c++)
                 {
                     string v = Stato.SenzaAccenti(f.Cella(r, c)).Trim().ToLowerInvariant();
@@ -305,13 +361,11 @@ namespace Campanella
                     else if (g < 0 && v.StartsWith("giorno")) g = c;
                     else if (o < 0 && (v.StartsWith("ora") || v == "modulo")) o = c;
                     else if (cl < 0 && (v.StartsWith("classe") || v.StartsWith("sezione"))) cl = c;
-                    else if (m < 0 && (v.StartsWith("materia") || v.StartsWith("disciplina"))) m = c;
-                    else if (a < 0 && (v.StartsWith("aula") || v.StartsWith("laboratorio"))) a = c;
                 }
                 if (d >= 0 && g >= 0 && o >= 0)
                 {
                     rigaTitoli = r;
-                    cDocente = d; cGiorno = g; cOra = o; cClasse = cl; cMateria = m; cAula = a;
+                    cDocente = d; cGiorno = g; cOra = o; cClasse = cl;
                 }
             }
             if (rigaTitoli < 0) return null;
@@ -341,20 +395,20 @@ namespace Campanella
                 l.Giorno = giorno;
                 l.Ora = ora;
                 l.Classe = (cClasse >= 0) ? f.Cella(r, cClasse).Trim() : "";
-                l.Materia = (cMateria >= 0) ? f.Cella(r, cMateria).Trim() : "";
-                l.Aula = (cAula >= 0) ? f.Cella(r, cAula).Trim() : "";
                 res.Lezioni.Add(l);
 
                 if (ora > maxOra) maxOra = ora;
                 if (!giorniVisti.Contains(giorno)) giorniVisti.Add(giorno);
             }
 
+            // le colonne sono i giorni trovati; Lezione.Giorno resta il giorno
             giorniVisti.Sort();
-            foreach (int g in giorniVisti) res.Giorni.Add(Lezione.Giorni[g]);
+            foreach (int g in giorniVisti)
+            {
+                res.Giorni.Add(Lezione.Giorni[g]);
+                res.IndiciGiorni.Add(g);
+            }
             res.OrePerGiorno = Math.Max(1, maxOra);
-
-            // rimappo i giorni sugli indici compatti dell'elenco
-            foreach (Lezione l in res.Lezioni) l.Giorno = giorniVisti.IndexOf(l.Giorno);
             return res;
         }
 
@@ -435,9 +489,10 @@ namespace Campanella
         public static string GeneraDatiGs(RisultatoOrario o, Stato s, bool includiClassi)
         {
             StringBuilder sb = new StringBuilder();
+            string periodo = TestoCommento(o.Periodo);
             sb.AppendLine("/* =========================================================================");
             sb.AppendLine("   DATI DEGLI ORARI - generati il " + DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
-            sb.AppendLine("   " + (o.Periodo != "" ? o.Periodo : "periodo non indicato"));
+            sb.AppendLine("   " + (periodo != "" ? periodo : "periodo non indicato"));
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
             sb.AppendLine("   tabellone. Niente indirizzi: le email arrivano tutte a te.");
@@ -490,7 +545,7 @@ namespace Campanella
             if (docenteCal != "")
             {
                 List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
-                sb.AppendLine("  // l'orario da mettere su Google Calendar (ORARI_4_calendario)");
+                sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario)");
                 sb.AppendLine("  calendario: {");
                 sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
                 sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
@@ -505,7 +560,7 @@ namespace Campanella
             }
             else
             {
-                sb.AppendLine("  // calendario: nessun docente scelto nel passo 4 dell'applicazione");
+                sb.AppendLine("  // calendario: nessun nome scelto nel passo 4 dell'applicazione");
                 sb.AppendLine("  calendario: null");
             }
 
@@ -535,6 +590,19 @@ namespace Campanella
         {
             return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"")
                             .Replace("\r", "").Replace("\n", "\\n");
+        }
+
+        /// <summary>
+        /// Un testo letto dal file dell'utente, pronto per stare dentro un
+        /// commento /* ... */ dello script: spazi e a capo (compresi U+2028 e
+        /// U+2029) diventano uno spazio solo, e "*/" non chiude piu' il
+        /// commento. Senza, una cella del tabellone diventerebbe codice.
+        /// </summary>
+        public static string TestoCommento(string s)
+        {
+            string t = Regex.Replace(s ?? "", @"[\s\u0085  ]+", " ").Trim();
+            while (t.Contains("*/")) t = t.Replace("*/", "* /");
+            return t;
         }
     }
 }

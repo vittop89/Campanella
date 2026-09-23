@@ -1,9 +1,13 @@
 <#
-    genera_dati_prova.ps1 - crea test\DatiOrari_prova.gs partendo dal file
-    orario vero (cognomi veri: il file resta fuori dal repository), con la
-    parte del calendario per il primo docente del tabellone.
+    genera_dati_prova.ps1 - crea DatiOrari_prova.gs partendo da un file
+    orario, con la parte del calendario per il primo docente del tabellone.
 
-        .\test\genera_dati_prova.ps1 ; node test\mock_orari.js test\DatiOrari_prova.gs
+    Il file va in una cartella temporanea (%TEMP%\campanella-dati-prova),
+    mai dentro il repository: con un orario vero contiene cognomi veri.
+    Quando hai finito, cancella la cartella (il comando lo scrive lo script).
+
+        .\test\genera_dati_prova.ps1
+        node test\mock_orari.js "$env:TEMP\campanella-dati-prova\DatiOrari_prova.gs"
 #>
 param(
     # di partenza il tabellone inventato; passa il tuo .xlsx per generare i dati veri
@@ -20,7 +24,15 @@ $FS = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
 $fogli = $asm.GetType('Campanella.Xlsx').GetMethod('Leggi', $FS).Invoke($null, @([string]$File))
 $o = $asm.GetType('Campanella.AnalisiOrario').GetMethod('Analizza', $FS).Invoke($null, @($fogli[0]))
 
+$cartella = Join-Path ([System.IO.Path]::GetTempPath()) 'campanella-dati-prova'
+New-Item -ItemType Directory -Force -Path $cartella | Out-Null
+
+# new Stato() punta di partenza al Drive vero del PC: lo porto subito nella
+# cartella temporanea (qui non si salva niente, ma meglio non rischiare)
 $stato = [Activator]::CreateInstance($asm.GetType('Campanella.Stato'))
+$stato.Drive = $cartella
+$stato.CartellaDati = $cartella
+$stato.DatiNelDrive = $false
 $stato.OggettoOrari = 'Orario {docente}'
 $stato.OggettoOrariClasse = 'Orario classe {classe}'
 $stato.NotaOrari = 'Orario provvisorio: eventuali variazioni vengono comunicate per circolare.'
@@ -39,7 +51,9 @@ $argomenti[1] = $stato.PSObject.BaseObject
 $argomenti[2] = $true
 $gs = $asm.GetType('Campanella.AnalisiOrario').GetMethod('GeneraDatiGs', $FS).Invoke($null, $argomenti)
 
-$out = Join-Path $radice 'test\DatiOrari_prova.gs'
+$out = Join-Path $cartella 'DatiOrari_prova.gs'
 [System.IO.File]::WriteAllText($out, $gs, (New-Object System.Text.UTF8Encoding($false)))
 $kb = [math]::Round((Get-Item $out).Length / 1KB, 1)
 Write-Host "Scritto $out  ($kb KB)  -  $($o.Docenti().Count) docenti, $($o.Classi().Count) classi" -ForegroundColor Green
+Write-Host "Per provarlo:    node test\mock_orari.js `"$out`""
+Write-Host "Poi cancellalo:  Remove-Item -Recurse `"$cartella`""

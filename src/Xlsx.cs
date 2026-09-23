@@ -36,9 +36,12 @@ namespace Campanella
             return r[colonna] ?? "";
         }
 
+        static readonly string[] RigaVuota = new string[0];
+
         public void Metti(int riga, int colonna, string valore)
         {
-            while (Righe.Count <= riga) Righe.Add(new string[0]);
+            // le righe saltate restano vuote, tutte con lo stesso array
+            while (Righe.Count <= riga) Righe.Add(RigaVuota);
             string[] r = Righe[riga];
             if (r.Length <= colonna)
             {
@@ -67,6 +70,11 @@ namespace Campanella
 
     static class Xlsx
     {
+        // i limiti di un foglio di Excel (fino alla riga 1048576 e alla colonna
+        // XFD): oltre, un file di pochi byte farebbe allocare centinaia di MB
+        public const int MaxRighe = 1048576;
+        public const int MaxColonne = 16384;
+
         // ===================================================================
         //  LETTURA
         // ===================================================================
@@ -211,21 +219,27 @@ namespace Campanella
             using (Stream s = voce.Open())
             using (XmlReader r = XmlReader.Create(s, ImpostazioniXml()))
             {
-                int riga = -1;
+                int riga = -1, colonnaPrima = -1;
                 while (r.Read())
                 {
                     if (r.NodeType == XmlNodeType.Element && r.LocalName == "row")
                     {
                         string n = r.GetAttribute("r");
                         int numero;
-                        riga = (n != null && int.TryParse(n, out numero)) ? numero - 1 : riga + 1;
+                        riga = (n != null && int.TryParse(n, NumberStyles.Integer, CultureInfo.InvariantCulture, out numero))
+                             ? numero - 1 : riga + 1;
+                        colonnaPrima = -1;
                     }
                     else if (r.NodeType == XmlNodeType.Element && r.LocalName == "c")
                     {
                         string rif = r.GetAttribute("r");
                         string tipo = r.GetAttribute("t");
-                        int colonna = (rif != null) ? IndiceColonna(rif) : -1;
-                        if (colonna < 0 || r.IsEmptyElement) continue;
+                        // senza "r" la cella e' quella dopo la precedente della
+                        // riga: lo standard lo ammette, e alcuni programmi lo fanno
+                        int colonna = (rif != null) ? IndiceColonna(rif) : colonnaPrima + 1;
+                        colonnaPrima = colonna;
+                        if (colonna < 0 || colonna >= MaxColonne || riga >= MaxRighe) continue;
+                        if (r.IsEmptyElement) continue;
 
                         string valore;
                         using (XmlReader dentro = r.ReadSubtree())
@@ -270,7 +284,7 @@ namespace Campanella
             return (valore ?? "").Trim();
         }
 
-        /// <summary>"AP69" -> 41 (indice della colonna, base zero).</summary>
+        /// <summary>"AP69" -> 41 (indice della colonna, base zero); -1 oltre la colonna XFD.</summary>
         public static int IndiceColonna(string riferimento)
         {
             int n = 0, i = 0;
@@ -279,22 +293,10 @@ namespace Campanella
                 char c = char.ToUpperInvariant(riferimento[i]);
                 if (c < 'A' || c > 'Z') break;
                 n = n * 26 + (c - 'A' + 1);
+                if (n > MaxColonne) return -1;
                 i++;
             }
             return n - 1;
-        }
-
-        public static string NomeColonna(int indice)
-        {
-            string s = "";
-            indice++;
-            while (indice > 0)
-            {
-                int resto = (indice - 1) % 26;
-                s = (char)('A' + resto) + s;
-                indice = (indice - 1) / 26;
-            }
-            return s;
         }
 
         static XmlReaderSettings ImpostazioniXml()
@@ -315,7 +317,8 @@ namespace Campanella
         {
             FoglioExcel f = new FoglioExcel();
             f.Nome = Path.GetFileNameWithoutExtension(percorso);
-            string testo = File.ReadAllText(percorso, RilevaCodifica(percorso));
+            // BOM, poi UTF-8, poi Windows-1252: Excel salva i CSV anche in "ANSI"
+            string testo = Testo.LeggiFile(percorso);
 
             char separatore = SeparatoreProbabile(testo);
             int riga = 0, colonna = 0;
@@ -361,14 +364,6 @@ namespace Campanella
             }
             if (tab >= puntoVirgola && tab >= virgola && tab > 0) return '\t';
             return (puntoVirgola >= virgola) ? ';' : ',';
-        }
-
-        static Encoding RilevaCodifica(string percorso)
-        {
-            byte[] testa = new byte[3];
-            using (FileStream fs = File.OpenRead(percorso)) fs.Read(testa, 0, 3);
-            if (testa[0] == 0xEF && testa[1] == 0xBB && testa[2] == 0xBF) return new UTF8Encoding(true);
-            return Encoding.UTF8;   // con fallback implicito sui caratteri non validi
         }
     }
 }
