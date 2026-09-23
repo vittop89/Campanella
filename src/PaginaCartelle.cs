@@ -6,7 +6,8 @@
 //  recuperi e le cartelle fisse, e ci copia dentro i modelli da MODELLI.
 //
 //  Regola di fondo: non sovrascrive e non cancella mai niente. Se una
-//  cartella o un file esistono gia', li lascia stare.
+//  cartella o un file esistono gia', li lascia stare. Il lavoro sul disco
+//  lo fa GeneratoreAnno.cs, che si prova senza finestre.
 //
 //  Due passi. Il primo lavora sul PC, nella cartella che Google Drive tiene
 //  sincronizzata. Il secondo e' per quello che dal PC non si puo' fare: un
@@ -26,13 +27,6 @@ using System.Windows.Forms;
 
 namespace Campanella
 {
-    class RisultatoGenerazione
-    {
-        public string Cartella = "";
-        public int Creati = 0;
-        public List<string> Errori = new List<string>();
-    }
-
     class PaginaCartelle : Pagina
     {
         static readonly string[] NomiPassi =
@@ -80,7 +74,7 @@ namespace Campanella
         const string FileStruttura = "struttura.json";
 
         /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
-        const string CartellaPerClasse = "PER CLASSE";
+        const string CartellaPerClasse = GeneratoreAnno.CartellaPerClasse;
 
         public PaginaCartelle(Guscio g) : base(g)
         {
@@ -937,6 +931,9 @@ namespace Campanella
         void Genera()
         {
             logBox.Clear();
+            // casella vuota: propongo il Drive trovato sul computer, e la conferma
+            // qui sotto fa vedere dove andrei a scrivere prima di toccare niente
+            if (PercorsoDrive() == "") txtDrive.Text = Stato.DriveDiDefault();
             Esce();
 
             string bersaglio = CartellaAnno();
@@ -956,312 +953,31 @@ namespace Campanella
             for (int i = 0; i < clbStruttura.Items.Count; i++)
                 if (clbStruttura.GetItemChecked(i)) struttura.Add(Convert.ToString(clbStruttura.Items[i]));
 
-            List<string> righe = new List<string>();
+            GeneratoreAnno generatore = new GeneratoreAnno();
+            generatore.Avanzamento = delegate (string riga) { Log(riga); };
             try
             {
-                RisultatoGenerazione r = GeneraAnno(AnnoCorrente(), PercorsoDrive(),
-                                                    txtClassi.Text, gruppi, struttura,
-                                                    txtExtra.Text, righe);
-                foreach (string riga in righe) Log(riga);
+                RisultatoGenerazione r = generatore.Genera(AnnoCorrente(), PercorsoDrive(),
+                                                           txtClassi.Text, gruppi, struttura,
+                                                           txtExtra.Text);
                 Log("");
                 Log("=== FINE ===");
-                Log("Struttura creata in: " + r.Cartella);
-                Log("Elementi creati: " + r.Creati);
+                Log("Struttura in: " + r.Cartella);
+                Log("Creati adesso: " + r.Creati + "   (cartelle, file copiati e note)");
+                Log("Gia' presenti, lasciati come sono: " + r.GiaPresenti);
                 Log("Problemi: " + r.Errori.Count);
                 foreach (string e in r.Errori) Log("  - " + e);
                 Guscio.Stato1(r.Errori.Count == 0
-                    ? "Fatto: " + r.Creati + " elementi creati."
+                    ? "Fatto: " + r.Creati + " elementi creati, " + r.GiaPresenti + " gia' presenti."
                     : "Fatto con " + r.Errori.Count + " problemi: leggi il riquadro.",
                     r.Errori.Count == 0 ? Tema.Verde : Tema.Ambra);
             }
             catch (Exception ex)
             {
-                foreach (string riga in righe) Log(riga);
                 Log("ERRORE: " + ex.Message);
                 MessageBox.Show(this, ex.Message, "Non ho potuto procedere",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
-        }
-
-        public static RisultatoGenerazione GeneraAnno(string anno, string driveIn, string classiText,
-            List<string> gruppiIn, List<string> strutturaIn, string extraText, List<string> log)
-        {
-            RisultatoGenerazione res = new RisultatoGenerazione();
-            List<string> errori = res.Errori;
-            int creati = 0;
-
-            if (anno == "") throw new Exception("Manca l'anno scolastico (per esempio 2026-27).");
-            string drive = (driveIn ?? "").Trim().TrimEnd('\\');
-            if (drive == "") drive = Stato.DriveDiDefault();
-            if (!Directory.Exists(drive)) throw new Exception("Percorso non trovato: " + drive);
-
-            string modelli = Path.Combine(drive, "MODELLI");
-            bool conModelli = Directory.Exists(modelli);
-            if (!conModelli)
-                log.Add("Nota: non c'e' la cartella MODELLI in " + drive + ": creo solo le cartelle.");
-            List<string> perClasse = conModelli ? ModelliPerClasse(modelli) : new List<string>();
-            if (perClasse.Count > 0)
-                log.Add("Modelli da copiare in ogni classe: " + perClasse.Count);
-
-            // una classe per riga: il punto e virgola separa solo le materie
-            // ("1A: Matematica; Fisica"), mai le classi
-            List<string> classi = new List<string>();
-            foreach (string riga in (classiText ?? "").Split(new char[] { '\r', '\n' }))
-            {
-                string r = riga.Trim();
-                if (r != "") classi.Add(r);
-            }
-            if (classi.Count == 0)
-                throw new Exception("Scrivi almeno una classe (per esempio  1A: Matematica, Fisica).");
-
-            string target = Path.Combine(drive, "A.S. " + anno);
-            if (Directory.Exists(target))
-                log.Add("La cartella esiste gia': aggiungo solo cio' che manca.");
-
-            foreach (string d in strutturaIn) Directory.CreateDirectory(Path.Combine(target, d));
-            log.Add("Struttura creata: " + target);
-            creati++;
-
-            if (extraText != null && extraText.Trim() != "")
-            {
-                foreach (string e in extraText.Split(new char[] { ',', ';', '\n', '\r' }))
-                {
-                    string ee = e.Trim();
-                    if (ee == "") continue;
-                    if (ee.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                    {
-                        errori.Add("Nome di cartella non valido: [" + ee + "]");
-                        continue;
-                    }
-                    Directory.CreateDirectory(Path.Combine(target, ee));
-                    log.Add("Cartella in piu': " + ee);
-                    creati++;
-                }
-            }
-
-            foreach (string c in classi)
-            {
-                string nomeClasse = c;
-                List<string> materie = new List<string>();
-                int idx = c.IndexOf(':');
-                if (idx > 0)
-                {
-                    nomeClasse = c.Substring(0, idx).Trim();
-                    foreach (string m in c.Substring(idx + 1).Split(new char[] { ',', ';' }))
-                    {
-                        string mm = m.Trim();
-                        if (mm != "") materie.Add(mm);
-                    }
-                }
-                if (nomeClasse == "" || nomeClasse.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                {
-                    errori.Add("Classe non valida: [" + c + "]");
-                    continue;
-                }
-                // "1A; 2B" o "1A, 2B" su una riga sola: sono due classi scritte di
-                // seguito, non una classe con quel nome. Meglio dirlo che creare
-                // nel Drive una cartella "1A; 2B" che poi resta li'.
-                if (nomeClasse.IndexOfAny(new char[] { ';', ',' }) >= 0)
-                {
-                    errori.Add("Classe non valida: [" + c + "]: una classe per riga, le materie dopo i due punti");
-                    continue;
-                }
-
-                string dirClasse = Path.Combine(target, "CLASSI", nomeClasse);
-                Directory.CreateDirectory(dirClasse);
-                Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse));
-                Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "PENTAMESTRE", nomeClasse));
-
-                string elenco = "";
-                foreach (string m in materie)
-                {
-                    if (m.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                    {
-                        errori.Add("Materia non valida in [" + c + "]: " + m);
-                        continue;
-                    }
-                    Directory.CreateDirectory(Path.Combine(dirClasse, m));
-                    Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse, m));
-                    Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "PENTAMESTRE", nomeClasse, m));
-                    if (elenco != "") elenco += ", ";
-                    elenco += m;
-                }
-
-                // i modelli "per classe": ogni file entra nella cartella della classe
-                // con il nome della classe in coda. I documenti Google non si copiano
-                // come file normali: per quelli resta una nota con cosa duplicare.
-                List<string> daDuplicare = new List<string>();
-                foreach (string src in perClasse)
-                {
-                    if (EFileGoogle(src)) { daDuplicare.Add(Path.GetFileName(src)); continue; }
-                    string dest = Path.Combine(dirClasse,
-                        Path.GetFileNameWithoutExtension(src) + " " + nomeClasse + Path.GetExtension(src));
-                    if (File.Exists(dest)) continue;
-                    try
-                    {
-                        File.Copy(src, dest, false);
-                        log.Add("  classe " + nomeClasse + ": copiato " + Path.GetFileName(dest));
-                        creati++;
-                    }
-                    catch (Exception ex)
-                    {
-                        errori.Add("Classe " + nomeClasse + ", " + Path.GetFileName(src) + ": " + ex.Message);
-                    }
-                }
-                if (daDuplicare.Count > 0)
-                {
-                    string percorsoNota = Path.Combine(dirClasse, "DUPLICA IN GOOGLE DOCS - " + nomeClasse + ".txt");
-                    if (!File.Exists(percorsoNota))
-                    {
-                        List<string> righe = new List<string>();
-                        righe.Add("Per la classe " + nomeClasse + ": duplicare in Google Drive (tasto destro ->");
-                        righe.Add("Crea una copia) questi documenti di MODELLI\\" + CartellaPerClasse +
-                                  " e aggiungere \"" + nomeClasse + "\" al nome:");
-                        righe.Add("");
-                        foreach (string g in daDuplicare) righe.Add("- " + g);
-                        File.WriteAllLines(percorsoNota, righe.ToArray(), Encoding.UTF8);
-                    }
-                }
-
-                log.Add("Classe: " + nomeClasse + (elenco != "" ? " -> " + elenco : ""));
-                creati++;
-            }
-
-            if (conModelli && gruppiIn != null)
-            {
-                foreach (string nome in gruppiIn)
-                {
-                    if (nome.Equals(CartellaPerClasse, StringComparison.OrdinalIgnoreCase)) continue;
-                    string g = Path.Combine(modelli, nome);
-                    if (!Directory.Exists(g)) { errori.Add("Modello non trovato: " + g); continue; }
-                    string dest = Path.Combine(target, nome);
-                    List<string> google = new List<string>();
-
-                    foreach (string f in Directory.GetFiles(g))
-                    {
-                        if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
-                        if (perClasse.Contains(f)) continue;     // gia' copiato dentro ogni classe
-                        Directory.CreateDirectory(dest);
-                        string df = Path.Combine(dest, Path.GetFileName(f));
-                        if (File.Exists(df)) continue;
-                        try
-                        {
-                            File.Copy(f, df, false);
-                            log.Add("  copiato: " + nome + "\\" + Path.GetFileName(f));
-                            creati++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errori.Add("Copia fallita: " + Path.GetFileName(f) + " :: " + ex.Message);
-                        }
-                    }
-
-                    foreach (string sd in Directory.GetDirectories(g))
-                    {
-                        List<string> sotto = new List<string>();
-                        try
-                        {
-                            CopiaCartella(sd, Path.Combine(dest, Path.GetFileName(sd)), sotto);
-                            log.Add("  copiato: " + nome + "\\" + Path.GetFileName(sd) + "\\");
-                            creati++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errori.Add("Copia fallita: " + Path.GetFileName(sd) + " :: " + ex.Message);
-                        }
-                        foreach (string gf in sotto) google.Add(Path.GetFileName(sd) + "\\" + gf);
-                    }
-
-                    if (google.Count > 0)
-                    {
-                        // i moduli non si duplicano: restano in MODELLI e ogni anno ricevono un
-                        // foglio delle risposte nuovo (passo 2). Gli altri documenti si copiano a mano.
-                        List<string> documenti = new List<string>(), moduli = new List<string>();
-                        foreach (string gf in google)
-                        {
-                            if (gf.EndsWith(".gform", StringComparison.OrdinalIgnoreCase)) moduli.Add(gf);
-                            else documenti.Add(gf);
-                        }
-                        Directory.CreateDirectory(dest);
-                        List<string> righe = new List<string>();
-                        if (documenti.Count > 0)
-                        {
-                            righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
-                            righe.Add("(i documenti Google non si possono copiare come file normali)");
-                            righe.Add("");
-                            foreach (string gf in documenti) righe.Add("- " + gf);
-                        }
-                        if (moduli.Count > 0)
-                        {
-                            if (righe.Count > 0) righe.Add("");
-                            righe.Add("Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni");
-                            righe.Add("anno riceve un foglio delle risposte nuovo, con lo script che si prepara in");
-                            righe.Add("Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):");
-                            righe.Add("");
-                            foreach (string gf in moduli) righe.Add("- " + gf);
-                        }
-                        File.WriteAllLines(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"),
-                                           righe.ToArray(), Encoding.UTF8);
-                        if (documenti.Count > 0)
-                            log.Add("  " + documenti.Count + " documenti Google da duplicare a mano (nota creata)");
-                        if (moduli.Count > 0)
-                            log.Add("  " + moduli.Count + " moduli Google: per il foglio delle risposte c'e' il passo 2");
-                    }
-                }
-            }
-
-            res.Cartella = target;
-            res.Creati = creati;
-            return res;
-        }
-
-        /// <summary>
-        /// I file da copiare dentro ogni classe: tutto cio' che sta in
-        /// MODELLI\PER CLASSE. Per chi viene dalle versioni precedenti valgono
-        /// ancora i file "Modulo di controllo - segni.*" nella radice di MODELLI
-        /// o in "Verifiche e valutazione".
-        /// </summary>
-        static List<string> ModelliPerClasse(string modelli)
-        {
-            List<string> fuori = new List<string>();
-            string cartella = Path.Combine(modelli, CartellaPerClasse);
-            if (Directory.Exists(cartella))
-            {
-                string[] file = Directory.GetFiles(cartella);
-                Array.Sort(file);
-                foreach (string f in file)
-                    if (!Path.GetFileName(f).StartsWith("~$")) fuori.Add(f);
-            }
-            string[] basi =
-            {
-                Path.Combine(modelli, "Modulo di controllo - segni"),
-                Path.Combine(modelli, "Verifiche e valutazione", "Modulo di controllo - segni")
-            };
-            foreach (string b in basi)
-                foreach (string est in new string[] { ".xlsx", ".docx", ".xls", ".doc", ".gsheet", ".gdoc" })
-                    if (File.Exists(b + est) && !fuori.Contains(b + est)) fuori.Add(b + est);
-            return fuori;
-        }
-
-        static bool EFileGoogle(string percorso)
-        {
-            string e = Path.GetExtension(percorso).ToLowerInvariant();
-            return e == ".gdoc" || e == ".gsheet" || e == ".gslides" ||
-                   e == ".gdraw" || e == ".gform" || e == ".gsite";
-        }
-
-        static void CopiaCartella(string origine, string destinazione, List<string> google)
-        {
-            Directory.CreateDirectory(destinazione);
-            foreach (string f in Directory.GetFiles(origine))
-            {
-                if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
-                string df = Path.Combine(destinazione, Path.GetFileName(f));
-                if (File.Exists(df)) continue;         // non sovrascrive mai
-                File.Copy(f, df, false);
-            }
-            foreach (string sd in Directory.GetDirectories(origine))
-                CopiaCartella(sd, Path.Combine(destinazione, Path.GetFileName(sd)), google);
         }
     }
 }
