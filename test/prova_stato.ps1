@@ -11,7 +11,9 @@
     vere: e' la regola per tutte le prove che creano uno Stato.
 
     Ogni caso scrive i file di partenza, chiama Carica, Salva o SpostaDati
-    come fa l'applicazione, e guarda che cosa e' rimasto sul disco.
+    come fa l'applicazione, e guarda che cosa e' rimasto sul disco. In fondo
+    la protezione delle versioni di prima: una copia dello stesso Stato.cs con
+    Formato = 1, come la 1.5.2, non deve riscrivere i file scritti da questo.
 #>
 param([string]$Stato = '')
 
@@ -85,6 +87,13 @@ static class ProvaStato
                 case "nome-calendario": NomeCalendario(); break;
                 case "nome-calendario-drive-non-pronto": NomeCalendarioDriveNonPronto(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
+                case "colori-andata-e-ritorno": ColoriAndataERitorno(); break;
+                case "colori-dalla-1-5": ColoriDalla15(); break;
+                case "colori-scritti-a-mano": ColoriScrittiAMano(); break;
+                // queste due girano nella stessa cartella, una dopo l'altra: la
+                // prima con lo Stato di adesso, la seconda con Formato = 1
+                case "scrivi-per-la-vecchia": ScriviPerLaVecchia(); break;
+                case "vecchia-non-riscrive": VecchiaNonRiscrive(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
         }
@@ -418,7 +427,7 @@ static class ProvaStato
         Dictionary<string, object> p = Persona("ROSSI MARIO", "mario.rossi@scuola.example");
         p["campoNuovo"] = new object[] { "1A", "2B" };
         Dictionary<string, object> futuro = DatiCon(p);
-        futuro["formato"] = 2;
+        futuro["formato"] = Stato.Formato + 1;
         string recente = ToJson(futuro);
         Scrivi(FileDati(n), recente);
         t.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
@@ -717,9 +726,236 @@ static class ProvaStato
             t.Drive == Finto());
     }
 
+    // i colori delle etichette si salvano e si rileggono, anche "nessun colore"
+    static void ColoriAndataERitorno()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        Verifica("le regole di partenza hanno ognuna il suo colore",
+            ColoreDi(RegolaDi(s, "Dirigenza")) == "#cc3a21/#ffffff" &&
+            ColoreDi(RegolaDi(s, "Colleghi")) == "#4a86e8/#000000" &&
+            ColoreDi(RegolaDi(s, "Circolari")) == "#fad165/#000000");
+        MettiColore(RegolaDi(s, "Dirigenza"), "#16a766/#000000");
+        MettiColore(RegolaDi(s, "Circolari"), "");
+        ColoriRuoli(s)["Docenti"] = "#fb4c2f/#000000";
+        ColoriRuoli(s)["Tecnici"] = "";
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Verifica("il colore sta dentro la regola, nel file dei dati",
+            Str(RegolaNelFile(dati, "Dirigenza"), "colore") == "#16a766/#000000");
+        Verifica("anche nessun colore, scritto vuoto", Str(RegolaNelFile(dati, "Circolari"), "colore") == "");
+        Dictionary<string, object> ruoli = imp.ContainsKey("coloriRuoli") ? imp["coloriRuoli"] as Dictionary<string, object> : null;
+        Verifica("i colori dei ruoli scelti a mano stanno in campanella.json",
+            ruoli != null && Str(ruoli, "Docenti") == "#fb4c2f/#000000" && Str(ruoli, "Tecnici") == "" &&
+            ruoli.Count == 2 && !dati.ContainsKey("coloriRuoli"));
+        Verifica("i due file hanno il formato di adesso (" + Stato.Formato + "), che la 1.5.2 (1) non riscrive",
+            Numero(imp, "formato") == Stato.Formato && Numero(dati, "formato") == Stato.Formato && Stato.Formato > 1);
+
+        Stato t = Carica();
+        Verifica("si rileggono uguali",
+            ColoreDi(RegolaDi(t, "Dirigenza")) == "#16a766/#000000" &&
+            ColoreDi(RegolaDi(t, "Colleghi")) == "#4a86e8/#000000");
+        Verifica("nessun colore resta nessun colore: non torna quello di partenza", ColoreDi(RegolaDi(t, "Circolari")) == "");
+        Dictionary<string, string> letti = ColoriRuoli(t);
+        Verifica("e i colori dei ruoli, compreso nessun colore",
+            letti.Count == 2 && letti.ContainsKey("Docenti") && letti["Docenti"] == "#fb4c2f/#000000" &&
+            letti.ContainsKey("Tecnici") && letti["Tecnici"] == "");
+        t.Salva();
+        Stato u = Carica();
+        Verifica("anche dopo un altro salvataggio", ColoreDi(RegolaDi(u, "Circolari")) == "" &&
+            ColoreDi(RegolaDi(u, "Dirigenza")) == "#16a766/#000000");
+    }
+
+    // le regole salvate dalla 1.5.2 non hanno il colore: prendono quello di partenza
+    static void ColoriDalla15()
+    {
+        object[] regole =
+        {
+            RegolaJson("Dirigenza", "dirigenza", null), RegolaJson("Segreteria", "segreteria", null),
+            RegolaJson("Registro ClasseViva", "registro", null),   // rinominata: la riconosce la sorgente
+            RegolaJson("Circolari", "", null), RegolaJson("Colleghi", "", null),
+            RegolaJson("Progetti", "", null), RegolaJson("orari", "", null), RegolaJson("Gite", "", null)
+        };
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["formato"] = 1;
+        altro["etichettaPerRuolo"] = true;
+        altro["regole"] = regole;
+        ScriviImpostazioni(false, "", altro);
+        Stato s = Carica();
+        ControllaColoriDalla15(s, "accanto al programma");
+        s.Salva();
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Verifica("salvando: formato di adesso, e ogni regola con il suo colore",
+            Numero(imp, "formato") == Stato.Formato &&
+            Str(RegolaNelFile(imp, "Registro ClasseViva"), "colore") == "#2da2bb/#000000" &&
+            Str(RegolaNelFile(imp, "Gite"), "colore") == "#16a766/#000000");
+        ControllaColoriDalla15(Carica(), "riletti");
+
+        // lo stesso con i dati nel Drive: il file dei dati della 1.5.2 si aggiorna
+        string c = Cartella("Campanella");
+        Dictionary<string, object> soloImp = new Dictionary<string, object>();
+        soloImp["formato"] = 1;
+        soloImp["etichettaPerRuolo"] = true;
+        ScriviImpostazioni(true, c, soloImp);
+        Dictionary<string, object> d = DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        d["formato"] = 1;
+        d["regole"] = regole;
+        Scrivi(FileDati(c), ToJson(d));
+        Stato t = Carica();
+        ControllaColoriDalla15(t, "nel Drive");
+        t.Salva();
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("nel Drive il file dei dati passa al formato di adesso, con i colori",
+            t.UltimoErrore == "" && Numero(dati, "formato") == Stato.Formato &&
+            Str(RegolaNelFile(dati, "Dirigenza"), "colore") == "#cc3a21/#ffffff" && Nomi(dati).Contains("ROSSI MARIO"));
+    }
+
+    static void ControllaColoriDalla15(Stato s, string come)
+    {
+        Verifica(come + ": Dirigenza e Segreteria riprendono il colore di partenza",
+            ColoreDi(RegolaDi(s, "Dirigenza")) == "#cc3a21/#ffffff" &&
+            ColoreDi(RegolaDi(s, "Segreteria")) == "#ffad47/#000000");
+        Verifica(come + ": il registro rinominato lo riconosce la sorgente",
+            ColoreDi(RegolaDi(s, "Registro ClasseViva")) == "#2da2bb/#000000");
+        Verifica(come + ": le altre di partenza dal nome, maiuscole a parte",
+            ColoreDi(RegolaDi(s, "Circolari")) == "#fad165/#000000" &&
+            ColoreDi(RegolaDi(s, "Colleghi")) == "#4a86e8/#000000" &&
+            ColoreDi(RegolaDi(s, "orari")) == "#f691b3/#000000");
+        Verifica(come + ": le regole tue, i primi colori liberi (" + ColoreDi(RegolaDi(s, "Progetti")) + ", " +
+                 ColoreDi(RegolaDi(s, "Gite")) + ")",
+            ColoreDi(RegolaDi(s, "Progetti")) == "#fb4c2f/#000000" && ColoreDi(RegolaDi(s, "Gite")) == "#16a766/#000000");
+        // le sfumature di blu che le sottoetichette dei ruoli prendono da Colleghi
+        List<string> sfondi = new List<string> { "#c9daf8", "#a4c2f4", "#6d9eeb", "#3c78d8", "#285bac" };
+        bool diversi = true;
+        foreach (Regola r in s.Regole)
+        {
+            string colore = ColoreDi(r) ?? "";
+            string sfondo = colore.Split('/')[0];
+            if (sfondo == "" || sfondi.Contains(sfondo)) diversi = false;
+            sfondi.Add(sfondo);
+        }
+        Verifica(come + ": nessun colore ripetuto, nemmeno con le sottoetichette dei ruoli", diversi);
+    }
+
+    // un colore scritto a mano in campanella.json che Gmail non accetterebbe
+    static void ColoriScrittiAMano()
+    {
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["regole"] = new object[]
+        {
+            RegolaJson("Dirigenza", "dirigenza", "#123456/#ffffff"), RegolaJson("Circolari", "", "rosso"),
+            RegolaJson("Colleghi", "", "  #4A86E8/#000000 "), RegolaJson("Gite", "", "#cc3a21")
+        };
+        Dictionary<string, object> ruoli = new Dictionary<string, object>();
+        ruoli["Docenti"] = "#123456/#000000";
+        ruoli["Tecnici"] = "#A4C2F4/#000000";
+        ruoli["Inventata"] = "#cc3a21/#ffffff";
+        altro["coloriRuoli"] = ruoli;
+        ScriviImpostazioni(false, "", altro);
+        Stato s = Carica();
+        Verifica("un colore che Gmail non accetta diventa nessun colore",
+            ColoreDi(RegolaDi(s, "Dirigenza")) == "" && ColoreDi(RegolaDi(s, "Circolari")) == "" &&
+            ColoreDi(RegolaDi(s, "Gite")) == "");
+        Verifica("maiuscole e spazi si sistemano", ColoreDi(RegolaDi(s, "Colleghi")) == "#4a86e8/#000000");
+        Dictionary<string, string> letti = ColoriRuoli(s);
+        Verifica("nei ruoli lo stesso, e una categoria che non esiste non resta",
+            letti.ContainsKey("Docenti") && letti["Docenti"] == "" && letti.ContainsKey("Tecnici") &&
+            letti["Tecnici"] == "#a4c2f4/#000000" && !letti.ContainsKey("Inventata"));
+    }
+
+    // la versione di adesso scrive i file: la prova dopo li da' a una versione
+    // con il formato di prima, che non deve riscriverli
+    static void ScriviPerLaVecchia()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        MettiColore(RegolaDi(s, "Circolari"), "");
+        ColoriRuoli(s)["Docenti"] = "#fb4c2f/#000000";
+        s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        s.Salva();
+        Verifica("scritti con il formato di adesso (" + Stato.Formato + "), piu' alto di quello della 1.5.2",
+            s.UltimoErrore == "" && Numero(Json(Impostazioni()), "formato") == Stato.Formato &&
+            Numero(Json(FileDati(c)), "formato") == Stato.Formato && Stato.Formato > 1);
+    }
+
+    static void VecchiaNonRiscrive()
+    {
+        string c = Path.Combine(Finto(), "Campanella");
+        string imp = Leggi(Impostazioni()), dati = Leggi(FileDati(c));
+        Verifica("(la versione di adesso ha scritto i due file)", imp != null && dati != null);
+        Stato s = Carica();
+        Verifica("la versione con il formato " + Stato.Formato + " li riconosce come piu' recenti",
+            Pieno(Testo(s, "ErroreImpostazioni")) && Pieno(Testo(s, "ErroreDati")));
+        s.TemaScuro = !s.TemaScuro;
+        s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
+        s.Salva();
+        Verifica("e non li riscrive: i colori delle regole e dei ruoli non si perdono",
+            Leggi(Impostazioni()) == imp && Leggi(FileDati(c)) == dati);
+        Verifica("e lo dice", (Testo(s, "DaAvvisare") ?? "").Contains("versione piu' recente"));
+    }
+
     // ===================================================================
     //  ATTREZZI
     // ===================================================================
+
+    // I campi dei colori si cercano per nome: con uno Stato di prima della
+    // 1.5.3 non ci sono, e allora i controlli falliscono invece di non compilare.
+    static string ColoreDi(Regola r)
+    {
+        FieldInfo f = typeof(Regola).GetField("Colore");
+        if (f == null) { Verifica("Regola ha il campo Colore", false); return null; }
+        return (r == null) ? null : f.GetValue(r) as string;
+    }
+
+    static void MettiColore(Regola r, string colore)
+    {
+        FieldInfo f = typeof(Regola).GetField("Colore");
+        if (f == null) { Verifica("Regola ha il campo Colore", false); return; }
+        if (r != null) f.SetValue(r, colore);
+    }
+
+    static Dictionary<string, string> ColoriRuoli(Stato s)
+    {
+        FieldInfo f = typeof(Stato).GetField("ColoriRuoli");
+        if (f == null) { Verifica("Stato ha il campo ColoriRuoli", false); return new Dictionary<string, string>(); }
+        Dictionary<string, string> d = f.GetValue(s) as Dictionary<string, string>;
+        if (d == null) { d = new Dictionary<string, string>(); f.SetValue(s, d); }
+        return d;
+    }
+
+    static Regola RegolaDi(Stato s, string etichetta)
+    {
+        foreach (Regola r in s.Regole) if (r.Etichetta == etichetta) return r;
+        return null;
+    }
+
+    // una regola come la scrive la 1.5.2 (colore == null: senza la chiave)
+    static Dictionary<string, object> RegolaJson(string etichetta, string sorgente, string colore)
+    {
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        d["etichetta"] = etichetta; d["descrizione"] = ""; d["attiva"] = true;
+        d["da"] = new object[0]; d["oggetto"] = new object[0]; d["contiene"] = new object[0];
+        d["escludi"] = new object[0]; d["query"] = ""; d["archivia"] = false; d["lette"] = false;
+        d["sorgente"] = sorgente;
+        if (colore != null) d["colore"] = colore;
+        return d;
+    }
+
+    static Dictionary<string, object> RegolaNelFile(Dictionary<string, object> file, string etichetta)
+    {
+        object[] a = file.ContainsKey("regole") ? file["regole"] as object[] : null;
+        if (a != null)
+            foreach (object o in a)
+            {
+                Dictionary<string, object> r = o as Dictionary<string, object>;
+                if (r != null && Str(r, "etichetta") == etichetta) return r;
+            }
+        return new Dictionary<string, object>();
+    }
     static void Verifica(string testo, bool ok)
     {
         if (ok) Console.WriteLine("  OK      " + testo);
@@ -885,6 +1121,9 @@ $casi = @(
     'nome-calendario'
     'nome-calendario-drive-non-pronto'
     'andata-e-ritorno'
+    'colori-andata-e-ritorno'
+    'colori-dalla-1-5'
+    'colori-scritti-a-mano'
 )
 
 $base = Join-Path $env:TEMP ('campanella-prova-stato-' + [Guid]::NewGuid().ToString('N'))
@@ -911,6 +1150,42 @@ try {
         }
         if ($codice -gt 0 -and $codice -lt 1000) { $fallimenti += $codice }
         elseif ($codice -ne 0) { Write-Host "  FALLITO l'ospite si e' fermato (codice $codice)" -ForegroundColor Red; $fallimenti++ }
+    }
+
+    # -----------------------------------------------------------------------
+    #  LA PROTEZIONE DELLE VERSIONI DI PRIMA
+    #  La 1.5.2 ha il formato 1 e non sa niente dei colori: riscrivendo i file
+    #  di adesso li perderebbe. Qui gira una copia di questo stesso Stato.cs
+    #  con Formato = 1, nella cartella dove la versione di adesso ha appena
+    #  scritto i suoi file: deve lasciarli come sono.
+    # -----------------------------------------------------------------------
+    Write-Host "`nPROTEZIONE-VERSIONE-VECCHIA" -ForegroundColor Cyan
+    $testoStato = [System.IO.File]::ReadAllText($Stato)
+    $modello = 'public const int Formato = \d+;'
+    if (-not [regex]::IsMatch($testoStato, $modello)) {
+        Write-Host "  FALLITO in $Stato non trovo '$modello'" -ForegroundColor Red
+        $fallimenti++
+    } else {
+        $vecchioStato = Join-Path $base 'StatoFormato1.cs'
+        [System.IO.File]::WriteAllText($vecchioStato, [regex]::Replace($testoStato, $modello, 'public const int Formato = 1;'),
+            (New-Object System.Text.UTF8Encoding($false)))
+        $exeVecchio = Join-Path $base 'ProvaStatoVecchia.exe'
+        & $csc /nologo /target:exe /codepage:65001 "/out:$exeVecchio" /r:System.dll /r:System.Core.dll `
+            /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll $vecchioStato $sorgente
+        if ($LASTEXITCODE -ne 0) { throw "Compilazione dell'ospite con Formato = 1 fallita (codice $LASTEXITCODE)." }
+        $dove = Join-Path $base 'protezione-versione-vecchia'
+        New-Item -ItemType Directory -Path $dove | Out-Null
+        Copy-Item $exe -Destination $dove
+        Copy-Item $exeVecchio -Destination $dove
+        foreach ($passo in @(@('ProvaStato.exe', 'scrivi-per-la-vecchia'), @('ProvaStatoVecchia.exe', 'vecchia-non-riscrive'))) {
+            $uscita = & (Join-Path $dove $passo[0]) $passo[1]
+            $codice = $LASTEXITCODE
+            foreach ($riga in $uscita) {
+                if ($riga -like '  FALLITO*') { Write-Host $riga -ForegroundColor Red } else { Write-Host $riga }
+            }
+            if ($codice -gt 0 -and $codice -lt 1000) { $fallimenti += $codice }
+            elseif ($codice -ne 0) { Write-Host "  FALLITO l'ospite si e' fermato (codice $codice)" -ForegroundColor Red; $fallimenti++ }
+        }
     }
 }
 finally {

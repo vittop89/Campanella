@@ -63,6 +63,11 @@ namespace Campanella
         // "dirigenza" | "segreteria" | "registro" | "" : i mittenti di queste
         // regole arrivano dai campi della pagina "La tua scuola"
         public string Sorgente = "";
+        // il colore dell'etichetta in Gmail, "sfondo/testo" dalla tavolozza di
+        // Gmail (ColoriEtichette); "" = nessun colore, scelto apposta; null =
+        // mai scelto (le regole salvate fino alla 1.5.2): Carica gli da' quello
+        // di partenza
+        public string Colore = null;
 
         public Regola Copia()
         {
@@ -73,6 +78,7 @@ namespace Campanella
             r.EscludiEtichette = new List<string>(EscludiEtichette);
             r.QueryLibera = QueryLibera; r.Archivia = Archivia;
             r.SegnaComeLette = SegnaComeLette; r.Sorgente = Sorgente;
+            r.Colore = Colore;
             return r;
         }
     }
@@ -130,6 +136,10 @@ namespace Campanella
         public string Dominio = "";
         public string Prefisso = "";           // gruppo delle etichette: vuoto = nomi diretti (passo 4)
         public bool EtichettaPerRuolo = false; // sottoetichette Colleghi/Docenti, Colleghi/Amministrativi...
+        // i colori delle sottoetichette dei ruoli scelti a mano: categoria ->
+        // colore ("" = nessun colore). Le categorie che non ci sono prendono
+        // una sfumatura del colore di Colleghi (ColoriEtichette.DelRuolo)
+        public Dictionary<string, string> ColoriRuoli = new Dictionary<string, string>();
         public string Dirigenza = "";          // dato personale
         public string Segreteria = "";         // dato personale
         public string Registro = "@spaggiari.eu";
@@ -392,8 +402,11 @@ namespace Campanella
         /// vecchia non distingue un dato personale sconosciuto da un'impostazione,
         /// e ce lo lascerebbe anche con i dati nel Drive. Vedendo un numero piu'
         /// alto del suo, quella versione non sovrascrive il file.
+        /// Formato 2 (1.5.3): il colore dentro le regole ("colore") e i colori
+        /// delle sottoetichette dei ruoli ("coloriRuoli"); la 1.5.2 riscrivendo
+        /// le regole li perderebbe.
         /// </summary>
-        public const int Formato = 1;
+        public const int Formato = 2;
 
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
@@ -741,6 +754,10 @@ namespace Campanella
             r["dominio"] = Dominio;
             r["prefisso"] = Prefisso;
             r["etichettaPerRuolo"] = EtichettaPerRuolo;
+            Dictionary<string, object> ruoli = new Dictionary<string, object>();
+            if (ColoriRuoli != null)
+                foreach (KeyValuePair<string, string> kv in ColoriRuoli) ruoli[kv.Key] = kv.Value ?? "";
+            r["coloriRuoli"] = ruoli;
             r["registro"] = Registro;
             r["schemaEmail"] = SchemaEmail;
             r["ordineNominativo"] = OrdineNominativo;
@@ -813,6 +830,9 @@ namespace Campanella
                 d["contiene"] = x.Contiene; d["escludi"] = x.EscludiEtichette;
                 d["query"] = x.QueryLibera; d["archivia"] = x.Archivia;
                 d["lette"] = x.SegnaComeLette; d["sorgente"] = x.Sorgente;
+                // mai scelto (null) resta senza chiave: al prossimo avvio prende
+                // quello di partenza; "" (nessun colore) invece si scrive
+                if (x.Colore != null) d["colore"] = x.Colore;
                 reg.Add(d);
             }
             r["regole"] = reg;
@@ -856,6 +876,7 @@ namespace Campanella
                 s.Dominio = Str(r, "dominio", s.Dominio);
                 s.Prefisso = Str(r, "prefisso", s.Prefisso);
                 s.EtichettaPerRuolo = Bool(r, "etichettaPerRuolo", false);
+                s.ColoriRuoli = ColoriDeiRuoli(r);
                 s.Registro = Str(r, "registro", s.Registro);
                 s.SchemaEmail = Str(r, "schemaEmail", s.SchemaEmail);
                 s.OrdineNominativo = Int(r, "ordineNominativo", 0);
@@ -1101,9 +1122,17 @@ namespace Campanella
                     x.Archivia = Bool(d, "archivia", false);
                     x.SegnaComeLette = Bool(d, "lette", false);
                     x.Sorgente = Str(d, "sorgente", "");
+                    // senza chiave (1.5.2 e prima) resta null e sotto prende quello
+                    // di partenza; un colore che Gmail non accetta, scritto a mano,
+                    // diventa nessun colore
+                    x.Colore = d.ContainsKey("colore") ? ColoriEtichette.Pulito(Str(d, "colore", "")) : null;
                     lette.Add(x);
                 }
-                if (lette.Count > 0) Regole = lette;
+                if (lette.Count > 0)
+                {
+                    ColoriEtichette.Completa(lette, ColoriRuoli);
+                    Regole = lette;
+                }
             }
 
             object[] lez = r.ContainsKey("lezioni") ? r["lezioni"] as object[] : null;
@@ -1525,6 +1554,13 @@ namespace Campanella
 
         // ===================================================================
         //  REGOLE DI PARTENZA
+        //  Ognuna con il suo colore, tutti diversi e leggibili (il testo lo
+        //  sceglie ColoriEtichette.Testo), e diversi anche dalle sfumature di
+        //  blu delle sottoetichette dei ruoli sotto Colleghi: rosso la
+        //  dirigenza, arancio la segreteria, giallo le circolari, azzurro il
+        //  registro, blu i colleghi, verde gli studenti, grigio scuro il
+        //  ministero, viola i sindacati, verde acqua la formazione, rosa gli
+        //  orari, grigio le newsletter, marrone i genitori.
         // ===================================================================
         public static List<Regola> RegoleDiDefault()
         {
@@ -1535,6 +1571,7 @@ namespace Campanella
             dirigenza.Sorgente = "dirigenza";
             dirigenza.Descrizione = "Messaggi del dirigente scolastico e dei collaboratori. " +
                 "Gli indirizzi si scrivono nella pagina \"La tua scuola\".";
+            dirigenza.Colore = "#cc3a21/#ffffff";
             r.Add(dirigenza);
 
             Regola segreteria = new Regola();
@@ -1542,6 +1579,7 @@ namespace Campanella
             segreteria.Sorgente = "segreteria";
             segreteria.Descrizione = "Segreteria didattica e del personale. " +
                 "Gli indirizzi si scrivono nella pagina \"La tua scuola\".";
+            segreteria.Colore = "#ffad47/#000000";
             r.Add(segreteria);
 
             Regola circolari = new Regola();
@@ -1549,6 +1587,7 @@ namespace Campanella
             circolari.Oggetto.AddRange(new string[] { "circolare", "circolari", "circ.", "comunicazione n" });
             circolari.Descrizione = "Messaggi che hanno \"circolare\" o \"comunicazione n.\" " +
                 "nell'oggetto, da chiunque arrivino.";
+            circolari.Colore = "#fad165/#000000";
             r.Add(circolari);
 
             Regola registro = new Regola();
@@ -1558,6 +1597,7 @@ namespace Campanella
                 "vale per ClasseViva (@spaggiari.eu): se la scuola usa un altro registro, scrivi " +
                 "il suo dominio nella pagina \"La tua scuola\". Molti li archiviano subito: " +
                 "sono notifiche, non posta da leggere.";
+            registro.Colore = "#2da2bb/#000000";
             r.Add(registro);
 
             Regola colleghi = new Regola();
@@ -1565,6 +1605,7 @@ namespace Campanella
             colleghi.Da.Add("@PERSONALE@");
             colleghi.Descrizione = "Messaggi delle persone dell'elenco del personale. " +
                 "Senza elenco questa regola non fa niente.";
+            colleghi.Colore = "#4a86e8/#000000";
             r.Add(colleghi);
 
             Regola studenti = new Regola();
@@ -1573,6 +1614,7 @@ namespace Campanella
             studenti.EscludiEtichette.AddRange(new string[] { "Colleghi", "Dirigenza", "Segreteria" });
             studenti.Descrizione = "Tutto il resto che arriva dal dominio della scuola: cioe' chi " +
                 "non e' nell'elenco del personale. Per questo l'elenco conta davvero.";
+            studenti.Colore = "#16a766/#000000";
             r.Add(studenti);
 
             Regola ministero = new Regola();
@@ -1580,6 +1622,7 @@ namespace Campanella
             ministero.Da.AddRange(new string[]
             { "@istruzione.it", "@posta.istruzione.it", "@miur.it", "@mim.gov.it" });
             ministero.Descrizione = "Comunicazioni ministeriali e degli uffici scolastici regionali.";
+            ministero.Colore = "#434343/#ffffff";
             r.Add(ministero);
 
             Regola sindacati = new Regola();
@@ -1589,6 +1632,7 @@ namespace Campanella
             sindacati.Archivia = true;
             sindacati.Descrizione = "Comunicati sindacali. Di norma si archiviano: restano " +
                 "leggibili dall'etichetta ma liberano la Posta in arrivo.";
+            sindacati.Colore = "#8e63ce/#000000";
             r.Add(sindacati);
 
             Regola formazione = new Regola();
@@ -1599,6 +1643,7 @@ namespace Campanella
             formazione.Descrizione = "Corsi, webinar e aggiornamento. Parte spenta perche' le " +
                 "parole sono generiche e puo' prendere piu' del dovuto: accendila e prova " +
                 "prima con l'anteprima.";
+            formazione.Colore = "#43d692/#000000";
             r.Add(formazione);
 
             Regola orari = new Regola();
@@ -1606,6 +1651,7 @@ namespace Campanella
             orari.Oggetto.AddRange(new string[] { "orario" });
             orari.Descrizione = "Gli orari mandati dallo strumento \"Orari\" di questa " +
                 "applicazione, piu' tutto quello che ha \"orario\" nell'oggetto.";
+            orari.Colore = "#f691b3/#000000";
             r.Add(orari);
 
             Regola newsletter = new Regola();
@@ -1614,6 +1660,7 @@ namespace Campanella
             newsletter.Archivia = true;
             newsletter.Descrizione = "Promozioni e messaggi con il link per disiscriversi. " +
                 "Vengono archiviati: e' la voce che libera piu' spazio nella Posta in arrivo.";
+            newsletter.Colore = "#999999/#000000";
             r.Add(newsletter);
 
             Regola genitori = new Regola();
@@ -1622,6 +1669,7 @@ namespace Campanella
             genitori.Descrizione = "Parte spenta: non c'e' un modo automatico per riconoscere " +
                 "i genitori. Se hanno un dominio o un indirizzo ricorrente, premi \"Modifica\" " +
                 "e aggiungilo tra i mittenti.";
+            genitori.Colore = "#a46a21/#ffffff";
             r.Add(genitori);
 
             return r;
@@ -1648,6 +1696,22 @@ namespace Campanella
             try { return Convert.ToInt32(d[k]); } catch { return def; }
         }
 
+        /// <summary>
+        /// I colori delle sottoetichette dei ruoli scelti a mano: solo le cinque
+        /// categorie, ognuna con un colore che Gmail accetta oppure "" (nessun
+        /// colore). Quelle che mancano seguono il colore di Colleghi.
+        /// </summary>
+        static Dictionary<string, string> ColoriDeiRuoli(Dictionary<string, object> r)
+        {
+            Dictionary<string, string> fuori = new Dictionary<string, string>();
+            Dictionary<string, object> d = (r != null && r.ContainsKey("coloriRuoli"))
+                ? r["coloriRuoli"] as Dictionary<string, object> : null;
+            if (d == null) return fuori;
+            foreach (string c in Categorie)
+                if (d.ContainsKey(c)) fuori[c] = ColoriEtichette.Pulito(Str(d, c, ""));
+            return fuori;
+        }
+
         public static List<string> Lista(Dictionary<string, object> d, string k)
         {
             List<string> fuori = new List<string>();
@@ -1661,6 +1725,280 @@ namespace Campanella
                 if (s != "") fuori.Add(s);
             }
             return fuori;
+        }
+    }
+
+    // =======================================================================
+    //  I COLORI DELLE ETICHETTE DI GMAIL
+    //
+    //  GmailApp non sa colorare le etichette: lo fa il servizio avanzato Gmail
+    //  API, e solo con i colori della tavolozza di Gmail, per lo sfondo come
+    //  per il testo (Label.color): un altro valore fa fallire la chiamata. Un
+    //  colore qui si scrive "sfondo/testo", per esempio "#16a766/#000000", e ""
+    //  vuol dire nessun colore. Sta in questo file, senza finestre, perche'
+    //  Carica controlla i colori letti dal file e da' quelli di partenza alle
+    //  regole che non ne hanno mai avuto uno (quelle salvate fino alla 1.5.2).
+    // =======================================================================
+    static class ColoriEtichette
+    {
+        /// <summary>I valori che Gmail accetta, per lo sfondo e per il testo.</summary>
+        public static readonly string[] Ammessi =
+        {
+            "#000000", "#434343", "#666666", "#999999", "#cccccc", "#efefef", "#f3f3f3", "#ffffff",
+            "#fb4c2f", "#ffad47", "#fad165", "#16a766", "#43d692", "#4a86e8", "#a479e2", "#f691b3",
+            "#f6c5be", "#ffe6c7", "#fef1d1", "#b9e4d0", "#c6f3de", "#c9daf8", "#e4d7f5", "#fcdee8",
+            "#efa093", "#ffd6a2", "#fce8b3", "#89d3b2", "#a0eac9", "#a4c2f4", "#d0bcf1", "#fbc8d9",
+            "#e66550", "#ffbc6b", "#fcda83", "#44b984", "#68dfa9", "#6d9eeb", "#b694e8", "#f7a7c0",
+            "#cc3a21", "#eaa041", "#f2c960", "#149e60", "#3dc789", "#3c78d8", "#8e63ce", "#e07798",
+            "#ac2b16", "#cf8933", "#d5ae49", "#0b804b", "#2a9c68", "#285bac", "#653e9b", "#b65775",
+            "#822111", "#a46a21", "#aa8831", "#076239", "#1a764d", "#1c4587", "#41236d", "#83334c",
+            "#464646", "#e7e7e7", "#0d3472", "#b6cff5", "#0d3b44", "#98d7e4", "#3d188e", "#e3d7ff",
+            "#711a36", "#fbd3e0", "#8a1c0a", "#f2b2a8", "#7a2e0b", "#ffc8af", "#7a4706", "#ffdeb5",
+            "#594c05", "#fbe983", "#684e07", "#fdedc1", "#0b4f30", "#b3efd3", "#04502e", "#a2dcc1",
+            "#c2c2c2", "#4986e7", "#2da2bb", "#b99aff", "#994a64", "#f691b2", "#ff7537", "#ffad46",
+            "#662e37", "#ebdbde", "#cca6ac", "#094228", "#42d692", "#16a765"
+        };
+
+        /// <summary>
+        /// La tavolozza del passo 4, come le colonne del menu dei colori di
+        /// Gmail: una tinta per riga, dalla sfumatura piu' chiara alla piu'
+        /// scura. Sono gli sfondi: il testo lo sceglie Testo, perche' si legga.
+        /// Le sfumature di una tinta sono anche i colori delle sottoetichette
+        /// dei ruoli, quando Colleghi ha quella tinta.
+        /// </summary>
+        public static readonly string[][] Tinte =
+        {
+            new string[] { "#f6c5be", "#efa093", "#e66550", "#fb4c2f", "#cc3a21", "#ac2b16", "#822111" },   // rossi
+            new string[] { "#ffe6c7", "#ffd6a2", "#ffbc6b", "#ffad47", "#eaa041", "#cf8933", "#a46a21" },   // arancioni
+            new string[] { "#fef1d1", "#fce8b3", "#fcda83", "#fad165", "#f2c960", "#d5ae49", "#aa8831" },   // gialli
+            new string[] { "#b9e4d0", "#89d3b2", "#44b984", "#16a766", "#149e60", "#0b804b", "#076239" },   // verdi
+            new string[] { "#c6f3de", "#a0eac9", "#68dfa9", "#43d692", "#3dc789", "#2a9c68", "#1a764d" },   // verde acqua
+            new string[] { "#98d7e4", "#2da2bb", "#0d3b44" },                                              // azzurri
+            new string[] { "#c9daf8", "#a4c2f4", "#6d9eeb", "#4a86e8", "#3c78d8", "#285bac", "#1c4587" },   // blu
+            new string[] { "#e4d7f5", "#d0bcf1", "#b694e8", "#a479e2", "#8e63ce", "#653e9b", "#41236d" },   // viola
+            new string[] { "#fcdee8", "#fbc8d9", "#f7a7c0", "#f691b3", "#e07798", "#b65775", "#83334c" },   // rosa
+            new string[] { "#efefef", "#cccccc", "#999999", "#666666", "#434343", "#000000" }              // grigi
+        };
+
+        /// <summary>Vero se Gmail accetta questo valore, per lo sfondo o per il testo.</summary>
+        public static bool Ammesso(string valore)
+        {
+            return Array.IndexOf(Ammessi, (valore ?? "").Trim().ToLowerInvariant()) >= 0;
+        }
+
+        /// <summary>Vero se e' "sfondo/testo" con tutti e due i valori fra quelli che Gmail accetta.</summary>
+        public static bool Valido(string colore)
+        {
+            string[] parti = (colore ?? "").Trim().Split('/');
+            return parti.Length == 2 && Ammesso(parti[0]) && Ammesso(parti[1]);
+        }
+
+        /// <summary>
+        /// Il colore scritto come lo scrive Campanella (minuscolo, senza
+        /// spazi), oppure "" (nessun colore) se Gmail non lo accetterebbe: un
+        /// colore sbagliato, scritto a mano in campanella.json, non deve
+        /// arrivare allo script e farlo fallire.
+        /// </summary>
+        public static string Pulito(string colore)
+        {
+            string c = (colore ?? "").Trim().ToLowerInvariant().Replace(" ", "");
+            return Valido(c) ? c : "";
+        }
+
+        /// <summary>Lo sfondo di un colore ("" se non c'e' o non e' valido).</summary>
+        public static string Sfondo(string colore)
+        {
+            string c = Pulito(colore);
+            return (c == "") ? "" : c.Split('/')[0];
+        }
+
+        /// <summary>Il colore del testo di un colore ("" se non c'e' o non e' valido).</summary>
+        public static string TestoDi(string colore)
+        {
+            string c = Pulito(colore);
+            return (c == "") ? "" : c.Split('/')[1];
+        }
+
+        /// <summary>
+        /// Il testo che si legge su uno sfondo: bianco se il contrasto arriva a
+        /// 4,5 (il minimo delle WCAG per il testo normale), altrimenti nero, che
+        /// allora lo supera sempre.
+        /// </summary>
+        public static string Testo(string sfondo)
+        {
+            return (Contrasto(sfondo, "#ffffff") >= 4.5) ? "#ffffff" : "#000000";
+        }
+
+        /// <summary>Uno sfondo della tavolozza con il suo testo: "sfondo/testo".</summary>
+        public static string Coppia(string sfondo)
+        {
+            string s = (sfondo ?? "").Trim().ToLowerInvariant();
+            return s + "/" + Testo(s);
+        }
+
+        /// <summary>Il contrasto fra due colori "#rrggbb", come lo misurano le WCAG (da 1 a 21).</summary>
+        public static double Contrasto(string a, string b)
+        {
+            double la = Luminanza(a), lb = Luminanza(b);
+            return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
+        }
+
+        static double Luminanza(string colore)
+        {
+            int v = Convert.ToInt32((colore ?? "").Trim().TrimStart('#'), 16);
+            return 0.2126 * Lineare((v >> 16) & 0xFF) + 0.7152 * Lineare((v >> 8) & 0xFF) +
+                   0.0722 * Lineare(v & 0xFF);
+        }
+
+        static double Lineare(int canale)
+        {
+            double x = canale / 255.0;
+            return (x <= 0.03928) ? x / 12.92 : Math.Pow((x + 0.055) / 1.055, 2.4);
+        }
+
+        /// <summary>Tutti i colori della tavolozza, "sfondo/testo", tinta per tinta.</summary>
+        public static List<string> Tavolozza()
+        {
+            List<string> fuori = new List<string>();
+            foreach (string[] tinta in Tinte)
+                foreach (string s in tinta) fuori.Add(Coppia(s));
+            return fuori;
+        }
+
+        /// <summary>
+        /// Le altre sfumature della tinta di un colore, dalla piu' chiara alla
+        /// piu' scura, ognuna con il suo testo. Vuoto se non c'e' colore o se lo
+        /// sfondo non sta nella tavolozza.
+        /// </summary>
+        public static List<string> Sfumature(string colore)
+        {
+            List<string> fuori = new List<string>();
+            string sfondo = Sfondo(colore);
+            if (sfondo == "") return fuori;
+            foreach (string[] tinta in Tinte)
+            {
+                if (Array.IndexOf(tinta, sfondo) < 0) continue;
+                foreach (string s in tinta) if (s != sfondo) fuori.Add(Coppia(s));
+                break;
+            }
+            return fuori;
+        }
+
+        /// <summary>Il colore della regola dei colleghi, la madre delle sottoetichette dei ruoli ("" se non c'e').</summary>
+        public static string DeiColleghi(List<Regola> regole)
+        {
+            // la stessa regola di GeneratorePosta.EtichettaColleghi: la prima che si chiama cosi'
+            if (regole != null)
+                foreach (Regola r in regole)
+                    if ((r.Etichetta ?? "").Trim().ToLowerInvariant() == "colleghi") return Pulito(r.Colore);
+            return "";
+        }
+
+        /// <summary>
+        /// Il colore della sottoetichetta di un ruolo: quello scelto a mano, se
+        /// c'e' ("" = nessun colore); altrimenti una sfumatura del colore di
+        /// Colleghi, sempre la stessa per ogni categoria (nell'ordine di
+        /// Stato.Categorie, dalla piu' chiara), cosi' segue Colleghi quando
+        /// cambia. Colleghi senza colore: nessun colore.
+        /// </summary>
+        public static string DelRuolo(string coloreColleghi, string categoria, Dictionary<string, string> scelti)
+        {
+            if (scelti != null && categoria != null && scelti.ContainsKey(categoria)) return Pulito(scelti[categoria]);
+            List<string> sfumature = Sfumature(coloreColleghi);
+            int i = Array.IndexOf(Stato.Categorie, categoria);
+            if (sfumature.Count == 0 || i < 0) return "";
+            // una tinta con poche sfumature (gli azzurri) le ripete
+            return sfumature[i % sfumature.Count];
+        }
+
+        /// <summary>
+        /// Gli sfondi gia' presi: quelli delle regole e delle sottoetichette di
+        /// tutte e cinque le categorie (anche quelle che l'elenco non ha ancora).
+        /// </summary>
+        static List<string> SfondiUsati(List<Regola> regole, Dictionary<string, string> coloriRuoli)
+        {
+            List<string> fuori = new List<string>();
+            foreach (Regola r in regole)
+            {
+                string s = Sfondo(r.Colore);
+                if (s != "" && !fuori.Contains(s)) fuori.Add(s);
+            }
+            string colleghi = DeiColleghi(regole);
+            foreach (string c in Stato.Categorie)
+            {
+                string s = Sfondo(DelRuolo(colleghi, c, coloriRuoli));
+                if (s != "" && !fuori.Contains(s)) fuori.Add(s);
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// L'ordine in cui le regole nuove prendono i colori: prima le
+        /// sfumature vive (la riga di mezzo del menu di Gmail), poi le scure,
+        /// poi le chiare, una tinta dopo l'altra; per ultimi azzurri e grigi.
+        /// Cosi' due regole nuove di seguito hanno colori che si distinguono.
+        /// </summary>
+        static List<string> OrdineDelleNuove()
+        {
+            List<string> fuori = new List<string>();
+            int[] livelli = { 3, 4, 5, 2, 6, 1, 0 };
+            foreach (int l in livelli)
+                foreach (string[] tinta in Tinte)
+                    if (tinta.Length == 7) fuori.Add(tinta[l]);
+            foreach (string[] tinta in Tinte)
+                foreach (string s in tinta)
+                    if (!fuori.Contains(s)) fuori.Add(s);
+            return fuori;
+        }
+
+        /// <summary>Il primo colore che nessuna etichetta usa ancora, per una regola nuova (se sono tutti presi, il primo).</summary>
+        public static string PrimoLibero(List<Regola> regole, Dictionary<string, string> coloriRuoli)
+        {
+            List<string> usati = SfondiUsati(regole, coloriRuoli);
+            List<string> ordine = OrdineDelleNuove();
+            foreach (string s in ordine)
+                if (!usati.Contains(s)) return Coppia(s);
+            return Coppia(ordine[0]);
+        }
+
+        /// <summary>
+        /// Da' un colore alle regole che non l'hanno mai avuto (Colore null:
+        /// le regole salvate fino alla 1.5.2). Quelle di partenza riprendono
+        /// il loro: Dirigenza, Segreteria e Registro riconosciute dalla
+        /// sorgente, le altre dal nome. Le altre regole, o una di partenza il
+        /// cui colore e' gia' preso, il primo libero. "" (nessun colore,
+        /// scelto apposta) resta com'e'.
+        /// </summary>
+        public static void Completa(List<Regola> regole, Dictionary<string, string> coloriRuoli)
+        {
+            List<Regola> partenza = Stato.RegoleDiDefault();
+            List<string> presi = new List<string>();
+            foreach (Regola r in regole)
+            {
+                string s = Sfondo(r.Colore);
+                if (s != "") presi.Add(s);
+            }
+            // prima per sorgente, poi per nome: una regola tua che si chiama
+            // "Dirigenza" non deve portare via il colore a quella vera
+            for (int giro = 0; giro < 2; giro++)
+            {
+                foreach (Regola r in regole)
+                {
+                    if (r.Colore != null) continue;
+                    foreach (Regola d in partenza)
+                    {
+                        bool stessa = (giro == 0)
+                            ? (r.Sorgente ?? "") != "" && r.Sorgente == d.Sorgente
+                            : string.Equals((r.Etichetta ?? "").Trim(), d.Etichetta, StringComparison.OrdinalIgnoreCase);
+                        if (!stessa) continue;
+                        string s = Sfondo(d.Colore);
+                        if (!presi.Contains(s)) { r.Colore = d.Colore; presi.Add(s); }
+                        break;
+                    }
+                }
+            }
+            foreach (Regola r in regole)
+                if (r.Colore == null) r.Colore = PrimoLibero(regole, coloriRuoli);
         }
     }
 
@@ -1690,9 +2028,9 @@ namespace Campanella
 
         /// <summary>
         /// I passi facoltativi dell'installazione guidata della Posta, che stanno
-        /// in fondo: oggi uno, i filtri veri di Gmail. Il numero dei passi invece
-        /// non si copia qui: e' quello delle spunte che la pagina salva, una per
-        /// passo.
+        /// in fondo: oggi uno, il servizio Gmail API (colori e filtri veri). Il
+        /// numero dei passi invece non si copia qui: e' quello delle spunte che
+        /// la pagina salva, una per passo.
         /// </summary>
         public const int PassiFacoltativi = 1;
 
