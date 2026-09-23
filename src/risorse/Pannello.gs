@@ -156,7 +156,21 @@ function PANNELLO_ANNULLA() {
 }
 
 /** La chiama Google, da sola, finito un giorno di chiusura. */
-function PANNELLO_chiusura() {
+function PANNELLO_chiusura(e) {
+  // lo stesso lock del menu: una chiusura a meta' di "Prepara l'anno nuovo" richiuderebbe un
+  // modulo appena riaperto, e riscriverebbe la memoria. Se e' occupato riprovo fra un'ora
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(10000)) {
+    _panRiprogramma(e);
+    var occupato = 'CHIUSURE DI FINE ANNO\n\nUn\'altra esecuzione e\' in corso: non tocco niente adesso, riprovo fra un\'ora.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  try { return _panChiudiScaduti(e); }
+  finally { lock.releaseLock(); }
+}
+
+function _panChiudiScaduti(e) {
   var righe = ['CHIUSURE DI FINE ANNO', ''];
   var oggi = _panOggi();
   var foglio = _panScheda(false);
@@ -228,9 +242,10 @@ function PANNELLO_chiusura() {
   }
   _panRicorda(memoria);
   _panTogliTriggerPassati(memoria);
-  // il trigger che mi ha chiamato non scatta piu': per le righe non riuscite
-  // ne programmo un altro, fra un'ora
-  if (riprovare) ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
+  // il trigger che mi ha chiamato non scatta piu', ma resterebbe in elenco: lo tolgo.
+  // Per le righe non riuscite ne programmo un altro, fra un'ora
+  if (riprovare) _panRiprogramma(e);
+  else _panTogliScattato(e);
   righe.push('');
   righe.push(fatte === 0 ? 'Niente da chiudere oggi.' : 'Chiusure fatte: ' + fatte + '.');
   var testo = righe.join('\n');
@@ -622,7 +637,8 @@ function _panEsegui(davvero) {
   }
   if (davvero) {
     _panScrivi(foglio, dati);
-    _panProgrammaChiusure(chiusure, righe);
+    var sospese = _panChiusureInSospeso(dati.righe);
+    _panProgrammaChiusure(sospese.date, righe, sospese.riprova);
     // le righe aggiunte durante l'anno prendono le caselle, e la scheda
     // Istruzioni si riallinea allo script appena incollato: chi usa solo
     // questa voce non deve ricordarsi di rifare "Prepara il foglio"
@@ -1142,8 +1158,40 @@ function _panGiornoChiusura(chiusura, anno) {
   };
 }
 
+/**
+ * Le chiusure da programmare, prese dalla memoria a lavoro finito: una per ogni
+ * data diversa delle righe attive. Non solo quelle preparate adesso: una riga che
+ * non e' riuscita, o che non e' stata guardata, tiene la chiusura che aveva. Una
+ * chiusura gia' scaduta e non ancora riuscita si riprova fra un'ora.
+ */
+function _panChiusureInSospeso(righeScheda) {
+  var memoria = _panMemoria();
+  var oggi = _panOggi();
+  var fuori = { date: {}, riprova: false };
+  for (var i = 0; i < righeScheda.length; i++) {
+    var r = righeScheda[i];
+    if (!r.attivo || !r.id) continue;
+    var s = memoria.scadenze[r.id];
+    if (!s) continue;
+    if (s >= oggi) fuori.date[s] = _panScadenza(s);
+    else fuori.riprova = true;
+  }
+  return fuori;
+}
+
+/** Il giorno di chiusura "2027-08-31" come serve per programmarlo: scatta il giorno dopo. */
+function _panScadenza(testo) {
+  var p = String(testo).split('-');
+  var dopo = new Date(Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10) + 1));
+  return {
+    testo:     String(testo),
+    leggibile: _panLeggibile(testo),
+    scatta:    { anno: dopo.getUTCFullYear(), mese: dopo.getUTCMonth() + 1, giorno: dopo.getUTCDate() }
+  };
+}
+
 /** Una chiusura programmata per ogni data diversa: quando scatta, chiude le righe scadute. */
-function _panProgrammaChiusure(chiusure, righe) {
+function _panProgrammaChiusure(chiusure, righe, riprova) {
   _panTogliTrigger();
   var quante = 0;
   for (var k in chiusure) {
@@ -1154,9 +1202,11 @@ function _panProgrammaChiusure(chiusure, righe) {
       .create();
     quante++;
   }
+  if (riprova) ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
   righe.push('');
   righe.push(quante === 0 ? 'Chiusure programmate: nessuna.'
                           : 'Chiusure programmate: ' + quante + ' (una per ogni data diversa).');
+  if (riprova) righe.push('Una chiusura gia\' scaduta non e\' ancora riuscita: la riprovo fra un\'ora.');
 }
 
 function _panElencaChiusure(chiusure, righe) {
@@ -1180,6 +1230,21 @@ function _panTogliTrigger() {
 function _panTogliTriggerPassati(memoria) {
   for (var k in memoria.scadenze) return;              // ne resta almeno una: non tocco niente
   _panTogliTrigger();
+}
+
+/** Il trigger che mi ha chiamato non scatta piu': lo tolgo, e ne programmo uno fra un'ora. */
+function _panRiprogramma(e) {
+  _panTogliScattato(e);
+  ScriptApp.newTrigger(_PAN_TRIGGER).timeBased().after(60 * 60 * 1000).create();
+}
+
+/** Toglie dall'elenco il trigger che ha lanciato questa esecuzione: scattato, resterebbe li'. */
+function _panTogliScattato(e) {
+  if (!e || !e.triggerUid) return;
+  var tutti = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < tutti.length; i++) {
+    if (String(tutti[i].getUniqueId()) === String(e.triggerUid)) { ScriptApp.deleteTrigger(tutti[i]); return; }
+  }
 }
 
 function _panPermessiCompleti() {

@@ -457,7 +457,7 @@ function nuovoMondo(opzioni) {
       requireAllScopes() { m.permessiChiesti = (m.permessiChiesti || 0) + 1; },
       getAuthorizationInfo: () => ({ getAuthorizationStatus: () => (m.permessiMancanti ? 'REQUIRED' : 'NOT_REQUIRED') }),
       newTrigger(funzione) {
-        const t = { funzione };
+        const t = { funzione, uid: 'trigger-' + (m.prossimoId++) };
         const o = {
           at() { throw new Error('at(data) dipende dal fuso del progetto: serve atDate + inTimezone'); },
           atDate(a, me, g) { t.anno = a; t.mese = me; t.giorno = g; return o; },
@@ -467,7 +467,7 @@ function nuovoMondo(opzioni) {
         };
         return { timeBased: () => o };
       },
-      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, _rif: t })),
+      getProjectTriggers: () => m.trigger.map(t => ({ getHandlerFunction: () => t.funzione, getUniqueId: () => t.uid, _rif: t })),
       deleteTrigger(t) { const i = m.trigger.indexOf(t._rif); if (i >= 0) m.trigger.splice(i, 1); }
     },
     PropertiesService: {
@@ -1009,6 +1009,80 @@ for (const nuovo of ['31/07', '']) {
     ricordo.scadenze[m.recuperi.id] !== undefined && m.trigger.some(x => x.dopo === 60 * 60 * 1000));
   verifica('l\'altra riga si chiude e la memoria lo ricorda',
     m.uscite.aperto === false && ricordo.chiusi[m.uscite.id + '|2026-27'] === '2027-06-30' && t.indexOf('Riprovo') >= 0);
+}
+
+// Google continua a non chiudere un modulo: un giorno intero di tentativi
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  m.uscite.setAcceptingResponses = function () { throw new Error('Service error: Forms'); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  let scattato = m.trigger.find(x => x.mese === 7);
+  for (let i = 0; i < 24; i++) {
+    c.PANNELLO_chiusura({ triggerUid: scattato.uid });
+    scattato = m.trigger[m.trigger.length - 1];
+    m.adesso += 60 * 60 * 1000;
+  }
+  verifica('24 chiusure fallite di fila: i trigger non si accumulano (quello del 31/08 e un tentativo)',
+    m.trigger.length === 2 && m.trigger.filter(x => x.dopo === 60 * 60 * 1000).length === 1 &&
+    m.trigger.some(x => x.mese === 9 && x.giorno === 1));
+}
+
+// la chiusura scatta mentre "Prepara l'anno nuovo" sta lavorando
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const scattato = m.trigger.find(x => x.mese === 7);
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  m.lockOccupato = true;
+  const t = c.PANNELLO_chiusura({ triggerUid: scattato.uid });
+  verifica('lock occupato: la chiusura non tocca niente adesso', m.uscite.aperto === true &&
+    m.uscite.destinazione !== null && t.indexOf('riprovo fra un\'ora') >= 0);
+  verifica('e al posto del trigger scattato c\'e\' un tentativo fra un\'ora',
+    m.trigger.indexOf(scattato) < 0 && m.trigger.some(x => x.dopo === 60 * 60 * 1000));
+  m.lockOccupato = false;
+  m.adesso += 60 * 60 * 1000;
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.dopo).uid });
+  verifica('al tentativo dopo chiude, e resta solo la chiusura del 31/08',
+    m.uscite.aperto === false && m.trigger.length === 1 && m.trigger[0].mese === 9);
+}
+
+// una riga che non riesce a prepararsi tiene la sua chiusura programmata
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const recuperi = m.recuperi;
+  m.moduli.delete(recuperi.id);                                  // per un momento Google non lo apre
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('(la riga di Recuperi non riesce)', t.indexOf('PROBLEMA') >= 0 && scheda(m)[0][7].indexOf('problema') === 0);
+  verifica('ma la sua chiusura del 31/08 resta programmata',
+    m.trigger.length === 2 && m.trigger.some(x => x.anno === 2027 && x.mese === 9 && x.giorno === 1));
+  m.moduli.set(recuperi.id, recuperi);
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 9).uid });
+  verifica('e quando scatta, il modulo si chiude', recuperi.aperto === false && recuperi.destinazione === null);
+}
+
+// una chiusura gia' scaduta e non riuscita resta da riprovare anche dopo "Prepara"
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  c.PANNELLO_4_preparaAnno();
+  const vera = m.uscite.setAcceptingResponses;
+  m.uscite.setAcceptingResponses = function (si) { if (!si) throw new Error('Service error: Forms'); return vera.call(this, si); };
+  m.adesso = new Date('2027-07-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.mese === 7).uid });
+  m.adesso = new Date('2027-07-01T00:40:00+02:00').getTime();
+  c.PANNELLO_4_preparaAnno();                                    // intanto qualcuno riesegue la preparazione
+  verifica('la preparazione rieseguita non butta via il tentativo della chiusura non riuscita',
+    m.trigger.some(x => x.dopo === 60 * 60 * 1000) && m.trigger.some(x => x.mese === 9));
+  m.uscite.setAcceptingResponses = vera;
+  m.adesso = new Date('2027-07-01T01:40:00+02:00').getTime();
+  c.PANNELLO_chiusura({ triggerUid: m.trigger.find(x => x.dopo).uid });
+  verifica('e al tentativo dopo Uscite si chiude', m.uscite.aperto === false && m.uscite.destinazione === null);
 }
 
 // un foglio creato con Google in inglese
