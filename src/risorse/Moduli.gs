@@ -112,8 +112,34 @@ function MODULO_PASSA_AL_FOGLIO() {
  * arrivano ci finiscono lo stesso, e fra un'ora si riprova.
  */
 function MODULO_chiusura(e) {
+  // lo stesso lock del menu: una chiusura a meta' di "Prepara l'anno nuovo" richiuderebbe il
+  // modulo appena riaperto. Se e' occupato non aspetto: riprovo fra un'ora
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(10000)) {
+    _moduloRiprogramma(e);
+    return _moduloScriviNelRegistro(['CHIUSURA DI FINE ANNO',
+      'Un\'altra esecuzione e\' in corso: non tocco niente adesso, riprovo fra un\'ora.']);
+  }
+  try { return _moduloChiudi(e); }
+  finally { lock.releaseLock(); }
+}
+
+function _moduloChiudi(e) {
   var form = _moduloForm();
+  var memoria = _moduloMemoria(form);
   var righe = ['CHIUSURA DI FINE ANNO'];
+  // la scadenza e' quella segnata da "Prepara l'anno nuovo". Se e' ancora avanti, questo e'
+  // un tentativo rimasto indietro e non c'e' niente da chiudere. Una chiusura programmata
+  // da una versione di prima non la segnava: vale il giorno appena finito (il trigger
+  // scatta verso la mezzanotte, anche qualche minuto prima)
+  var oggi = _moduloOggi();
+  if (memoria.scadenza && oggi < memoria.scadenza) {
+    righe.push('La chiusura e\' programmata per la fine del ' + _moduloLeggibile(memoria.scadenza) + ': oggi non chiudo niente.');
+    _moduloTogliScattato(e);
+    return _moduloScriviNelRegistro(righe);
+  }
+  var finito = memoria.scadenza ||
+    Utilities.formatDate(new Date(new Date().getTime() - 12 * 60 * 60 * 1000), _moduloFuso(), 'yyyy-MM-dd');
   var guasto = '';
   try { _moduloRiprova(function () { form.setAcceptingResponses(false); }); }
   catch (e1) { guasto = String(e1.message || e1); }  // lo guardo qui sotto
@@ -145,6 +171,12 @@ function MODULO_chiusura(e) {
   } else {
     righe.push('Il modulo non era collegato a nessun foglio.');
   }
+  // il segno che per quell'anno la chiusura e' scattata: "Prepara l'anno nuovo" rieseguito
+  // dopo non deve ricollegare ne' riaprire. L'anno dalla data, non da MODULO.anno
+  memoria.modulo = form.getId();
+  memoria.chiusi[_moduloAnnoDellaData(finito)] = finito;
+  memoria.scadenza = '';
+  _moduloRicorda(memoria);
   _moduloTogliTrigger();                               // i trigger gia' scattati restano in elenco: li tolgo
   return _moduloScriviNelRegistro(righe);
 }
@@ -256,6 +288,33 @@ function _moduloEsegui(davvero) {
     return righe.join('\n');
   }
 
+  // --- 0. l'anno di questo modulo e' gia' finito? --------------------------------
+  // Rieseguire "Prepara l'anno nuovo" a meta' anno non deve disfare quello che e' successo
+  // dopo: un modulo gia' arrivato alla sua chiusura non va ricollegato (Google ricopierebbe
+  // tutte le risposte in una scheda nuova del foglio) e non va riaperto. Lo dice la memoria,
+  // che l'ha segnato quando la chiusura e' scattata; per un anno preparato da una versione
+  // di prima il segno non c'e', e allora guardo il giorno di chiusura di adesso.
+  // "pronti" vale true per un anno preparato fino in fondo da questa versione, 'da prima'
+  // per uno ereditato da una versione precedente (di cui non so com'e' finito).
+  var giaPreparata = memoria.pronti[anno];
+  var giorno = _moduloGiornoChiusura(anno);            // scritto male: si ferma qui, prima di toccare niente
+  var finitoIl = memoria.chiusi[anno] || '';
+  if (!finitoIl && giaPreparata && giorno && _moduloOggi() > giorno.testo) finitoIl = giorno.testo;
+  if (finitoIl) {
+    var ancoraAperto = false;
+    try { ancoraAperto = form.isAcceptingResponses(); } catch (e0) { ancoraAperto = false; }
+    righe.push('L\'anno ' + anno + ' per questo modulo e\' finito il ' + _moduloLeggibile(finitoIl) +
+               ': non lo ricollego e non lo riapro.');
+    if (giorno && giorno.testo !== finitoIl) {
+      righe.push('(la chiusura adesso dice ' + giorno.leggibile + ', ma per quest\'anno e\' gia\' scattata: se va');
+      righe.push('riaperto, riaprilo da Google Moduli -> Risposte)');
+    }
+    if (ancoraAperto) righe.push('(risulta ancora aperto: se va chiuso, chiudilo da Google Moduli)');
+    righe.push('');
+    righe.push('L\'anno nuovo si prepara dal primo settembre.');
+    return righe.join('\n');
+  }
+
   // --- 1. la cartella --------------------------------------------------------
   var dest = null;
   if (conDrive) {
@@ -270,10 +329,12 @@ function _moduloEsegui(davvero) {
 
   // --- 2. il foglio ----------------------------------------------------------
   var idFoglio = null;
+  var foglioDiQuestAnno = false;                       // il foglio preparato gia' prima di questa volta
   var ricordato = memoria.fogli[anno];
   if (ricordato && _moduloApribile(ricordato) &&
       !(conDrive && _moduloNelCestino(ricordato))) {
     idFoglio = ricordato;
+    foglioDiQuestAnno = true;
     righe.push('Foglio delle risposte: c\'e\' gia\', e\' quello creato da questo script. Lo lascio dov\'e\'.');
   }
   if (!idFoglio && conDrive && dest && dest.cartella) {
@@ -302,17 +363,32 @@ function _moduloEsegui(davvero) {
   }
 
   // --- 3. le risposte che il modulo ha gia', e il collegamento ------------------
+  // Un anno ereditato da una versione di prima, il cui foglio non e' mai stato collegato:
+  // quella preparazione si e' fermata prima del collegamento, e quindi anche prima della
+  // riapertura. Lo tratto come mai fatto.
+  if (giaPreparata === 'da prima' && (!foglioDiQuestAnno || !_moduloGiaCollegatoUnaVolta(idFoglio))) {
+    giaPreparata = false;
+  }
   var collegatoA = _moduloDestinazione(form);
   var giaCollegato = (idFoglio !== null && collegatoA === idFoglio);
   var quante = form.getResponses().length;
   righe.push('');
   if (giaCollegato) {
     righe.push('Collegamento: il modulo scrive gia\' in questo foglio. Non lo tocco.');
+  } else if (foglioDiQuestAnno && !memoria.annullati[anno] && _moduloGiaCollegatoUnaVolta(idFoglio)) {
+    // Il foglio di quest'anno ha gia' la sua scheda di risposte: e' stato collegato, e adesso
+    // il modulo non ci scrive piu'. L'ha scollegato qualcuno. Ricollegarlo farebbe ricopiare
+    // a Google tutte le risposte in una scheda nuova dello stesso foglio. (Un foglio ancora
+    // intatto, invece, non e' mai stato collegato: una preparazione rotta a meta'.)
+    righe.push('Collegamento: quest\'anno il modulo scriveva in questo foglio, e adesso non ci scrive piu\'.');
+    righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va');
+    righe.push('  ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
   } else {
     if (quante > 0) _moduloRisposteVecchie(form, quante, collegatoA, idFoglio, memoria, davvero, righe);
     if (davvero) {
       _moduloRiprova(function () { form.setDestination(FormApp.DestinationType.SPREADSHEET, idFoglio); });
       righe.push('Collegamento: fatto. Le risposte nuove arrivano nel foglio dell\'anno.');
+      if (memoria.annullati[anno]) delete memoria.annullati[anno];
     } else {
       righe.push('Collegamento: il modulo verrebbe collegato al foglio dell\'anno' +
                  (collegatoA ? ' (adesso scrive in un altro foglio, che resta com\'e\').' : '.'));
@@ -320,15 +396,23 @@ function _moduloEsegui(davvero) {
   }
 
   // --- 4. il modulo riapre --------------------------------------------------------
-  _moduloRiapri(form, davvero, righe);
+  var riapertura = _moduloRiapri(form, davvero, righe, giaPreparata);
 
   // --- 5. la chiusura di fine anno -------------------------------------------------
-  _moduloProgrammaChiusura(anno, davvero, righe);
+  var programmata = _moduloProgrammaChiusura(anno, davvero, righe);
 
   // --- 6. per l'anno prossimo -------------------------------------------------------
   if (davvero) {
     memoria.modulo = form.getId();
     memoria.fogli[anno] = idFoglio;
+    // la scadenza va segnata adesso: il giorno in cui scatta, l'anno scolastico puo' essere
+    // gia' cambiato. E l'anno e' "pronto" solo a lavoro finito: un modulo non pubblicato, o
+    // che non si e' riaperto, la volta dopo si riprova a riaprirlo
+    memoria.scadenza = programmata ? programmata.testo : '';
+    if (riapertura === 'aperto' || riapertura === 'riaperto' || riapertura === 'lasciato chiuso' ||
+        riapertura === 'non richiesta') {
+      memoria.pronti[anno] = true;
+    }
     _moduloRicorda(memoria);
     righe.push('');
     righe.push('Foglio: ' + SpreadsheetApp.openById(idFoglio).getUrl());
@@ -387,11 +471,31 @@ function _moduloRisposteVecchie(form, quante, collegatoA, idFoglio, memoria, dav
   }
 }
 
-function _moduloRiapri(form, davvero, righe) {
-  if (MODULO.riapri === false) return;
+/**
+ * Riapre un modulo chiuso: e' il lavoro di inizio anno, quando la chiusura
+ * dell'anno prima lo ha lasciato chiuso. Se quest'anno era gia' stato preparato
+ * invece no: un modulo chiuso a meta' anno l'ha chiuso qualcuno, apposta.
+ * Torna com'e' andata: 'aperto', 'riaperto', 'lasciato chiuso', 'lasciato
+ * chiuso, da prima', 'non pubblicato', 'non riaperto', 'da riaprire' (anteprima)
+ * o 'non richiesta'.
+ */
+function _moduloRiapri(form, davvero, righe, giaPreparata) {
+  if (MODULO.riapri === false) return 'non richiesta';
   var aperto = true;
   try { aperto = form.isAcceptingResponses(); } catch (e) { aperto = true; }
-  if (aperto) return;
+  if (aperto) return 'aperto';
+  if (giaPreparata === true) {
+    righe.push('Il modulo e\' chiuso e quest\'anno era gia\' pronto: l\'ha chiuso qualcuno, non lo riapro.');
+    righe.push('  (se va riaperto: Google Moduli -> Risposte -> "Accetta risposte")');
+    return 'lasciato chiuso';
+  }
+  if (giaPreparata) {
+    // preparato con una versione di prima: non so se l'ha chiuso qualcuno o se allora non si
+    // era riaperto. Nel dubbio non lo riapro, e lo dico com'e'.
+    righe.push('Il modulo e\' chiuso, e quest\'anno era gia\' stato preparato con la versione di prima:');
+    righe.push('  non lo riapro. Se va riaperto: Google Moduli -> Risposte -> "Accetta risposte".');
+    return 'lasciato chiuso, da prima';
+  }
 
   // dal 2025 un modulo puo' essere "non pubblicato": riaprirlo darebbe errore, e pubblicarlo
   // e' una decisione del docente, non di uno script
@@ -402,14 +506,17 @@ function _moduloRiapri(form, davvero, righe) {
   } catch (e2) { pubblicato = true; }
   if (!pubblicato) {
     righe.push('Il modulo non e\' pubblicato: non lo riapro io. Quando e\' pronto, pubblicalo tu da Google Moduli.');
-    return;
+    return 'non pubblicato';
   }
-  if (!davvero) { righe.push('Il modulo e\' chiuso: verrebbe riaperto alle risposte.'); return; }
+  if (!davvero) { righe.push('Il modulo e\' chiuso: verrebbe riaperto alle risposte.'); return 'da riaprire'; }
   try {
     form.setAcceptingResponses(true);
     righe.push('Il modulo era chiuso: adesso accetta di nuovo risposte.');
+    return 'riaperto';
   } catch (e3) {
-    righe.push('Non sono riuscito a riaprire il modulo (' + (e3.message || e3) + '): riaprilo tu da Google Moduli.');
+    righe.push('Non sono riuscito a riaprire il modulo (' + (e3.message || e3) + '): riaprilo tu da Google Moduli,');
+    righe.push('  oppure riesegui: la volta dopo ci riprovo.');
+    return 'non riaperto';
   }
 }
 
@@ -421,6 +528,13 @@ function _moduloAnnulla() {
 
   var tolti = _moduloTogliTrigger();
   righe.push(tolti > 0 ? 'Chiusura programmata: tolta.' : 'Chiusura programmata: non ce n\'era.');
+  // annullato, l'anno non e' piu' "pronto" (ne' chiuso): la prossima preparazione lo rifa'
+  // tutto, ricollegamento compreso (scollegato da me, non da qualcuno)
+  memoria.scadenza = '';
+  delete memoria.pronti[anno];
+  delete memoria.chiusi[anno];
+  memoria.annullati[anno] = true;
+  _moduloRicorda(memoria);
 
   var idFoglio = memoria.fogli[anno];
   var collegatoA = _moduloDestinazione(form);
@@ -528,17 +642,18 @@ function _moduloGiornoChiusura(anno) {
   };
 }
 
+/** Programma la chiusura dell'anno. Torna il giorno programmato, oppure null. */
 function _moduloProgrammaChiusura(anno, davvero, righe) {
   var g = _moduloGiornoChiusura(anno);
   if (!g) {
     if (davvero) _moduloTogliTrigger();
     righe.push('Chiusura automatica: non richiesta. Il modulo resta aperto finche\' non lo chiudi tu.');
-    return;
+    return null;
   }
   if (_moduloOggi() > g.testo) {
     if (davvero) _moduloTogliTrigger();
     righe.push('Chiusura automatica: il ' + g.leggibile + ' e\' gia\' passato, non programmo niente.');
-    return;
+    return null;
   }
   if (davvero) {
     _moduloTogliTrigger();
@@ -549,6 +664,7 @@ function _moduloProgrammaChiusura(anno, davvero, righe) {
   }
   righe.push('Chiusura automatica: ' + (davvero ? 'programmata' : 'verrebbe programmata') +
              ' per la fine del ' + g.leggibile + ' (chiude il modulo e scollega il foglio).');
+  return g;
 }
 
 function _moduloTogliTrigger() {
@@ -609,6 +725,32 @@ function _moduloApribile(idFoglio) {
 }
 
 /**
+ * Il foglio e' gia' stato collegato a un modulo, almeno una volta? Un foglio
+ * creato dallo script nasce con una scheda sola, vuota; collegandolo, Google
+ * ci aggiunge la scheda delle risposte, che resta anche quando lo scolleghi.
+ */
+function _moduloGiaCollegatoUnaVolta(idFoglio) {
+  try {
+    var schede = SpreadsheetApp.openById(idFoglio).getSheets();
+    if (schede.length > 1) return true;
+    return schede.length === 1 && (schede[0].getLastRow() > 0 || schede[0].getLastColumn() > 0);
+  } catch (e) { return false; }
+}
+
+/** L'anno scolastico a cui appartiene un giorno "2027-06-30": dal primo settembre, l'anno dopo. */
+function _moduloAnnoDellaData(testo) {
+  var y = parseInt(String(testo).substring(0, 4), 10), mese = parseInt(String(testo).substring(5, 7), 10);
+  var inizio = (mese >= 9) ? y : y - 1;
+  return inizio + '-' + ('0' + ((inizio + 1) % 100)).slice(-2);
+}
+
+/** "2027-08-31" diventa "31/08/2027". */
+function _moduloLeggibile(testo) {
+  var p = String(testo || "").split("-");
+  return (p.length === 3) ? p[2] + "/" + p[1] + "/" + p[0] : String(testo || "");
+}
+
+/**
  * Quante risposte del modulo NON stanno in nessuno dei fogli candidati, e i
  * fogli in cui stanno le altre. Ogni risposta la cerco per il momento in cui
  * e' arrivata: Google lo scrive nella prima colonna (Informazioni
@@ -662,9 +804,22 @@ function _moduloTempiNelFoglio(idFoglio) {
   return fuori;
 }
 
-/** Quello che lo script ricorda da un anno all'altro: { modulo: id, fogli: { '2026-27': id } }. */
+/**
+ * Quello che lo script ricorda da un anno all'altro:
+ *   modulo     l'id di questo modulo
+ *   fogli      anno -> il foglio delle risposte di quell'anno
+ *   scadenza   il giorno di chiusura programmato, come 2027-08-31 ('' = nessuno)
+ *   pronti     anno -> quell'anno e' stato preparato fino in fondo
+ *   chiusi     anno -> il giorno in cui la chiusura di quell'anno e' scattata
+ *   annullati  anno -> scollegato da "Annulla": la prossima volta si ricollega
+ * Le ultime quattro ci sono da questa versione. Chi viene da prima ha solo
+ * "fogli", e un foglio dell'anno vuol dire un anno preparato: lo ricavo da li'.
+ * Di pronti, chiusi e annullati tengo solo l'anno in corso: sono gli unici che servono.
+ */
 function _moduloMemoria(form) {
-  var vuota = { modulo: form ? form.getId() : '', fogli: {} };
+  var anno = null;
+  try { anno = _moduloAnno(); } catch (e0) { anno = null; }
+  var vuota = { modulo: form ? form.getId() : '', fogli: {}, scadenza: '', pronti: {}, chiusi: {}, annullati: {} };
   try {
     var testo = PropertiesService.getScriptProperties().getProperty(_MODULO_CHIAVE);
     if (!testo) return vuota;
@@ -672,10 +827,30 @@ function _moduloMemoria(form) {
     if (!m || typeof m !== 'object' || !m.fogli || typeof m.fogli !== 'object') return vuota;
     // la copia di un modulo si porta dietro lo script: non deve ereditare i fogli dell'originale
     if (form && m.modulo && m.modulo !== form.getId()) return vuota;
+    if (typeof m.scadenza !== 'string') m.scadenza = '';
+    if (!m.pronti || typeof m.pronti !== 'object') {
+      // ereditati: so che il foglio c'era, non se l'anno era finito. 'da prima' basta a non
+      // riaprire un modulo chiuso, non a dire che l'ha chiuso qualcuno
+      m.pronti = {};
+      for (var k in m.fogli) if (m.fogli.hasOwnProperty(k)) m.pronti[k] = 'da prima';
+    }
+    if (!m.chiusi || typeof m.chiusi !== 'object') m.chiusi = {};
+    if (!m.annullati || typeof m.annullati !== 'object') m.annullati = {};
+    if (anno) {
+      m.pronti = _moduloSoloAnno(m.pronti, anno);
+      m.chiusi = _moduloSoloAnno(m.chiusi, anno);
+      m.annullati = _moduloSoloAnno(m.annullati, anno);
+    }
     return m;
   } catch (e) {
     return vuota;
   }
+}
+
+function _moduloSoloAnno(mappa, anno) {
+  var fuori = {};
+  if (mappa.hasOwnProperty(anno)) fuori[anno] = mappa[anno];
+  return fuori;
 }
 
 function _moduloRicorda(memoria) {
