@@ -6,7 +6,8 @@
 //  recuperi e le cartelle fisse, e ci copia dentro i modelli da MODELLI.
 //
 //  Regola di fondo: non sovrascrive e non cancella mai niente. Se una
-//  cartella o un file esistono gia', li lascia stare.
+//  cartella o un file esistono gia', li lascia stare. Il lavoro sul disco
+//  lo fa GeneratoreAnno.cs, che si prova senza finestre.
 //
 //  Due passi. Il primo lavora sul PC, nella cartella che Google Drive tiene
 //  sincronizzata. Il secondo e' per quello che dal PC non si puo' fare: un
@@ -21,18 +22,10 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text;
-using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 namespace Campanella
 {
-    class RisultatoGenerazione
-    {
-        public string Cartella = "";
-        public int Creati = 0;
-        public List<string> Errori = new List<string>();
-    }
-
     class PaginaCartelle : Pagina
     {
         static readonly string[] NomiPassi =
@@ -79,8 +72,18 @@ namespace Campanella
 
         const string FileStruttura = "struttura.json";
 
+        // "Genera la struttura" lavora fuori dal thread della finestra: intanto
+        // il passo 1 resta fermo e il riquadro racconta a che punto e'
+        GeneratoreAnno generatoreInCorso;
+        Dictionary<Control, bool> primaDelLavoro = new Dictionary<Control, bool>();
+
+        // gli errori dell'ultima lettura di struttura.json
+        List<string> erroriStruttura = new List<string>();
+        bool strutturaInutilizzabile = false;
+        string avvisoStruttura = "";
+
         /// <summary>La sottocartella di MODELLI i cui file vanno dentro ogni classe.</summary>
-        const string CartellaPerClasse = "PER CLASSE";
+        const string CartellaPerClasse = GeneratoreAnno.CartellaPerClasse;
 
         public PaginaCartelle(Guscio g) : base(g)
         {
@@ -95,6 +98,14 @@ namespace Campanella
                 Controls.Add(p);
             }
             pagine[0].Visible = true;
+
+            // la finestra si chiude mentre copio: finisco il file in corso e mi
+            // fermo, cosi' nel Drive non resta un file copiato a meta'
+            HandleDestroyed += delegate
+            {
+                GeneratoreAnno inCorso = generatoreInCorso;
+                if (!RecreatingHandle && inCorso != null) inCorso.Interrompi = true;
+            };
         }
 
         public override string Nome { get { return "Cartelle"; } }
@@ -149,6 +160,8 @@ namespace Campanella
                 "    una sola materia\r\n\r\n" +
                 "4Ar\r\n" +
                 "    senza materie: solo la cartella della classe\r\n\r\n" +
+                "Fra le materie va bene anche il punto e virgola (1A: Matematica; Fisica), " +
+                "ma ogni classe va su una riga sua.\r\n\r\n" +
                 "Per ogni classe crea anche RECUPERI\\TRIMESTRE e RECUPERI\\PENTAMESTRE, " +
                 "con le stesse materie dentro.");
             txtClassi = Tema.CasellaMulti(0, y + 22, 880, 96,
@@ -247,13 +260,16 @@ namespace Campanella
             PopolaModelli();
             AggiornaDrive();
             RicaricaStruttura();
+            AvvisaStruttura(false);
             CaricaModulo();
+            // tornando qui mentre "Genera" lavora, il passo 1 resta fermo
+            if (InCorso()) foreach (Control c in primaDelLavoro.Keys) c.Enabled = false;
             Tema.Applica(this);
         }
 
         public override void Esce()
         {
-            S.Drive = txtDrive.Text;
+            S.Drive = PercorsoDrive();       // senza virgolette: il Drive lo usano anche le altre pagine
             string anno = (txtAnno.Text ?? "").Trim();
             S.Anno = (anno == Stato.AnnoScolastico(DateTime.Now)) ? "" : anno;
             S.Classi = txtClassi.Text;
@@ -267,7 +283,9 @@ namespace Campanella
             return (a == "") ? Stato.AnnoScolastico(DateTime.Now) : a;
         }
 
-        string PercorsoDrive() { return (txtDrive.Text ?? "").Trim().TrimEnd('\\'); }
+        // le virgolette arrivano da "Copia come percorso" di Esplora file, e con
+        // quelle Path.Combine si ferma con la finestra d'errore di .NET
+        string PercorsoDrive() { return (txtDrive.Text ?? "").Trim().Trim('"').Trim().TrimEnd('\\'); }
 
         string PercorsoModelli() { return Path.Combine(PercorsoDrive(), "MODELLI"); }
 
@@ -281,7 +299,40 @@ namespace Campanella
             logBox.AppendText(m + "\r\n");
             logBox.SelectionStart = logBox.TextLength;
             logBox.ScrollToCaret();
-            Application.DoEvents();
+        }
+
+        bool InCorso() { return generatoreInCorso != null; }
+
+        /// <summary>Esegue sul thread della finestra, se la finestra c'e' ancora.</summary>
+        void SullaPagina(MethodInvoker m)
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(m); }
+            catch (InvalidOperationException) { }   // chiusa nel frattempo: non c'e' piu' niente da aggiornare
+        }
+
+        /// <summary>
+        /// Mentre il lavoro va, il passo 1 non si tocca: resta vivo solo il
+        /// riquadro. Alla fine ogni controllo torna com'era.
+        /// </summary>
+        void Blocca(bool inCorso)
+        {
+            if (inCorso)
+            {
+                primaDelLavoro.Clear();
+                foreach (Control c in pagine[0].Controls)
+                {
+                    if (c == logBox) continue;
+                    primaDelLavoro[c] = c.Enabled;
+                    c.Enabled = false;
+                }
+                return;
+            }
+            foreach (KeyValuePair<Control, bool> kv in primaDelLavoro) kv.Key.Enabled = kv.Value;
+            primaDelLavoro.Clear();
+            // se intanto si e' passati da un'altra pagina, MODELLI e struttura.json
+            // si rileggono: e' li' che si decide se i due elenchi sono attivi
+            PopolaModelli();
+            RicaricaStruttura();
         }
 
         // -------------------------------------------------------------------
@@ -378,47 +429,22 @@ namespace Campanella
             }
         }
 
-        class VoceStruttura { public string Nome = ""; public bool Spuntata = true; }
-
         string PercorsoStruttura()
         {
             try { return Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), FileStruttura); }
             catch { return FileStruttura; }
         }
 
-        List<VoceStruttura> LeggiStrutturaJson()
-        {
-            string p = PercorsoStruttura();
-            if (!File.Exists(p)) return null;
-            try
-            {
-                JavaScriptSerializer ser = new JavaScriptSerializer();
-                Dictionary<string, object> radice =
-                    ser.DeserializeObject(File.ReadAllText(p, Encoding.UTF8)) as Dictionary<string, object>;
-                if (radice == null || !radice.ContainsKey("cartelle")) return null;
-                object[] a = radice["cartelle"] as object[];
-                if (a == null) return null;
-
-                List<VoceStruttura> voci = new List<VoceStruttura>();
-                foreach (object o in a)
-                {
-                    Dictionary<string, object> d = o as Dictionary<string, object>;
-                    if (d == null) continue;
-                    string nome = Stato.Str(d, "nome", "");
-                    if (nome.Trim() == "") continue;
-                    VoceStruttura v = new VoceStruttura();
-                    v.Nome = nome;
-                    v.Spuntata = Stato.Bool(d, "spuntata", true);
-                    voci.Add(v);
-                }
-                return (voci.Count > 0) ? voci : null;
-            }
-            catch { return null; }
-        }
-
+        /// <summary>
+        /// Rilegge struttura.json. Le voci che non vanno restano fuori
+        /// dall'elenco e finiscono in erroriStruttura; se il file non si puo'
+        /// usare del tutto, l'elenco lo dice e "Genera" si rifiuta.
+        /// </summary>
         void RicaricaStruttura()
         {
-            List<VoceStruttura> voci = LeggiStrutturaJson();
+            erroriStruttura = new List<string>();
+            List<VoceStruttura> voci = GeneratoreAnno.LeggiStruttura(PercorsoStruttura(), erroriStruttura);
+            strutturaInutilizzabile = (voci == null && erroriStruttura.Count > 0);
             if (voci == null)
             {
                 voci = new List<VoceStruttura>();
@@ -435,8 +461,48 @@ namespace Campanella
                 prima[Convert.ToString(clbStruttura.Items[i])] = clbStruttura.GetItemChecked(i);
 
             clbStruttura.Items.Clear();
+            if (strutturaInutilizzabile)
+            {
+                // meglio nessuna cartella che quelle di partenza al posto delle tue
+                clbStruttura.Items.Add("(" + FileStruttura + " ha un errore: correggilo con \"Modifica struttura...\")", false);
+                clbStruttura.Enabled = false;
+                return;
+            }
+            clbStruttura.Enabled = true;
             foreach (VoceStruttura v in voci)
                 clbStruttura.Items.Add(v.Nome, prima.ContainsKey(v.Nome) ? prima[v.Nome] : v.Spuntata);
+        }
+
+        /// <summary>Cosa non va in struttura.json, spiegato; vuoto se e' tutto a posto.</summary>
+        string TestoErroriStruttura()
+        {
+            if (erroriStruttura.Count == 0) return "";
+            StringBuilder sb = new StringBuilder();
+            sb.Append(strutturaInutilizzabile
+                ? "Non riesco a usare " + FileStruttura + ", quindi non so quali cartelle vuoi:\n"
+                : "In " + FileStruttura + " ci sono voci che salto:\n");
+            foreach (string e in erroriStruttura) sb.Append("  - " + e + "\n");
+            sb.Append(strutturaInutilizzabile
+                ? "\nCorreggilo con \"Modifica struttura...\", oppure cancellalo per tornare alle " +
+                  "cartelle di partenza.\nIl file e': " + PercorsoStruttura()
+                : "\nOgni cartella deve stare dentro \"A.S. <anno>\": niente percorsi come C:\\..., " +
+                  "niente \"..\" e niente caratteri come : * ? \" < > |");
+            return sb.ToString();
+        }
+
+        /// <summary>Racconta i problemi di struttura.json nel riquadro e, se richiesto, in una finestra.</summary>
+        void AvvisaStruttura(bool finestra)
+        {
+            string testo = TestoErroriStruttura();
+            if (testo == "") { avvisoStruttura = ""; return; }
+            if (testo != avvisoStruttura)
+            {
+                foreach (string riga in testo.Split('\n')) Log(riga);
+                avvisoStruttura = testo;
+            }
+            Guscio.Stato1(FileStruttura + " ha dei problemi: leggi il riquadro.", Tema.Ambra);
+            if (finestra)
+                MessageBox.Show(this, testo, FileStruttura, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         void ModificaStruttura()
@@ -456,15 +522,27 @@ namespace Campanella
                 }
                 sb.AppendLine("  ]");
                 sb.AppendLine("}");
-                File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false));
+                try { File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false)); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this,
+                        "Non riesco a creare " + FileStruttura + " accanto al programma:\n" + p +
+                        "\n\n" + ex.Message + "\n\nLe cartelle dell'anno restano quelle dell'elenco.",
+                        "Struttura", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
             }
             Guscio.Apri(p);
             MessageBox.Show(this,
                 "Ho aperto " + FileStruttura + " con l'editor di testo.\n\n" +
                 "Modifica i nomi, salva con Ctrl+S e torna qui: l'elenco si aggiorna da solo.\n" +
-                "Nel file il backslash si scrive doppio: \"RECUPERI\\\\TRIMESTRE\".",
+                "Nel file il backslash si scrive doppio: \"RECUPERI\\\\TRIMESTRE\" (va bene anche " +
+                "\"RECUPERI/TRIMESTRE\").\n" +
+                "Ogni cartella resta dentro \"A.S. <anno>\": le voci con C:\\, \"..\" o caratteri " +
+                "come : * ? le salto e te lo dico.",
                 "Struttura", MessageBoxButtons.OK, MessageBoxIcon.Information);
             RicaricaStruttura();
+            AvvisaStruttura(true);
             Tema.Applica(this);
         }
 
@@ -590,8 +668,13 @@ namespace Campanella
                 "Piu' moduli? Le voci 4 e 5 qui sotto preparano un foglio di controllo.",
                 0, y, Tema.Piccolo, Ruolo.Tenue, "Il foglio di controllo",
                 "Le voci 4 e 5 del menu preparano un foglio Google con una riga per modulo: da " +
-                "li' si prepara l'anno nuovo per tutti insieme, e il foglio si aggiorna da solo " +
-                "quando aggiungi o togli un modulo.\r\n\r\n" +
+                "li' si prepara l'anno nuovo per tutti insieme.\r\n\r\n" +
+                "Il foglio non si aggiorna da solo quando aggiungi o togli un modulo: le righe le " +
+                "cambi tu (un modulo nuovo e' una riga in piu', uno che non serve piu' e' la spunta " +
+                "\"Attivo\" tolta), e il resto cambia quando usi il suo menu Campanella (\"Prepara " +
+                "l'anno nuovo\", \"Trova i moduli nel Drive\", \"Controlla com'e' messo adesso\" e le " +
+                "altre voci). Da solo scrive soltanto l'esito della chiusura programmata, il giorno " +
+                "in cui scatta.\r\n\r\n" +
                 "Quello script pero' chiede il permesso su tutti i tuoi moduli, non su uno solo: " +
                 "con pochi moduli conviene questa strada.");
             y += 36;
@@ -647,8 +730,9 @@ namespace Campanella
         List<string> CartelleDellAnno()
         {
             List<string> fuori = new List<string>();
-            for (int i = 0; i < clbStruttura.Items.Count; i++)
-                if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
+            if (!strutturaInutilizzabile)
+                for (int i = 0; i < clbStruttura.Items.Count; i++)
+                    if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
             if (clbModelli.Enabled)
                 for (int i = 0; i < clbModelli.Items.Count; i++)
                 {
@@ -924,7 +1008,13 @@ namespace Campanella
                            : (voce == 3) ? "Pannello.gs" : "pannello - cosa fare.txt";
                 d.Filter = "Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
-                File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false));
+                try { File.WriteAllText(d.FileName, TestoModulo(voce), new UTF8Encoding(false)); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Non riesco a salvare il file:\n" + d.FileName + "\n\n" + ex.Message,
+                        "Salvataggio non riuscito", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
                 Guscio.Stato1("Salvato: " + d.FileName);
             }
         }
@@ -934,14 +1024,41 @@ namespace Campanella
         // ===================================================================
         void Genera()
         {
+            if (InCorso()) return;
             logBox.Clear();
+            // casella vuota: propongo il Drive trovato sul computer, e la conferma
+            // qui sotto fa vedere dove andrei a scrivere prima di toccare niente
+            if (PercorsoDrive() == "") txtDrive.Text = Stato.DriveDiDefault();
             Esce();
+
+            // struttura.json si puo' cambiare anche mentre la pagina e' aperta;
+            // il riquadro e' appena stato svuotato, quindi l'avviso va riscritto
+            RicaricaStruttura();
+            avvisoStruttura = "";
+            AvvisaStruttura(false);
+            if (strutturaInutilizzabile)
+            {
+                MessageBox.Show(this, TestoErroriStruttura(), "Non genero niente",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // un anno con caratteri come | o " farebbe cadere Path.Combine qui sotto
+            string problemaAnno = GeneratoreAnno.ControllaNome("A.S. " + AnnoCorrente());
+            if (problemaAnno != "")
+            {
+                MessageBox.Show(this, "L'anno scolastico \"" + AnnoCorrente() + "\" non va bene per una " +
+                    "cartella: " + problemaAnno + ".\n\nScrivilo come 2026-27, oppure svuota la casella.",
+                    "Anno scolastico", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             string bersaglio = CartellaAnno();
             string avviso = Directory.Exists(bersaglio)
                 ? "La cartella\n\n" + bersaglio + "\n\nesiste gia'. Verranno aggiunte solo le " +
                   "cartelle e i file mancanti: niente viene sovrascritto o cancellato.\n\nProcedo?"
                 : "Sto per creare\n\n" + bersaglio + "\n\nProcedo?";
+            if (erroriStruttura.Count > 0) avviso = TestoErroriStruttura() + "\n\n" + avviso;
             if (MessageBox.Show(this, avviso, "Conferma",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
@@ -954,302 +1071,52 @@ namespace Campanella
             for (int i = 0; i < clbStruttura.Items.Count; i++)
                 if (clbStruttura.GetItemChecked(i)) struttura.Add(Convert.ToString(clbStruttura.Items[i]));
 
-            List<string> righe = new List<string>();
-            try
+            // quello che serve al lavoro si legge adesso, sul thread della finestra
+            string anno = AnnoCorrente(), drive = PercorsoDrive();
+            string classi = txtClassi.Text, extra = txtExtra.Text;
+            GeneratoreAnno generatore = new GeneratoreAnno();
+            generatore.Avanzamento = delegate (string riga) { SullaPagina(delegate { Log(riga); }); };
+            generatoreInCorso = generatore;
+            Blocca(true);
+            Guscio.Stato1("Genero la struttura nel Drive: a che punto sono lo dice il riquadro.", Tema.Ambra);
+
+            System.Threading.Thread lavoro = new System.Threading.Thread(delegate ()
             {
-                RisultatoGenerazione r = GeneraAnno(AnnoCorrente(), PercorsoDrive(),
-                                                    txtClassi.Text, gruppi, struttura,
-                                                    txtExtra.Text, righe);
-                foreach (string riga in righe) Log(riga);
-                Log("");
-                Log("=== FINE ===");
-                Log("Struttura creata in: " + r.Cartella);
-                Log("Elementi creati: " + r.Creati);
-                Log("Problemi: " + r.Errori.Count);
-                foreach (string e in r.Errori) Log("  - " + e);
-                Guscio.Stato1(r.Errori.Count == 0
-                    ? "Fatto: " + r.Creati + " elementi creati."
-                    : "Fatto con " + r.Errori.Count + " problemi: leggi il riquadro.",
-                    r.Errori.Count == 0 ? Tema.Verde : Tema.Ambra);
-            }
-            catch (Exception ex)
+                RisultatoGenerazione r = null;
+                Exception errore = null;
+                try { r = generatore.Genera(anno, drive, classi, gruppi, struttura, extra); }
+                catch (Exception ex) { errore = ex; }
+                SullaPagina(delegate { Finito(r, errore); });
+            });
+            // in primo piano: chiudendo la finestra il processo aspetta che il
+            // file in corso sia copiato per intero (vedi HandleDestroyed)
+            lavoro.IsBackground = false;
+            lavoro.Start();
+        }
+
+        void Finito(RisultatoGenerazione r, Exception errore)
+        {
+            generatoreInCorso = null;
+            Blocca(false);
+            if (errore != null)
             {
-                foreach (string riga in righe) Log(riga);
-                Log("ERRORE: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Non ho potuto procedere",
+                Log("ERRORE: " + errore.Message);
+                Guscio.Stato1("Non ho potuto finire: leggi il riquadro.", Tema.Ambra);
+                MessageBox.Show(this, errore.Message, "Non ho potuto procedere",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
-        }
-
-        public static RisultatoGenerazione GeneraAnno(string anno, string driveIn, string classiText,
-            List<string> gruppiIn, List<string> strutturaIn, string extraText, List<string> log)
-        {
-            RisultatoGenerazione res = new RisultatoGenerazione();
-            List<string> errori = res.Errori;
-            int creati = 0;
-
-            if (anno == "") throw new Exception("Manca l'anno scolastico (per esempio 2026-27).");
-            string drive = (driveIn ?? "").Trim().TrimEnd('\\');
-            if (drive == "") drive = Stato.DriveDiDefault();
-            if (!Directory.Exists(drive)) throw new Exception("Percorso non trovato: " + drive);
-
-            string modelli = Path.Combine(drive, "MODELLI");
-            bool conModelli = Directory.Exists(modelli);
-            if (!conModelli)
-                log.Add("Nota: non c'e' la cartella MODELLI in " + drive + ": creo solo le cartelle.");
-            List<string> perClasse = conModelli ? ModelliPerClasse(modelli) : new List<string>();
-            if (perClasse.Count > 0)
-                log.Add("Modelli da copiare in ogni classe: " + perClasse.Count);
-
-            List<string> classi = new List<string>();
-            foreach (string riga in (classiText ?? "").Split(new char[] { '\r', '\n', ';' }))
-            {
-                string r = riga.Trim();
-                if (r != "") classi.Add(r);
-            }
-            if (classi.Count == 0)
-                throw new Exception("Scrivi almeno una classe (per esempio  1A: Matematica, Fisica).");
-
-            string target = Path.Combine(drive, "A.S. " + anno);
-            if (Directory.Exists(target))
-                log.Add("La cartella esiste gia': aggiungo solo cio' che manca.");
-
-            foreach (string d in strutturaIn) Directory.CreateDirectory(Path.Combine(target, d));
-            log.Add("Struttura creata: " + target);
-            creati++;
-
-            if (extraText != null && extraText.Trim() != "")
-            {
-                foreach (string e in extraText.Split(new char[] { ',', ';', '\n', '\r' }))
-                {
-                    string ee = e.Trim();
-                    if (ee == "") continue;
-                    if (ee.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                    {
-                        errori.Add("Nome di cartella non valido: [" + ee + "]");
-                        continue;
-                    }
-                    Directory.CreateDirectory(Path.Combine(target, ee));
-                    log.Add("Cartella in piu': " + ee);
-                    creati++;
-                }
-            }
-
-            foreach (string c in classi)
-            {
-                string nomeClasse = c;
-                List<string> materie = new List<string>();
-                int idx = c.IndexOf(':');
-                if (idx > 0)
-                {
-                    nomeClasse = c.Substring(0, idx).Trim();
-                    foreach (string m in c.Substring(idx + 1).Split(new char[] { ',', ';' }))
-                    {
-                        string mm = m.Trim();
-                        if (mm != "") materie.Add(mm);
-                    }
-                }
-                if (nomeClasse == "" || nomeClasse.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                {
-                    errori.Add("Classe non valida: [" + c + "]");
-                    continue;
-                }
-
-                string dirClasse = Path.Combine(target, "CLASSI", nomeClasse);
-                Directory.CreateDirectory(dirClasse);
-                Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse));
-                Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "PENTAMESTRE", nomeClasse));
-
-                string elenco = "";
-                foreach (string m in materie)
-                {
-                    if (m.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                    {
-                        errori.Add("Materia non valida in [" + c + "]: " + m);
-                        continue;
-                    }
-                    Directory.CreateDirectory(Path.Combine(dirClasse, m));
-                    Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse, m));
-                    Directory.CreateDirectory(Path.Combine(target, "RECUPERI", "PENTAMESTRE", nomeClasse, m));
-                    if (elenco != "") elenco += ", ";
-                    elenco += m;
-                }
-
-                // i modelli "per classe": ogni file entra nella cartella della classe
-                // con il nome della classe in coda. I documenti Google non si copiano
-                // come file normali: per quelli resta una nota con cosa duplicare.
-                List<string> daDuplicare = new List<string>();
-                foreach (string src in perClasse)
-                {
-                    if (EFileGoogle(src)) { daDuplicare.Add(Path.GetFileName(src)); continue; }
-                    string dest = Path.Combine(dirClasse,
-                        Path.GetFileNameWithoutExtension(src) + " " + nomeClasse + Path.GetExtension(src));
-                    if (File.Exists(dest)) continue;
-                    try
-                    {
-                        File.Copy(src, dest, false);
-                        log.Add("  classe " + nomeClasse + ": copiato " + Path.GetFileName(dest));
-                        creati++;
-                    }
-                    catch (Exception ex)
-                    {
-                        errori.Add("Classe " + nomeClasse + ", " + Path.GetFileName(src) + ": " + ex.Message);
-                    }
-                }
-                if (daDuplicare.Count > 0)
-                {
-                    string percorsoNota = Path.Combine(dirClasse, "DUPLICA IN GOOGLE DOCS - " + nomeClasse + ".txt");
-                    if (!File.Exists(percorsoNota))
-                    {
-                        List<string> righe = new List<string>();
-                        righe.Add("Per la classe " + nomeClasse + ": duplicare in Google Drive (tasto destro ->");
-                        righe.Add("Crea una copia) questi documenti di MODELLI\\" + CartellaPerClasse +
-                                  " e aggiungere \"" + nomeClasse + "\" al nome:");
-                        righe.Add("");
-                        foreach (string g in daDuplicare) righe.Add("- " + g);
-                        File.WriteAllLines(percorsoNota, righe.ToArray(), Encoding.UTF8);
-                    }
-                }
-
-                log.Add("Classe: " + nomeClasse + (elenco != "" ? " -> " + elenco : ""));
-                creati++;
-            }
-
-            if (conModelli && gruppiIn != null)
-            {
-                foreach (string nome in gruppiIn)
-                {
-                    if (nome.Equals(CartellaPerClasse, StringComparison.OrdinalIgnoreCase)) continue;
-                    string g = Path.Combine(modelli, nome);
-                    if (!Directory.Exists(g)) { errori.Add("Modello non trovato: " + g); continue; }
-                    string dest = Path.Combine(target, nome);
-                    List<string> google = new List<string>();
-
-                    foreach (string f in Directory.GetFiles(g))
-                    {
-                        if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
-                        if (perClasse.Contains(f)) continue;     // gia' copiato dentro ogni classe
-                        Directory.CreateDirectory(dest);
-                        string df = Path.Combine(dest, Path.GetFileName(f));
-                        if (File.Exists(df)) continue;
-                        try
-                        {
-                            File.Copy(f, df, false);
-                            log.Add("  copiato: " + nome + "\\" + Path.GetFileName(f));
-                            creati++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errori.Add("Copia fallita: " + Path.GetFileName(f) + " :: " + ex.Message);
-                        }
-                    }
-
-                    foreach (string sd in Directory.GetDirectories(g))
-                    {
-                        List<string> sotto = new List<string>();
-                        try
-                        {
-                            CopiaCartella(sd, Path.Combine(dest, Path.GetFileName(sd)), sotto);
-                            log.Add("  copiato: " + nome + "\\" + Path.GetFileName(sd) + "\\");
-                            creati++;
-                        }
-                        catch (Exception ex)
-                        {
-                            errori.Add("Copia fallita: " + Path.GetFileName(sd) + " :: " + ex.Message);
-                        }
-                        foreach (string gf in sotto) google.Add(Path.GetFileName(sd) + "\\" + gf);
-                    }
-
-                    if (google.Count > 0)
-                    {
-                        // i moduli non si duplicano: restano in MODELLI e ogni anno ricevono un
-                        // foglio delle risposte nuovo (passo 2). Gli altri documenti si copiano a mano.
-                        List<string> documenti = new List<string>(), moduli = new List<string>();
-                        foreach (string gf in google)
-                        {
-                            if (gf.EndsWith(".gform", StringComparison.OrdinalIgnoreCase)) moduli.Add(gf);
-                            else documenti.Add(gf);
-                        }
-                        Directory.CreateDirectory(dest);
-                        List<string> righe = new List<string>();
-                        if (documenti.Count > 0)
-                        {
-                            righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
-                            righe.Add("(i documenti Google non si possono copiare come file normali)");
-                            righe.Add("");
-                            foreach (string gf in documenti) righe.Add("- " + gf);
-                        }
-                        if (moduli.Count > 0)
-                        {
-                            if (righe.Count > 0) righe.Add("");
-                            righe.Add("Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni");
-                            righe.Add("anno riceve un foglio delle risposte nuovo, con lo script che si prepara in");
-                            righe.Add("Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):");
-                            righe.Add("");
-                            foreach (string gf in moduli) righe.Add("- " + gf);
-                        }
-                        File.WriteAllLines(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"),
-                                           righe.ToArray(), Encoding.UTF8);
-                        if (documenti.Count > 0)
-                            log.Add("  " + documenti.Count + " documenti Google da duplicare a mano (nota creata)");
-                        if (moduli.Count > 0)
-                            log.Add("  " + moduli.Count + " moduli Google: per il foglio delle risposte c'e' il passo 2");
-                    }
-                }
-            }
-
-            res.Cartella = target;
-            res.Creati = creati;
-            return res;
-        }
-
-        /// <summary>
-        /// I file da copiare dentro ogni classe: tutto cio' che sta in
-        /// MODELLI\PER CLASSE. Per chi viene dalle versioni precedenti valgono
-        /// ancora i file "Modulo di controllo - segni.*" nella radice di MODELLI
-        /// o in "Verifiche e valutazione".
-        /// </summary>
-        static List<string> ModelliPerClasse(string modelli)
-        {
-            List<string> fuori = new List<string>();
-            string cartella = Path.Combine(modelli, CartellaPerClasse);
-            if (Directory.Exists(cartella))
-            {
-                string[] file = Directory.GetFiles(cartella);
-                Array.Sort(file);
-                foreach (string f in file)
-                    if (!Path.GetFileName(f).StartsWith("~$")) fuori.Add(f);
-            }
-            string[] basi =
-            {
-                Path.Combine(modelli, "Modulo di controllo - segni"),
-                Path.Combine(modelli, "Verifiche e valutazione", "Modulo di controllo - segni")
-            };
-            foreach (string b in basi)
-                foreach (string est in new string[] { ".xlsx", ".docx", ".xls", ".doc", ".gsheet", ".gdoc" })
-                    if (File.Exists(b + est) && !fuori.Contains(b + est)) fuori.Add(b + est);
-            return fuori;
-        }
-
-        static bool EFileGoogle(string percorso)
-        {
-            string e = Path.GetExtension(percorso).ToLowerInvariant();
-            return e == ".gdoc" || e == ".gsheet" || e == ".gslides" ||
-                   e == ".gdraw" || e == ".gform" || e == ".gsite";
-        }
-
-        static void CopiaCartella(string origine, string destinazione, List<string> google)
-        {
-            Directory.CreateDirectory(destinazione);
-            foreach (string f in Directory.GetFiles(origine))
-            {
-                if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
-                string df = Path.Combine(destinazione, Path.GetFileName(f));
-                if (File.Exists(df)) continue;         // non sovrascrive mai
-                File.Copy(f, df, false);
-            }
-            foreach (string sd in Directory.GetDirectories(origine))
-                CopiaCartella(sd, Path.Combine(destinazione, Path.GetFileName(sd)), google);
+            Log("");
+            Log("=== FINE ===");
+            Log("Struttura in: " + r.Cartella);
+            Log("Creati adesso: " + r.Creati + "   (cartelle, file copiati e note)");
+            Log("Gia' presenti, lasciati come sono: " + r.GiaPresenti);
+            Log("Problemi: " + r.Errori.Count);
+            foreach (string e in r.Errori) Log("  - " + e);
+            Guscio.Stato1(r.Errori.Count == 0
+                ? "Fatto: " + r.Creati + " elementi creati, " + r.GiaPresenti + " gia' presenti."
+                : "Fatto con " + r.Errori.Count + " problemi: leggi il riquadro.",
+                r.Errori.Count == 0 ? Tema.Verde : Tema.Ambra);
         }
     }
 }
