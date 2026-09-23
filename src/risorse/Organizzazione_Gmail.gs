@@ -1000,8 +1000,15 @@ function _config_() {
 }
 
 function _mioIndirizzo_() {
-  try { return Session.getActiveUser().getEmail() || '(sconosciuto)'; }
-  catch (e) { return '(sconosciuto)'; }
+  var e = '';
+  try { e = Session.getActiveUser().getEmail(); } catch (err) { e = ''; }
+  // in un trigger getActiveUser puo' tornare vuoto: allora vale l'utente
+  // effettivo, che in uno script personale e' sempre il titolare dell'account
+  // (come in _mioIndirizzoOrari_ di Orari.gs)
+  if (!e) {
+    try { e = Session.getEffectiveUser().getEmail(); } catch (err2) { e = ''; }
+  }
+  return e || '(sconosciuto)';
 }
 
 /** Estrae da un campo "Nome <indirizzo>, Nome2 <indirizzo2>" quelli del dominio. */

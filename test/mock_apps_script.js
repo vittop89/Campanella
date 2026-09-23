@@ -297,8 +297,11 @@ vm.runInContext(configurazione, contesto, { filename: 'Configurazione.gs' });
 
 const DOM = String(contesto.CONFIG.dominioScuola || 'scuola-esempio.edu.it').replace(/^@/, '');
 const IO = 'io@' + DOM;
+// getActiveUser puo' tornare vuoto nei trigger: una prova lo svuota apposta
+let indirizzoAttivo = IO;
 const Session = {
-  getActiveUser: () => ({ getEmail: () => IO }),
+  getActiveUser: () => ({ getEmail: () => indirizzoAttivo }),
+  getEffectiveUser: () => ({ getEmail: () => IO }),
   getScriptTimeZone: () => 'Europe/Rome'
 };
 contesto.Session = Session;
@@ -540,6 +543,28 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
   verifica('se l\'email non parte lo dice, e l\'elenco va nel registro a blocchi',
     guasto.some(r => /NON E' PARTITA/.test(r)) &&
     guasto.some(r => r.includes('mario.rossi@' + DOM)) && guasto.every(r => r.length < 6000));
+}
+
+intestazione('UTENTE ATTIVO VUOTO, COME A VOLTE NEI TRIGGER');
+{
+  // Session.getActiveUser() puo' tornare vuoto: allora vale l'utente
+  // effettivo, come fa Orari.gs. Con "(sconosciuto)" il riepilogo non partiva
+  // e il proprio indirizzo finiva nell'elenco dei colleghi.
+  indirizzoAttivo = '';
+  verifica('senza utente attivo il mio indirizzo e\' quello dell\'utente effettivo',
+    contesto._mioIndirizzo_() === IO);
+  const postaPrima = posta.length;
+  const tsv = contesto.EXTRA_elencaIndirizziScuola();
+  const email = posta.slice(postaPrima);
+  verifica('l\'email con l\'elenco parte lo stesso, a me',
+    email.length === 1 && email[0].a === IO);
+  verifica('e l\'elenco non contiene il mio indirizzo', tsv.length > 0 && !tsv.includes(IO));
+  // nemmeno l'utente effettivo si legge: resta "(sconosciuto)", come prima
+  const effettivoVero = Session.getEffectiveUser;
+  Session.getEffectiveUser = () => { throw new Error('Autorizzazione richiesta'); };
+  verifica('senza nessuno dei due resta "(sconosciuto)"', contesto._mioIndirizzo_() === '(sconosciuto)');
+  Session.getEffectiveUser = effettivoVero;
+  indirizzoAttivo = IO;
 }
 
 intestazione('FILTRI VERI DI GMAIL');
