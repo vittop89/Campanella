@@ -336,6 +336,17 @@ console.log(JSON.stringify({
     $esitoBanco = $LASTEXITCODE
     $uscita | Where-Object { $_ -match 'FALLITO|PROVE FALLITE|Tutte le prove' } | ForEach-Object { Write-Host "          $_" }
     Verifica "mock_orari.js passa con i dati scritti dal generatore ($(@($uscita | Where-Object { $_ -match '^\s+OK ' }).Count) controlli)" ($esitoBanco -eq 0)
+
+    # la regola "D" e la fusione delle ore in blocchi sono scritte due volte,
+    # qui (per il riepilogo del passo 4) e in Orari.gs: devono dare lo stesso
+    $riga = [string]($uscita | Where-Object { $_ -match 'un evento settimanale per ogni blocco di ore \(\d+\)' } | Select-Object -First 1)
+    $nJs = -1
+    if ($riga -match '\((\d+)\)') { $nJs = [int]$Matches[1] }
+    $a = New-Object 'object[]' 2
+    $a[0] = $o.GrigliaDocente($s.CalDocente)
+    $a[1] = $o.PSObject.BaseObject
+    $nCs = $tAn.GetMethod('Blocchi', $FS).Invoke($null, $a).Count
+    Verifica "i blocchi del calendario sono gli stessi qui e in Orari.gs ($nCs e $nJs)" ($nCs -eq $nJs)
 }
 finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
