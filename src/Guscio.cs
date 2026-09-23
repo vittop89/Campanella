@@ -884,7 +884,7 @@ namespace Campanella
             }));
             y += 40;
             lblEsito = Tema.Testo1("", 0, y, 860, Tema.Normale, Ruolo.Tenue);
-            lblEsito.Height = 24;     // nasce vuota: senza questo l'esito resta tagliato
+            lblEsito.Height = 40;     // nasce vuota: senza questo l'esito (fino a due righe) resta tagliato
             Controls.Add(lblEsito);
             y += 44;
 
@@ -1105,11 +1105,20 @@ namespace Campanella
 
         void Verifica()
         {
-            StatoPosta r = StatoPosta.LeggiCodice(txtCodice.Text);
+            StatoPosta r = StatoPosta.LeggiCodice(txtCodice.Text, S.PrefissoPulito());
             if (r == null)
             {
                 lblEsito.Text = "Non ho riconosciuto il codice. Deve essere una riga sola, " +
                                 "nella forma CMP1-20260910-9-1-2431.";
+                lblEsito.Tag = Ruolo.Avviso;
+            }
+            else if (r.Incerto)
+            {
+                // Senza gruppo il codice conta anche le etichette dell'utente: non
+                // lo tengo, cosi' la pagina iniziale non dice "Gia' fatto" per
+                // questo, neanche se poi il gruppo cambia.
+                S.CodiceStatoPosta = "";
+                lblEsito.Text = "Non basta a confermarlo: " + r.Dettaglio;
                 lblEsito.Tag = Ruolo.Avviso;
             }
             else
