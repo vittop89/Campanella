@@ -647,12 +647,12 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Su", 272, yb, 60, delegate { SpostaRegola(-1); }));
             p.Controls.Add(Tema.Bottone("Giu'", 336, yb, 60, delegate { SpostaRegola(1); }));
 
-            txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 100, Ruolo.Normale);
+            txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 108, Ruolo.Normale);
             p.Controls.Add(txtDescrizioneRegola);
 
             // il colore dell'etichetta in Gmail: lo sceglie Cambia..., lo mette
             // il servizio Gmail API. Per Colleghi, accanto, le sottoetichette dei ruoli
-            Label lblColore = Tema.RigaAiuto(p, "Colore in Gmail", 420, y + 112, Tema.Normale, Ruolo.Normale,
+            Label lblColore = Tema.RigaAiuto(p, "Colore in Gmail", 420, y + 120, Tema.Normale, Ruolo.Normale,
                 "Il colore dell'etichetta",
                 "Il colore che l'etichetta avra' in Gmail. Gmail accetta solo i colori della sua " +
                 "tavolozza, per lo sfondo e per il testo: qui si sceglie fra quelli, con il testo che " +
@@ -667,16 +667,16 @@ namespace Campanella
                 "anche i loro colori: i quadratini accanto. Di partenza sono sfumature del colore di " +
                 "Colleghi e lo seguono quando cambia.");
             int xc = 420 + TextRenderer.MeasureText(lblColore.Text, Tema.Normale).Width + 8 + 17 + 10;
-            campioneRegola = new Campione("", "", xc, y + 107, 140, 30);
+            campioneRegola = new Campione("", "", xc, y + 115, 140, 30);
             campioneRegola.Click += delegate { ScegliColore(null); };
             p.Controls.Add(campioneRegola);
             string cambia = "Cambia...";
             int wc = 26 + TextRenderer.MeasureText(cambia, Tema.Normale).Width;
-            p.Controls.Add(Tema.Bottone(cambia, xc + 148, y + 107, wc, delegate { ScegliColore(null); }));
+            p.Controls.Add(Tema.Bottone(cambia, xc + 148, y + 115, wc, delegate { ScegliColore(null); }));
             int xm = xc + 148 + wc + 10;
             for (int k = 0; k < Stato.Categorie.Length; k++)
             {
-                Campione m = new Campione("", "", xm + k * 19, y + 113, 18, 18);
+                Campione m = new Campione("", "", xm + k * 19, y + 121, 18, 18);
                 int quale = k;
                 m.Click += delegate { if (quale < categorieMini.Count) ScegliColore(categorieMini[quale]); };
                 m.Visible = false;
@@ -685,7 +685,7 @@ namespace Campanella
             }
 
             chkArchiviaRegola = Tema.Spunta("Archivia: togli questi messaggi dalla Posta in arrivo",
-                                            420, y + 146, Ruolo.Normale);
+                                            420, y + 154, Ruolo.Normale);
             chkArchiviaRegola.CheckedChanged += delegate
             {
                 int i = clbRegole.SelectedIndex;
@@ -697,7 +697,7 @@ namespace Campanella
             };
             p.Controls.Add(chkArchiviaRegola);
 
-            GroupBox go = Tema.Gruppo("Come deve lavorare lo script", 420, y + 180, 480, 210);
+            GroupBox go = Tema.Gruppo("Come deve lavorare lo script", 420, y + 188, 480, 210);
             chkProva = Tema.Spunta("Modalita' prova: conta soltanto, non modifica niente", 14, 28, Ruolo.Avviso);
             chkProva.Font = Tema.Grassetto;
             go.Controls.Add(chkProva);
@@ -733,7 +733,7 @@ namespace Campanella
 
             // regole che etichettano gli stessi messaggi di una sottoetichetta
             // per ruolo (lo scrive AggiornaDoppioni; vuota, non si vede)
-            lblDoppioni = Tema.Testo1("", 0, y + 402, 900, Tema.Normale, Ruolo.Avviso);
+            lblDoppioni = Tema.Testo1("", 0, y + 410, 900, Tema.Normale, Ruolo.Avviso);
             lblDoppioni.Visible = false;
             p.Controls.Add(lblDoppioni);
             return p;

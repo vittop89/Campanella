@@ -536,6 +536,34 @@ if ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0) {
     ControllaPannello $pannello4 'Posta / 4 con Colleghi e i ruoli'
     ControllaAiuti $pannello4 'Posta / 4 con Colleghi e i ruoli'
 
+    # la descrizione della regola scelta ci sta tutta nel suo riquadro, che
+    # non ha la barra per scorrere: l'ultima riga e' quella dei mittenti, e con
+    # il riquadro troppo basso spariva (Registro elettronico). Anche con gli
+    # elenchi di Dirigenza e Segreteria lunghi fino al taglio dei 150 caratteri.
+    $txtDescr = $posta.GetType().GetField('txtDescrizioneRegola', $FIp).GetValue($posta)
+    $lunga = (1..12 | ForEach-Object { "collaboratore$_@scuola.example" }) -join "`r`n"
+    $tagliate = @()
+    foreach ($elenchi in @(@('', ''), @($lunga, $lunga))) {
+        $tStato.GetField('Dirigenza', $FI).SetValue($stato, $elenchi[0])
+        $tStato.GetField('Segreteria', $FI).SetValue($stato, $elenchi[1])
+        for ($k = 0; $k -lt $regoleStato.Count; $k++) {
+            $clb.SelectedIndex = $k
+            [System.Windows.Forms.Application]::DoEvents()
+            $testoD = $txtDescr.Text.TrimEnd()
+            if ($testoD -eq '') { continue }
+            $fondo = $txtDescr.GetPositionFromCharIndex($testoD.Length - 1).Y + $txtDescr.Font.Height
+            if ($fondo -gt $txtDescr.ClientSize.Height -and $txtDescr.ScrollBars -eq [System.Windows.Forms.ScrollBars]::None) {
+                $tagliate += "$($regoleStato[$k].Etichetta) ($fondo > $($txtDescr.ClientSize.Height))"
+            }
+        }
+    }
+    $tStato.GetField('Dirigenza', $FI).SetValue($stato, '')
+    $tStato.GetField('Segreteria', $FI).SetValue($stato, '')
+    $clb.SelectedIndex = $iColleghi
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "la descrizione di ogni regola ci sta nel riquadro, mittenti compresi$(if ($tagliate.Count) { ': no ' + ($tagliate -join ', ') })" (
+        $tagliate.Count -eq 0)
+
     # la finestra dei colori di Colleghi, con le cinque sottoetichette
     $tForm = $asm.GetType('Campanella.FormColore')
     $categorie = New-Object 'System.Collections.Generic.List[string]'
