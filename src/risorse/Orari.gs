@@ -15,26 +15,34 @@
  *    ORARI_2_invia ............. manda a te una email per docente (a blocchi,
  *                                riprende da sola se finisce il tempo)
  *    ORARI_3_inviaOrariClassi .. manda a te anche gli orari delle classi
- *    ORARI_4_calendario ........ mette l'orario del docente scelto su Google
- *                                Calendar, nel calendario indicato (lo crea
- *                                se non c'e')
+ *                                (anche questa riprende da sola)
+ *    ORARI_4_calendario ........ mette il tuo orario (il nome scelto
+ *                                nell'applicazione) su Google Calendar, nel
+ *                                calendario indicato (lo crea se non c'e')
  *    ORARI_ANNULLA_calendario .. toglie dal calendario gli eventi messi qui
- *    ORARI_ANNULLA_invio ....... dimentica a che punto era l'invio
+ *    ORARI_ANNULLA_invio ....... dimentica a che punto erano gli invii
  *
  *  PERMESSI
- *    Le funzioni 1-3 usano solo Gmail. La 4 chiede anche il permesso per il
- *    Calendario: Google lo ripropone alla prima esecuzione, ed e' normale.
- *    Lo script tocca soltanto il calendario che gli indichi e soltanto gli
- *    eventi che ha creato lui (riconoscibili da un contrassegno).
+ *    Google calcola i permessi sull'intero progetto, guardando il codice di
+ *    tutti i file. Con questo file nel progetto, alla prima esecuzione chiede
+ *    quindi anche il permesso per il Calendario, anche se usi solo le email:
+ *    e' normale. Le email partono con MailApp, l'etichetta la mette GmailApp
+ *    e il tuo indirizzo lo dice Session. Il Calendario lo usano soltanto
+ *    ORARI_4_calendario e ORARI_ANNULLA_calendario, che toccano solo il
+ *    calendario che indichi e solo gli eventi creati qui (riconoscibili da
+ *    un contrassegno).
  * ============================================================================
  */
 
-var _ORARI_MAX_SECONDI = 260;
-var _ORARI_CHIAVE      = 'CAMPANELLA_ORARI_PROGRESSO';
-var _ORARI_TRIGGER     = 'ORARI_2_invia';
-var _ORARI_ETICHETTA   = 'Scuola/Orari';
-var _ORARI_TAG         = 'campanella';       // contrassegno degli eventi creati qui
-var _ORARI_TAG_VALORE  = 'orario';
+var _ORARI_VERSIONE      = '1.4.6';
+var _ORARI_MAX_SECONDI   = 260;
+var _ORARI_CHIAVE        = 'CAMPANELLA_ORARI_PROGRESSO';
+var _ORARI_CHIAVE_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
+var _ORARI_TRIGGER       = 'ORARI_2_invia';
+var _ORARI_TRIGGER_CLASSI = 'ORARI_3_inviaOrariClassi';
+var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
+var _ORARI_TAG           = 'campanella';       // contrassegno degli eventi creati qui
+var _ORARI_TAG_VALORE    = 'orario';
 
 
 // ===========================================================================
@@ -44,11 +52,13 @@ function ORARI_1_anteprima() {
   var d = _orariDati();
   var righe = [];
   righe.push('ANTEPRIMA - non viene mandato niente.');
+  righe.push('Orari.gs versione ' + _ORARI_VERSIONE);
   righe.push('');
   righe.push('Periodo: ' + (d.periodo || '(non indicato)'));
   righe.push('Docenti nel file: ' + d.docenti.length);
   righe.push('Giorni: ' + d.giorni.join(' ') + '   Ore al giorno: ' + d.ore);
   righe.push('Destinatario: ' + _mioIndirizzoOrari() + ' (solo tu)');
+  righe.push('Etichetta dei messaggi mandati: "' + _orariNomeEtichetta() + '", se esiste');
   righe.push('');
 
   var elenco = _daMandare(d);
@@ -80,24 +90,91 @@ function ORARI_1_anteprima() {
 
 // ===========================================================================
 //  2 - INVIO (a te stesso)
+//  Le email partono a blocchi: se finisce il tempo di un'esecuzione, lo
+//  script si ricorda dove era arrivato e si riprogramma fra un minuto; se
+//  finisce la quota giornaliera si ferma, e rieseguito il giorno dopo
+//  riparte da li'. Lo stesso vale per gli orari delle classi (passo 3).
 // ===========================================================================
-function ORARI_2_invia() {
+function ORARI_2_invia(e) {
+  return _orariConLock('docenti', e);
+}
+
+function ORARI_ANNULLA_invio() {
+  // lo stesso lock dell'invio: annullare a meta' di un'esecuzione non
+  // servirebbe, perche' quella salverebbe di nuovo il punto a cui e' arrivata
   var lock = LockService.getUserLock();
   if (!lock.tryLock(5000)) {
-    var occupato = 'Un altro invio e\' ancora in corso: aspetta che finisca.';
+    var occupato = 'Un invio (o il riordino della posta) e\' ancora in corso: riprova fra ' +
+                   'qualche minuto. Non ho dimenticato niente.';
     Logger.log(occupato);
     return occupato;
   }
-  try { return _orariInvia(); }
+  try {
+    var prop = PropertiesService.getUserProperties();
+    prop.deleteProperty(_ORARI_CHIAVE);
+    prop.deleteProperty(_ORARI_CHIAVE_CLASSI);
+    _togliTriggerOrari(_ORARI_TRIGGER);
+    _togliTriggerOrari(_ORARI_TRIGGER_CLASSI);
+  } finally {
+    lock.releaseLock();
+  }
+  var testo = 'Dimenticato il punto in cui erano arrivati gli invii: il prossimo ORARI_2_invia ' +
+              'ricomincia dal primo docente, e ORARI_3_inviaOrariClassi dalla prima classe.';
+  Logger.log(testo);
+  return testo;
+}
+
+
+// ===========================================================================
+//  3 - ORARI DELLE CLASSI (sempre e solo a te)
+// ===========================================================================
+function ORARI_3_inviaOrariClassi(e) {
+  return _orariConLock('classi', e);
+}
+
+// --- pezzi dell'invio -------------------------------------------------------
+/** Dove si ricorda il punto e quale funzione riprende, per docenti o classi. */
+function _orariLavoro(tipo) {
+  return (tipo === 'classi')
+    ? { chiave: _ORARI_CHIAVE_CLASSI, funzione: _ORARI_TRIGGER_CLASSI }
+    : { chiave: _ORARI_CHIAVE, funzione: _ORARI_TRIGGER };
+}
+
+function _orariConLock(tipo, e) {
+  var lavoro = _orariLavoro(tipo);
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(5000)) {
+    // il lock e' lo stesso della Posta: se c'e' un invio a meta', non lo
+    // lascio fermo, ma lo riprogrammo fra un minuto
+    var aMeta = PropertiesService.getUserProperties().getProperty(lavoro.chiave);
+    if (aMeta) _programmaRipresaOrari(lavoro.funzione);
+    var occupato = 'Un altro invio (o il riordino della posta) e\' ancora in corso: ' +
+      (aMeta ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
+    Logger.log(occupato);
+    return occupato;
+  }
+  try { return _orariInvia(tipo, e); }
   finally { lock.releaseLock(); }
 }
 
-function _orariInvia() {
+function _orariInvia(tipo, e) {
+  var lavoro = _orariLavoro(tipo);
   var d = _orariDati();
   var prop = PropertiesService.getUserProperties();
+  var salvato = prop.getProperty(lavoro.chiave);
+
+  // una ripresa programmata che non trova il punto salvato non ricomincia
+  // da capo: l'invio e' gia' finito, oppure e' stato annullato
+  if (e && e.triggerUid && !salvato) {
+    _togliTriggerOrari(lavoro.funzione);
+    var niente = 'Niente da riprendere: l\'invio e\' gia\' finito, oppure e\' stato annullato.';
+    Logger.log(niente);
+    return niente;
+  }
+
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
-  var elenco = _daMandare(d);
-  var stato = JSON.parse(prop.getProperty(_ORARI_CHIAVE) || '{"i":0,"mandati":0}');
+  var elenco = (tipo === 'classi') ? _classiDaMandare(d) : _daMandare(d);
+  var stato = JSON.parse(salvato || '{"i":0,"mandati":0}');
 
   if (MailApp.getRemainingDailyQuota() <= 0) {
     var aspetta = 'Hai finito le email che Google ti lascia mandare oggi.\n' +
@@ -110,9 +187,9 @@ function _orariInvia() {
   while (stato.i < elenco.length) {
     if (Date.now() > scadenza) { interrotto = true; break; }
     if (MailApp.getRemainingDailyQuota() <= 0) {
-      prop.setProperty(_ORARI_CHIAVE, JSON.stringify(stato));
+      prop.setProperty(lavoro.chiave, JSON.stringify(stato));
       var fermo = 'Quota giornaliera esaurita dopo ' + stato.mandati + ' messaggi.\n' +
-        'Riesegui ORARI_2_invia domani: riparte da dove si e\' fermato.';
+        'Riesegui ' + lavoro.funzione + ' domani: riparte da dove si e\' fermato.';
       Logger.log(fermo);
       return fermo;
     }
@@ -127,77 +204,38 @@ function _orariInvia() {
         name: 'Orari'
       });
       stato.mandati++;
-    } catch (e) {
-      Logger.log('Non mandato "' + m.oggetto + '": ' + e.message);
+    } catch (err) {
+      Logger.log('Non mandato "' + m.oggetto + '": ' + err.message);
     }
     stato.i++;
-    if (stato.i % 10 === 0) prop.setProperty(_ORARI_CHIAVE, JSON.stringify(stato));
+    if (stato.i % 10 === 0) prop.setProperty(lavoro.chiave, JSON.stringify(stato));
     Utilities.sleep(200);
   }
 
   if (interrotto) {
-    prop.setProperty(_ORARI_CHIAVE, JSON.stringify(stato));
-    _programmaRipresaOrari();
+    prop.setProperty(lavoro.chiave, JSON.stringify(stato));
+    _programmaRipresaOrari(lavoro.funzione);
     var parziale = 'Tempo massimo raggiunto: mandati ' + stato.mandati + ' su ' +
       elenco.length + '. Riprende da solo fra un minuto.';
     Logger.log(parziale);
     return parziale;
   }
 
-  prop.deleteProperty(_ORARI_CHIAVE);
-  _togliTriggerOrari();
-  _etichettaInviati(d);
+  prop.deleteProperty(lavoro.chiave);
+  _togliTriggerOrari(lavoro.funzione);
 
-  var fine = 'FATTO: mandati ' + stato.mandati + ' messaggi su ' + elenco.length + '.\n' +
-    'Li trovi nella tua Posta in arrivo: cerca il cognome per ritrovare l\'orario di un collega.';
+  var fine;
+  if (tipo === 'classi') {
+    _etichettaInviati(d.oggettoClasse || 'Orario classe {classe}');
+    fine = 'FATTO: mandati ' + stato.mandati + ' orari di classe su ' + elenco.length +
+      ', tutti a ' + _mioIndirizzoOrari() + '.';
+  } else {
+    _etichettaInviati(d.oggettoDocente || 'Orario {docente}');
+    fine = 'FATTO: mandati ' + stato.mandati + ' messaggi su ' + elenco.length + '.\n' +
+      'Li trovi nella tua Posta in arrivo: cerca il cognome per ritrovare l\'orario di un collega.';
+  }
   Logger.log(fine);
   return fine;
-}
-
-function ORARI_ANNULLA_invio() {
-  PropertiesService.getUserProperties().deleteProperty(_ORARI_CHIAVE);
-  _togliTriggerOrari();
-  var testo = 'Dimenticato il punto in cui era arrivato l\'invio: il prossimo ORARI_2_invia ' +
-              'ricomincia dal primo docente.';
-  Logger.log(testo);
-  return testo;
-}
-
-
-// ===========================================================================
-//  3 - ORARI DELLE CLASSI (sempre e solo a te)
-// ===========================================================================
-function ORARI_3_inviaOrariClassi() {
-  var d = _orariDati();
-  if (!d.classi || !d.classi.length) {
-    throw new Error('In DatiOrari.gs non ci sono gli orari delle classi.\n' +
-      'Nell\'applicazione, nella pagina Orari, spunta "Prepara anche gli orari ' +
-      'delle classi" e rigenera i dati.');
-  }
-  var mio = _mioIndirizzoOrari();
-  var mandati = 0;
-  var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
-
-  for (var i = 0; i < d.classi.length && Date.now() < scadenza; i++) {
-    if (MailApp.getRemainingDailyQuota() <= 0) break;
-    var c = d.classi[i];
-    var oggetto = (d.oggettoClasse || 'Orario classe {classe}')
-                    .replace(/\{classe\}/g, c.nome)
-                    .replace(/\{periodo\}/g, d.periodo || '');
-    MailApp.sendEmail({
-      to: mio,
-      subject: oggetto,
-      body: _testoSemplice(c.celle, d),
-      htmlBody: _html('Classe ' + c.nome, c.celle, d),
-      name: 'Orari'
-    });
-    mandati++;
-    Utilities.sleep(200);
-  }
-
-  var testo = 'Mandati ' + mandati + ' orari di classe a ' + mio + '.';
-  Logger.log(testo);
-  return testo;
 }
 
 
@@ -216,6 +254,9 @@ function ORARI_4_calendario() {
   if (!inizio || !fine) throw new Error('Le date di inizio e fine vanno scritte come aaaa-mm-gg.');
   if (fine < inizio) throw new Error('La data di fine viene prima di quella di inizio.');
 
+  var fineGiornata = new Date(fine.getTime());
+  fineGiornata.setHours(23, 59, 59, 0);
+
   var cal = _orariTrovaCalendario(c.nome);
   var creato = false;
   if (!cal) {
@@ -223,13 +264,21 @@ function ORARI_4_calendario() {
       summary: 'Orario scolastico messo da Campanella. Gli eventi si tolgono con ORARI_ANNULLA_calendario.'
     });
     creato = true;
+  } else {
+    // rieseguire sopra un orario gia' messo raddoppierebbe ogni lezione
+    var gia = _orariNostri(cal, inizio, fineGiornata).length;
+    if (gia) {
+      throw new Error('Nel calendario "' + c.nome + '" ci sono gia\' ' + gia + ' serie di eventi ' +
+        'messe da Campanella fra il ' + c.inizio + ' e il ' + c.fine + ': rimettendole, ogni ' +
+        'lezione comparirebbe due volte.\n' +
+        'Se l\'orario e\' cambiato, esegui prima ORARI_ANNULLA_calendario e poi di nuovo ' +
+        'ORARI_4_calendario.');
+    }
   }
   if (c.colore) {
     try { cal.setColor(CalendarApp.Color[c.colore] || c.colore); } catch (e) { /* colore non riconosciuto */ }
   }
 
-  var fineGiornata = new Date(fine.getTime());
-  fineGiornata.setHours(23, 59, 59, 0);
   var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fineGiornata);
 
   var blocchi = _orariBlocchi(doc.celle, d);
@@ -273,9 +322,23 @@ function ORARI_ANNULLA_calendario() {
   var fine = _orariData(c.fine) || new Date(2100, 0, 1);
   fine.setHours(23, 59, 59, 0);
 
+  var nostri = _orariNostri(cal, inizio, fine);
+  for (var i = 0; i < nostri.length; i++) {
+    if (nostri[i].serie) nostri[i].serie.deleteEventSeries();
+    else nostri[i].evento.deleteEvent();
+  }
+  var testo = 'Tolti ' + nostri.length + ' eventi messi da Campanella dal calendario "' + c.nome +
+              '". Il calendario e gli altri eventi restano.';
+  Logger.log(testo);
+  return testo;
+}
+
+// --- pezzi del calendario ---------------------------------------------------
+/** Gli eventi messi da Campanella nel periodo: una voce per ogni serie, o per l'evento singolo. */
+function _orariNostri(cal, inizio, fine) {
   var eventi = cal.getEvents(inizio, fine);
   var serieViste = {};
-  var tolti = 0;
+  var fuori = [];
   for (var i = 0; i < eventi.length; i++) {
     var ev = eventi[i];
     var nostro = false;
@@ -291,24 +354,19 @@ function ORARI_ANNULLA_calendario() {
       var id = serie.getId();
       if (serieViste[id]) continue;
       serieViste[id] = true;
-      serie.deleteEventSeries();
+      fuori.push({ serie: serie });
     } else {
-      ev.deleteEvent();
+      fuori.push({ evento: ev });
     }
-    tolti++;
   }
-  var testo = 'Tolti ' + tolti + ' eventi messi da Campanella dal calendario "' + c.nome +
-              '". Il calendario e gli altri eventi restano.';
-  Logger.log(testo);
-  return testo;
+  return fuori;
 }
 
-// --- pezzi del calendario ---------------------------------------------------
 function _orariCalendarioConfig(d) {
   var c = d.calendario;
   if (!c || !c.docente) {
     throw new Error('In DatiOrari.gs non c\'e\' la parte "calendario".\n' +
-      'Nell\'applicazione, pagina Orari, passo 4: scegli il docente, il nome del ' +
+      'Nell\'applicazione, pagina Orari, passo 4: scegli il tuo nome, il nome del ' +
       'calendario e il periodo, poi rigenera e incolla DatiOrari.gs.');
   }
   return {
@@ -328,7 +386,7 @@ function _orariDocente(d, nome) {
     if (_orariChiave(d.docenti[i].nome) === chiave) return d.docenti[i];
   for (var k = 0; k < d.docenti.length; k++)
     if (_orariChiave(d.docenti[k].nome).indexOf(chiave) === 0) return d.docenti[k];
-  throw new Error('Nel tabellone non trovo il docente "' + nome + '".');
+  throw new Error('Nel tabellone non trovo il nome "' + nome + '".');
 }
 
 function _orariChiave(s) {
@@ -422,6 +480,29 @@ function _daMandare(d) {
                  .replace(/\{docente\}/g, doc.nome)
                  .replace(/\{periodo\}/g, d.periodo || ''),
       griglia: doc.celle
+    });
+  }
+  return fuori;
+}
+
+function _classiDaMandare(d) {
+  if (!d.classi || !d.classi.length) {
+    throw new Error('In DatiOrari.gs non ci sono gli orari delle classi.\n' +
+      'Nell\'applicazione, nella pagina Orari, spunta "Prepara anche gli orari ' +
+      'delle classi" e rigenera i dati.');
+  }
+  var mio = _mioIndirizzoOrari();
+  var fuori = [];
+  for (var i = 0; i < d.classi.length; i++) {
+    var c = d.classi[i];
+    fuori.push({
+      a: mio,
+      nome: c.nome,
+      titolo: 'Classe ' + c.nome,
+      oggetto: (d.oggettoClasse || 'Orario classe {classe}')
+                 .replace(/\{classe\}/g, c.nome)
+                 .replace(/\{periodo\}/g, d.periodo || ''),
+      griglia: c.celle
     });
   }
   return fuori;
@@ -533,29 +614,53 @@ function _orariDati() {
 function _mioIndirizzoOrari() {
   var e = '';
   try { e = Session.getActiveUser().getEmail(); } catch (err) { e = ''; }
+  // in un trigger getActiveUser puo' tornare vuoto: allora vale l'utente
+  // effettivo, che in uno script personale e' sempre il titolare dell'account
+  if (!e) {
+    try { e = Session.getEffectiveUser().getEmail(); } catch (err2) { e = ''; }
+  }
   if (!e) throw new Error('Non riesco a sapere qual e\' il tuo indirizzo: riprova dopo aver ' +
                           'autorizzato lo script.');
   return e;
 }
 
-/** Se esiste l'etichetta degli orari, la metto ai messaggi appena mandati a me. */
-function _etichettaInviati(d) {
+/**
+ * L'etichetta degli orari, come la crea la Posta: "Orari" sotto il prefisso
+ * delle etichette, se c'e'. Configurazione.gs sta nello stesso progetto; se
+ * manca, l'etichetta e' "Orari" e basta.
+ */
+function _orariNomeEtichetta() {
+  var prefisso = '';
+  if (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.prefissoEtichette) {
+    prefisso = String(CONFIG.prefissoEtichette).replace(/\/+$/, '');
+  }
+  return prefisso ? prefisso + '/' + _ORARI_ETICHETTA : _ORARI_ETICHETTA;
+}
+
+/** Se esiste l'etichetta degli orari, la metto ai messaggi appena mandati a me con quell'oggetto. */
+function _etichettaInviati(oggetto) {
+  var nome = _orariNomeEtichetta();
   try {
-    var etichetta = GmailApp.getUserLabelByName(_ORARI_ETICHETTA);
-    if (!etichetta) return;
-    var modello = (d.oggettoDocente || 'Orario {docente}').split('{')[0].trim() || 'Orario';
+    var etichetta = GmailApp.getUserLabelByName(nome);
+    if (!etichetta) {
+      Logger.log('Non c\'e\' l\'etichetta "' + nome + '": i messaggi restano senza etichetta.');
+      return;
+    }
+    var modello = String(oggetto || '').split('{')[0].trim() || 'Orario';
     var trovati = GmailApp.search('to:me from:me subject:"' + modello + '" newer_than:1d', 0, 100);
     if (trovati.length) etichetta.addToThreads(trovati);
-  } catch (e) { /* non e' importante */ }
+  } catch (e) {
+    Logger.log('Etichetta "' + nome + '" non messa: ' + e.message);
+  }
 }
 
-function _programmaRipresaOrari() {
-  _togliTriggerOrari();
-  ScriptApp.newTrigger(_ORARI_TRIGGER).timeBased().after(60 * 1000).create();
+function _programmaRipresaOrari(funzione) {
+  _togliTriggerOrari(funzione);
+  ScriptApp.newTrigger(funzione).timeBased().after(60 * 1000).create();
 }
 
-function _togliTriggerOrari() {
+function _togliTriggerOrari(funzione) {
   var t = ScriptApp.getProjectTriggers();
   for (var i = 0; i < t.length; i++)
-    if (t[i].getHandlerFunction() === _ORARI_TRIGGER) ScriptApp.deleteTrigger(t[i]);
+    if (t[i].getHandlerFunction() === funzione) ScriptApp.deleteTrigger(t[i]);
 }
