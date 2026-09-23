@@ -329,7 +329,28 @@ verifica('in prova non lascia un progresso a meta\'', !proprieta.has('ORGGMAIL_P
 verifica('in prova conta tutti gli studenti, non solo i primi 100',
   registro.some(r => /Studenti\s+25[0-9] conversazioni/.test(r)));
 
+intestazione('PASSO 2 in modalita\' prova: elenca soltanto');
+{
+  // "in prova non si crea nemmeno un'etichetta": vale anche per PASSO_2, che la
+  // procedura guidata fa eseguire prima di togliere la prova
+  const t = contesto.PASSO_2_creaEtichette();
+  console.log(t);
+  verifica('in prova PASSO_2 non crea nessuna etichetta', etichette.size === 0);
+  verifica('e lo dice, elencando quelle che nasceranno',
+    t.indexOf('MODALITA\' PROVA') === 0 &&t.indexOf('Scuola/Colleghi/Docenti') > 0);
+  verifica('elencando ogni etichetta una volta sola',
+    t.split('\n').filter(r => r === '  - Scuola').length === 1);
+  const filtriInProva = [];
+  contesto.Gmail = { Users: { Labels: { list: () => ({ labels: [] }) },
+    Settings: { Filters: { list: () => ({ filter: [] }), create: (f) => { filtriInProva.push(f); return f; } } } } };
+  const tf = contesto.EXTRA_creaFiltriGmail();
+  delete contesto.Gmail;
+  verifica('in prova nemmeno i filtri di Gmail, e lo dice',
+    filtriInProva.length === 0 && etichette.size === 0 && tf.indexOf('MODALITA\' PROVA') === 0);
+}
+
 intestazione('PASSO 2 - creazione etichette');
+contesto.CONFIG.provaSenzaModifiche = false;
 console.log(contesto.PASSO_2_creaEtichette());
 verifica('l\'etichetta madre "Scuola" e\' stata creata', etichette.has('Scuola'));
 verifica('esiste Scuola/Colleghi', etichette.has('Scuola/Colleghi'));

@@ -805,9 +805,10 @@ namespace Campanella
                 "Alla fine, in basso, leggi il registro con il conteggio dei messaggi.",
                 new string[] { }, new EventHandler[] { });
 
-            Cartellino(5, "Crea le etichette",
-                "Scegli la funzione  PASSO_2_creaEtichette  e premi Esegui. In Gmail compaiono le " +
-                "etichette vuote, nella colonna di sinistra.",
+            Cartellino(5, "Guarda le etichette che nasceranno",
+                "Scegli la funzione  PASSO_2_creaEtichette  e premi Esegui. In modalita' prova non " +
+                "crea niente: nel registro elenca le etichette che nasceranno. Le crea davvero il " +
+                "passo 6, quando togli la prova; da li' le vedi in Gmail, nella colonna di sinistra.",
                 new string[] { "Apri Gmail" },
                 new EventHandler[] { delegate { Guscio.Apri("https://mail.google.com/"); } });
 
@@ -830,7 +831,8 @@ namespace Campanella
                 "Nell'editor, colonna di sinistra, alla voce \"Servizi\" premi il \"+\", scegli " +
                 "\"Gmail API\" e conferma. Poi esegui  EXTRA_creaFiltriGmail. Cosi' lo smistamento " +
                 "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
-                "filtro non sa escludere chi e' gia' fra i Colleghi. Se poi cambi una regola, il " +
+                "filtro non sa escludere chi e' gia' fra i Colleghi. Con la modalita' prova accesa " +
+                "non crea niente. Se poi cambi una regola, il " +
                 "filtro vecchio va cancellato a mano in Gmail (Impostazioni -> Filtri).",
                 new string[] { }, new EventHandler[] { });
 

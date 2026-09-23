@@ -30,7 +30,7 @@
  *  (menu a tendina in alto nell'editor, accanto al pulsante "Esegui")
  *
  *    PASSO_1_anteprima ............. prova a vuoto: dice cosa farebbe
- *    PASSO_2_creaEtichette ......... crea solo le etichette
+ *    PASSO_2_creaEtichette ......... crea solo le etichette (in prova le elenca)
  *    PASSO_3_riordinaPostaEsistente  applica le etichette alla posta vecchia
  *    PASSO_4_attivaAutomazione ..... smista da solo i messaggi nuovi
  *
@@ -102,8 +102,15 @@ function PASSO_1_anteprima() {
   righe.push('altre etichette (per esempio Studenti, che esclude Colleghi) qui');
   righe.push('contano di piu\' del reale, perche\' le etichette non esistono ancora.');
   righe.push('');
-  righe.push('Se il risultato ti convince: esegui PASSO_2_creaEtichette');
-  righe.push('e poi PASSO_3_riordinaPostaEsistente.');
+  if (cfg.provaSenzaModifiche) {
+    // in prova PASSO_2 elenca soltanto: le etichette le crea il riordino vero
+    righe.push('Se il risultato ti convince: in Configurazione.gs metti');
+    righe.push('  provaSenzaModifiche: false');
+    righe.push('ed esegui PASSO_3_riordinaPostaEsistente, che crea anche le etichette.');
+  } else {
+    righe.push('Se il risultato ti convince: esegui PASSO_2_creaEtichette');
+    righe.push('e poi PASSO_3_riordinaPostaEsistente.');
+  }
 
   var testo = righe.join('\n');
   Logger.log(testo);
@@ -117,6 +124,8 @@ function PASSO_1_anteprima() {
 function PASSO_2_creaEtichette() {
   var cfg = _config_();
   var regole = _regoleAttive_(cfg);
+  // in prova non si crea niente, nemmeno le etichette: le elenca e basta
+  var prova = !!cfg.provaSenzaModifiche;
   var create = [];
   var esistenti = [];
 
@@ -128,14 +137,18 @@ function PASSO_2_creaEtichette() {
       progressivo = (p === 0) ? parti[0] : progressivo + '/' + parti[p];
       if (GmailApp.getUserLabelByName(progressivo)) {
         if (esistenti.indexOf(progressivo) < 0) esistenti.push(progressivo);
-      } else {
-        GmailApp.createLabel(progressivo);
+      } else if (create.indexOf(progressivo) < 0) {
+        if (!prova) GmailApp.createLabel(progressivo);
         create.push(progressivo);
       }
     }
   }
 
-  var testo = 'Etichette create adesso: ' + create.length +
+  var testo = (prova
+                ? 'MODALITA\' PROVA: non creo niente. Queste etichette nasceranno quando in ' +
+                  'Configurazione.gs metti  provaSenzaModifiche: false  (le crea da solo anche ' +
+                  'PASSO_3_riordinaPostaEsistente).\n\nEtichette da creare: '
+                : 'Etichette create adesso: ') + create.length +
               (create.length ? '\n  - ' + create.join('\n  - ') : '') +
               '\n\nEtichette gia\' presenti: ' + esistenti.length +
               (esistenti.length ? '\n  - ' + esistenti.join('\n  - ') : '');
@@ -442,6 +455,14 @@ function EXTRA_creaFiltriGmail() {
       '-> Aggiungi. Poi riesegui questa funzione.');
   }
   var cfg = _config_();
+  if (cfg.provaSenzaModifiche) {
+    // i filtri cambiano la posta che arriva: in prova non si crea niente
+    var inProva = 'MODALITA\' PROVA: i filtri di Gmail non vengono creati, come le etichette.\n' +
+      'Quando il riordino ti convince, in Configurazione.gs metti  provaSenzaModifiche: false,\n' +
+      'esegui PASSO_3_riordinaPostaEsistente e poi di nuovo questa funzione.';
+    Logger.log(inProva);
+    return inProva;
+  }
   PASSO_2_creaEtichette();
 
   var idEtichette = {};
