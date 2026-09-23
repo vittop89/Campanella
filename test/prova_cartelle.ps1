@@ -174,7 +174,29 @@ try {
     $x = LeggiJson '{ "cartelle": [ { "nome": "..\\.." } ] }'
     Verifica "tutte sbagliate: nessuna voce, ma il perche'"    ($null -eq $x.Voci -and $x.Errori.Count -eq 1)
 
-    # --- 7. il Drive va sempre dato: nessun ripiego sul Drive vero ------------------
+    # --- 7. il lavoro in un altro thread: le righe arrivano subito, e si ferma -------
+    Write-Host "`nAVANZAMENTO E INTERRUZIONE" -ForegroundColor Cyan
+    $script:arrivate = [System.Collections.Generic.List[string]]::new()
+    $g = [Activator]::CreateInstance($tG)
+    $g.Avanzamento = [Action[string]]{ param($riga) $script:arrivate.Add($riga) }
+    $argomenti = New-Object 'object[]' 6
+    $argomenti[0] = '2026-27'; $argomenti[1] = [string]$finto; $argomenti[2] = [string]$classi
+    $argomenti[3] = Lista $gruppi; $argomenti[4] = Lista $struttura; $argomenti[5] = 'Progetti'
+    $r5 = $tG.GetMethod('Genera').Invoke($g, $argomenti)
+    Verifica "ogni riga del registro arriva anche mentre lavora ($($script:arrivate.Count))" ($script:arrivate.Count -gt 0 -and $script:arrivate.Count -eq $r5.Registro.Count)
+
+    $nuovo = Join-Path $finto 'Interrotto'
+    New-Item -ItemType Directory -Force $nuovo | Out-Null
+    $g = [Activator]::CreateInstance($tG)
+    $g.Interrompi = $true
+    $argomenti[1] = [string]$nuovo
+    $messaggio = ''
+    try { $tG.GetMethod('Genera').Invoke($g, $argomenti) | Out-Null }
+    catch { $messaggio = $_.Exception.InnerException.GetType().Name }
+    Verifica "con Interrompi si ferma ($messaggio)"          ($messaggio -eq 'OperationCanceledException')
+    Verifica "prima di classi e modelli"                     (-not (Test-Path (Join-Path $nuovo 'A.S. 2026-27\CLASSI\1A')))
+
+    # --- 8. il Drive va sempre dato: nessun ripiego sul Drive vero ------------------
     Write-Host "`nIL DRIVE" -ForegroundColor Cyan
     $messaggio = ''
     try { Genera '' $classi @() @('CLASSI') '' | Out-Null }

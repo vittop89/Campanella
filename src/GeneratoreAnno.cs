@@ -58,6 +58,12 @@ namespace Campanella
         /// </summary>
         public Action<string> Avanzamento;
 
+        /// <summary>
+        /// Messo a true da un altro thread (la finestra che si chiude): il lavoro
+        /// finisce il file che sta copiando e si ferma prima del successivo.
+        /// </summary>
+        public volatile bool Interrompi;
+
         static readonly string[] NomiRiservati =
         {
             "CON", "PRN", "AUX", "NUL",
@@ -152,14 +158,20 @@ namespace Campanella
                 }
             }
 
-            foreach (string c in classi) UnaClasse(c, target, perClasse);
+            foreach (string c in classi)
+            {
+                Fermati();
+                UnaClasse(c, target, perClasse);
+            }
 
             if (conModelli && gruppi != null)
             {
                 foreach (string nome in gruppi)
                 {
+                    Fermati();
                     if (nome.Equals(CartellaPerClasse, StringComparison.OrdinalIgnoreCase)) continue;
                     try { UnGruppo(nome, modelli, target, perClasse); }
+                    catch (OperationCanceledException) { throw; }
                     catch (Exception ex) { Errore("Modelli di " + nome + ": " + ex.Message); }
                 }
             }
@@ -560,6 +572,7 @@ namespace Campanella
         /// <summary>Copia un file se manca e lo conta. Vero solo se l'ha copiato adesso.</summary>
         bool CopiaFile(string origine, string destinazione, string etichetta)
         {
+            Fermati();
             if (File.Exists(destinazione)) { res.GiaPresenti++; return false; }
             try
             {
@@ -597,6 +610,11 @@ namespace Campanella
             foreach (string sd in sottocartelle)
                 CopiaCartella(sd, Path.Combine(destinazione, Path.GetFileName(sd)), google,
                               prefisso + Path.GetFileName(sd) + "\\");
+        }
+
+        void Fermati()
+        {
+            if (Interrompi) throw new OperationCanceledException("Interrotto prima della fine.");
         }
 
         void Riga(string r)

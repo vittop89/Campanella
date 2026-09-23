@@ -72,6 +72,11 @@ namespace Campanella
 
         const string FileStruttura = "struttura.json";
 
+        // "Genera la struttura" lavora fuori dal thread della finestra: intanto
+        // il passo 1 resta fermo e il riquadro racconta a che punto e'
+        GeneratoreAnno generatoreInCorso;
+        Dictionary<Control, bool> primaDelLavoro = new Dictionary<Control, bool>();
+
         // gli errori dell'ultima lettura di struttura.json
         List<string> erroriStruttura = new List<string>();
         bool strutturaInutilizzabile = false;
@@ -93,6 +98,14 @@ namespace Campanella
                 Controls.Add(p);
             }
             pagine[0].Visible = true;
+
+            // la finestra si chiude mentre copio: finisco il file in corso e mi
+            // fermo, cosi' nel Drive non resta un file copiato a meta'
+            HandleDestroyed += delegate
+            {
+                GeneratoreAnno inCorso = generatoreInCorso;
+                if (!RecreatingHandle && inCorso != null) inCorso.Interrompi = true;
+            };
         }
 
         public override string Nome { get { return "Cartelle"; } }
@@ -249,6 +262,8 @@ namespace Campanella
             RicaricaStruttura();
             AvvisaStruttura(false);
             CaricaModulo();
+            // tornando qui mentre "Genera" lavora, il passo 1 resta fermo
+            if (InCorso()) foreach (Control c in primaDelLavoro.Keys) c.Enabled = false;
             Tema.Applica(this);
         }
 
@@ -282,7 +297,40 @@ namespace Campanella
             logBox.AppendText(m + "\r\n");
             logBox.SelectionStart = logBox.TextLength;
             logBox.ScrollToCaret();
-            Application.DoEvents();
+        }
+
+        bool InCorso() { return generatoreInCorso != null; }
+
+        /// <summary>Esegue sul thread della finestra, se la finestra c'e' ancora.</summary>
+        void SullaPagina(MethodInvoker m)
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(m); }
+            catch (InvalidOperationException) { }   // chiusa nel frattempo: non c'e' piu' niente da aggiornare
+        }
+
+        /// <summary>
+        /// Mentre il lavoro va, il passo 1 non si tocca: resta vivo solo il
+        /// riquadro. Alla fine ogni controllo torna com'era.
+        /// </summary>
+        void Blocca(bool inCorso)
+        {
+            if (inCorso)
+            {
+                primaDelLavoro.Clear();
+                foreach (Control c in pagine[0].Controls)
+                {
+                    if (c == logBox) continue;
+                    primaDelLavoro[c] = c.Enabled;
+                    c.Enabled = false;
+                }
+                return;
+            }
+            foreach (KeyValuePair<Control, bool> kv in primaDelLavoro) kv.Key.Enabled = kv.Value;
+            primaDelLavoro.Clear();
+            // se intanto si e' passati da un'altra pagina, MODELLI e struttura.json
+            // si rileggono: e' li' che si decide se i due elenchi sono attivi
+            PopolaModelli();
+            RicaricaStruttura();
         }
 
         // -------------------------------------------------------------------
@@ -969,6 +1017,7 @@ namespace Campanella
         // ===================================================================
         void Genera()
         {
+            if (InCorso()) return;
             logBox.Clear();
             // casella vuota: propongo il Drive trovato sul computer, e la conferma
             // qui sotto fa vedere dove andrei a scrivere prima di toccare niente
@@ -1005,31 +1054,52 @@ namespace Campanella
             for (int i = 0; i < clbStruttura.Items.Count; i++)
                 if (clbStruttura.GetItemChecked(i)) struttura.Add(Convert.ToString(clbStruttura.Items[i]));
 
+            // quello che serve al lavoro si legge adesso, sul thread della finestra
+            string anno = AnnoCorrente(), drive = PercorsoDrive();
+            string classi = txtClassi.Text, extra = txtExtra.Text;
             GeneratoreAnno generatore = new GeneratoreAnno();
-            generatore.Avanzamento = delegate (string riga) { Log(riga); };
-            try
+            generatore.Avanzamento = delegate (string riga) { SullaPagina(delegate { Log(riga); }); };
+            generatoreInCorso = generatore;
+            Blocca(true);
+            Guscio.Stato1("Genero la struttura nel Drive: a che punto sono lo dice il riquadro.", Tema.Ambra);
+
+            System.Threading.Thread lavoro = new System.Threading.Thread(delegate ()
             {
-                RisultatoGenerazione r = generatore.Genera(AnnoCorrente(), PercorsoDrive(),
-                                                           txtClassi.Text, gruppi, struttura,
-                                                           txtExtra.Text);
-                Log("");
-                Log("=== FINE ===");
-                Log("Struttura in: " + r.Cartella);
-                Log("Creati adesso: " + r.Creati + "   (cartelle, file copiati e note)");
-                Log("Gia' presenti, lasciati come sono: " + r.GiaPresenti);
-                Log("Problemi: " + r.Errori.Count);
-                foreach (string e in r.Errori) Log("  - " + e);
-                Guscio.Stato1(r.Errori.Count == 0
-                    ? "Fatto: " + r.Creati + " elementi creati, " + r.GiaPresenti + " gia' presenti."
-                    : "Fatto con " + r.Errori.Count + " problemi: leggi il riquadro.",
-                    r.Errori.Count == 0 ? Tema.Verde : Tema.Ambra);
-            }
-            catch (Exception ex)
+                RisultatoGenerazione r = null;
+                Exception errore = null;
+                try { r = generatore.Genera(anno, drive, classi, gruppi, struttura, extra); }
+                catch (Exception ex) { errore = ex; }
+                SullaPagina(delegate { Finito(r, errore); });
+            });
+            // in primo piano: chiudendo la finestra il processo aspetta che il
+            // file in corso sia copiato per intero (vedi HandleDestroyed)
+            lavoro.IsBackground = false;
+            lavoro.Start();
+        }
+
+        void Finito(RisultatoGenerazione r, Exception errore)
+        {
+            generatoreInCorso = null;
+            Blocca(false);
+            if (errore != null)
             {
-                Log("ERRORE: " + ex.Message);
-                MessageBox.Show(this, ex.Message, "Non ho potuto procedere",
+                Log("ERRORE: " + errore.Message);
+                Guscio.Stato1("Non ho potuto finire: leggi il riquadro.", Tema.Ambra);
+                MessageBox.Show(this, errore.Message, "Non ho potuto procedere",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
+            Log("");
+            Log("=== FINE ===");
+            Log("Struttura in: " + r.Cartella);
+            Log("Creati adesso: " + r.Creati + "   (cartelle, file copiati e note)");
+            Log("Gia' presenti, lasciati come sono: " + r.GiaPresenti);
+            Log("Problemi: " + r.Errori.Count);
+            foreach (string e in r.Errori) Log("  - " + e);
+            Guscio.Stato1(r.Errori.Count == 0
+                ? "Fatto: " + r.Creati + " elementi creati, " + r.GiaPresenti + " gia' presenti."
+                : "Fatto con " + r.Errori.Count + " problemi: leggi il riquadro.",
+                r.Errori.Count == 0 ? Tema.Verde : Tema.Ambra);
         }
     }
 }
