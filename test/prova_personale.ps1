@@ -14,6 +14,8 @@
 
     E le righe senza spunta (gli indirizzi presi dalla casella, studenti
     compresi) si tolgono tutte insieme, dopo una domanda che dice quante sono.
+    Infine la griglia, senza aprire finestre: ogni riga resta legata alla sua
+    persona anche se le righe cambiano ordine.
 #>
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -334,6 +336,76 @@ if ($mTogli -ne $null -and $mConta -ne $null -and $mDomanda -ne $null) {
         $restano[1] -eq 'g.verdi@scuola.example')
     Verifica "una seconda volta non toglie niente" (
         ($mTogli.Invoke($null, $arg4)) -eq 0 -and ($mConta.Invoke($null, $arg4)) -eq 0 -and $elenco4.Count -eq 2)
+}
+
+# ---------------------------------------------------------------------------
+Intestazione 'OGNI RIGA DELLA GRIGLIA RESTA LA SUA PERSONA'
+# La griglia si ordinava con un clic sull'intestazione, e la riga N andava
+# alla persona N dell'elenco: con [ZANCHI con la spunta, BIANCHI senza]
+# ordinato per nome, correggere BIANCHI riscriveva ZANCHI, e "Togli le righe
+# selezionate" toglieva ZANCHI. Adesso le colonne non si ordinano, e ogni
+# riga tiene nel Tag la sua persona: anche in un altro ordine trova quella giusta.
+$mColonne = $tPosta.GetMethod('ColonnePersonale', $FS)
+$mRiempi = $tPosta.GetMethod('RiempiGriglia', $FS)
+$mRigaIn = $tPosta.GetMethod('RigaInPersona', $FS)
+$mSelezionate = $tPosta.GetMethod('PersoneSelezionate', $FS)
+Verifica "c'e' il modo di legare ogni riga alla sua persona" (
+    $mColonne -ne $null -and $mRiempi -ne $null -and $mRigaIn -ne $null -and $mSelezionate -ne $null)
+if ($mColonne -ne $null -and $mRiempi -ne $null -and $mRigaIn -ne $null -and $mSelezionate -ne $null) {
+    # una griglia vera, ma senza finestra: non si apre niente sullo schermo
+    $g = [System.Windows.Forms.DataGridView]::new()
+    try {
+        $g.AllowUserToAddRows = $false
+        $g.SelectionMode = [System.Windows.Forms.DataGridViewSelectionMode]::FullRowSelect
+        $g.Columns.AddRange($mColonne.Invoke($null, @()))
+        $ordinabili = @($g.Columns | Where-Object {
+            $_.SortMode -ne [System.Windows.Forms.DataGridViewColumnSortMode]::NotSortable })
+        Verifica "nessuna colonna si ordina con un clic sull'intestazione" (
+            $g.Columns.Count -eq 5 -and $ordinabili.Count -eq 0)
+
+        $stato5 = NuovoStato
+        $elenco5 = $tStato.GetField('Personale', $FI).GetValue($stato5)
+        $zanchi = Aggiungi $elenco5 'ZANCHI PIERO' 'DOCENTE DI RELIGIONE' 'p.zanchi@scuola.example'
+        $bianchi = Aggiungi $elenco5 'BIANCHI ANNA' '' 'anna.bianchi@scuola.example'
+        $tPersona.GetField('Incluso', $FI).SetValue($bianchi, $false)
+        $argG = New-Object object[] 2
+        $argG[0] = $g
+        $argG[1] = $elenco5
+        $mRiempi.Invoke($null, $argG) | Out-Null
+        Verifica "una riga per persona, e ogni riga sa di chi e'" (
+            $g.Rows.Count -eq 2 -and [object]::ReferenceEquals($g.Rows[0].Tag, $zanchi) -and
+            [object]::ReferenceEquals($g.Rows[1].Tag, $bianchi))
+
+        # le righe in un ordine diverso da quello dell'elenco (qui le ordina la prova)
+        $g.Sort($g.Columns[1], [System.ComponentModel.ListSortDirection]::Ascending)
+        Verifica "in cima adesso c'e' BIANCHI, la seconda dell'elenco" ($g.Rows[0].Cells[1].Value -eq 'BIANCHI ANNA')
+
+        # si corregge l'indirizzo nella prima riga, quella di BIANCHI
+        $g.Rows[0].Cells[3].Value = ' Anna.Bianchi2@scuola.example '
+        $argR = New-Object object[] 2
+        $argR[0] = $g.Rows[0]
+        $argR[1] = $elenco5
+        $toccata = $mRigaIn.Invoke($null, $argR)
+        Verifica "la correzione va a BIANCHI" (
+            [object]::ReferenceEquals($toccata, $bianchi) -and
+            (Leggi $bianchi 'Email') -eq 'anna.bianchi2@scuola.example' -and (Leggi $bianchi 'Incluso') -eq $false)
+        Verifica "e ZANCHI resta com'era, con la spunta" (
+            (Leggi $zanchi 'Nome') -eq 'ZANCHI PIERO' -and (Leggi $zanchi 'Email') -eq 'p.zanchi@scuola.example' -and
+            (Leggi $zanchi 'Incluso') -eq $true)
+
+        # si seleziona la prima riga per toglierla
+        $g.ClearSelection()
+        $g.Rows[0].Selected = $true
+        $scelte = $mSelezionate.Invoke($null, $argG)
+        Verifica "la riga selezionata e' BIANCHI, non la prima dell'elenco" (
+            $scelte.Count -eq 1 -and [object]::ReferenceEquals($scelte[0], $bianchi))
+
+        # una riga rimasta da un elenco di prima non tocca nessuno
+        $elenco5.Remove($bianchi) | Out-Null
+        $toccata = $mRigaIn.Invoke($null, $argR)
+        Verifica "la riga di chi non e' piu' in elenco non tocca nessuno" (
+            $toccata -eq $null -and $elenco5.Count -eq 1 -and (Leggi $zanchi 'Email') -eq 'p.zanchi@scuola.example')
+    } finally { $g.Dispose() }
 }
 
 Remove-Item -Recurse -Force $temporanea

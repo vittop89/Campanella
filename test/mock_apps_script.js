@@ -297,8 +297,11 @@ vm.runInContext(configurazione, contesto, { filename: 'Configurazione.gs' });
 
 const DOM = String(contesto.CONFIG.dominioScuola || 'scuola-esempio.edu.it').replace(/^@/, '');
 const IO = 'io@' + DOM;
+// getActiveUser puo' tornare vuoto nei trigger: una prova lo svuota apposta
+let indirizzoAttivo = IO;
 const Session = {
-  getActiveUser: () => ({ getEmail: () => IO }),
+  getActiveUser: () => ({ getEmail: () => indirizzoAttivo }),
+  getEffectiveUser: () => ({ getEmail: () => IO }),
   getScriptTimeZone: () => 'Europe/Rome'
 };
 contesto.Session = Session;
@@ -542,6 +545,28 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     guasto.some(r => r.includes('mario.rossi@' + DOM)) && guasto.every(r => r.length < 6000));
 }
 
+intestazione('UTENTE ATTIVO VUOTO, COME A VOLTE NEI TRIGGER');
+{
+  // Session.getActiveUser() puo' tornare vuoto: allora vale l'utente
+  // effettivo, come fa Orari.gs. Con "(sconosciuto)" il riepilogo non partiva
+  // e il proprio indirizzo finiva nell'elenco dei colleghi.
+  indirizzoAttivo = '';
+  verifica('senza utente attivo il mio indirizzo e\' quello dell\'utente effettivo',
+    contesto._mioIndirizzo_() === IO);
+  const postaPrima = posta.length;
+  const tsv = contesto.EXTRA_elencaIndirizziScuola();
+  const email = posta.slice(postaPrima);
+  verifica('l\'email con l\'elenco parte lo stesso, a me',
+    email.length === 1 && email[0].a === IO);
+  verifica('e l\'elenco non contiene il mio indirizzo', tsv.length > 0 && !tsv.includes(IO));
+  // nemmeno l'utente effettivo si legge: resta "(sconosciuto)", come prima
+  const effettivoVero = Session.getEffectiveUser;
+  Session.getEffectiveUser = () => { throw new Error('Autorizzazione richiesta'); };
+  verifica('senza nessuno dei due resta "(sconosciuto)"', contesto._mioIndirizzo_() === '(sconosciuto)');
+  Session.getEffectiveUser = effettivoVero;
+  indirizzoAttivo = IO;
+}
+
 intestazione('FILTRI VERI DI GMAIL');
 {
   // il servizio avanzato "Gmail API", finto: etichette e filtri
@@ -722,6 +747,32 @@ verifica('nessuna conversazione ha piu\' le etichette dello strumento',
 // quella degli orari dei docenti e quella degli orari delle classi
 trigger.push({ fn: 'ORARI_2_invia', tipo: 'dopo', valore: 60000 });
 trigger.push({ fn: 'ORARI_3_inviaOrariClassi', tipo: 'dopo', valore: 60000 });
+{
+  // un riordino, uno smistamento o un invio degli orari sta lavorando e tiene
+  // il blocco: arrivato al tempo massimo riprogrammerebbe la sua ripresa
+  // subito dopo. ANNULLA_automazione non tocca niente e non dice di aver spento.
+  const primaDelBlocco = trigger.map(t => t.fn).join(', ');
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  const occupata = contesto.ANNULLA_automazione();
+  LockService.getUserLock = bloccoVero;
+  verifica('con il blocco preso ANNULLA_automazione non toglie nessun trigger (' + primaDelBlocco + ')',
+    trigger.length >= 2 && trigger.map(t => t.fn).join(', ') === primaDelBlocco);
+  verifica('e dice di riprovare fra un minuto, senza dire di aver spento qualcosa',
+    occupata.indexOf('riprova fra un minuto') >= 0 && !/spenta|Fermata/.test(occupata));
+
+  // un errore mentre toglie i trigger non lascia il blocco preso
+  let presi = 0, lasciati = 0;
+  LockService.getUserLock = () => ({ tryLock: () => { presi++; return true; }, releaseLock: () => { lasciati++; } });
+  const cancellaVera = ScriptApp.deleteTrigger;
+  ScriptApp.deleteTrigger = () => { throw new Error('Service invoked too many times'); };
+  let errore = null;
+  try { contesto.ANNULLA_automazione(); } catch (e) { errore = e; }
+  ScriptApp.deleteTrigger = cancellaVera;
+  LockService.getUserLock = bloccoVero;
+  verifica('ANNULLA_automazione prende il blocco, e lo lascia anche se togliere un trigger fallisce',
+    errore !== null && presi === 1 && lasciati === 1);
+}
 const spenta = contesto.ANNULLA_automazione();
 console.log(spenta);
 verifica('nessun trigger residuo, nemmeno le riprese degli orari' +

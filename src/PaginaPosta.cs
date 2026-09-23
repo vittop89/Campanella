@@ -329,19 +329,7 @@ namespace Campanella
             griglia.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             griglia.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             griglia.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-
-            DataGridViewCheckBoxColumn c0 = new DataGridViewCheckBoxColumn();
-            c0.HeaderText = "Usa"; c0.FillWeight = 8;
-            DataGridViewTextBoxColumn c1 = new DataGridViewTextBoxColumn();
-            c1.HeaderText = "Nominativo"; c1.FillWeight = 30;
-            DataGridViewTextBoxColumn c2 = new DataGridViewTextBoxColumn();
-            c2.HeaderText = "Ruolo"; c2.FillWeight = 22;
-            DataGridViewTextBoxColumn c3 = new DataGridViewTextBoxColumn();
-            c3.HeaderText = "Indirizzo email"; c3.FillWeight = 40;
-            DataGridViewTextBoxColumn c4 = new DataGridViewTextBoxColumn();
-            c4.HeaderText = "Visto"; c4.FillWeight = 10; c4.ReadOnly = true;
-            c4.ToolTipText = "\"si\" quando quell'indirizzo si e' visto davvero nella tua casella";
-            griglia.Columns.AddRange(new DataGridViewColumn[] { c0, c1, c2, c3, c4 });
+            griglia.Columns.AddRange(ColonnePersonale());
 
             griglia.CurrentCellDirtyStateChanged += delegate
             {
@@ -1247,23 +1235,73 @@ namespace Campanella
         void AggiornaGriglia()
         {
             griglia.CellValueChanged -= GrigliaModificata;
-            griglia.Rows.Clear();
-            foreach (Persona p in S.Personale)
-                griglia.Rows.Add(p.Incluso, p.Nome, p.Ruolo, p.Email, p.Verificato ? "si" : "");
+            RiempiGriglia(griglia, S.Personale);
             griglia.CellValueChanged += GrigliaModificata;
         }
 
-        void GrigliaModificata(object mittente, DataGridViewCellEventArgs e)
+        /// <summary>
+        /// Le colonne della griglia del personale. Nessuna si ordina con un clic
+        /// sull'intestazione: le righe restano nell'ordine dell'elenco.
+        /// </summary>
+        static DataGridViewColumn[] ColonnePersonale()
         {
-            if (e.RowIndex < 0 || e.RowIndex >= S.Personale.Count) return;
-            Persona p = S.Personale[e.RowIndex];
-            DataGridViewRow r = griglia.Rows[e.RowIndex];
+            DataGridViewCheckBoxColumn c0 = new DataGridViewCheckBoxColumn();
+            c0.HeaderText = "Usa"; c0.FillWeight = 8;
+            DataGridViewTextBoxColumn c1 = new DataGridViewTextBoxColumn();
+            c1.HeaderText = "Nominativo"; c1.FillWeight = 30;
+            DataGridViewTextBoxColumn c2 = new DataGridViewTextBoxColumn();
+            c2.HeaderText = "Ruolo"; c2.FillWeight = 22;
+            DataGridViewTextBoxColumn c3 = new DataGridViewTextBoxColumn();
+            c3.HeaderText = "Indirizzo email"; c3.FillWeight = 40;
+            DataGridViewTextBoxColumn c4 = new DataGridViewTextBoxColumn();
+            c4.HeaderText = "Visto"; c4.FillWeight = 10; c4.ReadOnly = true;
+            c4.ToolTipText = "\"si\" quando quell'indirizzo si e' visto davvero nella tua casella";
+            DataGridViewColumn[] colonne = new DataGridViewColumn[] { c0, c1, c2, c3, c4 };
+            foreach (DataGridViewColumn c in colonne) c.SortMode = DataGridViewColumnSortMode.NotSortable;
+            return colonne;
+        }
+
+        /// <summary>Una riga per persona; ogni riga tiene nel Tag la sua persona.</summary>
+        static void RiempiGriglia(DataGridView g, List<Persona> elenco)
+        {
+            g.Rows.Clear();
+            foreach (Persona p in elenco)
+            {
+                int i = g.Rows.Add(p.Incluso, p.Nome, p.Ruolo, p.Email, p.Verificato ? "si" : "");
+                g.Rows[i].Tag = p;
+            }
+        }
+
+        /// <summary>
+        /// La persona di una riga, presa dal Tag e non dalla posizione: se le
+        /// righe cambiano ordine, la riga N non e' piu' la persona N dell'elenco.
+        /// Null se la riga non ha una persona che sta ancora nell'elenco.
+        /// </summary>
+        static Persona PersonaDellaRiga(DataGridViewRow r, List<Persona> elenco)
+        {
+            if (r == null) return null;
+            Persona p = r.Tag as Persona;
+            return (p != null && elenco.Contains(p)) ? p : null;
+        }
+
+        /// <summary>Copia i valori della riga nella sua persona e la restituisce (null se non ce l'ha).</summary>
+        static Persona RigaInPersona(DataGridViewRow r, List<Persona> elenco)
+        {
+            Persona p = PersonaDellaRiga(r, elenco);
+            if (p == null) return null;
             p.Incluso = Convert.ToBoolean(r.Cells[0].Value ?? false);
             p.Nome = Convert.ToString(r.Cells[1].Value ?? "");
             p.Ruolo = Convert.ToString(r.Cells[2].Value ?? "");
             string scritto = Convert.ToString(r.Cells[3].Value ?? "").Trim().ToLowerInvariant();
             // un indirizzo riscritto a mano non e' piu' quello visto nella casella
             if (scritto != p.Email) { p.Email = scritto; p.Verificato = false; }
+            return p;
+        }
+
+        void GrigliaModificata(object mittente, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= griglia.Rows.Count) return;
+            if (RigaInPersona(griglia.Rows[e.RowIndex], S.Personale) == null) return;
             if (e.ColumnIndex == 0 || e.ColumnIndex == 2) AggiornaRuoli();
             AggiornaConteggio();
         }
@@ -1508,19 +1546,28 @@ namespace Campanella
 
         void TogliSelezionate()
         {
-            List<int> indici = new List<int>();
-            foreach (DataGridViewRow r in griglia.SelectedRows)
-                if (r.Index >= 0 && r.Index < S.Personale.Count) indici.Add(r.Index);
-            if (indici.Count == 0)
+            List<Persona> scelte = PersoneSelezionate(griglia, S.Personale);
+            if (scelte.Count == 0)
             {
                 MessageBox.Show(this, "Seleziona prima una o piu' righe (clic sulla riga).",
                     "Nessuna riga selezionata", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            indici.Sort();
-            for (int i = indici.Count - 1; i >= 0; i--) S.Personale.RemoveAt(indici[i]);
+            S.Personale.RemoveAll(delegate(Persona p) { return scelte.Contains(p); });
             AggiornaPersonale();
-            Guscio.Stato1("Tolte " + indici.Count + " righe.");
+            Guscio.Stato1("Tolte " + scelte.Count + " righe.");
+        }
+
+        /// <summary>Le persone delle righe selezionate (dal Tag, vedi PersonaDellaRiga), ciascuna una volta.</summary>
+        static List<Persona> PersoneSelezionate(DataGridView g, List<Persona> elenco)
+        {
+            List<Persona> scelte = new List<Persona>();
+            foreach (DataGridViewRow r in g.SelectedRows)
+            {
+                Persona p = PersonaDellaRiga(r, elenco);
+                if (p != null && !scelte.Contains(p)) scelte.Add(p);
+            }
+            return scelte;
         }
 
         /// <summary>

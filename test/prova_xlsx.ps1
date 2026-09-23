@@ -10,8 +10,9 @@
     controlla che il lettore restituisca esattamente quella griglia. Prova
     anche una tabella Docente/Giorno/Ora, un foglio con riferimenti oltre i
     limiti di Excel, uno di pochi KB con mille righe che arrivano fino
-    all'ultima colonna (va rifiutato, non deve prendersi centinaia di MB) e i
-    CSV salvati in ANSI, UTF-8 e UTF-16.
+    all'ultima colonna e uno con quaranta fogli che hanno una cella
+    nell'ultima riga (vanno rifiutati, non devono prendersi centinaia di MB),
+    un file con piu' fogli normali e i CSV salvati in ANSI, UTF-8 e UTF-16.
 #>
 param(
     # di partenza quello compilato da build.ps1
@@ -132,6 +133,28 @@ function ScriviXlsx($nome, $righe, $modo, $foglio) {
         'xl/worksheets/sheet1.xml' = $foglio
         'xl/sharedStrings.xml' = $sst.ToString()
     }
+    $p = Join-Path $tmp $nome
+    ScriviZip $p $voci
+    $p
+}
+
+# piu' fogli nello stesso file: $fogli e' una lista di coppie @(nome, xml del foglio)
+function ScriviXlsxFogli($nome, $fogli) {
+    $tipi = New-Object System.Text.StringBuilder
+    $elenco = New-Object System.Text.StringBuilder
+    $relazioni = New-Object System.Text.StringBuilder
+    for ($i = 1; $i -le $fogli.Count; $i++) {
+        [void]$tipi.Append("<Override PartName=`"/xl/worksheets/sheet$i.xml`" ContentType=`"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml`"/>")
+        [void]$elenco.Append("<sheet name=`"$(Xml $fogli[$i - 1][0])`" sheetId=`"$i`" r:id=`"rId$i`"/>")
+        [void]$relazioni.Append("<Relationship Id=`"rId$i`" Type=`"$RL/worksheet`" Target=`"worksheets/sheet$i.xml`"/>")
+    }
+    $voci = [ordered]@{
+        '[Content_Types].xml' = "<?xml version=`"1.0`" encoding=`"UTF-8`" standalone=`"yes`"?><Types xmlns=`"http://schemas.openxmlformats.org/package/2006/content-types`"><Default Extension=`"rels`" ContentType=`"application/vnd.openxmlformats-package.relationships+xml`"/><Default Extension=`"xml`" ContentType=`"application/xml`"/><Override PartName=`"/xl/workbook.xml`" ContentType=`"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml`"/>$tipi</Types>"
+        '_rels/.rels' = "<?xml version=`"1.0`" encoding=`"UTF-8`" standalone=`"yes`"?><Relationships xmlns=`"http://schemas.openxmlformats.org/package/2006/relationships`"><Relationship Id=`"rId1`" Type=`"$RL/officeDocument`" Target=`"xl/workbook.xml`"/></Relationships>"
+        'xl/workbook.xml' = "<?xml version=`"1.0`" encoding=`"UTF-8`" standalone=`"yes`"?><workbook xmlns=`"$NS`" xmlns:r=`"$RL`"><sheets>$elenco</sheets></workbook>"
+        'xl/_rels/workbook.xml.rels' = "<?xml version=`"1.0`" encoding=`"UTF-8`" standalone=`"yes`"?><Relationships xmlns=`"http://schemas.openxmlformats.org/package/2006/relationships`">$relazioni</Relationships>"
+    }
+    for ($i = 1; $i -le $fogli.Count; $i++) { $voci["xl/worksheets/sheet$i.xml"] = $fogli[$i - 1][1] }
     $p = Join-Path $tmp $nome
     ScriviZip $p $voci
     $p
@@ -278,6 +301,64 @@ try {
     $f = (Leggi (ScriviXlsx 'sparso-poco.xlsx' $null $null (FoglioSparso 50)))[0]
     Verifica "cinquanta righe fino a XFD si leggono ancora" (
         ($f.NumeroRighe -eq 50) -and ($f.Colonne -eq 16384) -and ($f.Cella(49, 16383) -eq '1'))
+
+    # --- tanti fogli con una sola cella nell'ultima riga ---------------------
+    # Ogni riga saltata e' un posto in memoria: una cella in A1048576 ne
+    # tiene un milione. Quaranta fogli cosi' stanno in una decina di KB e
+    # tenevano 40 milioni di righe (320 MB): il tetto non le contava.
+    Write-Host "`nTANTI FOGLI CON UNA CELLA NELL'ULTIMA RIGA" -ForegroundColor Cyan
+    function FoglioUnaCella([int]$riga) {
+        "<?xml version=`"1.0`" encoding=`"UTF-8`"?><worksheet xmlns=`"$NS`"><sheetData>" +
+        "<row r=`"$riga`"><c r=`"A$riga`"><v>1</v></c></row></sheetData></worksheet>"
+    }
+    function FogliUnaCella([int]$quanti, [int]$riga) {
+        $fogli = New-Object 'System.Collections.Generic.List[object]'
+        for ($k = 1; $k -le $quanti; $k++) { $fogli.Add(@("Foglio$k", (FoglioUnaCella $riga))) }
+        , $fogli
+    }
+    $lontani = ScriviXlsxFogli 'fogli-lontani.xlsx' (FogliUnaCella 40 1048576)
+    $kb = [math]::Round((Get-Item -LiteralPath $lontani).Length / 1024.0, 1)
+    $errore = $null
+    $letti = $null
+    [GC]::Collect()
+    $memoriaPrima = [GC]::GetTotalMemory($true)
+    $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+    try { $letti = Leggi $lontani } catch { $errore = $_.Exception }
+    $cronometro.Stop()
+    $mb = [math]::Max(0, [math]::Round(([GC]::GetTotalMemory($true) - $memoriaPrima) / 1MB, 1))
+    $letti = $null
+    [GC]::Collect()
+    while ($errore -ne $null -and $errore.InnerException -ne $null) { $errore = $errore.InnerException }
+    $messaggio = ''
+    if ($errore -ne $null) { $messaggio = ($errore.Message -split "`n")[0] }
+    Verifica "un file di $kb KB con 40 fogli, ognuno con una cella in A1048576, viene rifiutato ($mb MB in memoria)" (
+        $errore -ne $null)
+    Verifica "con lo stesso messaggio chiaro: '$messaggio'" ($messaggio -match "troppo grande")
+    Verifica "e in fretta ($($cronometro.ElapsedMilliseconds) ms)" ($cronometro.ElapsedMilliseconds -lt 5000)
+
+    # una cella sperduta in fondo a un foglio vero non deve far rifiutare il file
+    $f = (Leggi (ScriviXlsxFogli 'una-lontana.xlsx' (FogliUnaCella 1 1048576)))[0]
+    Verifica "un foglio con una sola cella in A1048576 si legge ancora" (
+        ($f.NumeroRighe -eq 1048576) -and ($f.Cella(1048575, 0) -eq '1'))
+    $f = $null
+    # il tetto vale per tutto il file: quattro milioni di righe in quattro fogli stanno sotto
+    $fogli = Leggi (ScriviXlsxFogli 'quattro-lontani.xlsx' (FogliUnaCella 4 1000000))
+    Verifica "quattro fogli con una cella in A1000000 (4 milioni di righe, sotto il tetto) si leggono ancora" (
+        ($fogli.Count -eq 4) -and ($fogli[3].NumeroRighe -eq 1000000) -and ($fogli[3].Cella(999999, 0) -eq '1'))
+    $fogli = $null
+    [GC]::Collect()
+
+    # un file vero con piu' fogli: tutti letti, ciascuno con il suo nome
+    $normali = New-Object 'System.Collections.Generic.List[object]'
+    $normali.Add(@('Tabellone', (FoglioXml $righe 'inline' $null)))
+    $normali.Add(@('Tabella', (FoglioXml $tabella 'inline' $null)))
+    $normali.Add(@('Copia del tabellone', (FoglioXml $righe 'senzarif' $null)))
+    $fogli = Leggi (ScriviXlsxFogli 'tre-fogli.xlsx' $normali)
+    Verifica "un file con tre fogli normali si legge tutto ($($fogli.Count) fogli)" (
+        ($fogli.Count -eq 3) -and ($fogli[0].Nome -eq 'Tabellone') -and ($fogli[1].Nome -eq 'Tabella') -and
+        ($fogli[2].Nome -eq 'Copia del tabellone'))
+    Verifica "e ogni foglio e' la sua griglia" (
+        (StessaGriglia $fogli[0] $righe) -and (StessaGriglia $fogli[1] $tabella) -and (StessaGriglia $fogli[2] $righe))
 
     # --- CSV in ANSI, UTF-8, UTF-16 (A-60) ----------------------------------
     Write-Host "`nCSV IN ANSI, UTF-8 E UTF-16" -ForegroundColor Cyan
