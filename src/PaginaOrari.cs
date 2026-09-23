@@ -152,7 +152,7 @@ namespace Campanella
             lblBanner.Height = 60;
             bannerPosta.Controls.Add(lblBanner);
             bannerPosta.Controls.Add(Tema.Bottone("Vai a Posta", 730, 29, 150,
-                delegate { Guscio.VaiAStrumento("Posta"); }));
+                delegate { Guscio.VaiAPagina(typeof(PaginaPosta), 0); }));
             p.Controls.Add(bannerPosta);
             y += 102;
 

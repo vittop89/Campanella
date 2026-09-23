@@ -212,8 +212,9 @@ namespace Campanella
                 p.Controls.Add(c);
                 y += c.Height + 12;
             }
+            // al passo "La tua scuola" di questa pagina, dovunque stia nel menu
             p.Controls.Add(Tema.BottonePrincipale("Cominciamo  >", 0, y + 6, 180,
-                delegate { Guscio.VaiA(1, 1); }));
+                delegate { Guscio.VaiAPagina(this, 1); }));
             return p;
         }
 

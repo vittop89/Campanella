@@ -433,6 +433,64 @@ finally {
     Remove-Item -Recurse -Force -LiteralPath $cartellaChiusura -ErrorAction SilentlyContinue
 }
 
+# ---------------------------------------------------------------------------
+Intestazione "I BOTTONI VERSO LA POSTA NON DIPENDONO DALL'ORDINE DEL MENU"
+# "Cominciamo" chiamava VaiA(1, 1): con le pagine in un altro ordine portava
+# al secondo passo dello strumento che stava in seconda posizione. Qui la
+# Posta e le Cartelle si scambiano di posto nel menu, poi si premono i bottoni.
+$cartellaMenu = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-menu-' + (Get-Random))
+New-Item -ItemType Directory -Force $cartellaMenu | Out-Null
+$campoProva.SetValue($null, $cartellaMenu)
+$g = $null
+$onClick = [System.Windows.Forms.Control].GetMethod('OnClick', $FI)
+function Bottone($contenitore, $inizio) {
+    foreach ($c in $contenitore.Controls) {
+        if ($c -is [System.Windows.Forms.Button] -and $c.Text.StartsWith($inizio)) { return $c }
+        $dentro = Bottone $c $inizio
+        if ($dentro -ne $null) { return $dentro }
+    }
+    return $null
+}
+try {
+    $g = NuovoGuscio (Rileggi)
+    $lista = $tGuscio.GetField('pagine', $FI).GetValue($g)
+    $iPosta = -1; $iCartelle = -1
+    for ($i = 0; $i -lt $lista.Count; $i++) {
+        if ($lista[$i].GetType().Name -eq 'PaginaPosta') { $iPosta = $i }
+        if ($lista[$i].GetType().Name -eq 'PaginaCartelle') { $iCartelle = $i }
+    }
+    $posta = $lista[$iPosta]
+    $lista[$iPosta] = $lista[$iCartelle]
+    $lista[$iCartelle] = $posta
+    function PaginaOra { return $lista[$tGuscio.GetField('pagina', $FI).GetValue($g)] }
+
+    $cominciamo = Bottone $posta 'Cominciamo'
+    Verifica "la Posta ha il bottone 'Cominciamo'" ($cominciamo -ne $null)
+    if ($cominciamo -ne $null) {
+        $onClick.Invoke($cominciamo, @([System.EventArgs]::Empty)) | Out-Null
+        Verifica "'Cominciamo' porta al passo 2 della Posta, dovunque stia nel menu" (
+            (PaginaOra).GetType().Name -eq 'PaginaPosta' -and (PaginaOra).Passo -eq 1)
+    }
+    $orari = $null
+    foreach ($p in $lista) { if ($p.GetType().Name -eq 'PaginaOrari') { $orari = $p } }
+    $vaiAPosta = Bottone $orari 'Vai a Posta'
+    Verifica "Orari ha il bottone 'Vai a Posta'" ($vaiAPosta -ne $null)
+    if ($vaiAPosta -ne $null) {
+        $tGuscio.GetMethod('VaiA').Invoke($g, @([int]0, [int]0)) | Out-Null
+        $onClick.Invoke($vaiAPosta, @([System.EventArgs]::Empty)) | Out-Null
+        Verifica "'Vai a Posta' da Orari porta al primo passo della Posta" (
+            (PaginaOra).GetType().Name -eq 'PaginaPosta' -and (PaginaOra).Passo -eq 0)
+    }
+}
+catch {
+    Verifica "i bottoni verso la Posta si provano senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($g -ne $null) { $g.Dispose() }
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaMenu -ErrorAction SilentlyContinue
+}
+
 Write-Host ""
 if ($script:fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
 else { Write-Host "PROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }
