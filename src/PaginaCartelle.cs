@@ -77,6 +77,10 @@ namespace Campanella
         GeneratoreAnno generatoreInCorso;
         Dictionary<Control, bool> primaDelLavoro = new Dictionary<Control, bool>();
 
+        // MODELLI c'e' e i suoi gruppi sono nell'elenco. Non e' clbModelli.Enabled:
+        // quello lo spegne anche "Genera" mentre lavora
+        bool modelliTrovati = false;
+
         // gli errori dell'ultima lettura di struttura.json
         List<string> erroriStruttura = new List<string>();
         bool strutturaInutilizzabile = false;
@@ -403,6 +407,7 @@ namespace Campanella
                 prima[Convert.ToString(clbModelli.Items[i])] = clbModelli.GetItemChecked(i);
 
             clbModelli.Items.Clear();
+            modelliTrovati = false;
             string mod = PercorsoModelli();
             if (!Directory.Exists(mod))
             {
@@ -423,6 +428,7 @@ namespace Campanella
                     bool spuntata = prima.ContainsKey(nome) ? prima[nome] : true;
                     clbModelli.Items.Add(nome, spuntata);
                 }
+                modelliTrovati = true;
             }
             catch (Exception ex)
             {
@@ -509,21 +515,24 @@ namespace Campanella
         void ModificaStruttura()
         {
             string p = PercorsoStruttura();
-            if (!File.Exists(p))
+            // il file puo' essere cambiato o cancellato da fuori mentre la pagina
+            // era aperta: senza rileggerlo, nell'elenco c'e' ancora la riga che
+            // diceva dell'errore
+            RicaricaStruttura();
+            if (!File.Exists(p) && !strutturaInutilizzabile)
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("{");
-                sb.AppendLine("  \"cartelle\": [");
-                for (int i = 0; i < clbStruttura.Items.Count; i++)
+                // senza file l'elenco e' quello delle cartelle di partenza: nel file
+                // vanno quelle, con le spunte di adesso, mai le righe dell'elenco
+                List<VoceStruttura> voci = new List<VoceStruttura>();
+                foreach (string s in StrutturaDiDefault)
                 {
-                    string nome = Convert.ToString(clbStruttura.Items[i]);
-                    string sep = (i < clbStruttura.Items.Count - 1) ? "," : "";
-                    sb.AppendLine("    { \"nome\": \"" + nome.Replace("\\", "\\\\") + "\", \"spuntata\": " +
-                                  (clbStruttura.GetItemChecked(i) ? "true" : "false") + " }" + sep);
+                    VoceStruttura v = new VoceStruttura();
+                    v.Nome = s;
+                    int i = clbStruttura.Items.IndexOf(s);
+                    v.Spuntata = (i < 0) || clbStruttura.GetItemChecked(i);
+                    voci.Add(v);
                 }
-                sb.AppendLine("  ]");
-                sb.AppendLine("}");
-                try { File.WriteAllText(p, sb.ToString(), new UTF8Encoding(false)); }
+                try { File.WriteAllText(p, GeneratoreAnno.TestoStruttura(voci), new UTF8Encoding(false)); }
                 catch (Exception ex)
                 {
                     MessageBox.Show(this,
@@ -734,7 +743,8 @@ namespace Campanella
             if (!strutturaInutilizzabile)
                 for (int i = 0; i < clbStruttura.Items.Count; i++)
                     if (clbStruttura.GetItemChecked(i)) fuori.Add(Convert.ToString(clbStruttura.Items[i]));
-            if (clbModelli.Enabled)
+            // anche mentre "Genera" lavora e l'elenco e' spento
+            if (modelliTrovati)
                 for (int i = 0; i < clbModelli.Items.Count; i++)
                 {
                     string g = Convert.ToString(clbModelli.Items[i]);
@@ -1062,7 +1072,7 @@ namespace Campanella
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             List<string> gruppi = new List<string>();
-            if (clbModelli.Enabled)
+            if (modelliTrovati)
                 for (int i = 0; i < clbModelli.Items.Count; i++)
                     if (clbModelli.GetItemChecked(i)) gruppi.Add(Convert.ToString(clbModelli.Items[i]));
 

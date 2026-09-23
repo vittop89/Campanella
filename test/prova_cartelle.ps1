@@ -77,6 +77,17 @@ try {
     Verifica "e lo segnala fra i problemi"               (($r1.Errori | Where-Object { $_ -like '*3C; 3D*' }).Count -eq 1)
     Verifica "nessun altro problema"                     ($r1.Errori.Count -eq 1)
 
+    # con la 1.4.x il punto e virgola separava anche le classi, e "1A: Matematica; 2B"
+    # erano due classi: adesso 2B non diventa una materia di 1A, e lo dice
+    $driveC = Join-Path $finto 'Classi'
+    New-Item -ItemType Directory -Force $driveC | Out-Null
+    $annoC = Join-Path $driveC 'A.S. 2026-27'
+    $rC = Genera $driveC "1A: Matematica; 2B`r`n3C: Fisica; Storia" @() @('CLASSI') ''
+    Verifica "'1A: Matematica; 2B': 1A ha Matematica"     (Test-Path (Join-Path $annoC 'CLASSI\1A\Matematica'))
+    Verifica "ma nessuna materia '2B', neanche nei recuperi" (-not (Test-Path (Join-Path $annoC 'CLASSI\1A\2B')) -and -not (Test-Path (Join-Path $annoC 'RECUPERI\TRIMESTRE\1A\2B')) -and -not (Test-Path (Join-Path $annoC 'RECUPERI\PENTAMESTRE\1A\2B')))
+    Verifica "e lo segnala: una classe per riga"          ($rC.Errori.Count -eq 1 -and ($rC.Errori | Where-Object { $_ -like '*`[1A: Matematica; 2B`]*2B*una classe per riga*' }).Count -eq 1)
+    Verifica "'3C: Fisica; Storia' ha le sue due materie" ((Test-Path (Join-Path $annoC 'CLASSI\3C\Fisica')) -and (Test-Path (Join-Path $annoC 'CLASSI\3C\Storia')))
+
     # --- 2. i modelli e le note ---------------------------------------------------
     Write-Host "`nI MODELLI" -ForegroundColor Cyan
     $notaVerifiche = Join-Path $anno 'Verifiche\DUPLICA IN GOOGLE DOCS - Verifiche.txt'
@@ -92,6 +103,10 @@ try {
     # --- 3. i conti: creati e gia' presenti -----------------------------------------
     Write-Host "`nI CONTI" -ForegroundColor Cyan
     Verifica "primo giro: tutto creato adesso ($($r1.Creati))"  ($r1.Creati -gt 20 -and $r1.GiaPresenti -eq 0)
+    # contano anche le cartelle nate di passaggio (RECUPERI, RECUPERI\PENTAMESTRE)
+    # e quelle dei gruppi: il conto e' quello che c'e' davvero nel Drive
+    $sotto = @(Get-ChildItem -LiteralPath $anno -Recurse -Force).Count
+    Verifica "il conto e' quello vero: $sotto elementi sotto 'A.S. 2026-27', piu' la cartella stessa" ($r1.Creati -eq $sotto + 1)
 
     # l'utente scrive nella nota del gruppo: il secondo giro non deve toccarla
     $mia = (Leggi $notaVerifiche) + "`r`nTraccia duplicata il 3/9 - M.R.`r`n"
@@ -118,6 +133,45 @@ try {
     Verifica "e il registro dice cosa non nomina"                        (($r3.Registro | Where-Object { $_ -like '*Non nomina: Nuova.gdoc*' }).Count -eq 1)
     Verifica "la nota senza codice delle versioni precedenti lo riceve"  ($intatta.Invoke($null, @([string](Leggi $notaVecchia))) -and (Leggi $notaVecchia).Contains('- Avviso.gdoc'))
     Verifica "creato solo l'aggiornamento della nota ($($r3.Creati))"    ($r3.Creati -eq 1)
+
+    # --- 4b. le note della 1.4.x, senza codice, mai toccate --------------------------
+    Write-Host "`nLE NOTE DELLA 1.4.x" -ForegroundColor Cyan
+    $driveN   = Join-Path $finto 'Note14'
+    $annoN    = Join-Path $driveN 'A.S. 2026-27'
+    $modelliN = Join-Path $driveN 'MODELLI'
+    foreach ($f in @('Altro\Lettera.gdoc', 'Verifiche\Traccia.gdoc', 'Verifiche\Recuperi.gform',
+                     'Verifiche\Archivio\2025\Foglio.gsheet', 'Mia\Avviso.gdoc', 'Tua\Avviso.gdoc')) {
+        Scrivi (Join-Path $modelliN $f) '{}'
+    }
+    # come le scriveva la 1.4.x (File.WriteAllLines, riscritte a ogni giro)
+    function Nota14([string[]]$righe) { return (($righe -join "`r`n") + "`r`n") }
+    $testaDoc = @('Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:',
+                  '(i documenti Google non si possono copiare come file normali)', '')
+    $testaMod = @('Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\Verifiche e ogni',
+                  'anno riceve un foglio delle risposte nuovo, con lo script che si prepara in',
+                  'Campanella -> Cartelle -> passo 2 ("I moduli Google"):', '')
+    $nAltro = Join-Path $annoN 'Altro\DUPLICA IN GOOGLE DOCS - Altro.txt'
+    $nVer   = Join-Path $annoN 'Verifiche\DUPLICA IN GOOGLE DOCS - Verifiche.txt'
+    $nMia   = Join-Path $annoN 'Mia\DUPLICA IN GOOGLE DOCS - Mia.txt'
+    $nTua   = Join-Path $annoN 'Tua\DUPLICA IN GOOGLE DOCS - Tua.txt'
+    # elenco cresciuto: dopo l'ultimo giro della 1.4.x in MODELLI\Altro arriva Circolare
+    Scrivi $nAltro (Nota14 ($testaDoc + @('- Lettera.gdoc')))
+    Scrivi (Join-Path $modelliN 'Altro\Circolare.gdoc') '{}'
+    # documento annidato: la 1.4.x scriveva solo la prima sottocartella
+    Scrivi $nVer (Nota14 ($testaDoc + @('- Traccia.gdoc', '- Archivio\Foglio.gsheet', '') + $testaMod + @('- Recuperi.gform')))
+    # due note senza codice che l'utente ha toccato: restano sue
+    $mia14 = Nota14 ($testaDoc + @('- Avviso.gdoc', '', 'Avviso duplicato il 3/9 - M.R.'))
+    $tua14 = Nota14 ($testaDoc + @('- Avviso.gdoc', '- chiesto alla segreteria'))
+    Scrivi $nMia $mia14
+    Scrivi $nTua $tua14
+    $rN = Genera $driveN '1A' @('Altro', 'Verifiche', 'Mia', 'Tua') @() ''
+    Verifica "elenco cresciuto: la nota nomina il documento nuovo, con il codice" ((Leggi $nAltro).Contains('- Circolare.gdoc') -and $intatta.Invoke($null, @([string](Leggi $nAltro))))
+    Verifica "documento annidato: la nota ha il percorso intero, con il codice"  ((Leggi $nVer).Contains('- Archivio\2025\Foglio.gsheet') -and -not (Leggi $nVer).Contains('- Archivio\Foglio.gsheet') -and $intatta.Invoke($null, @([string](Leggi $nVer))))
+    Verifica "e il registro dice che le ha aggiornate"                           (($rN.Registro | Where-Object { $_ -like '*nota aggiornata*' }).Count -eq 2)
+    Verifica "una nota con una riga dell'utente resta com'era"                   ((Leggi $nMia) -eq $mia14)
+    Verifica "anche con una voce '- ' che non e' un documento"                   ((Leggi $nTua) -eq $tua14)
+    Verifica "e il registro non dice che l'hai modificata tu, ma che non ha il codice" (($rN.Registro | Where-Object { $_ -like "*l'hai modificata tu*" }).Count -eq 0 -and ($rN.Registro | Where-Object { $_ -like '*non porta il codice di Campanella*' }).Count -eq 2)
+    Verifica "nessun problema ($($rN.Errori.Count))"                             ($rN.Errori.Count -eq 0)
 
     # --- 5. tutto resta dentro "A.S. <anno>" -----------------------------------------
     Write-Host "`nNOMI CHE ESCONO DALLA CARTELLA DELL'ANNO" -ForegroundColor Cyan
@@ -173,6 +227,27 @@ try {
     Verifica "e segnala le tre sbagliate"                      ($x.Errori.Count -eq 3 -and ($x.Errori -join '|') -like '*voce 3*' -and ($x.Errori -join '|') -like '*voce 4*' -and ($x.Errori -join '|') -like '*voce 5*')
     $x = LeggiJson '{ "cartelle": [ { "nome": "..\\.." } ] }'
     Verifica "tutte sbagliate: nessuna voce, ma il perche'"    ($null -eq $x.Voci -and $x.Errori.Count -eq 1)
+
+    # il file che scrive "Modifica struttura...": JSON valido anche con le virgolette
+    # in un nome, e le voci tornano come erano
+    $scrivi = $tG.GetMethod('TestoStruttura', $FS)
+    Verifica "c'e' chi scrive struttura.json"                  ($null -ne $scrivi)
+    if ($null -ne $scrivi) {
+        $tV = $asm.GetType('Campanella.VoceStruttura')
+        $daScrivere = [Activator]::CreateInstance([System.Collections.Generic.List[int]].GetGenericTypeDefinition().MakeGenericType($tV))
+        foreach ($coppia in @(@('CLASSI', $true), @('RECUPERI\TRIMESTRE', $false), @('Da "stampare"', $true))) {
+            $v = [Activator]::CreateInstance($tV)
+            $v.Nome = $coppia[0]
+            $v.Spuntata = $coppia[1]
+            $daScrivere.Add($v)
+        }
+        $argomenti = New-Object 'object[]' 1
+        $argomenti[0] = $daScrivere
+        $x = LeggiJson ([string]$scrivi.Invoke($null, $argomenti))
+        $nomi = @($x.Voci | ForEach-Object { $_.Nome })
+        Verifica "si rilegge ($($nomi -join ' | '))"           ($nomi.Count -eq 2 -and $nomi[0] -eq 'CLASSI' -and $nomi[1] -eq 'RECUPERI\TRIMESTRE' -and $x.Voci[0].Spuntata -and -not $x.Voci[1].Spuntata)
+        Verifica "e il nome con le virgolette e' solo una voce da saltare" ($x.Errori.Count -eq 1 -and $x.Errori[0] -like 'voce 3 *')
+    }
 
     # --- 7. il lavoro in un altro thread: le righe arrivano subito, e si ferma -------
     Write-Host "`nAVANZAMENTO E INTERRUZIONE" -ForegroundColor Cyan

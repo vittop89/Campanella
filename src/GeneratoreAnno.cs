@@ -12,7 +12,8 @@
 //  L'unica eccezione e' la nota "DUPLICA IN GOOGLE DOCS" di un gruppo di
 //  modelli: quando in MODELLI cambiano i documenti da duplicare la riscrive,
 //  ma solo se e' ancora come l'ha scritta Campanella (lo dice il codice
-//  nell'ultima riga). Se l'hai modificata tu, resta la tua.
+//  nell'ultima riga, o per quelle delle versioni precedenti il fatto di avere
+//  solo le righe di Campanella). Se l'hai modificata tu, resta la tua.
 //
 //  Tutto finisce dentro "A.S. <anno>": le voci di struttura.json, le classi,
 //  le materie e le cartelle in piu' sono controllate prima (niente percorsi
@@ -73,6 +74,9 @@ namespace Campanella
 
         RisultatoGenerazione res;
         string cartellaAnno = "";
+        // le cartelle gia' contate in questo giro: ognuna conta una volta sola,
+        // fra quelle create o fra quelle che c'erano gia'
+        Dictionary<string, bool> contate = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         // ===================================================================
         /// <summary>
@@ -85,6 +89,7 @@ namespace Campanella
             List<string> gruppi, List<string> struttura, string extraText)
         {
             res = new RisultatoGenerazione();
+            contate = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             anno = (anno ?? "").Trim();
             if (anno == "") throw new Exception("Manca l'anno scolastico (per esempio 2026-27).");
             string radice = (drive ?? "").Trim().TrimEnd('\\');
@@ -183,14 +188,29 @@ namespace Campanella
         {
             string nomeClasse = c;
             List<string> materie = new List<string>();
+            List<string> sembranoClassi = new List<string>();
             int idx = c.IndexOf(':');
             if (idx > 0)
             {
                 nomeClasse = c.Substring(0, idx).Trim();
-                foreach (string m in c.Substring(idx + 1).Split(new char[] { ',', ';' }))
+                // con la 1.4.x il punto e virgola separava le classi, e
+                // "1A: Matematica; 2B" erano due classi: un pezzo dopo il punto e
+                // virgola fatto come una classe (2B, 4Ar, 2B-Ls) non diventa una
+                // materia della 1A
+                string resto = c.Substring(idx + 1);
+                bool conPuntoEVirgola = resto.IndexOf(';') >= 0;
+                foreach (string pezzo in resto.Split(';'))
                 {
-                    string mm = m.Trim();
-                    if (mm != "") materie.Add(mm);
+                    if (conPuntoEVirgola && Regex.IsMatch(pezzo.Trim(), @"^\d+\s*[A-Za-z]"))
+                    {
+                        sembranoClassi.Add(pezzo.Trim());
+                        continue;
+                    }
+                    foreach (string m in pezzo.Split(','))
+                    {
+                        string mm = m.Trim();
+                        if (mm != "") materie.Add(mm);
+                    }
                 }
             }
             string problema = ControllaNome(nomeClasse);
@@ -207,6 +227,9 @@ namespace Campanella
                 Errore("Classe non valida: [" + c + "]: una classe per riga, le materie dopo i due punti");
                 return;
             }
+            foreach (string s in sembranoClassi)
+                Errore("Materia non valida in [" + c + "]: " + s +
+                       " (sembra una classe: una classe per riga, le materie dopo i due punti)");
 
             string dirClasse = Path.Combine(target, "CLASSI", nomeClasse);
             string trimestre = Path.Combine(target, "RECUPERI", "TRIMESTRE", nomeClasse);
@@ -282,7 +305,7 @@ namespace Campanella
             {
                 if (EFileGoogle(f)) { google.Add(Path.GetFileName(f)); continue; }
                 if (perClasse.Contains(f)) continue;     // gia' copiato dentro ogni classe
-                Directory.CreateDirectory(dest);
+                if (!Cartella(dest)) return;
                 string df = Path.Combine(dest, Path.GetFileName(f));
                 if (CopiaFile(f, df, "Copia di " + nome + "\\" + Path.GetFileName(f)))
                     Riga("  copiato: " + nome + "\\" + Path.GetFileName(f));
@@ -290,6 +313,8 @@ namespace Campanella
 
             foreach (string sd in Directory.GetDirectories(g))
             {
+                // la cartella del gruppo si conta qui, non fra gli elementi della sottocartella
+                if (!Cartella(dest)) return;
                 int prima = res.Creati;
                 CopiaCartella(sd, Path.Combine(dest, Path.GetFileName(sd)), google,
                               Path.GetFileName(sd) + "\\");
@@ -308,25 +333,36 @@ namespace Campanella
                 if (gf.EndsWith(".gform", StringComparison.OrdinalIgnoreCase)) moduli.Add(gf);
                 else documenti.Add(gf);
             }
-            Directory.CreateDirectory(dest);
+            if (!Cartella(dest)) return;
+            // le stesse righe fisse le scrivevano anche le versioni precedenti
+            string[] testaDocumenti =
+            {
+                "Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:",
+                "(i documenti Google non si possono copiare come file normali)"
+            };
+            string[] testaModuli =
+            {
+                "Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni",
+                "anno riceve un foglio delle risposte nuovo, con lo script che si prepara in",
+                "Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):"
+            };
             List<string> righe = new List<string>();
             if (documenti.Count > 0)
             {
-                righe.Add("Duplicare in Google Drive (tasto destro -> Crea una copia) questi file:");
-                righe.Add("(i documenti Google non si possono copiare come file normali)");
+                righe.AddRange(testaDocumenti);
                 righe.Add("");
                 foreach (string gf in documenti) righe.Add("- " + gf);
             }
             if (moduli.Count > 0)
             {
                 if (righe.Count > 0) righe.Add("");
-                righe.Add("Moduli Google: NON vanno duplicati. Il modulo resta in MODELLI\\" + nome + " e ogni");
-                righe.Add("anno riceve un foglio delle risposte nuovo, con lo script che si prepara in");
-                righe.Add("Campanella -> Cartelle -> passo 2 (\"I moduli Google\"):");
+                righe.AddRange(testaModuli);
                 righe.Add("");
                 foreach (string gf in moduli) righe.Add("- " + gf);
             }
-            NotaDelGruppo(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"), righe, google);
+            List<string> fisse = new List<string>(testaDocumenti);
+            fisse.AddRange(testaModuli);
+            NotaDelGruppo(Path.Combine(dest, "DUPLICA IN GOOGLE DOCS - " + nome + ".txt"), righe, google, fisse);
             if (documenti.Count > 0)
                 Riga("  " + documenti.Count + " documenti Google da duplicare a mano (vedi la nota)");
             if (moduli.Count > 0)
@@ -336,9 +372,10 @@ namespace Campanella
         /// <summary>
         /// Scrive la nota di un gruppo se non c'e', o se e' ancora come l'ha
         /// scritta Campanella e l'elenco e' cambiato. Una nota modificata a mano
-        /// resta com'e': al massimo il registro dice cosa non nomina.
+        /// resta com'e': al massimo il registro dice cosa non nomina. fisse sono
+        /// le righe che la nota ha sempre, fuori dall'elenco dei documenti.
         /// </summary>
-        void NotaDelGruppo(string percorso, List<string> righe, List<string> nomi)
+        void NotaDelGruppo(string percorso, List<string> righe, List<string> nomi, List<string> fisse)
         {
             string corpo = string.Join("\r\n", righe.ToArray());
             string nuovo = TestoNota(corpo);
@@ -364,7 +401,11 @@ namespace Campanella
                 return;
             }
 
-            if (NotaIntatta(vecchio))
+            // senza codice ma mai toccata: la scriveva una versione precedente,
+            // che la riscriveva a ogni giro. Il codice che non torna, invece, vuol
+            // dire che l'hai cambiata tu
+            bool conCodice = Normale(vecchio).IndexOf(FirmaNota, StringComparison.Ordinal) >= 0;
+            if (NotaIntatta(vecchio) || (!conCodice && NotaDiPrima(vecchio, fisse, nomi)))
             {
                 if (ScriviNota(percorso, nuovo))
                 {
@@ -378,8 +419,42 @@ namespace Campanella
             List<string> mancanti = new List<string>();
             foreach (string n in nomi)
                 if (vecchio.IndexOf(n, StringComparison.OrdinalIgnoreCase) < 0) mancanti.Add(n);
-            Riga("  la nota \"" + nomeNota + "\" l'hai modificata tu: la lascio com'e'" +
+            Riga("  la nota \"" + nomeNota + "\" " +
+                 (conCodice ? "l'hai modificata tu"
+                            : "non porta il codice di Campanella (scritta da una versione precedente o modificata da te)") +
+                 ": la lascio com'e'" +
                  (mancanti.Count > 0 ? ". Non nomina: " + string.Join(", ", mancanti.ToArray()) : "."));
+        }
+
+        /// <summary>
+        /// Vero se la nota e' come la scrivevano le versioni precedenti: solo
+        /// le righe fisse e un elenco "- documento" di file Google che in MODELLI
+        /// ci sono ancora. Del documento conta solo il nome, perche' la 1.4.x dei
+        /// documenti piu' in fondo scriveva solo la prima sottocartella
+        /// ("Archivio\Foglio.gsheet" per "Archivio\2025\Foglio.gsheet").
+        /// </summary>
+        static bool NotaDiPrima(string testo, List<string> fisse, List<string> nomi)
+        {
+            Dictionary<string, bool> file = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (string n in nomi) file[UltimoPezzo(n)] = true;
+            int voci = 0;
+            foreach (string riga in Normale(testo).Split('\n'))
+            {
+                string r = riga.TrimEnd();
+                if (r == "" || fisse.Contains(r)) continue;
+                if (r.StartsWith("- ") && file.ContainsKey(UltimoPezzo(r.Substring(2).Trim()))) { voci++; continue; }
+                return false;
+            }
+            return voci > 0;
+        }
+
+        /// <summary>
+        /// Il nome del file in fondo a "Archivio\2025\Foglio.gsheet". Non e'
+        /// Path.GetFileName perche' quello da' errore su righe con &lt; o |.
+        /// </summary>
+        static string UltimoPezzo(string percorso)
+        {
+            return percorso.Substring(percorso.LastIndexOfAny(new char[] { '\\', '/' }) + 1);
         }
 
         bool ScriviNota(string percorso, string testo)
@@ -434,7 +509,8 @@ namespace Campanella
 
         // -------------------------------------------------------------------
         /// <summary>
-        /// Crea la cartella se manca e la conta. Falso se non c'e' e non si
+        /// Crea la cartella se manca e la conta, con le cartelle madri che
+        /// mancano: ognuna una volta sola per giro. Falso se non c'e' e non si
         /// riesce a crearla (il motivo va fra gli errori).
         /// </summary>
         bool Cartella(string percorso)
@@ -447,9 +523,23 @@ namespace Campanella
                     Errore("Cartella fuori da \"" + Path.GetFileName(cartellaAnno) + "\", non la creo: " + percorso);
                     return false;
                 }
-                if (Directory.Exists(percorso)) { res.GiaPresenti++; return true; }
-                Directory.CreateDirectory(percorso);
-                res.Creati++;
+                // si scende dalla cartella dell'anno un pezzo alla volta: cosi'
+                // anche le madri create di passaggio (RECUPERI\PENTAMESTRE per la
+                // prima classe) finiscono nel conto
+                string d = Path.GetFullPath(cartellaAnno).TrimEnd('\\');
+                string resto = Path.GetFullPath(percorso).Substring(d.Length + 1);
+                foreach (string parte in resto.Split(new char[] { '\\' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    d = Path.Combine(d, parte);
+                    if (contate.ContainsKey(d)) continue;
+                    if (Directory.Exists(d)) res.GiaPresenti++;
+                    else
+                    {
+                        Directory.CreateDirectory(d);
+                        res.Creati++;
+                    }
+                    contate[d] = true;
+                }
                 return true;
             }
             catch (Exception ex)
@@ -567,6 +657,28 @@ namespace Campanella
                 voci.Add(v);
             }
             return (voci.Count > 0) ? voci : null;
+        }
+
+        /// <summary>
+        /// Il testo di struttura.json per queste voci, come lo rilegge
+        /// LeggiStruttura. I nomi passano dal serializzatore, che mette il
+        /// backslash davanti a virgolette e backslash.
+        /// </summary>
+        public static string TestoStruttura(List<VoceStruttura> voci)
+        {
+            JavaScriptSerializer js = new JavaScriptSerializer();
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine("  \"cartelle\": [");
+            for (int i = 0; i < voci.Count; i++)
+            {
+                string sep = (i < voci.Count - 1) ? "," : "";
+                sb.AppendLine("    { \"nome\": " + js.Serialize(voci[i].Nome) + ", \"spuntata\": " +
+                              (voci[i].Spuntata ? "true" : "false") + " }" + sep);
+            }
+            sb.AppendLine("  ]");
+            sb.AppendLine("}");
+            return sb.ToString();
         }
 
         /// <summary>Copia un file se manca e lo conta. Vero solo se l'ha copiato adesso.</summary>
