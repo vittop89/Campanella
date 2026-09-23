@@ -304,8 +304,10 @@ if (-not (Test-Path -LiteralPath $exe) -or
                 ($bottoni.Count -eq 1 -and $bottoni[0] -eq 'Chiudi' -and $null -ne $f.CancelButton)
         } finally { $f.Dispose() }
     }
-    $guscio = Leggi 'src\Guscio.cs'
-    Verifica "'Rileggile' apre la finestra in sola lettura" ($guscio -match 'new FormConsenso\(true\)')
+    # oggi sta in Guscio.cs; cerco in tutti i sorgenti, se la pagina si sposta
+    $tuttiSorgenti = (Get-ChildItem (Join-Path $radice 'src') -Filter *.cs -File |
+                      ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+    Verifica "'Rileggile' apre la finestra in sola lettura" ($tuttiSorgenti -match 'new FormConsenso\(true\)')
 }
 
 Write-Host ""
