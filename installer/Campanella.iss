@@ -139,6 +139,9 @@ begin
     if MsgBox(CustomMessage('DomandaImpostazioni'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
     begin
       DeleteFile(ExpandConstant('{app}\campanella.json'));
+      // resta solo se Campanella si e' fermata a meta' di un salvataggio: ha
+      // gli stessi dati, e lasciato li' impedirebbe di togliere la cartella
+      DeleteFile(ExpandConstant('{app}\campanella.json.tmp'));
       DeleteFile(ExpandConstant('{app}\struttura.json'));
       RemoveDir(ExpandConstant('{app}'));
     end;

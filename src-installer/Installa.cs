@@ -764,8 +764,12 @@ namespace Campanella
             "Campanella.exe", "ISTRUZIONI - Campanella.txt", "PRIVACY.md", "Disinstalla Campanella.exe"
         };
 
-        /// <summary>Le impostazioni: si tolgono solo se l'utente lo chiede.</summary>
-        static readonly string[] FileImpostazioni = { Stato.NomeFile, "struttura.json" };
+        /// <summary>
+        /// Le impostazioni: si tolgono solo se l'utente lo chiede. Il .tmp resta
+        /// solo se Campanella si e' fermata a meta' di un salvataggio: ha gli
+        /// stessi dati, e lasciato li' teneva in piedi anche la cartella.
+        /// </summary>
+        static readonly string[] FileImpostazioni = { Stato.NomeFile, Stato.NomeFile + ".tmp", "struttura.json" };
 
         /// <summary>I collegamenti che l'installazione mette nel gruppo del menu Start.</summary>
         static readonly string[] CollegamentiMenu =
