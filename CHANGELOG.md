@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.2 — 23 September 2026
+
+No script to paste again: only the application changes.
+
+- Mail, guided installation, step 6: the text now says plainly what to do
+  (press the button, paste the configuration over the old one, run
+  PASSO_3_riordinaPostaEsistente). The button also switches off the
+  "Modalita' prova" tick of step 4, so a later copy of the configuration no
+  longer silently puts the script back in test mode (and stops sorting mail).
+- Mail, step 5: next to the configuration fingerprint Campanella says whether
+  the configuration you copy is in test mode or acts for real.
+
 ## 1.5.1 — 23 September 2026
 
 Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs
