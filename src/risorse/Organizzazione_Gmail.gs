@@ -1341,8 +1341,9 @@ function _firmaFiltro_(etichetta, criteri) {
   for (var i = 0; i < chiavi.length; i++) testo += '\n' + chiavi[i] + '=' + criteri[chiavi[i]];
   var h = 0x811c9dc5;
   for (var j = 0; j < testo.length; j++) {
-    h ^= testo.charCodeAt(j);
-    h = Math.imul(h, 0x01000193) >>> 0;
+    h = (h ^ testo.charCodeAt(j)) >>> 0;
+    // h * 16777619 (2^24 + 403) modulo 2^32, senza Math.imul: i conti restano sotto 2^53
+    h = ((h << 24) + h * 403) >>> 0;
   }
   return ('0000000' + h.toString(16)).slice(-8);
 }
