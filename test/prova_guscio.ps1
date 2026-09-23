@@ -16,7 +16,10 @@
       - chiudere Campanella senza aprire Orari, Cartelle o Privacy non
         cancella l'orario, le classi, il modulo o le regole lette: la
         finestra si costruisce senza mostrarla e salva in una cartella
-        temporanea.
+        temporanea;
+      - gli avvisi dell'avvio: un file dei dati o un campanella.json che
+        non si possono usare (e quindi non si sovrascrivono) si dicono
+        subito, una volta sola.
 
     Uno Stato si crea senza costruttore, oppure con Carica dopo aver messo
     Stato.CartellaDiProva su una cartella temporanea: cosi' non guarda il
@@ -275,6 +278,70 @@ catch {
 finally {
     $campoProva.SetValue($null, '')
     Remove-Item -Recurse -Force -LiteralPath $cartellaSalva -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+Intestazione "ALL'AVVIO: UN FILE CHE NON SI PUO' USARE SI DICE SUBITO"
+# Un file lasciato com'era per non rovinarlo (il file dei dati nel Drive che
+# non si legge, campanella.json di una versione piu' recente) lo si scopriva
+# solo chiudendo. Se le condizioni d'uso sono appena state chieste, lo ha
+# gia' detto il salvataggio di quel momento: niente doppioni.
+$mAvvisi = $tProgramma.GetMethod('AvvisiDiAvvio', $FS)
+Verifica "c'e' l'elenco degli avvisi dell'avvio" ($mAvvisi -ne $null)
+$cartellaAvvio = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-avvio-' + (Get-Random))
+$datiAvvio = Join-Path $cartellaAvvio 'Drive finto\Campanella'
+New-Item -ItemType Directory -Force $datiAvvio | Out-Null
+$campoProva.SetValue($null, $cartellaAvvio)
+$versione = [int]$tConsenso.GetField('Versione', $FS).GetValue($null)
+function ScriviImpostazioni($formato, $nelDrive) {
+    $d = @{ formato = $formato; consensoVersione = $versione; consensoData = '2026-09-01'
+            drive = (Join-Path $cartellaAvvio 'Drive finto'); datiNelDrive = $nelDrive; cartellaDati = $datiAvvio }
+    [System.IO.File]::WriteAllText((Join-Path $cartellaAvvio 'campanella.json'), ($d | ConvertTo-Json),
+        (New-Object System.Text.UTF8Encoding($false)))
+}
+function ScriviDati($testo) {
+    [System.IO.File]::WriteAllText((Join-Path $datiAvvio 'campanella-dati.json'), $testo,
+        (New-Object System.Text.UTF8Encoding($false)))
+}
+# la virgola: senza, PowerShell srotola l'elenco e un avviso solo diventa le sue due stringhe
+function Avvisi($chieste) { return ,($mAvvisi.Invoke($null, @((Rileggi), [bool]$chieste))) }
+try {
+    if ($mAvvisi -ne $null) {
+        ScriviImpostazioni 1 $true
+        ScriviDati '{"formato":1,"personale":[]}'
+        Verifica "tutto a posto: nessun avviso" ((Avvisi $false).Count -eq 0)
+
+        ScriviDati "{`"personale`":[{`"nome`":`"ROSSI MA"
+        $a = Avvisi $false
+        Verifica "il file dei dati che non si legge: un avviso" ($a.Count -eq 1)
+        Verifica "dice quale file e che non lo sovrascrive" (
+            $a.Count -eq 1 -and $a[0][1].Contains((Join-Path $datiAvvio 'campanella-dati.json')) -and
+            $a[0][1] -match 'non lo sovrascrivo')
+        Verifica "condizioni appena chieste: l'ha gia' detto il salvataggio" ((Avvisi $true).Count -eq 0)
+
+        ScriviDati '{"formato":99,"personale":[]}'
+        $a = Avvisi $false
+        Verifica "il file dei dati di una versione piu' recente: un avviso" (
+            $a.Count -eq 1 -and $a[0][1] -match "versione piu' recente")
+
+        Remove-Item -LiteralPath (Join-Path $datiAvvio 'campanella-dati.json')
+        $a = Avvisi $true
+        Verifica "il file dei dati che manca: l'avviso di sempre, anche dopo le condizioni" (
+            $a.Count -eq 1 -and $a[0][0] -match 'Non trovo')
+
+        ScriviImpostazioni 99 $false
+        $a = Avvisi $false
+        Verifica "campanella.json di una versione piu' recente: un avviso" (
+            $a.Count -eq 1 -and $a[0][1] -match "versione piu' recente" -and $a[0][1] -match 'non lo sovrascrivo')
+        Verifica "e se le condizioni sono appena state chieste, nessun doppione" ((Avvisi $true).Count -eq 0)
+    }
+}
+catch {
+    Verifica "gli avvisi dell'avvio si preparano senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaAvvio -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

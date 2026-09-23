@@ -79,20 +79,11 @@ namespace Campanella
 
                 // le condizioni d'uso vengono prima di tutto: riguardano dati
                 // di altre persone, non e' una formalita' da rimandare
+                bool condizioniChieste = s.ConsensoVersione < Consenso.Versione;
                 if (!Consenso.Richiedi(null, s)) return;
 
-                if (s.DatiNelDrive && s.DatiNonTrovati)
-                {
-                    MessageBox.Show(
-                        "I dati personali (elenco del personale, indirizzi, orari) dovrebbero " +
-                        "stare in\n\n" + s.PercorsoDati() + "\n\n" +
-                        "ma il file non c'e': il Drive non ha ancora sincronizzato, oppure la " +
-                        "cartella e' cambiata. Per ora risultano vuoti.\n\n" +
-                        "Se il Drive sta ancora scaricando, chiudi e riapri Campanella fra " +
-                        "qualche minuto. Se invece hai spostato la cartella, sistemala in " +
-                        "Impostazioni.",
-                        "Non trovo il file dei dati", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
+                foreach (string[] avviso in AvvisiDiAvvio(s, condizioniChieste))
+                    MessageBox.Show(avviso[1], avviso[0], MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
                 Application.Run(new Guscio(s));
             }
@@ -101,6 +92,50 @@ namespace Campanella
                 MessageBox.Show("Errore imprevisto:\n\n" + ex.Message,
                     "Campanella", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Gli avvisi dell'avvio sui file che non si sono potuti usare, come
+        /// { titolo, testo }. Quei file non vengono sovrascritti, e senza un avviso
+        /// lo si scopriva solo chiudendo. condizioniChieste: le condizioni d'uso
+        /// sono appena state accettate, e il salvataggio di quel momento ha gia'
+        /// detto cosa ha lasciato com'era (Stato.DaAvvisare).
+        /// </summary>
+        static List<string[]> AvvisiDiAvvio(Stato s, bool condizioniChieste)
+        {
+            List<string[]> avvisi = new List<string[]>();
+            if (!condizioniChieste && s.ErroreImpostazioni != "")
+            {
+                avvisi.Add(new string[] { "Le impostazioni non si possono salvare",
+                    "Il file delle impostazioni\n\n" + Stato.Percorso() + "\n\n" + s.ErroreImpostazioni + ".\n\n" +
+                    "Per non perdere quello che contiene non lo sovrascrivo: quello che cambi " +
+                    "adesso non verra' salvato.\n\n" +
+                    "Se quel file non ti serve piu', cancellalo e riapri Campanella: ripartira' " +
+                    "dai valori di partenza." });
+            }
+            if (s.DatiNelDrive && s.DatiNonTrovati)
+            {
+                avvisi.Add(new string[] { "Non trovo il file dei dati",
+                    "I dati personali (elenco del personale, indirizzi, orari) dovrebbero " +
+                    "stare in\n\n" + s.PercorsoDati() + "\n\n" +
+                    "ma il file non c'e': il Drive non ha ancora sincronizzato, oppure la " +
+                    "cartella e' cambiata. Per ora risultano vuoti.\n\n" +
+                    "Se il Drive sta ancora scaricando, chiudi e riapri Campanella fra " +
+                    "qualche minuto. Se invece hai spostato la cartella, sistemala in " +
+                    "Impostazioni." });
+            }
+            else if (!condizioniChieste && s.DatiNelDrive && s.ErroreDati != "")
+            {
+                avvisi.Add(new string[] { "Il file dei dati non si puo' usare",
+                    "Il file dei dati personali\n\n" + s.PercorsoDati() + "\n\n" + s.ErroreDati + ".\n\n" +
+                    "Per non perdere quello che contiene non lo sovrascrivo: le modifiche " +
+                    "all'elenco del personale, agli indirizzi e agli orari non verranno salvate.\n\n" +
+                    "Se il Drive sta ancora scaricando, chiudi e riapri Campanella fra qualche " +
+                    "minuto. Se il file si e' rovinato, puoi recuperarne una versione precedente " +
+                    "dalla cronologia del Drive; oppure, in Impostazioni, premi Applica accanto " +
+                    "alla cartella dei dati per scegliere se usarlo o sostituirlo." });
+            }
+            return avvisi;
         }
 
         static bool mostrandoImprevisto = false;
