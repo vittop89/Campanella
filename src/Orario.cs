@@ -545,7 +545,7 @@ namespace Campanella
             if (docenteCal != "")
             {
                 List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
-                sb.AppendLine("  // l'orario da mettere su Google Calendar (ORARI_4_calendario)");
+                sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario)");
                 sb.AppendLine("  calendario: {");
                 sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
                 sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
@@ -560,7 +560,7 @@ namespace Campanella
             }
             else
             {
-                sb.AppendLine("  // calendario: nessun docente scelto nel passo 4 dell'applicazione");
+                sb.AppendLine("  // calendario: nessun nome scelto nel passo 4 dell'applicazione");
                 sb.AppendLine("  calendario: null");
             }
 
