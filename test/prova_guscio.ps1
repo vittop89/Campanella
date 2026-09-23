@@ -718,6 +718,47 @@ finally {
     Remove-Item -Recurse -Force -LiteralPath $cartellaFile -ErrorAction SilentlyContinue
 }
 
+# ---------------------------------------------------------------------------
+Intestazione "IL PASSO 6 DELLA POSTA TOGLIE LA PROVA ANCHE NELL'APP"
+# Il pulsante "Copia la configurazione senza modalita' prova" dava la
+# configurazione giusta, ma la spunta del passo 4 restava accesa: la copia
+# successiva (passo 5, o passo 3 della guida) rimetteva lo script in prova
+# senza dirlo. Qui si chiama il metodo del pulsante, senza toccare gli appunti.
+$cartellaSenzaProva = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-noprova-' + (Get-Random))
+New-Item -ItemType Directory -Force $cartellaSenzaProva | Out-Null
+$campoProva.SetValue($null, $cartellaSenzaProva)
+$g = $null
+try {
+    $s = Rileggi
+    $tStato.GetField('Prova').SetValue($s, $true)
+    $g = NuovoGuscio $s
+    $posta = $null
+    foreach ($p in $tGuscio.GetField('pagine', $FI).GetValue($g)) { if ($p.GetType().Name -eq 'PaginaPosta') { $posta = $p } }
+    $tPosta = $posta.GetType()
+    $chk = $tPosta.GetField('chkProva', $FI).GetValue($posta)
+    Verifica "(all'inizio la spunta di prova e' accesa)" ($chk.Checked)
+    Verifica "(e la configurazione del passo 5 e' in prova)" ($tPosta.GetMethod('GeneraConfigurazione', [Type[]]@()).Invoke($posta, @()) -match 'provaSenzaModifiche:\s*true')
+    $m = $tPosta.GetMethod('ConfigurazioneSenzaProva')
+    Verifica "il pulsante del passo 6 ha il suo metodo" ($m -ne $null)
+    if ($m -ne $null) {
+        $testo = $m.Invoke($posta, @())
+        Verifica "copia la configurazione senza prova" ($testo -match 'provaSenzaModifiche:\s*false')
+        Verifica "toglie la spunta 'Modalita'' prova' del passo 4" (-not $chk.Checked)
+        Verifica "e lo Stato lo ricorda" (-not $tStato.GetField('Prova').GetValue($s))
+        Verifica "la copia successiva del passo 5 resta senza prova" ($tPosta.GetMethod('GeneraConfigurazione', [Type[]]@()).Invoke($posta, @()) -match 'provaSenzaModifiche:\s*false')
+        $etichetta = $tPosta.GetField('lblImpronta', $FI).GetValue($posta)
+        Verifica "il passo 5 dice che adesso agisce davvero" ($etichetta.Text -match 'senza modalita'' prova')
+    }
+}
+catch {
+    Verifica "il passo 6 si prova senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($g -ne $null) { $g.Dispose() }
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaSenzaProva -ErrorAction SilentlyContinue
+}
+
 Write-Host ""
 if ($script:fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
 else { Write-Host "PROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

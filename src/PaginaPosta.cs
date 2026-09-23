@@ -820,15 +820,20 @@ namespace Campanella
                 new string[] { "Apri Gmail" },
                 new EventHandler[] { delegate { Guscio.Apri("https://mail.google.com/"); } });
 
-            Cartellino(6, "Riordina la posta gia' ricevuta",
-                "Se l'anteprima ti convince, apri il file Configurazione, cerca la riga " +
-                "provaSenzaModifiche: true  e cambiala in  false. Salva con Ctrl+S. " +
-                "Poi scegli  PASSO_3_riordinaPostaEsistente  ed Esegui. Se la posta e' tanta lo " +
-                "script si ferma dopo qualche minuto e riparte da solo: puoi chiudere la pagina.",
+            Cartellino(6, "Togli la prova e riordina la posta gia' ricevuta",
+                "Se l'anteprima ti convince, si fa sul serio. Premi il pulsante qui sotto: copia la " +
+                "stessa configurazione del passo 3, ma senza modalita' prova (l'impronta non cambia). " +
+                "Nell'editor apri il file Configurazione, premi Ctrl+A e Ctrl+V per sostituirla, poi " +
+                "Ctrl+S. Poi scegli  PASSO_3_riordinaPostaEsistente  ed Esegui: crea le etichette e " +
+                "le mette alla posta che hai gia'. Se la posta e' tanta si ferma dopo qualche minuto " +
+                "e riparte da solo finche' ha finito: puoi chiudere la pagina. Il pulsante toglie " +
+                "anche la spunta \"Modalita' prova\" del passo 4, cosi' le copie che farai dopo " +
+                "restano senza prova.",
                 new string[] { "Copia la configurazione senza modalita' prova" },
                 new EventHandler[] { delegate {
-                    Guscio.Copia(GeneraConfigurazione(false),
-                        "Configurazione copiata, senza modalita' prova: adesso agira' davvero."); } });
+                    Guscio.Copia(ConfigurazioneSenzaProva(),
+                        "Configurazione copiata, senza modalita' prova: adesso agira' davvero. " +
+                        "Ho tolto anche la spunta al passo 4."); } });
 
             Cartellino(7, "Accendi l'automazione",
                 "Scegli  PASSO_4_attivaAutomazione  ed Esegui. Da questo momento i messaggi nuovi " +
@@ -1941,6 +1946,20 @@ namespace Campanella
 
         public string GeneraConfigurazione() { return GeneraConfigurazione(chkProva.Checked); }
 
+        /// <summary>
+        /// La configurazione del passo 6, quella che agisce davvero. Toglie anche
+        /// la spunta "Modalita' prova" del passo 4: se restasse, la prossima copia
+        /// (passo 3 della guida, passo 5, "Salva tutto") rimetterebbe lo script in
+        /// prova senza dirlo, e la posta smetterebbe di essere smistata.
+        /// </summary>
+        public string ConfigurazioneSenzaProva()
+        {
+            S.Prova = false;
+            if (chkProva != null) chkProva.Checked = false;
+            if (lblImpronta != null) AggiornaImpronta();
+            return GeneraConfigurazione(false);
+        }
+
         public string GeneraConfigurazione(bool prova)
         {
             Raccogli();
@@ -2063,7 +2082,9 @@ namespace Campanella
             Raccogli();
             lblImpronta.Text = "Impronta della configurazione: " + GeneratorePosta.Impronta(S) +
                 ". PASSO_1_anteprima deve scrivere la stessa: se e' diversa, copia di nuovo " +
-                "\"2. Configurazione\".";
+                "\"2. Configurazione\"." + (S.Prova
+                    ? " Adesso e' in modalita' prova: conta e basta."
+                    : " Adesso e' senza modalita' prova: agisce davvero.");
             lblImpronta.Height = Tema.AltezzaTesto(lblImpronta.Text, lblImpronta.Font, lblImpronta.Width);
         }
 
