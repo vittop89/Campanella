@@ -794,10 +794,20 @@ namespace Campanella
         const string ChiaveInno =
             @"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6B2C0F4E-3A1D-4C8B-9E57-2D1F7A0C5B31}_is1";
 
+        const string NomeDisinstallatore = "Disinstalla Campanella.exe";
+
         public static void Chiedi()
         {
+            // la cartella e' quella del disinstallatore stesso: basta che ci sia
+            // lui. Campanella.exe puo' mancare (tolto dall'installazione Inno
+            // nella stessa cartella, messo in quarantena, cancellato a mano), e
+            // rifiutare qui lasciava la voce fra le app installate per sempre
             string cartella = Path.GetDirectoryName(Application.ExecutablePath);
-            if (!CartellaDiCampanella(cartella)) { NonTocco(cartella); return; }
+            if (!CartellaDelDisinstallatore(cartella))
+            {
+                NonTocco(cartella, TogliChiave(ProgrammaInstallazione.ChiaveRegistro, cartella));
+                return;
+            }
 
             DialogResult r = MessageBox.Show(
                 "Vuoi togliere Campanella da questo computer?\n\n" +
@@ -835,8 +845,14 @@ namespace Campanella
             Thread.Sleep(1200);
 
             // la cartella arriva dalla riga di comando: mai lavorare in una
-            // cartella qualunque, solo dove c'e' Campanella
-            if (!CartellaDiCampanella(cartella)) { NonTocco(cartella); return; }
+            // cartella qualunque. Deve avere Campanella, o il suo disinstallatore
+            // ed essere quella che l'installazione ha scritto nel registro
+            string chiave = ProgrammaInstallazione.ChiaveRegistro;
+            if (!CartellaDaTogliere(cartella, CartellaRegistrata(chiave)))
+            {
+                NonTocco(cartella, TogliChiave(chiave, cartella));
+                return;
+            }
 
             List<string> problemi = new List<string>();
 
@@ -918,18 +934,62 @@ namespace Campanella
             Prova(delegate { CancellaSeVuota(cartella); }, problemi, "cartella");
         }
 
-        static bool CartellaDiCampanella(string cartella)
+        /// <summary>C'e' Campanella, o almeno il suo disinstallatore?</summary>
+        static bool CartellaDelDisinstallatore(string cartella)
         {
             return !string.IsNullOrEmpty(cartella) && Directory.Exists(cartella) &&
-                   File.Exists(Path.Combine(cartella, "Campanella.exe"));
+                   (File.Exists(Path.Combine(cartella, "Campanella.exe")) ||
+                    File.Exists(Path.Combine(cartella, NomeDisinstallatore)));
         }
 
-        static void NonTocco(string cartella)
+        /// <summary>
+        /// La cartella passata a /rimuovi arriva dalla riga di comando. Con
+        /// Campanella.exe si tocca come prima, anche se la voce nel registro
+        /// e' gia' stata tolta; con il solo disinstallatore, solo se e' la
+        /// cartella che l'installazione ha scritto nel registro (registrata).
+        /// </summary>
+        static bool CartellaDaTogliere(string cartella, string registrata)
+        {
+            if (!CartellaDelDisinstallatore(cartella)) return false;
+            return File.Exists(Path.Combine(cartella, "Campanella.exe")) ||
+                   Stato.StessoPercorso(cartella, registrata);
+        }
+
+        /// <summary>La cartella che l'installazione ha scritto nella sua chiave
+        /// (InstallLocation, sotto HKEY_CURRENT_USER); "" se non c'e'.</summary>
+        static string CartellaRegistrata(string chiave)
+        {
+            try
+            {
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(chiave))
+                    return (k == null) ? "" : ((k.GetValue("InstallLocation") as string) ?? "");
+            }
+            catch { return ""; }
+        }
+
+        /// <summary>
+        /// Toglie la chiave di disinstallazione se punta a questa cartella:
+        /// quando la cartella non si tocca, la voce fra le app installate
+        /// restava li' per sempre. Vero se l'ha tolta.
+        /// </summary>
+        static bool TogliChiave(string chiave, string cartella)
+        {
+            try
+            {
+                if (!Stato.StessoPercorso(CartellaRegistrata(chiave), cartella)) return false;
+                Registry.CurrentUser.DeleteSubKeyTree(chiave, false);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        static void NonTocco(string cartella, bool chiaveTolta)
         {
             MessageBox.Show(
-                "In questa cartella non c'e' Campanella.exe:\n\n" + cartella + "\n\n" +
+                "Non trovo Campanella installata in questa cartella:\n\n" + cartella + "\n\n" +
                 "Per sicurezza non cancello niente. Se hai gia' tolto o spostato Campanella " +
-                "a mano, togli a mano anche quello che resta.",
+                "a mano, togli a mano anche quello che resta." +
+                (chiaveTolta ? "\n\nHo tolto solo la sua voce fra le app installate, che non serviva piu'." : ""),
                 "Disinstalla Campanella", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
