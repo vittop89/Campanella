@@ -394,6 +394,9 @@ namespace Campanella
         byte[] datiSulDisco = null;
         // un altro computer ha cambiato il file dei dati dopo l'avvio
         bool datiCambiatiFuori = false;
+        // fino alla 1.4.6 il nome del calendario stava in campanella.json: ci
+        // resta finche' il file dei dati nel Drive non l'ha preso
+        bool calNomeDaPortare = false;
         // L'utente ha scelto di usare il file dei dati gia' nel Drive: lo si legge
         // al prossimo avvio, e fino ad allora quello che c'e' in memoria non ci va.
         bool datiDaRileggere = false;
@@ -454,6 +457,7 @@ namespace Campanella
             // sta ancora in campanella.json non deve sparire anche da li'
             bool datiScritti = DatiNelDrive && !datiDaRileggere && SalvaDatiNelDrive(ser, utf8);
             bool conDati = !DatiNelDrive || (!datiScritti && !datiDaRileggere && datiNelFileLocale);
+            if (datiScritti) calNomeDaPortare = false;
 
             Dictionary<string, object> r = Impostazioni();
             if (conDati)
@@ -464,6 +468,9 @@ namespace Campanella
                 foreach (KeyValuePair<string, object> kv in altroDati)
                     if (!r.ContainsKey(kv.Key)) r[kv.Key] = kv.Value;
             }
+            // un primo salvataggio con il Drive non ancora sincronizzato non deve
+            // perdere il nome del calendario scritto qui dalla 1.4.6
+            else if (calNomeDaPortare) r["calNome"] = CalNome;
             foreach (KeyValuePair<string, object> kv in altroImpostazioni)
                 if (!r.ContainsKey(kv.Key)) r[kv.Key] = kv.Value;
             r["formato"] = Formato;
@@ -898,6 +905,7 @@ namespace Campanella
                 {
                     altroImpostazioni = Sconosciute(r, true);
                     datiNelFileLocale = r.ContainsKey("personale") || r.ContainsKey("regole") || r.ContainsKey("lezioni");
+                    calNomeDaPortare = r.ContainsKey("calNome");
                     if (DatiNelDrive) CaricaDatiDelDrive(r);
                     else LeggiDati(r);
                 }

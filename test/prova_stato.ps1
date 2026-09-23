@@ -81,6 +81,7 @@ static class ProvaStato
                 case "cambiato-e-spostato": CambiatoESpostato(); break;
                 case "chiavi-sconosciute": ChiaviSconosciute(); break;
                 case "nome-calendario": NomeCalendario(); break;
+                case "nome-calendario-drive-non-pronto": NomeCalendarioDriveNonPronto(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
@@ -531,6 +532,39 @@ static class ProvaStato
             Str(Json(Impostazioni()), "calNome") == "Orario Bianchi");
     }
 
+    // A-57, dalla 1.4.6: il primo avvio salva subito (le condizioni d'uso nuove),
+    // spesso prima che il Drive abbia portato il file dei dati
+    static void NomeCalendarioDriveNonPronto()
+    {
+        string c = Cartella("Campanella");
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["calNome"] = "Orario Bianchi";
+        ScriviImpostazioni(true, c, altro);          // come la 1.4.6: senza formato
+        Stato s = Carica();
+        Verifica("il file dei dati non c'e' ancora: DatiNonTrovati", s.DatiNonTrovati);
+        Verifica("il nome del calendario si legge da campanella.json", s.CalNome == "Orario Bianchi");
+        s.Salva();
+        Verifica("salvando con il Drive non pronto il nome resta in campanella.json",
+            Str(Json(Impostazioni()), "calNome") == "Orario Bianchi");
+
+        // arriva il file dei dati della 1.4.6, che il nome non ce l'ha
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"))));
+        Stato t = Carica();
+        Verifica("al prossimo avvio il nome del calendario c'e' ancora", t.CalNome == "Orario Bianchi");
+
+        // il Drive sparisce proprio mentre si salva
+        string via = Finto() + "-via";
+        Directory.Move(Finto(), via);
+        try { t.Salva(); }
+        finally { Directory.Move(via, Finto()); }
+        Verifica("neanche con il Drive sparito il nome si perde",
+            t.UltimoErrore != "" && Str(Json(Impostazioni()), "calNome") == "Orario Bianchi");
+
+        t.Salva();
+        Verifica("scritto il file dei dati, il nome sta li'", Str(Json(FileDati(c)), "calNome") == "Orario Bianchi");
+        Verifica("e non piu' in campanella.json", !Json(Impostazioni()).ContainsKey("calNome"));
+    }
+
     // quello che si salva si rilegge uguale
     static void AndataERitorno()
     {
@@ -705,6 +739,7 @@ $casi = @(
     'cambiato-e-spostato'
     'chiavi-sconosciute'
     'nome-calendario'
+    'nome-calendario-drive-non-pronto'
     'andata-e-ritorno'
 )
 
