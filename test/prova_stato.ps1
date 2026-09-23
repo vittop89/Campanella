@@ -78,6 +78,7 @@ static class ProvaStato
                 case "torna-locale": TornaLocale(); break;
                 case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
                 case "chiavi-sconosciute": ChiaviSconosciute(); break;
+                case "nome-calendario": NomeCalendario(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
@@ -398,6 +399,27 @@ static class ProvaStato
         Verifica("in locale la chiave sconosciuta di campanella.json resta", imp.ContainsKey("chiaveFutura"));
     }
 
+    // A-57: il nome del calendario segue i dati personali
+    static void NomeCalendario()
+    {
+        string c = Cartella("Campanella");
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["calNome"] = "Orario Bianchi";
+        ScriviImpostazioni(true, c, altro);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"))));
+        Stato s = Carica();
+        Verifica("il nome del calendario si ritrova dopo l'aggiornamento", s.CalNome == "Orario Bianchi");
+        s.Salva();
+        Verifica("con i dati nel Drive non sta in campanella.json", !Json(Impostazioni()).ContainsKey("calNome"));
+        Verifica("sta nel file dei dati", Str(Json(FileDati(c)), "calNome") == "Orario Bianchi");
+        Stato t = Carica();
+        Verifica("e si rilegge da li'", t.CalNome == "Orario Bianchi");
+        string errore;
+        t.SpostaDati(false, "", out errore);
+        Verifica("con i dati accanto al programma sta in campanella.json",
+            Str(Json(Impostazioni()), "calNome") == "Orario Bianchi");
+    }
+
     // quello che si salva si rilegge uguale
     static void AndataERitorno()
     {
@@ -569,6 +591,7 @@ $casi = @(
     'torna-locale'
     'torna-locale-illeggibile'
     'chiavi-sconosciute'
+    'nome-calendario'
     'andata-e-ritorno'
 )
 

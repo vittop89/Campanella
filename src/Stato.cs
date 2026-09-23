@@ -640,7 +640,6 @@ namespace Campanella
             r["oggettoOrari"] = OggettoOrari;
             r["oggettoOrariClasse"] = OggettoOrariClasse;
             r["notaOrari"] = NotaOrari;
-            r["calNome"] = CalNome;
             r["calInizio"] = CalInizio;
             r["calFine"] = CalFine;
             r["calPrimaOra"] = CalPrimaOra;
@@ -665,6 +664,7 @@ namespace Campanella
             r["dirigenza"] = Dirigenza;
             r["segreteria"] = Segreteria;
             r["calDocente"] = CalDocente;
+            r["calNome"] = CalNome;          // "Orario " + un cognome: segue i dati personali
 
             List<object> pers = new List<object>();
             foreach (Persona p in Personale)
@@ -917,6 +917,9 @@ namespace Campanella
             Dirigenza = Str(r, "dirigenza", Dirigenza);
             Segreteria = Str(r, "segreteria", Segreteria);
             CalDocente = Str(r, "calDocente", CalDocente);
+            // fino alla 1.4.6 stava in campanella.json: se nel file dei dati non
+            // c'e', resta quello letto dalle impostazioni
+            CalNome = Str(r, "calNome", CalNome);
 
             object[] pers = r.ContainsKey("personale") ? r["personale"] as object[] : null;
             if (pers != null)
