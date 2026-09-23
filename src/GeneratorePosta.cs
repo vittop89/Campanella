@@ -188,6 +188,18 @@ namespace Campanella
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Il collegamento a un messaggio nuovo in Gmail, con l'account da usare
+        /// (il tuo) e basta. Gli indirizzi dei colleghi non ci vanno mai: il
+        /// collegamento resta nella cronologia del browser. Passano dagli appunti.
+        /// </summary>
+        public static string NuovoMessaggioGmail(string account)
+        {
+            string url = "https://mail.google.com/mail/?view=cm&fs=1";
+            if (!string.IsNullOrEmpty(account)) url += "&authuser=" + Uri.EscapeDataString(account);
+            return url;
+        }
+
         /// <summary>Gli indirizzi scritti in una casella: uno per riga, o separati da virgole e spazi.</summary>
         public static List<string> Righe(string testo)
         {

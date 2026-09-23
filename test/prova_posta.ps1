@@ -205,6 +205,71 @@ try {
     Verifica "l'avviso al posto dei mittenti non diventa un mittente" ($avviso.Count -eq 0)
 
     # -----------------------------------------------------------------------
+    Intestazione 'GLI INDIRIZZI DEI COLLEGHI: NIENTE CRONOLOGIE'
+    # gli appunti veri non si toccano: si guarda l'oggetto che Campanella ci metterebbe
+    $dati = $asm.GetType('Campanella.Guscio').GetMethod('PerGliAppunti', $FS).Invoke($null, @([string]'a@scuola-esempio.edu.it, b@scuola-esempio.edu.it'))
+    $formati = $dati.GetFormats()
+    Verifica "il testo c'e'" ($dati.GetData([System.Windows.Forms.DataFormats]::UnicodeText) -eq 'a@scuola-esempio.edu.it, b@scuola-esempio.edu.it')
+    Verifica "fuori dai programmi che guardano gli appunti" ($formati -contains 'ExcludeClipboardContentFromMonitorProcessing')
+    foreach ($f in @('CanIncludeInClipboardHistory', 'CanUploadToCloudClipboard')) {
+        $v = $dati.GetData($f)
+        $byte = if ($v -is [System.IO.MemoryStream]) { $v.ToArray() } else { $null }
+        Verifica "$f = 0 (un DWORD a zero)" ($null -ne $byte -and $byte.Length -eq 4 -and ($byte | Where-Object { $_ -ne 0 }).Count -eq 0)
+    }
+    # e come lo vedrebbe Windows: la stessa strada (IDataObject, HGLOBAL) che
+    # usa il sistema quando Campanella lascia il testo negli appunti
+    Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+public static class ComeLoVedeWindows
+{
+    [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr h);
+    [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr h);
+    [DllImport("kernel32.dll")] static extern UIntPtr GlobalSize(IntPtr h);
+    [DllImport("ole32.dll")] static extern void ReleaseStgMedium(ref STGMEDIUM m);
+
+    // i byte che Windows riceve per quel formato quando rende gli appunti
+    public static byte[] Byte(object dati, string formato)
+    {
+        IDataObject com = (IDataObject)dati;
+        FORMATETC fe = new FORMATETC();
+        fe.cfFormat = unchecked((short)(ushort)System.Windows.Forms.DataFormats.GetFormat(formato).Id);
+        fe.dwAspect = DVASPECT.DVASPECT_CONTENT;
+        fe.lindex = -1;
+        fe.tymed = TYMED.TYMED_HGLOBAL;
+        STGMEDIUM m;
+        com.GetData(ref fe, out m);
+        if (m.tymed != TYMED.TYMED_HGLOBAL || m.unionmember == IntPtr.Zero) return null;
+        try
+        {
+            IntPtr p = GlobalLock(m.unionmember);
+            int n = (int)GlobalSize(m.unionmember).ToUInt64();
+            byte[] b = new byte[n];
+            Marshal.Copy(p, b, 0, n);
+            GlobalUnlock(m.unionmember);
+            return b;
+        }
+        finally { ReleaseStgMedium(ref m); }
+    }
+}
+'@
+    foreach ($f in @('ExcludeClipboardContentFromMonitorProcessing', 'CanIncludeInClipboardHistory', 'CanUploadToCloudClipboard')) {
+        $b = [ComeLoVedeWindows]::Byte($dati, $f)
+        Verifica "per Windows $f e' un DWORD che vale 0" (
+            $null -ne $b -and $b.Length -ge 4 -and [BitConverter]::ToInt32($b, 0) -eq 0)
+    }
+    $url = $tGen.GetMethod('NuovoMessaggioGmail', $FS).Invoke($null, @([string]'io@scuola-esempio.edu.it'))
+    Verifica "il collegamento a Gmail porta solo il tuo account" (
+        $url -eq 'https://mail.google.com/mail/?view=cm&fs=1&authuser=io%40scuola-esempio.edu.it')
+    $senza = $tGen.GetMethod('NuovoMessaggioGmail', $FS).Invoke($null, @([string]''))
+    Verifica "e senza account nemmeno quello" ($senza -eq 'https://mail.google.com/mail/?view=cm&fs=1')
+    $pagina = Get-Content -Raw (Join-Path $radice 'src\PaginaPosta.cs')
+    Verifica "nessun indirizzo nei collegamenti: niente bcc=, cc= o to= nel codice della pagina" (
+        -not ($pagina -match '[&?](bcc|cc|to)='))
+    Verifica "e niente Clipboard.SetText, che finirebbe nella cronologia" (-not $pagina.Contains('Clipboard.SetText'))
+
+    # -----------------------------------------------------------------------
     Intestazione 'UNA SOLA FUNZIONE DI ESCAPE PER JAVASCRIPT'
     $pagina = Get-Content -Raw (Join-Path $radice 'src\PaginaPosta.cs')
     $generatore = Get-Content -Raw (Join-Path $radice 'src\GeneratorePosta.cs')

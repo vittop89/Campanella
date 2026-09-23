@@ -421,12 +421,13 @@ namespace Campanella
             p.Controls.Add(Tema.Aiuto(xg + 536, yr + 4, "Scrivere a un gruppo",
                 "Serve quando devi mandare un messaggio a tutta una categoria: per esempio a " +
                 "tutti gli assistenti amministrativi, senza andarli a cercare uno per uno.\r\n\r\n" +
-                "\"Scrivi in Gmail\" apre un messaggio nuovo con quegli indirizzi gia' nel campo " +
-                "Ccn (copia nascosta): scrivi e invii da Gmail, come sempre. Se sono tanti (oltre " +
-                "una cinquantina, di solito i Docenti) non entrano nel collegamento: il messaggio " +
-                "si apre vuoto e gli indirizzi finiscono negli appunti, da incollare in Ccn con " +
-                "Ctrl+V. \"Copia gli indirizzi\" li mette solo negli appunti, se preferisci incollarli " +
-                "tu.\r\n\r\n" +
+                "\"Scrivi in Gmail\" mette gli indirizzi negli appunti e apre un messaggio nuovo: " +
+                "in Gmail clicca \"Ccn\" (copia nascosta) e incolla con Ctrl+V. Scrivi e invii da " +
+                "Gmail, come sempre. \"Copia gli indirizzi\" li mette solo negli appunti.\r\n\r\n" +
+                "Gli indirizzi non passano dal collegamento che apre Gmail, che resterebbe nella " +
+                "cronologia del browser. Negli appunti Campanella chiede a Windows di non tenerli " +
+                "nella cronologia degli appunti (Win+V) e di non sincronizzarli con gli altri " +
+                "dispositivi.\r\n\r\n" +
                 "Prima di inviare guarda in alto a destra in Gmail che sia aperto l'account della " +
                 "scuola: con piu' account nel browser, Gmail apre il primo.\r\n\r\n" +
                 "Ccn e non A: cosi' ognuno riceve il messaggio senza vedere gli indirizzi degli " +
@@ -507,52 +508,44 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Apre in Gmail un messaggio nuovo con gli indirizzi del gruppo nel Ccn.
-        /// Non manda niente: il messaggio lo scrivi e lo invii tu.
+        /// Mette negli appunti gli indirizzi del gruppo e apre in Gmail un
+        /// messaggio nuovo, dove li incolli nel Ccn. Gli indirizzi non passano
+        /// dal collegamento: resterebbero nella cronologia del browser. Non
+        /// manda niente: il messaggio lo scrivi e lo invii tu.
         /// </summary>
         void ScriviAlGruppo()
         {
             List<string> indirizzi = IndirizziDelGruppo();
             if (indirizzi == null) return;
 
-            string url = "https://mail.google.com/mail/?view=cm&fs=1";
             // con piu' account nel browser, quello della scuola: Gmail lo sceglie
             // dall'indirizzo, ma solo se e' davvero del dominio della scuola
             string account = AccountDellaScuola();
-            if (account != "") url += "&authuser=" + Uri.EscapeDataString(account);
+            string url = GeneratorePosta.NuovoMessaggioGmail(account);
 
-            string conCcn = url + "&bcc=" + Uri.EscapeDataString(string.Join(",", indirizzi.ToArray()));
             // senza l'account della scuola Gmail apre il primo account del browser,
             // che puo' essere quello personale: meglio dirlo prima dell'invio
             string mittente = (account != "") ? "" :
                 "\n\nPrima di inviare guarda in alto a destra in Gmail che sia aperto l'account " +
                 "della scuola" + (S.DominioPulito() != "" ? " (@" + S.DominioPulito() + ")" : "") +
                 ": con piu' account nel browser, Gmail apre il primo.";
-            // Windows accorcia i link troppo lunghi: oltre questa misura apro il
-            // messaggio vuoto e gli indirizzi li lascio negli appunti
-            if (conCcn.Length <= 2000)
-            {
-                Guscio.Apri(conCcn);
-                Guscio.Stato1(indirizzi.Count + " indirizzi di " + CategoriaScelta() +
-                              " gia' nel Ccn: scrivi il messaggio e invialo da Gmail." +
-                              (account != "" ? "" : " Controlla che sia l'account della scuola."));
-                return;
-            }
             if (!Appunti(string.Join(", ", indirizzi.ToArray()))) return;
             // prima l'avviso, poi il browser: aperto prima, Gmail passerebbe davanti
             // e l'avviso resterebbe nascosto dietro
             MessageBox.Show(this,
-                "Gli indirizzi sono " + indirizzi.Count + ": troppi per metterli nel link.\n\n" +
-                "Li ho copiati negli appunti. Premi OK: si apre un messaggio nuovo in Gmail. Li' " +
-                "clicca \"Ccn\" (a destra del campo A) e incolla con Ctrl+V." + mittente,
+                "Ho copiato negli appunti i " + indirizzi.Count + " indirizzi di " + CategoriaScelta() + ".\n\n" +
+                "Premi OK: si apre un messaggio nuovo in Gmail. Li' clicca \"Ccn\" (a destra del " +
+                "campo A) e incolla con Ctrl+V: cosi' ognuno riceve il messaggio senza vedere gli " +
+                "indirizzi degli altri." + mittente,
                 "Incolla gli indirizzi nel Ccn", MessageBoxButtons.OK, MessageBoxIcon.Information);
             Guscio.Apri(url);
             Guscio.Stato1(indirizzi.Count + " indirizzi negli appunti: in Gmail clicca Ccn e incolla con Ctrl+V.");
         }
 
+        /// <summary>Negli appunti, fuori dalla cronologia degli appunti di Windows.</summary>
         bool Appunti(string testo)
         {
-            try { Clipboard.SetText(testo); return true; }
+            try { Guscio.MettiNegliAppunti(testo); return true; }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Non riesco a copiare negli appunti: " + ex.Message,
