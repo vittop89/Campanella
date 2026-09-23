@@ -919,7 +919,8 @@ namespace Campanella
                   "Esegui ANNULLA_etichettatura: ferma il riordino se sta ancora lavorando e toglie " +
                   "dalle conversazioni le etichette delle regole accese (quelle delle regole spente " +
                   "le nomina ma non le tocca). Senza gruppo toglie solo le etichette che ha creato " +
-                  "lo script: quelle che avevi gia' in Gmail le nomina e le lascia come sono. Con molta posta il tempo di Google finisce prima e lo " +
+                  "lo script: quelle che avevi gia' in Gmail le nomina e le lascia come sono. " +
+                  "Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
                   "(Gmail -> Impostazioni -> Filtri). Nulla viene mai cancellato, quindi non si perde posta." },

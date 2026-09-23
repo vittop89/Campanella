@@ -23,6 +23,13 @@
  * UrlFetchApp, un destinatario estraneo, una copia in cc o un moveToTrash
  * devono far fallire i controlli. Se un giorno uno di questi non fallisse
  * piu', il controllo sarebbe diventato cieco.
+ *
+ * Infine i due estrattori del personale (l'estensione per Chrome e la
+ * funzione da console) su una pagina del registro finta, con persone
+ * inventate: l'estensione lavora solo su spaggiari.eu, la funzione da console
+ * scarica il CSV solo se gli appunti non funzionano, e i due leggono la
+ * pagina allo stesso modo. Con --categorie stampa in JSON le categorie che
+ * i due danno ai ruoli (le confronta con il C# test/prova_personale.ps1).
  */
 
 'use strict';
