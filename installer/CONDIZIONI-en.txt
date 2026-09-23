@@ -19,6 +19,16 @@ permissions, and you are the one who runs it. It sends no email, shares
 nothing and deletes nothing: it clears last year responses from the form only
 if you ask, and only after checking they are already in an older sheet.
 
+With more than one form, instead of the script inside each form you can use
+a control sheet: a Google Sheet with one row per form and a script inside it,
+which does the same work for every form listed in the sheet. Since it opens
+forms that live outside the sheet, it asks for permission on all the forms
+of your account, as well as on your sheets and your Drive; it then opens only
+the forms listed. You paste it and run it yourself too, but the closings it
+schedules run on their own, on the day you set, without you pressing Run. It
+sends no email, shares nothing, and clears responses from a form only on the
+conditions described above.
+
 It runs on Windows with a Google Workspace account (Gmail, Drive, Calendar):
 with Microsoft 365 it does nothing. The staff list can be read from the
 ClasseViva register by Spaggiari; with other registers it must be pasted by

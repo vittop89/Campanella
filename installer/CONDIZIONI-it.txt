@@ -19,6 +19,16 @@ partire tu. Non manda email, non condivide niente, non cancella niente: le
 risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo
 dopo aver controllato che stanno già in un foglio vecchio.
 
+Se i moduli sono più d'uno, al posto dello script nel modulo puoi usare un
+foglio di controllo: un foglio Google con una riga per modulo e uno script
+dentro, che fa lo stesso lavoro per ogni modulo elencato nel foglio. Siccome
+apre moduli che stanno fuori dal foglio, chiede il permesso su tutti i
+moduli del tuo account, oltre che sui fogli e sul Drive; poi apre soltanto
+quelli elencati. Anche questo lo incolli e lo fai partire tu, ma le chiusure
+che programma scattano da sole, nel giorno indicato, senza che tu prema
+Esegui. Non manda email, non condivide niente, e le risposte le toglie da un
+modulo solo alle condizioni scritte sopra.
+
 Funziona su Windows con un account Google Workspace (Gmail, Drive,
 Calendar): con Microsoft 365 non fa niente. L'elenco del personale si può
 leggere dal registro ClasseViva di Spaggiari; con altri registri (Argo,

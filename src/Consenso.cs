@@ -17,8 +17,13 @@ namespace Campanella
 {
     static class Consenso
     {
-        /// <summary>Cambiala quando cambia il testo: il consenso viene richiesto di nuovo.</summary>
-        public const int Versione = 3;
+        /// <summary>
+        /// Cambiala quando cambia il testo: il consenso viene richiesto di nuovo.
+        /// Insieme vanno cambiati installer\CONDIZIONI-it.txt e -en.txt, il
+        /// #define ConsensoVersione di installer\Campanella.iss e le impronte in
+        /// test\prova_versioni.ps1, che controlla che tutto sia allineato.
+        /// </summary>
+        public const int Versione = 4;
 
         public const string Titolo = "Condizioni d'uso di Campanella";
 
@@ -43,6 +48,16 @@ namespace Campanella
 "partire tu. Non manda email, non condivide niente, non cancella niente: le\r\n" +
 "risposte degli anni scorsi le toglie dal modulo solo se glielo chiedi, e solo\r\n" +
 "dopo aver controllato che stanno gia' in un foglio vecchio.\r\n" +
+"\r\n" +
+"Se i moduli sono piu' d'uno, al posto dello script nel modulo puoi usare un\r\n" +
+"foglio di controllo: un foglio Google con una riga per modulo e uno script\r\n" +
+"dentro, che fa lo stesso lavoro per ogni modulo elencato nel foglio. Siccome\r\n" +
+"apre moduli che stanno fuori dal foglio, chiede il permesso su tutti i\r\n" +
+"moduli del tuo account, oltre che sui fogli e sul Drive; poi apre soltanto\r\n" +
+"quelli elencati. Anche questo lo incolli e lo fai partire tu, ma le chiusure\r\n" +
+"che programma scattano da sole, nel giorno indicato, senza che tu prema\r\n" +
+"Esegui. Non manda email, non condivide niente, e le risposte le toglie da un\r\n" +
+"modulo solo alle condizioni scritte sopra.\r\n" +
 "\r\n" +
 "Funziona su Windows con un account Google Workspace (Gmail, Drive,\r\n" +
 "Calendar): con Microsoft 365 non fa niente. L'elenco del personale si puo'\r\n" +

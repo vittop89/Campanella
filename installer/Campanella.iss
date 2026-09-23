@@ -23,8 +23,9 @@
 #define MyAppPublisher   "Vittorio Pantaleo"
 #define MyAppURL         "https://github.com/vittop89/Campanella"
 #define MyAppExeName     "Campanella.exe"
-; deve coincidere con Consenso.Versione in src\Consenso.cs
-#define ConsensoVersione "3"
+; deve coincidere con Consenso.Versione in src\Consenso.cs (lo controlla
+; test\prova_versioni.ps1, anche nel flusso di rilascio)
+#define ConsensoVersione "4"
 
 [Setup]
 AppId={{6B2C0F4E-3A1D-4C8B-9E57-2D1F7A0C5B31}
