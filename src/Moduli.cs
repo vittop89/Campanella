@@ -212,8 +212,11 @@ namespace Campanella
             string cartella = (p.CartellaFoglio ?? "").Trim().Replace('\\', '/').Trim('/');
             StringBuilder sb = new StringBuilder();
             sb.Append(InizioConfig).Append("  (scritta da Campanella");
-            if ((p.Modulo ?? "").Trim() != "")
-                sb.Append(" per il modulo \"").Append(p.Modulo.Trim().Replace("\"", "'").Replace("*/", "* /")).Append("\"");
+            // il nome sta in un commento //: un a capo, anche U+2028 o U+2029 (Windows li ammette
+            // nei nomi dei file), chiuderebbe il commento e il resto del nome diventerebbe codice
+            string nomeModulo = AnalisiOrario.TestoCommento(p.Modulo).Replace("\"", "'");
+            if (nomeModulo != "")
+                sb.Append(" per il modulo \"").Append(nomeModulo).Append("\"");
             sb.AppendLine(")");
             sb.AppendLine("var MODULO = {");
             Riga(sb, "anno", Testo(anno),
