@@ -1526,6 +1526,10 @@ namespace Campanella
         public string Dettaglio = "";
         public DateTime Quando = DateTime.MinValue;
         public int Versione = 0;          // del codice incollato: CMP1 = 1
+        /// <summary>La versione dello script che ha stampato il codice, se la porta in coda.</summary>
+        public Version VersioneScript = null;
+        /// <summary>Lo script dice di aver contato solo le etichette sue (S in coda al codice).</summary>
+        public bool SoloSue = false;
         public int Etichette = 0;
         public int Conversazioni = 0;
         public bool Automazione = false;
@@ -1539,11 +1543,15 @@ namespace Campanella
         public const int PassiFacoltativi = 1;
 
         /// <summary>
-        /// La prima versione del codice che conta solo le etichette create dallo
-        /// script, e che quindi vale anche con le etichette senza gruppo.
-        /// 0 = nessuna: CMP1, senza gruppo, conta tutte le etichette dell'account.
+        /// La prima versione dello script della Posta che, senza gruppo, conta
+        /// solo le etichette che ha creato lui e lo dice in coda al codice (S e
+        /// la versione in cifre, per esempio S10500). Da questa in poi un codice
+        /// senza gruppo basta a dire "fatto". Un codice senza campo in coda (gli
+        /// script di prima contavano tutte le etichette dell'account) o con T
+        /// (lo script non ricordava quali etichette aveva creato, e ha contato
+        /// quelle con i nomi delle regole, che possono essere anche tue) non basta.
         /// </summary>
-        public static readonly int VersioneSoloEtichetteDelloScript = 0;
+        public static readonly Version VersioneSoloEtichetteDelloScript = new Version(1, 5, 0);
 
         public static StatoPosta Verifica(Stato s)
         {
@@ -1599,22 +1607,25 @@ namespace Campanella
 
         /// <summary>
         /// Il codice ha la forma  CMP1-&lt;giorno&gt;-&lt;etichette&gt;-&lt;automazione&gt;-&lt;conversazioni&gt;
-        /// ed e' pensato per essere letto a voce senza sbagliare. Si leggono solo
-        /// cifre ASCII e numeri che stanno in un int: un codice incollato male e'
-        /// "non riconosciuto" (null), non fa cadere il programma. Una versione
-        /// piu' nuova (CMP2...) e campi in piu' in coda si accettano, e i campi in
-        /// piu' si ignorano.
+        /// e, dagli script piu' nuovi, un campo in coda: S o T e la versione dello
+        /// script in cifre (S10500). E' pensato per essere letto a voce senza
+        /// sbagliare. Si leggono solo cifre ASCII e numeri che stanno in un int:
+        /// un codice incollato male e' "non riconosciuto" (null), non fa cadere il
+        /// programma. Una versione piu' nuova (CMP2...) e altri campi in coda si
+        /// accettano, e i campi che non si conoscono si ignorano.
         ///
-        /// prefisso e' il gruppo delle etichette dello script. Senza gruppo lo
-        /// script conta tutte le etichette dell'account e le loro conversazioni,
-        /// anche quelle messe a mano, e le conta anche dopo ANNULLA_etichettatura:
-        /// allora il codice non basta a dire che il riordino e' fatto (Incerto).
+        /// prefisso e' il gruppo delle etichette dello script. Senza gruppo gli
+        /// script di prima contavano tutte le etichette dell'account, anche
+        /// quelle messe a mano, e le contavano anche dopo ANNULLA_etichettatura:
+        /// allora il codice non basta a dire che il riordino e' fatto (Incerto),
+        /// a meno che non venga da uno script che conta solo le sue (S, dalla
+        /// VersioneSoloEtichetteDelloScript). Con T non basta mai.
         /// </summary>
         public static StatoPosta LeggiCodice(string codice, string prefisso)
         {
             if (string.IsNullOrEmpty(codice)) return null;
             Match m = Regex.Match(codice.Trim().ToUpperInvariant(),
-                @"^CMP([0-9]{1,4})-([0-9]{8})-([0-9]{1,10})-([01])-([0-9]{1,10})(?:-[0-9A-Z]{1,16})*$");
+                @"^CMP([0-9]{1,4})-([0-9]{8})-([0-9]{1,10})-([01])-([0-9]{1,10})((?:-[0-9A-Z]{1,16})*)$");
             if (!m.Success) return null;
 
             int versione, etichette, conversazioni;
@@ -1633,12 +1644,23 @@ namespace Campanella
             r.Conversazioni = conversazioni;
             r.Automazione = (m.Groups[4].Value == "1");
             r.Come = "codice di verifica";
-            bool soloDelloScript = VersioneSoloEtichetteDelloScript > 0 &&
-                                   versione >= VersioneSoloEtichetteDelloScript;
-            r.Incerto = !soloDelloScript && (prefisso ?? "").Trim().Trim('/') == "";
+            bool conT = false;
+            foreach (string campo in m.Groups[6].Value.Split(new char[] { '-' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                Match c = Regex.Match(campo, "^([ST])([0-9]{1,8})$");
+                int cifre;
+                if (!c.Success || r.VersioneScript != null || !Intero(c.Groups[2].Value, out cifre)) continue;
+                r.VersioneScript = new Version(cifre / 10000, (cifre / 100) % 100, cifre % 100);
+                r.SoloSue = (c.Groups[1].Value == "S");
+                conT = !r.SoloSue;
+            }
+            bool soloDelloScript = r.SoloSue && r.VersioneScript >= VersioneSoloEtichetteDelloScript;
+            r.Incerto = conT || (!soloDelloScript && (prefisso ?? "").Trim().Trim('/') == "");
             r.Fatto = !r.Incerto && etichette > 0 && conversazioni > 0;
             r.Dettaglio = (r.Incerto
-                ? "il codice conta anche le etichette messe da te, perche' non hanno un gruppo (" +
+                ? (conT ? "lo script non sa quali etichette ha creato lui, e ha contato anche quelle " +
+                          "con gli stessi nomi che avevi gia' ("
+                        : "il codice conta anche le etichette messe da te, perche' non hanno un gruppo (") +
                   etichette + " etichette, " + conversazioni + " conversazioni)."
                 : "Riordinate " + conversazioni + " conversazioni in " + etichette +
                   " etichette il " + quando.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) + ".") +

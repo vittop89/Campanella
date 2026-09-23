@@ -100,6 +100,28 @@ $r = Leggi 'CMP2-20270115-9-1-2431-X7' 'Scuola'
 Verifica "una versione nuova con un campo in piu' si legge" (
     $r -ne $null -and $r -ne 'eccezione' -and (Campo $r 'Versione') -eq 2 -and (Campo $r 'Fatto'))
 
+# In coda, dallo script 1.5.0: S = ha contato solo le etichette sue, T = anche
+# quelle con gli stessi nomi (non ricordava quali aveva create), e la versione
+# in cifre. Senza gruppo basta a dire "fatto" solo S da 1.5.0 in poi.
+$r = Leggi 'CMP1-20270115-9-1-2431-S10500' ''
+Verifica "senza gruppo, S dallo script 1.5.0: il codice conferma il riordino" (
+    $r -ne $null -and $r -ne 'eccezione' -and (Campo $r 'Fatto') -and -not (Campo $r 'Incerto') -and
+    (Campo $r 'SoloSue') -and (Campo $r 'VersioneScript') -eq [Version]'1.5.0')
+$r = Leggi 'CMP1-20270115-9-1-2431-S10406' ''
+Verifica "senza gruppo, S da uno script prima della 1.5.0: non basta" (
+    $r -ne $null -and $r -ne 'eccezione' -and -not (Campo $r 'Fatto') -and (Campo $r 'Incerto'))
+$r = Leggi 'CMP1-20270115-9-1-2431-T10500' ''
+Verifica "senza gruppo, T: non basta, e dice perche'" (
+    $r -ne $null -and $r -ne 'eccezione' -and -not (Campo $r 'Fatto') -and (Campo $r 'Incerto') -and
+    (Campo $r 'Dettaglio') -match 'stessi nomi')
+$r = Leggi 'CMP1-20270115-9-1-2431-T10500' 'Scuola'
+Verifica "T non basta nemmeno se in Campanella c'e' un gruppo" (
+    $r -ne $null -and $r -ne 'eccezione' -and -not (Campo $r 'Fatto') -and (Campo $r 'Incerto'))
+$r = Leggi 'cmp1-20270115-9-1-2431-s10500' 'Scuola'
+Verifica "con il gruppo e S: fatto (anche in minuscolo)" ($r -ne $null -and $r -ne 'eccezione' -and (Campo $r 'Fatto'))
+$r = Leggi 'CMP1-20270115-0-0-0-S10500' ''
+Verifica "S con zero conversazioni: non fatto" ($r -ne $null -and $r -ne 'eccezione' -and -not (Campo $r 'Fatto'))
+
 $arabo = [string][char]0x0669          # la cifra 9 araba: \d la prendeva, int.Parse no
 $largo = [string][char]0xFF19          # la cifra 9 a tutta larghezza
 foreach ($caso in @(
@@ -159,6 +181,9 @@ $r = StatoDi (NuovoStato $sette 'CMP1-20260910-14-0-230' '')
 Verifica "senza gruppo contano le spunte" ((Campo $r 'Fatto') -and (Campo $r 'Come') -match 'spunte')
 $r = StatoDi (NuovoStato @() 'CMP1-20260910-14-0-230' ' Scuola/ ')
 Verifica "con il gruppo il codice basta" ((Campo $r 'Fatto') -and (Campo $r 'Come') -match 'codice')
+$r = StatoDi (NuovoStato @() 'CMP1-20270115-14-0-230-S10500' '')
+Verifica "senza gruppo basta il codice di uno script che conta solo le sue etichette" (
+    (Campo $r 'Fatto') -and (Campo $r 'Come') -match 'codice')
 $r = StatoDi (NuovoStato @() 'CMP1-20260910-99999999999-1-5' 'Scuola')
 Verifica "un codice salvato male non fa cadere la pagina iniziale" ($r -ne $null -and -not (Campo $r 'Fatto'))
 

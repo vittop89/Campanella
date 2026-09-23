@@ -747,10 +747,12 @@ intestazione('SENZA GRUPPO: le etichette che hai gia\' vengono riempite');
   contesto.CONFIG.prefissoEtichette = 'Scuola';
 }
 
-// il codice di stato: CMP1-giorno-etichette-automazione-conversazioni
+// il codice di stato: CMP1-giorno-etichette-automazione-conversazioni-S|T<versione>
+// (S: ha contato solo le etichette sue; T: anche quelle con gli stessi nomi)
 function leggiCodice(c) {
-  const m = /^CMP1-(\d{8})-(\d+)-([01])-(\d+)$/.exec(c);
-  return m ? { etichette: +m[2], automazione: +m[3], conversazioni: +m[4] } : null;
+  const m = /^CMP1-(\d{8})-(\d+)-([01])-(\d+)-([ST])(\d+)$/.exec(c);
+  return m ? { etichette: +m[2], automazione: +m[3], conversazioni: +m[4],
+               soloSue: m[5] === 'S', versione: +m[6] } : null;
 }
 
 intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script');
@@ -785,6 +787,10 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
     codice.conversazioni > 0);
   verifica('il codice di stato dice la versione dello script',
     registro[registro.length - 1].indexOf('Versione dello script: ' + contesto._POSTA_VERSIONE) === 0);
+  const [maggiore, minore, correzione] = contesto._POSTA_VERSIONE.split('.').map(Number);
+  verifica('e la porta in coda al codice, in cifre (' + (codice && codice.versione) + ')',
+    codice && codice.versione === maggiore * 10000 + minore * 100 + correzione);
+  verifica('con la memoria dice che ha contato solo le etichette sue (S)', codice && codice.soloSue);
 
   const t = contesto.ANNULLA_etichettatura();
   console.log(t);
@@ -804,6 +810,8 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
   const vecchio = leggiCodice(contesto.EXTRA_codiceStato());
   verifica('senza memoria il codice conta le etichette delle regole, non "Viaggi"',
     vecchio && vecchio.conversazioni === casella.filter(x => x.labels.has('Colleghi')).length);
+  verifica('e dice che fra quelle ci possono essere le tue (T): Campanella non ci crede',
+    vecchio && !vecchio.soloSue);
   const t2 = contesto.ANNULLA_etichettatura();
   verifica('e senza memoria ANNULLA non toglie niente, e lo dice',
     rossi.labels.has('Colleghi') && t2.indexOf('Non toccate') > 0);
@@ -823,6 +831,7 @@ intestazione('SENZA GRUPPO: ANNULLA toglie solo le etichette nate dallo script')
   verifica('con il gruppo conta le etichette sotto il gruppo',
     conGruppo && conGruppo.etichette === [...etichette.keys()].filter(n => n.indexOf('Scuola/') === 0).length &&
     conGruppo.conversazioni >= 1);
+  verifica('e sono tutte sue (S)', conGruppo && conGruppo.soloSue);
 }
 function _memoriaCon(nomi) { proprieta.set('ORGGMAIL_ETICHETTE_CREATE', JSON.stringify(nomi)); }
 

@@ -578,6 +578,11 @@ function EXTRA_codiceStato() {
   // senza gruppo non si contano tutte le etichette dell'utente, ma solo quelle
   // di cui lo strumento risponde
   var gestite = prefisso ? null : _etichetteGestite_(cfg);
+  // Sono solo etichette dello script quelle sotto il gruppo, o quelle che si
+  // e' segnato creandole. Senza memoria si contano quelle con i nomi delle
+  // regole, che possono essere anche tue: il codice lo dice (T invece di S),
+  // e Campanella allora non lo prende per "fatto"
+  var soloSue = prefisso ? true : _etichetteCreate_().length > 0;
 
   for (var i = 0; i < etichette.length; i++) {
     var nome = etichette[i].getName();
@@ -593,10 +598,13 @@ function EXTRA_codiceStato() {
     if (trigger[t].getHandlerFunction() === _TRIGGER_ORARIO) automazione = 1;
 
   var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
-  var codice = 'CMP1-' + oggi + '-' + nostre + '-' + automazione + '-' + conversazioni;
+  // in coda: S o T e la versione dello script in cifre (1.5.0 = 10500)
+  var codice = 'CMP1-' + oggi + '-' + nostre + '-' + automazione + '-' + conversazioni +
+               '-' + (soloSue ? 'S' : 'T') + _versioneInCifre_(_POSTA_VERSIONE);
 
   var testo = 'Versione dello script: ' + _POSTA_VERSIONE +
               '\nEtichette dello strumento: ' + nostre +
+              (soloSue ? '' : ' (anche quelle con gli stessi nomi che avevi gia\')') +
               '\nConversazioni etichettate: ' + conversazioni +
               (conversazioni >= 500 ? ' o piu\'' : '') +
               '\nSmistamento automatico: ' + (automazione ? 'attivo' : 'spento') +
@@ -1004,6 +1012,12 @@ function _salvaProgresso_(stato) {
 
 function _azzeraProgresso_() {
   PropertiesService.getUserProperties().deleteProperty(_CHIAVE_PROGRESSO);
+}
+
+/** "1.5.0" diventa 10500: nel codice di stato vanno solo lettere e cifre. */
+function _versioneInCifre_(versione) {
+  var p = String(versione).split('.');
+  return (parseInt(p[0], 10) || 0) * 10000 + (parseInt(p[1], 10) || 0) * 100 + (parseInt(p[2], 10) || 0);
 }
 
 // ---------------------------------------------------------------------------

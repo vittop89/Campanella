@@ -1089,7 +1089,7 @@ namespace Campanella
                 "Di norma l'applicazione lo capisce da sola dalle spunte dell'installazione.\r\n\r\n" +
                 "Se vuoi la conferma dal tuo account, nell'editor dello script esegui la " +
                 "funzione EXTRA_codiceStato e incolla qui sotto la riga che stampa: e' un " +
-                "codice come CMP1-20260910-9-1-2431 e non contiene nessun dato personale.");
+                "codice come CMP1-20260910-9-1-2431-S10500 e non contiene nessun dato personale.");
             y += 34;
 
             txtCodice = Tema.Casella(0, y, 320, "CMP1-...");
@@ -1396,7 +1396,7 @@ namespace Campanella
             if (r == null)
             {
                 lblEsito.Text = "Non ho riconosciuto il codice. Deve essere una riga sola, " +
-                                "nella forma CMP1-20260910-9-1-2431.";
+                                "nella forma CMP1-20260910-9-1-2431-S10500.";
                 lblEsito.Tag = Ruolo.Avviso;
             }
             else if (r.Incerto)
