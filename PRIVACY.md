@@ -2,15 +2,17 @@
 
 Nota pratica, non un parere legale. Se la scuola ha un DPO, è a lui che vanno
 le domande che contano. Per il quadro giuridico completo, con i riferimenti
-di legge, vedi [docs/GDPR-e-DPO.md](docs/GDPR-e-DPO.md).
+di legge, vedi [docs/GDPR-e-DPO.md](docs/GDPR-e-DPO.md) (nella cartella di
+Campanella è `documenti\GDPR - cosa vale per un docente.txt`).
 
 ## In breve
 
 **Il codice si può pubblicare in chiaro. I dati che ci passano dentro no.**
 
-Campanella è un generatore di testo: non contiene dati personali, non chiama
-nessun server, non raccoglie statistiche. Tutto quello che tratta resta
-nell'account Google dell'utente e nel suo computer. Il rischio non è il
+Campanella è un generatore di testo: non contiene dati personali, non
+raccoglie statistiche, e si collega a un server solo quando glielo chiedi
+tu (vedi «Le connessioni del programma», più sotto). Tutto quello che tratta
+resta nell'account Google dell'utente e nel suo computer. Il rischio non è il
 programma: è quello che finisce per sbaglio dentro al repository.
 
 ## Cosa NON deve mai finire nel repository
@@ -27,12 +29,14 @@ Il `.gitignore` del progetto li esclude già tutti. Prima di ogni `push`
 conviene comunque controllare a mano:
 
 ```bash
-git ls-files | grep -iE "json|gs$|xlsx|csv"
+git ls-files | grep -iE "\.(json|gs|xlsx|xls|csv)$"
 ```
 
-Devono comparire solo i file `*_esempio.gs`, i `.gs` di `src/risorse` e il
-`manifest.json` dell'estensione. Se un file con dati è già stato committato,
-non basta cancellarlo: resta nella storia. Va riscritta la storia
+Devono comparire solo i `.gs` di `src/risorse`, il `manifest.json`
+dell'estensione e i file inventati di `test/`: `Configurazione_esempio.gs`,
+`DatiOrari_esempio.gs` e `tabellone_esempio.csv`. Qualunque altro nome è da
+controllare. Se un file con dati è già stato committato, non basta
+cancellarlo: resta nella storia. Va riscritta la storia
 (`git filter-repo`) oppure, molto più semplice, si ricomincia da un
 repository nuovo.
 
@@ -42,8 +46,8 @@ repository nuovo.
   informazioni pubbliche, stanno sui siti istituzionali. Il dominio della
   scuola di partenza è vuoto: lo scrive chi usa il programma.
 - La cartella del Drive viene cercata all'avvio (`Il mio Drive` nel profilo o
-  nella radice di un'unità): il percorso di pubblicazione in `build.ps1` è una
-  preferenza di chi compila, non un dato.
+  nella radice di un'unità). `build.ps1` non contiene percorsi: la cartella
+  in cui `-Pubblica` copia i file si scrive ogni volta con `-Produzione`.
 - Il nome dell'autore nelle proprietà dell'eseguibile: è una scelta di chi
   pubblica.
 
@@ -62,30 +66,61 @@ perimetro della scuola e delle sue istruzioni.
 **Dove finiscono i dati.** In nessun posto nuovo: restano nell'account Google
 che stai già usando. Campanella non li manda a nessun servizio terzo, e
 nemmeno a chi l'ha scritta. Lo script scrive email soltanto al tuo stesso
-indirizzo.
+indirizzo. «Scrivere a un gruppo» (Posta, passo 3) non manda niente: mette
+negli appunti gli indirizzi di una categoria di colleghi e apre in Gmail un
+messaggio vuoto, che scrivi e invii tu con gli indirizzi in Ccn. Gli
+indirizzi non passano dal collegamento aperto nel browser.
+
+**Le connessioni del programma.** Campanella si collega a internet solo
+quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a
+GitHub, su api.github.com, l'ultima versione pubblicata di Campanella e di
+rizzo-pii: se c'è una Campanella nuova te lo dice e ti rimanda alla pagina
+dei rilasci, senza scaricare niente. «Scarica e installa rizzo-pii» scarica
+da GitHub l'installer di rizzo-pii e, prima di avviarlo, ne controlla
+dimensione e impronta SHA-256. Con rizzo-pii parla solo sul tuo computer
+(vedi «Dare documenti a un'intelligenza artificiale»). I pulsanti che aprono
+Gmail, il Drive o l'editor degli script aprono il tuo browser.
 
 **Dove stanno i dati sul computer.** L'elenco del personale, gli indirizzi di
 dirigenza e segreteria e gli orari con i cognomi stanno in `campanella.json`
 accanto al programma, oppure — dalle Impostazioni, ed è la scelta
 consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
-non ne resta traccia. Quando non ti servono più, svuota l'elenco.
+non ne resta traccia, nemmeno il nome del calendario degli orari. Quando non
+ti servono più, svuota l'elenco. Le righe senza spunta (per esempio gli
+indirizzi di studenti trovati nella casella, che arrivano senza spunta) non
+vanno nello script ma restano salvate: toglile con «Togli le righe senza
+spunta». Quando Campanella copia negli appunti la configurazione degli
+script, i dati degli orari, gli indirizzi di un gruppo o i testi della
+Privacy, chiede a Windows di non tenerli nella cronologia degli appunti e di
+non sincronizzarli con altri dispositivi.
+
+**Il registro delle esecuzioni.** Gli indirizzi che lo script della posta
+ricava dalla tua casella (`EXTRA_elencaIndirizziScuola`: nomi e indirizzi
+del dominio della scuola che compaiono nei tuoi messaggi) ti arrivano in
+un'email a te stesso. Nel registro delle esecuzioni di Apps Script, che
+Google conserva nel tuo account, finisce solo il conteggio; l'elenco ci
+finisce soltanto se quell'email non parte.
 
 **I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
 2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio
 delle risposte dell'anno, lo collega al modulo e a fine anno chiude il modulo
 e scollega il foglio. Le risposte sono dati di studenti e famiglie: restano
-nel modulo e nel foglio, dentro il Drive della scuola. Lo script ne conta il
-numero, non ne legge il contenuto e non le manda da nessuna parte. Il foglio
-che crea è tuo e non è condiviso con nessuno: farlo vedere ad altri è una tua
-decisione. Chiede il permesso per Drive solo per mettere il foglio nella
+nel modulo e nel foglio, dentro il Drive della scuola. Lo script ne legge il
+numero e l'ora di arrivo, non il contenuto, e non le manda da nessuna
+parte. Il foglio che crea è tuo e non è condiviso con nessuno: farlo vedere
+ad altri è una tua decisione. Chiede il permesso per Drive solo per mettere il foglio nella
 cartella dell'anno, e ne esiste una versione che ne fa a meno. Le risposte
-degli anni scorsi le toglie dal modulo solo se lo chiedi tu, e solo dopo aver
-verificato che un foglio vecchio le contiene tutte. Vale anche qui la
+degli anni scorsi le toglie dal modulo solo se lo chiedi tu, e solo dopo
+averle ritrovate, una per una e dall'ora in cui sono arrivate, in un foglio
+degli anni scorsi: se ne manca anche una non toglie niente. È l'unica
+cancellazione che non si può annullare. Vale anche qui la
 conservazione: i fogli degli anni passati non scadono da soli.
 Se i moduli sono piu' di uno c'e' la variante "foglio di controllo": stesso
 lavoro, ma lo script sta in un foglio e apre i moduli elencati li' dentro,
-quindi Google gli chiede il permesso su tutti i moduli dell'account. Il
+quindi Google gli chiede il permesso su tutti i moduli dell'account, oltre
+che sui fogli e sul Drive (questa variante non ha una versione senza Drive),
+e le chiusure che programma scattano da sole nel giorno indicato. Il
 codice e' leggibile e tocca solo quelli in elenco, ma il permesso e' piu'
 largo: con pochi moduli conviene lo script dentro il modulo.
 
@@ -120,7 +155,10 @@ una segnalazione o un'autorizzazione per gli script, vale quella. La strada
 prudente è una comunicazione con allegata la nota tecnica. Tutto spiegato,
 con i riferimenti, in [docs/GDPR-e-DPO.md](docs/GDPR-e-DPO.md); i testi
 pronti sono [docs/Nota-tecnica-DS-DPO.md](docs/Nota-tecnica-DS-DPO.md) e
-[docs/Email-DS-DPO.md](docs/Email-DS-DPO.md).
+[docs/Email-DS-DPO.md](docs/Email-DS-DPO.md). Nella cartella di Campanella
+gli stessi documenti stanno in `documenti`, come testo: «GDPR - cosa vale
+per un docente», «Nota tecnica per dirigente e DPO» ed «Email per dirigente
+e DPO»; li apri anche dalla pagina Privacy e dalle Impostazioni.
 
 ## Dare documenti a un'intelligenza artificiale
 
@@ -136,7 +174,10 @@ radice invece di gestirlo: il testo viene ripulito **in locale** da rizzo-pii,
 all'assistente arriva solo `[FULLNAME_1]`, `[CF_2]`, `[IBAN_1]`, e i nomi veri
 si rimettono nella risposta sempre in locale. Il dizionario che collega
 segnaposto e valori resta nella memoria dell'applicazione: non viene scritto su
-disco e non passa dalla rete.
+disco e non passa dalla rete. Testi e file vanno soltanto a un rizzo-pii che
+gira su questo computer: un indirizzo del servizio diverso da localhost,
+127.0.0.1 (o un altro 127.x.x.x) o ::1 viene rifiutato prima di collegarsi,
+e le richieste non passano da proxy né seguono reindirizzamenti.
 
 Due avvertenze che restano valide anche così:
 
@@ -160,7 +201,10 @@ che è già visibile sullo schermo di un utente autenticato: non aggirano
 l'autenticazione, non interrogano API riservate, non accedono a niente che tu
 non possa già vedere, non mandano niente a nessuno. L'estensione non passa
 dal Web Store: si carica dalla cartella con la modalità sviluppatore di
-Chrome, quindi non c'è nessuna pubblicazione.
+Chrome, quindi non c'è nessuna pubblicazione, e lavora solo sulle pagine di
+ClasseViva. La funzione per la Console copia l'elenco negli appunti; scrive
+`personale_spaggiari.csv` nella cartella dei download solo se gli appunti non
+funzionano, e in quel caso ti dice di cancellarlo dopo averlo caricato.
 
 Le Condizioni generali di utilizzo di ClasseViva (web.spaggiari.eu, versione
 del luglio 2024) non parlano di accesso automatizzato, bot o script.
@@ -179,11 +223,16 @@ contenere regole d'uso ulteriori, che non sono pubbliche.
 
 ## Se pubblichi l'eseguibile
 
-Il binario compilato in locale è firmato con un certificato autofirmato: sul
-computer dove è stato creato Windows lo accetta senza storie, su qualunque
-altro SmartScreen avvisa lo stesso. Per i rilasci pubblici c'è il workflow
-con SignPath (`.github/workflows/release.yml`), che firma con un certificato
-di un'autorità riconosciuta senza costi per i progetti open source.
+Il binario compilato in locale è firmato solo se lo chiedi (`build.ps1 -Firma`
+o `-Pubblica`), con un certificato autofirmato che `strumenti/firma.ps1` crea
+la prima volta e aggiunge ai certificati attendibili del tuo utente di
+Windows: su quel computer Windows lo accetta senza storie, su qualunque
+altro SmartScreen avvisa lo stesso. Il certificato resta installato finché
+non lo togli da certmgr.msc. Per i rilasci pubblici c'è il workflow con
+SignPath (`.github/workflows/release.yml`), che firmerà con un certificato
+di un'autorità riconosciuta, senza costi per i progetti open source, quando
+il progetto sarà accettato nel programma: fino ad allora i rilasci escono
+non firmati e lo dicono.
 
 ## Lista di controllo prima di rendere pubblico il repository
 

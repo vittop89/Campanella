@@ -16,7 +16,9 @@ runtime da installare.
 L'applicazione **non tocca mai la posta, il calendario né il Drive da sola**:
 prepara il codice di uno script Google Apps Script che l'utente incolla nel
 proprio account ed esegue. Gli script non scrivono a nessun altro. Si collega a
-internet solo quando premi un pulsante, per cercare e scaricare rizzo-pii.
+internet solo quando premi un pulsante: per chiedere a GitHub l'ultima
+versione di Campanella e di rizzo-pii, e per scaricare rizzo-pii. rizzo-pii lo
+raggiunge solo a un indirizzo dello stesso computer.
 
 ## Scarica
 
@@ -26,6 +28,12 @@ internet solo quando premi un pulsante, per cercare e scaricare rizzo-pii.
 | [Solo l'applicazione](https://github.com/vittop89/Campanella/releases/latest/download/Campanella.exe) | portabile, tiene le impostazioni accanto a sé |
 | [Istruzioni](https://github.com/vittop89/Campanella/releases/latest/download/ISTRUZIONI-Campanella.txt) · [Note sulla privacy](https://github.com/vittop89/Campanella/releases/latest/download/PRIVACY.md) | |
 | [Tutti i rilasci](https://github.com/vittop89/Campanella/releases) | novità e versioni precedenti |
+
+L'installer è `Installa-Campanella.exe`, costruito con Inno Setup dal flusso
+di rilascio: è l'unico installer pubblicato. Impostazioni > "Cerca
+aggiornamenti" dice quando è uscita una versione nuova; per aggiornare si
+esegue l'installer nuovo sopra l'installazione che c'è. Dalla 1.5.0 le note
+di ogni rilascio dicono quali script Google reincollare.
 
 I file non sono ancora firmati, quindi SmartScreen avvisa: **Ulteriori
 informazioni**, poi **Esegui comunque**. Vedi più sotto "Code signing policy".
@@ -45,13 +53,43 @@ informazioni**, poi **Esegui comunque**. Vedi più sotto "Code signing policy".
 ## Come si compila
 
 ```powershell
-.\build.ps1                  # -> dist\Campanella.exe + dist\Installa Campanella.exe
+.\build.ps1                  # -> dist\Campanella.exe + dist\Installa Campanella.exe (installer C#)
 .\build.ps1 -SenzaInstaller  # solo l'applicazione, più veloce per le prove
-.\build.ps1 -Pubblica        # + copia in H:\Il mio Drive\Campanella
+.\build.ps1 -Firma           # firma anche tutti e due con un certificato locale autofirmato
+.\build.ps1 -Pubblica -Produzione 'D:\Campanella'   # compila, firma e copia in quella cartella
 ```
 
 Serve solo Windows: il compilatore è il `csc.exe` del .NET Framework 4.x già
-presente nel sistema. Niente Visual Studio, niente NuGet.
+presente nel sistema. Niente Visual Studio, niente NuGet. Le prove chiedono
+anche Node e Python (vedi "Come si prova"). L'installer pubblicato chiede
+Inno Setup 6:
+
+```powershell
+.\build.ps1 -SenzaInstaller
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\Campanella.iss   # -> dist\Installa-Campanella.exe
+```
+
+**Due installer, uno pubblicato.** Quello ufficiale è
+`Installa-Campanella.exe` (Inno Setup, `installer/Campanella.iss`): lo
+costruisce il flusso di rilascio, che lo allega a ogni rilascio, e il flusso
+delle prove lo compila a ogni push. `dist\Installa Campanella.exe` (C#,
+`src-installer/`) lo compila `build.ps1` e lo copia `-Pubblica`, solo per
+la distribuzione in locale: non viene mai pubblicato. Quando il suo
+disinstallatore lavora in una cartella dove c'è anche l'installazione Inno,
+toglie solo sé stesso e la propria voce fra i programmi installati.
+
+**`-Firma` e `-Pubblica` installano un certificato.** Firmano con
+`strumenti\firma.ps1`, che la prima volta crea un certificato di firma del
+codice nei certificati personali del tuo utente di Windows (con la chiave
+non esportabile) e ne aggiunge la parte pubblica alle *Autorità di
+certificazione radice attendibili* e agli *Autori attendibili* di quell'utente;
+prima di aggiungerlo alle radici Windows chiede conferma. Da quel momento
+quell'utente considera attendibile qualunque cosa firmata con quel
+certificato. Resta installato finché non lo togli con `certmgr.msc`, e gli
+altri computer non lo conoscono. L'exe viene firmato prima di finire
+nell'installer C#, e se una firma non riesce la compilazione si ferma.
+`-Pubblica` non ha una cartella predefinita: serve `-Produzione`, con il
+percorso completo, e viene controllata prima di compilare e di firmare.
 
 Vincoli da ricordare quando si mette mano al codice:
 
@@ -69,25 +107,34 @@ Vincoli da ricordare quando si mette mano al codice:
 
 ```
 src/
-  Guscio.cs           Main, finestra, barra laterale, pagina iniziale, impostazioni
+  Guscio.cs           Main, finestra, barra laterale, classe base Pagina, appunti, documenti
+  PaginaHome.cs       la pagina iniziale: lo stato di ogni strumento
+  PaginaImpostazioni.cs  impostazioni: tema, dati nel Drive, rizzo-pii, aggiornamenti, condizioni
   Tema.cs             tavolozza chiara/scura, fabbriche di controlli, CasellaTema
   Stato.cs            modello dati, salvataggio (impostazioni + dati nel Drive)
+  Dialoghi.cs         le finestrelle: incolla un elenco, mostra un testo, modifica una regola
   PaginaPosta.cs      lo strumento Posta (7 passi)
+  GeneratorePosta.cs  Configurazione.gs dello strumento Posta, senza finestre
   PaginaCartelle.cs   lo strumento Cartelle (2 passi: cartelle, moduli Google)
+  GeneratoreAnno.cs   le cartelle dell'anno sul disco, senza finestre
   PaginaOrari.cs      lo strumento Orari (4 passi)
   PaginaPrivacy.cs    lo strumento Privacy + documenti per DS e DPO
   Moduli.cs           gli script per i moduli Google: configurazione, istruzioni, manifest
-  Anonimizzatore.cs   client HTTP di rizzo-pii
+  Anonimizzatore.cs   client HTTP di rizzo-pii (solo indirizzi di questo computer)
   Consenso.cs         condizioni d'uso + finestra di accettazione
-  Aggiornamenti.cs    rilasci da GitHub, scarico con avanzamento
+  Aggiornamenti.cs    rilasci di Campanella e rizzo-pii da GitHub, scarico controllato
   Xlsx.cs             lettore minimo .xlsx (ZIP + XML) e CSV
+  Testo.cs            file di testo letti in UTF-8 o in ANSI (Windows-1252)
   Orario.cs           riconoscimento del tabellone, blocchi per il calendario
   risorse/            i file .gs e .js incorporati nell'eseguibile
-src-installer/        l'installer in C#, per utente, senza UAC
-installer/            script Inno Setup (it/en), condizioni, configurazione SignPath
+src-installer/        l'installer in C#, per utente, senza UAC (solo compilazioni locali)
+installer/            script Inno Setup (l'installer pubblicato, it/en), condizioni, configurazione SignPath
+strumenti/firma.ps1   firma locale con un certificato autofirmato (-Firma, -Pubblica)
 docs/                 GDPR, nota tecnica e modello di email per dirigenza e DPO
 test/                 banchi di prova degli script, prove PowerShell dell'applicazione
-.github/workflows/release.yml   compilazione, prove, firma SignPath, installer, rilascio
+.github/workflows/prove.yml     compilazione e tutte le prove della CI, a ogni push e pull request
+.github/workflows/release.yml   controlli, compilazione, prove, firma SignPath, installer Inno, rilascio
+.github/dependabot.yml          aggiornamenti mensili delle azioni fissate per commit
 ```
 
 Ogni pagina è un `Pagina : Panel`; il guscio la mostra e ne elenca i passi
@@ -97,23 +144,65 @@ nella loro `Tag`.
 
 ## Come si prova
 
+Prima delle prove serve `.\build.ps1`: le prove PowerShell caricano
+`dist\Campanella.exe`, e `test\tutte.ps1` rifiuta un eseguibile più vecchio
+dei sorgenti. Servono **Node 18** o successivo (la CI usa il 24) e **Python
+3.7** o successivo, raggiungibile come `python` (la CI usa il 3.13), per il
+finto rizzo-pii di `prova_anonimizzazione.ps1`.
+
+```powershell
+.\test\tutte.ps1                                 # tutte le prove della CI qui sotto, con il riepilogo alla fine
+.\test\tutte.ps1 -Solo mock_orari,prova_stato    # solo quelle indicate
+.\test\tutte.ps1 -ConGrafica                     # più le due prove che aprono finestre
+```
+
+`tutte.ps1` lancia queste, in quest'ordine; `.github/workflows/prove.yml` lo
+lancia a ogni push e pull request, e il flusso di rilascio prima di
+pubblicare:
+
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
-node test\mock_orari.js           # email degli orari e calendario
+node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
 node test\mock_pannello.js        # il foglio di controllo per più moduli
+node test\prova_gemelli.js        # le funzioni gemelle dei due script dei moduli restano uguali
+node test\mutazioni_pannello.js   # mutazioni del motore del foglio di controllo: il banco deve accorgersene
+node test\nomi_funzioni.js        # ogni funzione degli script citata da app e documenti esiste
+node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse
+.\test\prova_orario.ps1           # legge un tabellone, controlla la griglia e il DatiOrari.gs generato
+.\test\prova_xlsx.ps1             # il lettore .xlsx e i CSV in ANSI, UTF-8 e UTF-16
 .\test\prova_moduli.ps1           # genera i due script dei moduli e li fa girare nei banchi
-.\test\prova_orario.ps1           # legge un tabellone e controlla la griglia
-.\test\prova_installer.ps1        # installa in una cartella temporanea, poi toglie
+.\test\prova_personale.ps1        # elenco del personale: formati da incollare, ruoli nelle cinque categorie
+.\test\prova_stato.ps1            # caricamento e salvataggio di impostazioni e dati nel Drive, in cartelle temporanee
+.\test\prova_guscio.ps1           # la finestra principale, senza mostrarla: errori, codice di stato, chiusura
+.\test\prova_disinstallazione.ps1 # cosa tolgono i disinstallatori C# e Inno, su cartelle finte
+.\test\prova_posta.ps1            # il generatore vero di Configurazione.gs nel banco di Gmail
+.\test\prova_cartelle.ps1         # le cartelle dell'anno su un Drive finto
+.\test\prova_versioni.ps1         # versione e testo del consenso, versioni del prodotto e degli script, nomi dei documenti
 .\test\prova_anonimizzazione.ps1  # client di rizzo-pii (finto servizio)
-.\test\prova_solalettura.ps1      # cartella senza permessi: deve avvisare, non tacere
 ```
+
+Fuori dalla CI:
+
+```powershell
+.\test\prova_disposizione.ps1     # costruisce la finestra vera: sovrapposizioni, testi che non ci stanno (-ConGrafica)
+.\test\prova_solalettura.ps1      # cartella senza permessi: deve avvisare, non tacere (-ConGrafica)
+.\test\prova_installer.ps1        # installa e disinstalla davvero l'installer C#
+```
+
+`prova_installer.ps1` si rifiuta di partire dove Campanella è installata,
+perché toccherebbe l'installazione e il menu Start veri: va lanciata con un
+utente di Windows che non ha mai avuto Campanella. `prova_versioni.ps1` legge
+e basta: va lanciata prima di creare il tag di un rilascio.
+`genera_dati_prova.ps1` non è una prova: scrive in `%TEMP%` un
+`DatiOrari_prova.gs` a partire da un tabellone.
 
 I banchi simulano `GmailApp`, `MailApp`, `CalendarApp`, `FormApp`,
 `SpreadsheetApp`, `DriveApp`, `PropertiesService`, `LockService` e `ScriptApp`,
 con un orologio finto e un interprete semplificato della ricerca di Gmail.
 Girano su dati inventati; i file generati da dati veri restano fuori dal
-repository.
+repository. Ogni prova che crea uno `Stato` lo manda su cartelle temporanee,
+mai sulle impostazioni o sul Drive veri.
 
 ## I moduli Google
 
@@ -128,23 +217,39 @@ modulo.
 Se i moduli sono più di uno, lo stesso passo prepara un **foglio di controllo**:
 un foglio Google con una riga per modulo, da cui si fa tutto insieme. È più
 comodo e costa di più: uno script dentro un foglio apre moduli che stanno
-fuori, quindi Google chiede il permesso su *tutti* i moduli dell'account.
+fuori, quindi Google chiede il permesso su *tutti* i moduli dell'account,
+oltre che sui fogli e sul Drive, e le chiusure che programma scattano da sole.
 
 Non si cancella niente. Le risposte dell'anno prima restano nel modulo, a meno
-che tu non chieda di toglierle, e anche allora solo dopo aver controllato che
-stanno già tutte in un foglio vecchio.
+che tu non chieda di toglierle, e anche allora solo dopo averle ritrovate
+tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
 
 ## Sicurezza per chi lo usa
 
-- Nessuno strumento cancella posta, file, cartelle, fogli o eventi. Al massimo
-  archivia, e l'archiviazione in Gmail è reversibile.
+- Nessuno strumento cancella posta, file, cartelle o fogli delle risposte. Al
+  massimo archivia, e l'archiviazione in Gmail è reversibile. Gli strumenti
+  tolgono solo quello che hanno messo loro, e quando glielo chiedi: le
+  etichette dai messaggi e gli eventi dell'orario creati dallo script. Il
+  foglio di controllo toglie anche la scheda vuota "Foglio1" di un foglio
+  nuovo e riscrive la propria scheda "Istruzioni". L'unica cancellazione vera
+  è facoltativa e spenta di partenza: togliere dal modulo le risposte degli
+  anni scorsi, come detto sopra, e non si annulla.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
-- Ogni strumento ha la sua funzione `ANNULLA_…`.
-- Lo script della posta e degli orari chiede solo Gmail e, per il passo del
-  calendario, Calendar. Gli script dei moduli sono progetti a parte con
-  permessi loro; se la scuola blocca Drive, se ne può generare una versione che
-  non lo usa.
+- Ogni script ha le sue funzioni per annullare (`ANNULLA_…`, `MODULO_ANNULLA`,
+  `PANNELLO_ANNULLA`). Senza gruppo per le etichette, `ANNULLA_etichettatura`
+  toglie solo le etichette che lo script ha creato, e dice "NIENTE DA
+  TOGLIERE" se non ne trova; `ANNULLA_etichettaturaCompleta` svuota le
+  etichette di tutte le regole attive, comprese quelle con lo stesso nome
+  messe a mano. Due cose si annullano a mano: i filtri veri di Gmail, se li
+  hai creati, e i messaggi che una regola ha segnato come letti.
+- Lo script della posta e quello degli orari stanno nello stesso progetto
+  Apps Script, e Google ne chiede i permessi tutti insieme: Gmail, l'invio a
+  te stesso (`MailApp`), il tuo indirizzo (`Session`), i trigger e, appena
+  nel progetto c'è il file degli orari, Calendar, anche se usi solo le
+  email. Gli script dei moduli sono progetti a parte con permessi loro; se la
+  scuola blocca Drive, dello script dentro il modulo se ne può generare una
+  versione che non lo usa.
 
 ## Code signing policy
 
@@ -162,17 +267,19 @@ by [SignPath Foundation](https://signpath.org).
 
 Informativa: il programma non trasmette informazioni ad altri sistemi in rete
 se non su richiesta esplicita di chi lo usa o lo installa. Le uniche
-connessioni sono verso GitHub, per cercare e scaricare rizzo-pii, e solo quando
-si preme il pulsante; gli script generati girano dentro l'account Google
-dell'utente; rizzo-pii gira in locale. I dettagli sono in
-[PRIVACY.md](PRIVACY.md).
+connessioni sono verso GitHub, per chiedere l'ultima versione di Campanella e
+di rizzo-pii e per scaricare rizzo-pii, e solo quando si preme il pulsante;
+gli script generati girano dentro l'account Google dell'utente; rizzo-pii
+gira in locale, e Campanella lo raggiunge solo a un indirizzo dello stesso
+computer. I dettagli sono in [PRIVACY.md](PRIVACY.md).
 
 ## Segnalazioni e contributi
 
 Errori e proposte: le *issue* di GitHub. Per un problema di sicurezza non
 aprire una issue pubblica: vedi [SECURITY.md](SECURITY.md), in inglese (si può
-scrivere in italiano). Prima di aprire una pull request, far girare i banchi di
-prova. Le versioni sono elencate in [CHANGELOG.md](CHANGELOG.md), in inglese.
+scrivere in italiano). Prima di aprire una pull request, lancia
+`.\test\tutte.ps1`. Le versioni sono elencate in [CHANGELOG.md](CHANGELOG.md),
+in inglese.
 
 ## Licenza e marchi
 
