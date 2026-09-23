@@ -31,10 +31,22 @@ function Verifica($testo, $ok) {
     else { Write-Host "  FALLITO $testo" -ForegroundColor Red; $script:fallimenti++ }
 }
 
-# Le impostazioni: quelle vere se ci sono, cosi' guardo le pagine come le vedo io
+# Le impostazioni: mai quelle vere, e mai il Drive vero. Oggi "new Stato()"
+# punta da solo al Drive del computer: lo sposto subito su cartelle finte in
+# %TEMP%. Il Drive finto ha MODELLI e un modulo, cosi' ne' la pagina iniziale
+# ne' Cartelle vanno a cercare negli altri Drive del computer.
 $tStato = $asm.GetType('Campanella.Stato')
 $FS = [System.Reflection.BindingFlags]'Public,NonPublic,Static'
-$stato = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+$FI = [System.Reflection.BindingFlags]'Public,NonPublic,Instance'
+$prova = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-guscio-disposizione-' + (Get-Random))
+$driveFinto = Join-Path $prova 'Il mio Drive'
+New-Item -ItemType Directory -Force (Join-Path $driveFinto 'MODELLI') | Out-Null
+Set-Content -Path (Join-Path $driveFinto 'MODELLI\Modulo di prova.gform') -Value '{}'
+$stato = [Activator]::CreateInstance($tStato)
+$tStato.GetField('Drive', $FI).SetValue($stato, $driveFinto)
+$tStato.GetField('CartellaDati', $FI).SetValue($stato, (Join-Path $prova 'dati'))
+$tStato.GetField('DatiNelDrive', $FI).SetValue($stato, $false)
+$tStato.GetField('AnonDestinazione', $FI).SetValue($stato, (Join-Path $prova 'anonimizzati'))
 
 $tGuscio = $asm.GetType('Campanella.Guscio')
 $guscio = [Activator]::CreateInstance($tGuscio, @($stato.PSObject.BaseObject))
@@ -149,6 +161,26 @@ function ControllaAiuti($pannello, $dove) {
 $campoPagine = $tGuscio.GetField('pagine', [System.Reflection.BindingFlags]'NonPublic,Instance')
 $pagine = $campoPagine.GetValue($guscio)
 $metodoVaiA = $tGuscio.GetMethod('VaiA')
+
+# Cartelle confronta il Drive scelto con quelli del computer: le do un elenco
+# con il solo Drive finto, cosi' non va a guardare quelli veri
+$tDriveTrovato = $asm.GetType('Campanella.DriveTrovato')
+function ElencoDrivi($percorsi) {
+    $lista = [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDriveTrovato))
+    foreach ($p in $percorsi) {
+        $d = [Activator]::CreateInstance($tDriveTrovato)
+        $tDriveTrovato.GetField('Percorso').SetValue($d, [string]$p)
+        $tDriveTrovato.GetField('ConModelli').SetValue($d, (Test-Path (Join-Path $p 'MODELLI')))
+        $tDriveTrovato.GetField('Punti').SetValue($d, 4)
+        $lista.Add($d)
+    }
+    return ,$lista
+}
+foreach ($pg in $pagine) {
+    if ($pg.GetType().Name -eq 'PaginaCartelle') {
+        $pg.GetType().GetField('drivi', $FI).SetValue($pg, (ElencoDrivi @($driveFinto)))
+    }
+}
 
 # --- i bottoni in basso: Avanti deve dire la verita' ------------------------
 # All'ultimo passo di uno strumento "Avanti" restava blu e non faceva niente.
@@ -303,8 +335,11 @@ $mImposta.Invoke($null, @([bool]$scuroPrima)) | Out-Null
 $mApplica.Invoke($null, @($guscio)) | Out-Null
 
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
-$guscio.Close()
+# Dispose senza Close: Close salverebbe le impostazioni, e qui dentro
+# PowerShell "accanto al programma" vuol dire accanto a powershell.exe
+$guscio.Hide()
 $guscio.Dispose()
+Remove-Item $prova -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($script:fallimenti -eq 0) { Write-Host "`nNessuna sovrapposizione: le pagine stanno in piedi." -ForegroundColor Green }
 else { Write-Host "`nPROBLEMI DI DISPOSIZIONE: $script:fallimenti" -ForegroundColor Red; exit 1 }
