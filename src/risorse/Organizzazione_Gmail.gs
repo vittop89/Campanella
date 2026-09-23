@@ -423,26 +423,35 @@ function EXTRA_elencaIndirizziScuola() {
   else if (start >= _THREAD_INDIRIZZI)
     dove = ' Mi sono fermato al tetto di ' + _THREAD_INDIRIZZI + ' conversazioni.';
 
-  // Il registro dell'editor taglia le scritte lunghe ("Logging output too
-  // large"): in cima va il sommario, che e' la parte che serve; l'elenco lo
-  // ripeto sotto a blocchi, e per intero arriva per email.
-  Logger.log('Trovati ' + elenco.length + ' indirizzi @' + dominio +
-             ' (esaminate ' + start + ' conversazioni).' + dove);
-  Logger.log('L\'ELENCO COMPLETO E\' NELL\'EMAIL CHE TI SEI APPENA MANDATO: cercala in ' +
-             'Gmail con oggetto "[Organizzazione Gmail] Indirizzi @' + dominio + '". ' +
-             'Aprila, copia il blocco e incollalo in Campanella, strumento Posta, ' +
-             'passo 3 (Il personale), pulsante "Incolla elenco".');
-  for (var b = 0; b < righe.length; b += _RIGHE_PER_SCRITTA) {
-    Logger.log('Indirizzi ' + (b + 1) + '-' + Math.min(b + _RIGHE_PER_SCRITTA, righe.length) +
-               ' di ' + righe.length + '\n' + righe.slice(b, b + _RIGHE_PER_SCRITTA).join('\n'));
-  }
-
-  _inviaReport_('Indirizzi @' + dominio + ' trovati nella tua casella',
+  // L'elenco (nomi e indirizzi di altre persone) va solo nell'email a te
+  // stesso. Il registro delle esecuzioni lo conserva Google per un po': li'
+  // finisce soltanto se l'email non parte, e a blocchi, perche' il registro
+  // taglia le scritte lunghe ("Logging output too large"). In cima, sempre,
+  // il sommario, che e' la parte che serve.
+  var inviata = _inviaReport_('Indirizzi @' + dominio + ' trovati nella tua casella',
     'Trovati ' + elenco.length + ' indirizzi, esaminando ' + start + ' conversazioni.' +
     dove + '\n\n' +
     'Copia tutto il blocco qui sotto e incollalo in Campanella, strumento Posta,\n' +
     'passo 3 (Il personale), pulsante "Incolla elenco".\n\n' +
     'INDIRIZZO\tNOME\tN. MESSAGGI\n' + tsv);
+
+  Logger.log('Trovati ' + elenco.length + ' indirizzi @' + dominio +
+             ' (esaminate ' + start + ' conversazioni).' + dove);
+  if (inviata) {
+    Logger.log('L\'ELENCO COMPLETO E\' NELL\'EMAIL CHE TI SEI APPENA MANDATO: cercala in ' +
+               'Gmail con oggetto "[Organizzazione Gmail] Indirizzi @' + dominio + '". ' +
+               'Aprila, copia il blocco e incollalo in Campanella, strumento Posta, ' +
+               'passo 3 (Il personale), pulsante "Incolla elenco". ' +
+               'Qui nel registro l\'elenco non lo scrivo.');
+  } else {
+    Logger.log('L\'EMAIL NON E\' PARTITA, QUINDI L\'ELENCO E\' QUI SOTTO, a blocchi: copialo e ' +
+               'incollalo in Campanella, strumento Posta, passo 3 (Il personale), pulsante ' +
+               '"Incolla elenco".');
+    for (var b = 0; b < righe.length; b += _RIGHE_PER_SCRITTA) {
+      Logger.log('Indirizzi ' + (b + 1) + '-' + Math.min(b + _RIGHE_PER_SCRITTA, righe.length) +
+                 ' di ' + righe.length + '\n' + righe.slice(b, b + _RIGHE_PER_SCRITTA).join('\n'));
+    }
+  }
   return tsv;
 }
 
@@ -1045,10 +1054,13 @@ function _rimuoviTrigger_(nomeFunzione) {
   }
 }
 
+/** Manda un riepilogo a te stesso, e soltanto a te. Vero se e' partito. */
 function _inviaReport_(oggetto, corpo) {
   try {
     MailApp.sendEmail(_mioIndirizzo_(), '[Organizzazione Gmail] ' + oggetto, corpo);
+    return true;
   } catch (e) {
     Logger.log('Report non inviato: ' + e.message);
+    return false;
   }
 }

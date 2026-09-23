@@ -501,8 +501,10 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     /^Trovati \d+ indirizzi @/.test(scritte[0]) && scritte[0].split('\n').length === 1);
   verifica('e subito dopo dice che l\'elenco e\' nell\'email',
     /EMAIL/.test(scritte[1]) && /Incolla elenco/.test(scritte[1]));
-  verifica('l\'elenco nel registro c\'e\' lo stesso, a blocchi',
-    scritte.slice(2).some(r => r.includes('mario.rossi@' + DOM)));
+  // nomi e indirizzi di altre persone: il registro delle esecuzioni li
+  // conserverebbe, quindi con l'email partita li' non vanno
+  verifica('con l\'email partita l\'elenco NON finisce nel registro',
+    scritte.every(r => !r.includes('mario.rossi@' + DOM)));
 
   const email = posta.slice(postaPrima).filter(m => /Indirizzi @/.test(m.o));
   verifica('l\'email con l\'elenco parte sempre', email.length === 1);
@@ -510,6 +512,17 @@ verifica("non elenca l'indirizzo dell'utente stesso", !tsv.includes(IO));
     tsv.split('\n').every(r => email[0].c.includes(r)));
   verifica('con il conto di quante conversazioni ha guardato',
     /esaminando \d+ conversazioni/.test(email[0].c));
+
+  // l'email non parte (quota finita, per esempio): allora l'elenco serve nel registro
+  const mandaVero = MailApp.sendEmail;
+  MailApp.sendEmail = () => { throw new Error('Service invoked too many times: email'); };
+  const primaDelGuasto = registro.length;
+  contesto.EXTRA_elencaIndirizziScuola();
+  MailApp.sendEmail = mandaVero;
+  const guasto = registro.slice(primaDelGuasto);
+  verifica('se l\'email non parte lo dice, e l\'elenco va nel registro a blocchi',
+    guasto.some(r => /NON E' PARTITA/.test(r)) &&
+    guasto.some(r => r.includes('mario.rossi@' + DOM)) && guasto.every(r => r.length < 6000));
 }
 
 intestazione('FILTRI VERI DI GMAIL');

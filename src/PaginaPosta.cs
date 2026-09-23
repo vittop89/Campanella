@@ -276,7 +276,8 @@ namespace Campanella
 
             p.Controls.Add(Tema.Testo1(
                 "Serve per distinguere i colleghi dagli studenti, che hanno indirizzi dello stesso " +
-                "dominio. Lo stesso elenco viene poi riusato dallo strumento Orari.",
+                "dominio. Le righe senza spunta non vanno nello script ma restano salvate: quelle " +
+                "che non servono, toglile.",
                 0, y, 860, Tema.Normale, Ruolo.Tenue));
             y += 40;
 
@@ -309,7 +310,8 @@ namespace Campanella
             clbRuoli.CheckOnClick = true;
             clbRuoli.ItemCheck += RuoloCambiato;
             p.Controls.Add(clbRuoli);
-            p.Controls.Add(Tema.Testo1("Gli studenti e i genitori partono senza spunta.",
+            p.Controls.Add(Tema.Testo1("Studenti, genitori e indirizzi presi dalla casella senza ruolo " +
+                                       "partono senza spunta.",
                                        0, y + 278, 250, Tema.Piccolo, Ruolo.Tenue));
 
             lblConteggio = Tema.Testo1("Nessuna persona caricata", 266, y, 600, Tema.Grassetto, Ruolo.Normale);
@@ -945,11 +947,13 @@ namespace Campanella
                   "Se hai creato i filtri veri di Gmail con una versione di Campanella precedente " +
                   "alla 1.4.6, c'e' anche un filtro \"Studenti\" su tutto il dominio: cancellalo in " +
                   "Gmail -> Impostazioni -> Filtri." },
-                { "Il registro dice \"Logging output too large. Truncating output.\"",
-                  "Non e' un errore: e' Google che accorcia quello che lo script scrive nel " +
-                  "registro. Succede con EXTRA_elencaIndirizziScuola, che di indirizzi ne trova " +
-                  "centinaia. L'elenco intero non passa da li': arriva nell'email che lo script " +
-                  "manda a te stesso, con oggetto \"[Organizzazione Gmail] Indirizzi ...\"." },
+                { "Dove trovo l'elenco di EXTRA_elencaIndirizziScuola?",
+                  "Nell'email che lo script manda a te stesso, con oggetto \"[Organizzazione " +
+                  "Gmail] Indirizzi ...\". Nel registro dell'editor resta solo quanti ne ha " +
+                  "trovati: l'elenco ci finisce, a blocchi, soltanto se l'email non e' partita. " +
+                  "Il registro delle esecuzioni Google lo conserva per un po': se ci e' finito " +
+                  "l'elenco, sappi che resta li'. Se compare \"Logging output too large\" non e' " +
+                  "un errore: e' Google che accorcia le scritte lunghe." },
                 { "Quanto tempo ci mette?",
                   "Dipende da quanta posta hai. Indicativamente un migliaio di conversazioni al " +
                   "minuto. Con caselle molto grandi lo script lavora a riprese, in automatico, " +
@@ -1048,6 +1052,10 @@ namespace Campanella
             Regex reEmail = new Regex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}");
             Regex reRuolo = new Regex(@"^[^\w]*([\p{Lu}][\p{Lu}\s\.'\-]{2,})\s*\(\s*\d+\s*\)\s*$");
             string ruoloCorrente = "";
+            // Le righe dell'email di EXTRA_elencaIndirizziScuola (indirizzo, nome,
+            // quanti messaggi): sono tutti gli indirizzi del dominio visti nella
+            // casella, studenti compresi. Senza un ruolo partono senza spunta.
+            List<Persona> dallaCasella = new List<Persona>();
 
             string[] righe = testo.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
             foreach (string rigaGrezza in righe)
@@ -1097,6 +1105,7 @@ namespace Campanella
                         p.Email = reEmail.Match(campi[0]).Value.ToLowerInvariant();
                         p.Nome = (campi.Length > 1) ? PulisciNome(campi[1]) : "";
                         p.Ruolo = ruoloCorrente;
+                        if (campi.Length > 2 && Regex.IsMatch(campi[2], @"^\d+$")) dallaCasella.Add(p);
                     }
                     else
                     {
@@ -1125,6 +1134,11 @@ namespace Campanella
                         if (dentro.Count == 0) continue;
                         string resto = spezzone;
                         foreach (Match m in dentro) resto = resto.Replace(m.Value, " ");
+                        // la stessa riga dell'email dello script, se copiando le
+                        // tabulazioni sono diventate spazi: "indirizzo nome 12"
+                        bool casella = dentro.Count == 1 && spezzone.TrimStart().StartsWith(dentro[0].Value) &&
+                                       Regex.IsMatch(resto, @"\s\d+\s*$");
+                        if (casella) resto = Regex.Replace(resto, @"\s\d+\s*$", "");
                         string nome = (dentro.Count == 1) ? PulisciNome(resto) : "";
                         foreach (Match m in dentro)
                         {
@@ -1133,6 +1147,7 @@ namespace Campanella
                             p.Nome = nome;
                             p.Ruolo = ruoloCorrente;
                             fuori.Add(p);
+                            if (casella) dallaCasella.Add(p);
                             nome = "";
                         }
                     }
@@ -1154,8 +1169,9 @@ namespace Campanella
 
             foreach (Persona p in fuori)
             {
-                if (p.Ruolo == "") p.Ruolo = "Non specificato";
-                p.Incluso = !RuoloDaEscludere(p.Ruolo);
+                bool senzaRuolo = (p.Ruolo == "");
+                if (senzaRuolo) p.Ruolo = "Non specificato";
+                p.Incluso = !RuoloDaEscludere(p.Ruolo) && !(senzaRuolo && dallaCasella.Contains(p));
             }
             return fuori;
         }
@@ -1648,17 +1664,21 @@ namespace Campanella
                 "    l'oggetto \"[Organizzazione Gmail] Indirizzi ...\".\n" +
                 "4.  Apri quella email, seleziona l'elenco e copialo.\n" +
                 "5.  Torna qui e premi \"Incolla elenco\".\n\n" +
-                "Il registro dell'editor mostra solo quanti ne ha trovati: se\n" +
-                "scrive \"Logging output too large\" non e' un errore, l'elenco\n" +
-                "intero sta nell'email.\n\n" +
+                "Il registro dell'editor mostra solo quanti ne ha trovati:\n" +
+                "l'elenco sta nell'email, e nel registro finisce (a blocchi)\n" +
+                "soltanto se l'email non e' partita.\n\n" +
                 "LO STESSO ELENCO SERVE A CONTROLLARE\n" +
                 "Se l'elenco del personale lo hai gia' preso dal registro, gli\n" +
                 "indirizzi costruiti dai nomi sono solo un'ipotesi. Premi\n" +
                 "\"Controlla gli indirizzi...\": incolli questa stessa email e\n" +
                 "Campanella corregge da sola quelli che puo' attribuire senza\n" +
                 "dubbi, segnalando gli altri. Nessuno viene aggiunto all'elenco.\n\n" +
-                "Nell'elenco ci sono anche gli studenti: qui nella tabella togli\n" +
-                "la spunta a chi non e' personale, oppure usa i ruoli a sinistra.";
+                "Nell'elenco ci sono anche gli studenti: per questo gli indirizzi\n" +
+                "arrivano in tabella senza spunta. Prima togli le righe degli\n" +
+                "studenti (selezionale e premi \"Togli le righe selezionate\"):\n" +
+                "le righe senza spunta non vanno nello script, ma restano\n" +
+                "salvate nell'elenco. Poi metti la spunta ai colleghi, anche\n" +
+                "tutti insieme con \"Non specificato\" fra i ruoli a sinistra.";
             using (FormTesto f = new FormTesto("Indirizzi dalla casella", guida, null, null))
                 f.ShowDialog(this);
         }
