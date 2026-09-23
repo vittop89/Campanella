@@ -22,7 +22,9 @@ const path = require('path');
 const vm = require('vm');
 
 const radice = path.join(__dirname, '..');
-const motore = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Pannello.gs'), 'utf8').replace(/\r\n/g, '\n');
+// PANNELLO_MOTORE: una copia del motore da provare al posto di quello vero (test/mutazioni_pannello.js)
+const fileMotore = process.env.PANNELLO_MOTORE || path.join(radice, 'src', 'risorse', 'Pannello.gs');
+const motore = fs.readFileSync(fileMotore, 'utf8').replace(/\r\n/g, '\n');
 const INIZIO_CONFIG = '// >>> CONFIGURAZIONE >>>';
 const FINE_CONFIG = '// <<< CONFIGURAZIONE <<<';
 const FOGLI_GOOGLE = 'application/vnd.google-apps.spreadsheet';
@@ -1360,6 +1362,26 @@ titolo('SVUOTARE: UN MODULO SCOLLEGATO, CON RISPOSTE ARRIVATE SOLO LI\'');
   verifica('47 risposte, 7 solo nel modulo: NON le toglie, anche se il foglio di due anni fa ha 200 righe',
     m.recuperi.risposte.length === 47 && t.indexOf('NON le tolgo: 7 non le ritrovo') >= 0 && primo.righeDiRisposte() === 40);
   verifica('nessuna risposta persa', m.perse() === 0);
+}
+
+titolo('SVUOTARE: DUE RISPOSTE NELLO STESSO SECONDO, E NEL FOGLIO NE RESTA UNA');
+{
+  const p = mondoPronto();
+  const m = p.m, c = p.c;
+  m.pannello.getSheetByName('Moduli').getRange(2, 6).setValue(true);        // Recuperi: svuota
+  c.PANNELLO_4_preparaAnno();
+  const primo = m.recuperi.destinazione.foglio;
+  m.recuperi.rispondi(3);                  // la seconda e la terza, nel foglio, cadono nello stesso secondo
+  const suaScheda = m.recuperi.destinazione.scheda;
+  verifica('(nel foglio due righe hanno lo stesso momento)',
+    suaScheda.cella(2, 0).getTime() === suaScheda.cella(3, 0).getTime());
+  suaScheda.celle.splice(3, 1);                                           // qualcuno ne cancella una
+  m.adesso = new Date('2027-09-01T00:10:00+02:00').getTime();
+  c.PANNELLO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.PANNELLO_4_preparaAnno();
+  verifica('una riga del foglio vale per una risposta sola: NON le toglie',
+    m.recuperi.risposte.length === 3 && t.indexOf('NON le tolgo: 1 non le ritrovo') >= 0 && primo.righeDiRisposte() === 2);
 }
 
 titolo('LA CONFERMA DICE IL VERO SULLO SVUOTARE');

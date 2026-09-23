@@ -568,6 +568,25 @@ titolo('DUE ANNI DI FILA: prepara, risposte, chiusura, anno nuovo con la spunta'
   verifica('nessuna risposta persa', m.perse() === 0);
 }
 
+titolo('SVUOTARE: DUE RISPOSTE NELLO STESSO SECONDO, E NEL FOGLIO NE RESTA UNA');
+{
+  const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
+  m.cartella('A.S. 2026-27/RECUPERI');
+  const c = carica(m, { config: { svuotaRisposte: true } });
+  c.MODULO_2_prepara();
+  const primo = m.form.destinazione.foglio;
+  m.form.rispondi(3);                      // la seconda e la terza, nel foglio, cadono nello stesso secondo
+  const tempi = primo.schede[1].tempi;
+  verifica('(nel foglio due righe hanno lo stesso momento)', tempi[1] === tempi[2]);
+  tempi.splice(2, 1);                                                    // qualcuno ne cancella una
+  m.adesso = new Date('2027-09-01T00:05:00+02:00').getTime();
+  c.MODULO_chiusura();
+  m.adesso = new Date('2027-09-03T09:00:00+02:00').getTime();
+  const t = c.MODULO_2_prepara();
+  verifica('una riga del foglio vale per una risposta sola: NON le toglie',
+    m.form.risposte.length === 3 && t.indexOf('NON le tolgo: 1 non le ritrovo') >= 0);
+}
+
 titolo('SVUOTARE: DOPO "ANNULLA" ARRIVANO 10 RISPOSTE SOLO NEL MODULO');
 {
   const m = nuovoMondo({ adesso: '2026-09-19T10:00:00+02:00' });
