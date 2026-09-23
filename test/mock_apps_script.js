@@ -1617,6 +1617,218 @@ intestazione('I COLORI DELLE ETICHETTE');
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;
 
+intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
+{
+  // Il servizio avanzato "Gmail API", finto: le etichette (con quelle di
+  // sistema) e i filtri. Come quello vero: l'elenco dei filtri da' delle
+  // copie, senza filtri non c'e' nemmeno la chiave "filter", e remove vuole
+  // l'id di un filtro che c'e'.
+  const S = 'scuola.example';
+  casella.length = 0;
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  aggiungi('preside@' + S, 'Convocazione', '');
+  aggiungi('info@famiglie.example', 'Colloqui', '');
+  const filtri = [];
+  const tolti = [];                 // { id, registro }: quante scritte c'erano quando e' stato tolto
+  let rimozioneRotta = '';
+  let prossimoFiltro = 1;
+  function filtro(criteria, action) {
+    const f = { id: 'F' + (prossimoFiltro++), criteria, action };
+    filtri.push(f);
+    return f;
+  }
+  const sistema = ['INBOX', 'UNREAD', 'STARRED', 'IMPORTANT'].map(n => ({ id: n, name: n, type: 'system' }));
+  function gmailFiltri() {
+    return { Users: {
+      Labels: { list: () => ({ labels: sistema.concat([...etichette.values()].map(l => ({ id: l.id, name: l.nome, type: 'user' }))) }) },
+      Settings: { Filters: {
+        list: () => (filtri.length ? { filter: JSON.parse(JSON.stringify(filtri)) } : {}),
+        remove: (utente, id) => {
+          if (utente !== 'me') throw new Error('Delegation denied');
+          if (id === rimozioneRotta) throw new Error('Backend Error');
+          const i = filtri.findIndex(f => f.id === id);
+          if (i < 0) throw new Error('Requested entity was not found.');
+          tolti.push({ id, registro: registro.length });
+          filtri.splice(i, 1);
+        },
+        create: f => { throw new Error('qui non si crea niente: ' + JSON.stringify(f)); }
+      } }
+    } };
+  }
+  const famiglie = GmailApp.createLabel('Famiglie');
+  const viaggi = GmailApp.createLabel('Viaggi');
+  const circolari = GmailApp.createLabel('Circolari');
+  const alunni = GmailApp.createLabel('Alunni');
+  const riunioni = GmailApp.createLabel('Riunioni');
+  famiglie.addToThreads([casella[1]]);
+  // Gmail tiene anche due filtri uguali: vanno via tutti e due
+  const fFamiglie = filtro({ query: 'from:(@famiglie.example)' }, { addLabelIds: [famiglie.id] });
+  const fFamiglie2 = filtro({ query: 'from:(@famiglie.example)' }, { addLabelIds: [famiglie.id] });
+  // un criterio in piu', o un'altra etichetta: sono altri filtri, restano
+  const fInPiu = filtro({ query: 'from:(@famiglie.example)', hasAttachment: true }, { addLabelIds: [famiglie.id] });
+  const fAltraEtichetta = filtro({ query: 'from:(@famiglie.example)' }, { addLabelIds: [viaggi.id] });
+  const fCircolari = filtro({ subject: 'circolare', from: 'segreteria@' + S },
+    { addLabelIds: [circolari.id], removeLabelIds: ['INBOX', 'UNREAD'] });
+  // l'API scrive anche i criteri spenti: false, 'unspecified', spazi
+  const fAlunni = filtro({ from: '  @studenti.' + S + ' ', hasAttachment: false, excludeChats: false,
+                           sizeComparison: 'unspecified' }, { addLabelIds: [alunni.id, 'STARRED'] });
+  // e le azioni che lo script non usa mai (qui un inoltro): la copia le riporta
+  const fRiunioni = filtro({ query: 'riunione', negatedQuery: 'bozza', size: 5242880, sizeComparison: 'larger' },
+    { addLabelIds: [riunioni.id], removeLabelIds: ['IMPORTANT'], forward: 'vice@' + S });
+  const fTuo = filtro({ from: 'agenzia@viaggi.example' }, { addLabelIds: [viaggi.id] });
+  const filtriPrima = JSON.stringify(filtri);
+  const fotoEtichette = () => JSON.stringify([...etichette.values()].map(l => [l.nome, l.id]));
+  const fotoPosta = () => JSON.stringify(casella.map(t => [t.id, [...t.labels].sort(), t.inInbox, t.unread]));
+  const etichettePrima = fotoEtichette(), postaPrima = fotoPosta();
+
+  contesto.CONFIG = {
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: '', provaSenzaModifiche: true,
+    soloUltimiMesi: 0, escludiPostaInviata: true, inviaReport: true, personale: [],
+    regole: [{ attiva: true, etichetta: 'Circolari', oggetto: ['circolare'] }],
+    filtriDaTogliere: [
+      // l'etichetta si confronta senza badare alle maiuscole
+      { etichetta: 'famiglie', criteri: { query: 'from:(@famiglie.example)' } },
+      // i criteri in un altro ordine sono gli stessi criteri
+      { etichetta: 'Circolari', criteri: { from: 'segreteria@' + S, subject: 'circolare' } },
+      { etichetta: 'Alunni', criteri: { from: '@studenti.' + S } },
+      { etichetta: 'Riunioni', criteri: { query: 'riunione', negatedQuery: 'bozza', size: 5242880, sizeComparison: 'larger' } },
+      { etichetta: 'Genitori', criteri: { query: 'from:(@genitori.example)' } },
+      // senza criteri non e' un filtro: si salta, e lo dice
+      { etichetta: 'Viaggi', criteri: {} }
+    ]
+  };
+
+  // --- l'anteprima lo dice in una riga --------------------------------------
+  {
+    const a = contesto.PASSO_1_anteprima().split('\n');
+    const i = a.findIndex(r => r.indexOf('filtri di Gmail da togliere') >= 0);
+    verifica('l\'anteprima dice in una riga quanti filtri ci sono da togliere, e con quale funzione',
+      i > 6 && a[i] === '5 filtri di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).' &&
+      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && a.every(r => r.length <= 100));
+    const senza = contesto.CONFIG.filtriDaTogliere;
+    contesto.CONFIG.filtriDaTogliere = [];
+    verifica('e senza filtri da togliere non dice niente',
+      contesto.PASSO_1_anteprima().indexOf('da togliere') < 0);
+    contesto.CONFIG.filtriDaTogliere = senza;
+  }
+
+  // --- senza il servizio Gmail API: lo dice e non cambia niente ---------------
+  delete contesto.Gmail;
+  let t = '', errore = null;
+  try { t = contesto.EXTRA_togliFiltri(); } catch (e) { errore = e; }
+  verifica('senza il servizio Gmail API EXTRA_togliFiltri non si ferma con un errore e non toglie niente',
+    !errore && JSON.stringify(filtri) === filtriPrima && tolti.length === 0);
+  verifica('e spiega come attivarlo',
+    t.indexOf('NON ATTIVO') >= 0 && t.indexOf('Servizi -> "+" -> scegli "Gmail API"') > 0 &&
+    t.indexOf('EXTRA_togliFiltri') > 0);
+  contesto.Gmail = { Users: { Labels: gmailFiltri().Users.Labels } };
+  errore = null;
+  try { t = contesto.EXTRA_togliFiltri(); } catch (e) { errore = e; }
+  verifica('anche con il servizio a meta\' (senza i filtri) lo dice, senza errori', !errore && t.indexOf('NON ATTIVO') >= 0);
+
+  // --- in prova: dice che cosa toglierebbe, e non toglie niente -----------------
+  contesto.Gmail = gmailFiltri();
+  const postaMandata = posta.length;
+  t = contesto.EXTRA_togliFiltri();
+  console.log(t);
+  verifica('in prova non toglie nessun filtro e non si segna niente',
+    tolti.length === 0 && JSON.stringify(filtri) === filtriPrima && !proprieta.has('ORGGMAIL_FILTRI_TOLTI'));
+  verifica('e dice che cosa toglierebbe: i due di Famiglie, Circolari, Alunni e Riunioni',
+    t.indexOf('MODALITA\' PROVA') === 0 && /Filtri di Gmail da togliere: 5\n/.test(t) &&
+    (t.match(/Applica l'etichetta: Famiglie/g) || []).length === 2 && t.indexOf('Applica l\'etichetta: Riunioni') > 0);
+  verifica('e che cosa non trova (Genitori), e la voce senza criteri',
+    /Non trovati: 1\n  - Genitori/.test(t) && /[Ss]altat[ae][^\n]*: 1\n  - Viaggi/.test(t));
+  verifica('in prova non manda nessuna email', posta.length === postaMandata);
+
+  // --- con il blocco preso non tocca niente ----------------------------------
+  contesto.CONFIG.provaSenzaModifiche = false;
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  t = contesto.EXTRA_togliFiltri();
+  LockService.getUserLock = bloccoVero;
+  verifica('con un\'altra esecuzione in corso non toglie niente, e dice di riprovare',
+    tolti.length === 0 && JSON.stringify(filtri) === filtriPrima && t.indexOf('riprova fra un minuto') > 0);
+
+  // --- sul serio -------------------------------------------------------------
+  t = contesto.EXTRA_togliFiltri();
+  console.log(t);
+  const idTolti = tolti.map(x => x.id).sort().join(',');
+  verifica('toglie proprio i filtri scelti (' + idTolti + ')',
+    idTolti === [fFamiglie.id, fFamiglie2.id, fCircolari.id, fAlunni.id, fRiunioni.id].sort().join(','));
+  verifica('non quello con un criterio in piu\', ne\' quello che mette un\'altra etichetta, ne\' gli altri',
+    filtri.map(f => f.id).sort().join(',') === [fInPiu.id, fAltraEtichetta.id, fTuo.id].sort().join(',') &&
+    JSON.stringify(filtri) === JSON.stringify(JSON.parse(filtriPrima).filter(f => [fInPiu.id, fAltraEtichetta.id, fTuo.id].indexOf(f.id) >= 0)));
+  verifica('etichette e messaggi restano come erano', fotoEtichette() === etichettePrima && fotoPosta() === postaPrima);
+  {
+    // la copia di ogni filtro e' nel registro subito prima di toglierlo
+    const copia = { [fFamiglie.id]: ['Contiene le parole: from:(@famiglie.example)', 'Applica l\'etichetta: Famiglie'],
+                    [fFamiglie2.id]: ['Contiene le parole: from:(@famiglie.example)', 'Applica l\'etichetta: Famiglie'],
+                    [fCircolari.id]: ['Da: segreteria@' + S, 'Oggetto: circolare', 'Applica l\'etichetta: Circolari',
+                                      'Salta la Posta in arrivo (archivia)', 'Segna come gia\' letto'],
+                    [fAlunni.id]: ['Da: @studenti.' + S, 'Applica l\'etichetta: Alunni', 'STARRED'],
+                    [fRiunioni.id]: ['Contiene le parole: riunione', 'Non contiene: bozza', 'Dimensioni: maggiore di 5 MB',
+                                     'IMPORTANT', 'vice@' + S] };
+    const senzaCopia = tolti.filter(x => {
+      const prima = registro[x.registro - 1] || '';
+      return prima.indexOf('COPIA DEL FILTRO') !== 0 || !copia[x.id].every(pezzo => prima.indexOf(pezzo) >= 0);
+    });
+    verifica('prima di togliere ogni filtro ne scrive nel registro una copia completa, con i nomi delle etichette' +
+      (senzaCopia.length ? ' (no: ' + senzaCopia.map(x => x.id).join(', ') + ')' : ''), tolti.length === 5 && senzaCopia.length === 0);
+    verifica('la copia dice come rifarlo a mano', (registro[tolti[0].registro - 1] || '').indexOf('Crea un nuovo filtro') > 0);
+  }
+  verifica('il riepilogo dice quanti ne ha tolti, quale non trova e che le etichette restano',
+    /^Filtri di Gmail tolti adesso: 5\n/.test(t) && /Non trovati: 1\n  - Genitori/.test(t) &&
+    t.indexOf('Le etichette gia\' messe ai messaggi restano') >= 0 && t.indexOf('Gli altri filtri non li ho toccati') >= 0);
+  const email = posta.slice(postaMandata);
+  verifica('e lo manda anche per email, a te, con le copie',
+    email.length === 1 && email[0].a === IO && /Filtri di Gmail tolti/.test(email[0].o) &&
+    email[0].c.indexOf('Contiene le parole: from:(@famiglie.example)') >= 0 && email[0].c.indexOf('Non trovati: 1') >= 0);
+  {
+    const memoria = proprieta.get('ORGGMAIL_FILTRI_TOLTI') || '';
+    verifica('si segna quali voci ha tolto, senza indirizzi ne\' parole', memoria !== '' &&
+      memoria.indexOf('@') < 0 && memoria.indexOf('famiglie') < 0 && memoria.indexOf('riunione') < 0);
+  }
+
+  // --- rieseguita non toglie niente, e lo dice ----------------------------------
+  const quantiTolti = tolti.length, postaDopo = posta.length;
+  t = contesto.EXTRA_togliFiltri();
+  console.log(t);
+  verifica('rieseguita non toglie niente', tolti.length === quantiTolti && filtri.length === 3);
+  verifica('e lo dice: niente da togliere, quattro gia\' tolti prima, Genitori non c\'e\'',
+    t.indexOf('NIENTE DA TOGLIERE') === 0 && /Filtri di Gmail tolti adesso: 0\n/.test(t) &&
+    /Gia' tolti prima da EXTRA_togliFiltri: 4\n/.test(t) && /Non trovati: 1\n  - Genitori/.test(t));
+  verifica('e non manda un\'altra email', posta.length === postaDopo);
+
+  // --- un filtro che Gmail non toglie: gli altri si', e lo dice --------------------
+  const fRotto = filtro({ from: 'notizie@giornale.example' }, { addLabelIds: [viaggi.id] });
+  const fAncora = filtro({ from: 'treni@viaggi.example' }, { addLabelIds: [viaggi.id] });
+  rimozioneRotta = fRotto.id;
+  contesto.CONFIG.inviaReport = false;
+  contesto.CONFIG.filtriDaTogliere = [
+    { etichetta: 'Viaggi', criteri: { from: 'notizie@giornale.example' } },
+    { etichetta: 'Viaggi', criteri: { from: 'treni@viaggi.example' } }
+  ];
+  t = contesto.EXTRA_togliFiltri();
+  verifica('un filtro che Gmail non toglie finisce fra i non riusciti, e gli altri vanno via lo stesso',
+    filtri.some(f => f.id === fRotto.id) && !filtri.some(f => f.id === fAncora.id) &&
+    /Non riusciti: 1\n  - Viaggi[^\n]*Backend Error/.test(t) && /Filtri di Gmail tolti adesso: 1\n/.test(t));
+  verifica('senza il riepilogo per email non manda niente', posta.length === postaDopo);
+  verifica('ancora una volta, etichette e messaggi intatti', fotoEtichette() === etichettePrima && fotoPosta() === postaPrima);
+
+  // --- niente scelto in Campanella ----------------------------------------------
+  delete contesto.CONFIG.filtriDaTogliere;
+  errore = null;
+  try { t = contesto.EXTRA_togliFiltri(); } catch (e) { errore = e; }
+  verifica('senza filtri scelti in Campanella lo dice, e dice dove si scelgono',
+    !errore && t.indexOf('Nessun filtro da togliere') === 0 && t.indexOf('passo 4') > 0);
+  delete contesto.Gmail;
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
+
 intestazione('LA POSTA VA SOLO A TE');
 {
   // La promessa fatta al DPO: lo script manda email solo all'account in cui

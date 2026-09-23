@@ -24,13 +24,19 @@
  *     etichette e filtri, leggere e cambiare il colore di un'etichetta, creare
  *     un filtro. Cancellare un'etichetta no, in nessuna forma: il servizio si
  *     chiama solo per nome scritto con il punto (niente Labels['del' + 'ete']),
- *     non si mette in una variabile, e patch cambia soltanto il colore.
+ *     non si mette in una variabile, e patch cambia soltanto il colore;
+ *   - togliere un filtro di Gmail (Filters.remove) si puo' solo dentro
+ *     EXTRA_togliFiltri e la sua funzione interna _togliFiltri_, che toglie
+ *     soltanto i filtri scelti dal docente dopo averne scritto la copia:
+ *     altrove e' una cancellazione non ammessa, come tutte le altre.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
  * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
- * estraneo, una copia in cc o un moveToTrash devono far fallire i controlli. Se un giorno uno di questi non fallisse
- * piu', il controllo sarebbe diventato cieco.
+ * estraneo, una copia in cc, un moveToTrash, un filtro tolto fuori da
+ * EXTRA_togliFiltri o un'etichetta cancellata anche li' dentro devono far
+ * fallire i controlli. Se un giorno uno di questi non fallisse piu', il
+ * controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -220,7 +226,10 @@ const REGOLE = {
     // le etichette: elencarle, leggerne il colore (get) e cambiarlo (patch);
     // mai cancellarle (delete, che resta fuori anche dalle cancellazioni)
     gmailApi: ['Gmail.Users.Labels.list', 'Gmail.Users.Labels.get', 'Gmail.Users.Labels.patch',
-               'Gmail.Users.Settings.Filters.list', 'Gmail.Users.Settings.Filters.create']
+               'Gmail.Users.Settings.Filters.list', 'Gmail.Users.Settings.Filters.create'],
+    // togliere un filtro: solo i filtri scelti dal docente, e solo dentro
+    // queste funzioni, che prima ne scrivono la copia nel registro
+    gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] }
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
@@ -229,9 +238,37 @@ const REGOLE = {
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'deleteEventSeries', 'deleteEvent'],
     destinatari: [/^mio$/, /^m\.a$/, /^_mioIndirizzoOrari_?\(\)$/],
     etichetteDiSistema: [],
-    gmailApi: []
+    gmailApi: [],
+    gmailApiSoloIn: {}
   }
 };
+
+/**
+ * Dove sta il corpo di ogni funzione dichiarata nel testo nudo: nome ->
+ * [[da, a], ...], dalla "{" alla "}" che la chiude. Nel testo nudo stringhe,
+ * espressioni regolari e commenti sono spazi: le loro graffe non contano.
+ */
+function corpiDelleFunzioni(nudo) {
+  const fuori = {};
+  const dichiarazione = /\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g;
+  let m;
+  while ((m = dichiarazione.exec(nudo))) {
+    const aperta = nudo.indexOf('{', m.index + m[0].length);
+    if (aperta < 0) continue;
+    let profondita = 0, j = aperta;
+    for (; j < nudo.length; j++) {
+      if (nudo[j] === '{') profondita++;
+      else if (nudo[j] === '}' && --profondita === 0) break;
+    }
+    (fuori[m[1]] = fuori[m[1]] || []).push([aperta, j]);
+  }
+  return fuori;
+}
+
+/** Vero se la posizione sta dentro il corpo di una delle funzioni nominate. */
+function dentroA(corpi, nomi, posizione) {
+  return nomi.some(n => (corpi[n] || []).some(c => posizione > c[0] && posizione < c[1]));
+}
 
 /** L'elenco delle violazioni di un file: vuoto se rispetta le promesse. */
 function controlla(nomeFile, sorgente) {
@@ -261,13 +298,37 @@ function controlla(nomeFile, sorgente) {
     fuori.push('servizio non ammesso: ' + nome + ' (riga ' + riga(g.index) + ')');
   }
 
+  // le chiamate del servizio Gmail ammesse solo dentro certe funzioni
+  // (Filters.remove solo in EXTRA_togliFiltri): quelle al loro posto non
+  // sono cancellazioni fuori elenco; il punto del metodo le riconosce qui sotto
+  const corpi = corpiDelleFunzioni(nudo);
+  const soloIn = regole.gmailApiSoloIn || {};
+  const alSuoPosto = new Set();
+  const api = /\bGmail\s*\.\s*Users(?:\s*\.\s*[A-Za-z_$][\w$]*)+\s*\(/g;
+  let m;
+  while ((m = api.exec(nudo))) {
+    const nome = m[0].replace(/\s+/g, '').replace(/\($/, '');
+    if (regole.gmailApi.indexOf(nome) >= 0) continue;
+    if (soloIn[nome]) {
+      if (dentroA(corpi, soloIn[nome], m.index)) { alSuoPosto.add(m.index + m[0].lastIndexOf('.')); continue; }
+      fuori.push(nome + ' fuori da ' + soloIn[nome].join(' e ') + ' (riga ' + riga(m.index) + ')');
+      continue;
+    }
+    fuori.push('servizio Gmail non ammesso: ' + nome + ' (riga ' + riga(m.index) + ')');
+  }
+  // una seconda funzione con lo stesso nome prenderebbe il posto di quella vera
+  for (const nome of Object.keys(soloIn)) {
+    for (const f of soloIn[nome]) {
+      if ((corpi[f] || []).length > 1) fuori.push('la funzione ' + f + ' e\' dichiarata ' + corpi[f].length + ' volte');
+    }
+  }
+
   // le cancellazioni: solo quelle dell'elenco
   const chiamata = /\.\s*([A-Za-z_$][\w$]*)\s*\(/g;
-  let m;
   while ((m = chiamata.exec(nudo))) {
     const nome = m[1];
     if (/delete|remove|trash|purge|clear|empty|destroy/i.test(nome) &&
-        regole.cancellazioni.indexOf(nome) < 0) {
+        regole.cancellazioni.indexOf(nome) < 0 && !alSuoPosto.has(m.index)) {
       fuori.push('cancellazione non ammessa: ' + nome + ' (riga ' + riga(m.index) + ')');
     }
   }
@@ -297,16 +358,10 @@ function controlla(nomeFile, sorgente) {
     }
   }
 
-  // il servizio avanzato Gmail: elencare etichette e filtri, leggere e cambiare il
-  // colore di un'etichetta, creare filtri; nient'altro
-  const api = /\bGmail\s*\.\s*Users(?:\s*\.\s*[A-Za-z_$][\w$]*)+\s*\(/g;
-  while ((m = api.exec(nudo))) {
-    const nome = m[0].replace(/\s+/g, '').replace(/\($/, '');
-    if (regole.gmailApi.indexOf(nome) < 0) {
-      fuori.push('servizio Gmail non ammesso: ' + nome + ' (riga ' + riga(m.index) + ')');
-    }
-  }
-  // l'elenco qui sopra guarda solo i nomi scritti con il punto: un nome
+  // il servizio avanzato Gmail (controllato piu' su): elencare etichette e
+  // filtri, leggere e cambiare il colore di un'etichetta, creare filtri, e
+  // togliere quelli scelti solo dentro EXTRA_togliFiltri; nient'altro.
+  // L'elenco guarda solo i nomi scritti con il punto: un nome
   // calcolato (Labels['del' + 'ete'], Labels[op]) o il servizio messo in una
   // variabile (var L = Gmail.Users.Labels; L[k]()) lo aggirerebbero
   const calcolato = /\bGmail\b(?:\s*\.\s*[A-Za-z_$][\w$]*)*\s*\[/g;
@@ -372,6 +427,7 @@ function provaDellaProva() {
   intestazione('LA PROVA DELLA PROVA: COPIE MODIFICATE IN MEMORIA');
   const posta = sorgenti['Organizzazione_Gmail.gs'];
   const INIZIO = 'function PASSO_1_anteprima() {';
+  const DENTRO_TOGLI = 'function _togliFiltri_(voci, prova) {';
   deveFallire('Organizzazione_Gmail.gs', 'un UrlFetchApp aggiunto viene trovato',
     inserisci(posta, INIZIO, '\n  UrlFetchApp.fetch(\'https://esempio.example/?d=\' + _config_().dominioScuola);'),
     'UrlFetchApp');
@@ -437,6 +493,44 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con GmailApp (deleteLabel) viene trovata',
     inserisci(posta, INIZIO, '\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();'),
     'cancellazione non ammessa: deleteLabel');
+
+  // togliere un filtro si', ma solo i filtri scelti, dentro EXTRA_togliFiltri
+  const TOGLI = 'Gmail.Users.Settings.Filters.remove(';
+  const togliDiOggi = smonta(posta).codice.split(TOGLI).length - 1;
+  verifica('il motore di oggi toglie i filtri (' + togliDiOggi + ' chiamata), e il controllo lo lascia fare ' +
+    'solo li\'', togliDiOggi >= 1 && controlla('Organizzazione_Gmail.gs', posta).length === 0);
+  const fuoriPosto = inserisci(posta, INIZIO, '\n  Gmail.Users.Settings.Filters.remove(\'me\', \'F1\');');
+  deveFallire('Organizzazione_Gmail.gs', 'un filtro tolto fuori da EXTRA_togliFiltri viene trovato',
+    fuoriPosto, 'Gmail.Users.Settings.Filters.remove fuori da EXTRA_togliFiltri');
+  deveFallire('Organizzazione_Gmail.gs', 'ed e\' anche una cancellazione non ammessa',
+    fuoriPosto, 'cancellazione non ammessa: remove');
+  deveFallire('Organizzazione_Gmail.gs', 'anche in una funzione nuova con un nome quasi uguale',
+    posta + '\nfunction EXTRA_togliFiltriTutti() {\n  Gmail.Users.Settings.Filters.remove(\'me\', \'F1\');\n}\n',
+    'Gmail.Users.Settings.Filters.remove fuori da EXTRA_togliFiltri');
+  deveFallire('Organizzazione_Gmail.gs', 'o in una seconda _togliFiltri_, che prenderebbe il posto di quella vera',
+    posta + '\nfunction _togliFiltri_() {\n  Gmail.Users.Settings.Filters.remove(\'me\', \'F1\');\n}\n',
+    'la funzione _togliFiltri_ e\' dichiarata 2 volte');
+  deveFallire('Organizzazione_Gmail.gs', 'e con il nome calcolato, anche dentro EXTRA_togliFiltri',
+    inserisci(posta, DENTRO_TOGLI, '\n  Gmail.Users.Settings.Filters[\'re\' + \'move\'](\'me\', \'F1\');'),
+    'servizio Gmail chiamato con un nome calcolato');
+  // dentro EXTRA_togliFiltri resta vietato tutto il resto: etichette e messaggi
+  deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con il servizio Gmail dentro EXTRA_togliFiltri viene trovata',
+    inserisci(posta, DENTRO_TOGLI, '\n  Gmail.Users.Labels.remove(\'me\', \'Label_1\');'),
+    'servizio Gmail non ammesso: Gmail.Users.Labels.remove');
+  deveFallire('Organizzazione_Gmail.gs', 'ed e\' una cancellazione non ammessa anche li\'',
+    inserisci(posta, DENTRO_TOGLI, '\n  Gmail.Users.Labels.remove(\'me\', \'Label_1\');'),
+    'cancellazione non ammessa: remove');
+  deveFallire('Organizzazione_Gmail.gs', 'e anche Gmail.Users.Labels.delete, li\' dentro',
+    inserisci(posta, DENTRO_TOGLI, '\n  Gmail.Users.Labels.delete(\'me\', \'Label_1\');'),
+    'servizio Gmail non ammesso: Gmail.Users.Labels.delete');
+  deveFallire('Organizzazione_Gmail.gs', 'e GmailApp.deleteLabel, li\' dentro',
+    inserisci(posta, DENTRO_TOGLI, '\n  GmailApp.deleteLabel(GmailApp.getUserLabelByName(\'Famiglie\'));'),
+    'cancellazione non ammessa: deleteLabel');
+  deveFallire('Organizzazione_Gmail.gs', 'e un messaggio cancellato con il servizio Gmail, li\' dentro',
+    inserisci(posta, DENTRO_TOGLI, '\n  Gmail.Users.Messages.remove(\'me\', \'M1\');'),
+    'servizio Gmail non ammesso: Gmail.Users.Messages.remove');
+  deveFallire('Organizzazione_Gmail.gs', 'o messo nel cestino, li\' dentro',
+    inserisci(posta, DENTRO_TOGLI, '\n  GmailApp.search(\'label:Famiglie\')[0].moveToTrash();'), 'cestino');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto
@@ -512,6 +606,19 @@ function bancoConGuasti() {
       '{ bcc: \'collega@scuola-esempio.edu.it\' });');
     const s2 = esitoBanco('bcc.gs', inCopia);
     verifica('con una copia nascosta il banco fallisce', s2 !== null && s2 !== 0);
+    // EXTRA_togliFiltri: la copia nel registro prima di togliere, e solo i filtri scelti
+    const senzaCopia = sostituisci(posta, 'Logger.log(\'COPIA DEL FILTRO CHE STO PER TOGLIERE.',
+                                          'String(\'COPIA DEL FILTRO CHE STO PER TOGLIERE.');
+    const s3 = esitoBanco('senzacopia.gs', senzaCopia);
+    verifica('se un filtro si toglie senza scriverne prima la copia il banco fallisce', s3 !== null && s3 !== 0);
+    const altraEtichetta = sostituisci(posta, 'if (!sua) return false;', 'sua = true;');
+    const s4 = esitoBanco('etichetta.gs', altraEtichetta);
+    verifica('se si toglie anche un filtro che mette un\'altra etichetta il banco fallisce', s4 !== null && s4 !== 0);
+    const unoInPiu = sostituisci(posta,
+      'if (!Object.prototype.hasOwnProperty.call(voce.criteri, k) || criteri[k] !== voce.criteri[k]) return false;',
+      'if (Object.prototype.hasOwnProperty.call(voce.criteri, k) && criteri[k] !== voce.criteri[k]) return false;');
+    const s5 = esitoBanco('inpiu.gs', unoInPiu);
+    verifica('e anche se si toglie un filtro con un criterio in piu\'', s5 !== null && s5 !== 0);
   } finally {
     fs.rmSync(cartella, { recursive: true, force: true });
   }

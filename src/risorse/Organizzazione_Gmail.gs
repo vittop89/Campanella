@@ -10,7 +10,7 @@
  *
  *  Usa soltanto Gmail: non scrive nel Drive, non chiama servizi esterni
  *  (nessun UrlFetchApp) e le uniche email che manda sono i riepiloghi a te
- *  stesso. Non cancella mai niente.
+ *  stesso. Non cancella messaggi ne' etichette.
  *
  *  COSA FA
  *    1. crea le etichette in Gmail;
@@ -20,13 +20,18 @@
  *    4. (facoltativo) crea i veri filtri di Gmail, cosi' lo smistamento
  *       avviene anche senza lo script (tranne le regole che escludono le
  *       altre, come Studenti: quelle restano allo smistamento del punto 3);
- *    5. (facoltativo) da' alle etichette i colori scelti in Campanella.
- *    I punti 4 e 5 vogliono il servizio avanzato "Gmail API" (Servizi -> "+").
+ *    5. (facoltativo) da' alle etichette i colori scelti in Campanella;
+ *    6. (facoltativo) toglie i filtri di Gmail che avevi gia' e che hai
+ *       scelto in Campanella, dopo averne scritto una copia nel registro.
+ *    I punti 4, 5 e 6 vogliono il servizio avanzato "Gmail API" (Servizi -> "+").
  *
  *  COSA NON FA
- *    Non cancella niente. Non svuota il cestino. Non segnala come spam.
- *    Applica etichette e, se richiesto, archivia: l'archiviazione toglie dalla
- *    Posta in arrivo ma il messaggio resta in "Tutti i messaggi".
+ *    Non cancella messaggi ne' etichette. Non svuota il cestino. Non segnala
+ *    come spam. Applica etichette e, se richiesto, archivia: l'archiviazione
+ *    toglie dalla Posta in arrivo ma il messaggio resta in "Tutti i messaggi".
+ *    Toglie soltanto quello che chiedi tu: le etichette dai messaggi (le
+ *    funzioni ANNULLA_) e i filtri di Gmail che hai scelto in Campanella
+ *    (EXTRA_togliFiltri, dopo averne scritto una copia nel registro).
  *
  *  FUNZIONI DA ESEGUIRE, NELL'ORDINE
  *  (menu a tendina in alto nell'editor, accanto al pulsante "Esegui")
@@ -47,6 +52,10 @@
  *    EXTRA_coloraTutteLeEtichette .. come la precedente, ma ricolora anche le
  *                                    etichette che c'erano gia', comprese
  *                                    quelle a cui avevi dato un colore tu
+ *    EXTRA_togliFiltri ............. toglie i filtri di Gmail che avevi gia'
+ *                                    e che hai scelto in Campanella (Posta,
+ *                                    passo 4), dopo averne scritto una copia
+ *                                    nel registro (facoltativo)
  *    EXTRA_codiceStato ............. stampa il codice da incollare in
  *                                    Campanella (Impostazioni): dice se il
  *                                    riordino e' fatto
@@ -90,6 +99,7 @@ var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
 var _CHIAVE_CREATE_ID       = 'ORGGMAIL_ETICHETTE_CREATE_ID';  // e il loro id (servizio Gmail API)
 var _CHIAVE_COLORI          = 'ORGGMAIL_COLORI_DATI';  // i colori dati dallo script, per id
+var _CHIAVE_FILTRI_TOLTI    = 'ORGGMAIL_FILTRI_TOLTI'; // le voci di filtriDaTogliere gia' tolte (solo un'impronta)
 var _TRIGGER_RIPRESA        = 'PASSO_3_riordinaPostaEsistente';
 var _TRIGGER_ORARIO         = 'smistaNuoviMessaggi';
 var _TRIGGER_ORARI          = 'ORARI_2_invia';  // le due riprese di Orari.gs, nello stesso progetto
@@ -110,6 +120,13 @@ var _COLORI_GMAIL = [
   '#594c05', '#fbe983', '#684e07', '#fdedc1', '#0b4f30', '#b3efd3', '#04502e', '#a2dcc1',
   '#c2c2c2', '#4986e7', '#2da2bb', '#b99aff', '#994a64', '#f691b2', '#ff7537', '#ffad46',
   '#662e37', '#ebdbde', '#cca6ac', '#094228', '#42d692', '#16a765'
+];
+// i criteri dei filtri (Gmail API, Filter.criteria) come li chiama Gmail nella
+// finestra "Crea un nuovo filtro": le copie dei filtri tolti usano questi nomi
+var _NOMI_CRITERI = [
+  ['from', 'Da'], ['to', 'A'], ['subject', 'Oggetto'], ['query', 'Contiene le parole'],
+  ['negatedQuery', 'Non contiene'], ['hasAttachment', 'Contiene allegati'],
+  ['excludeChats', 'Non includere chat']
 ];
 
 
@@ -139,6 +156,12 @@ function PASSO_1_anteprima() {
   }
   // i colori scelti in Campanella: li puo' mettere solo il servizio Gmail API
   righe.push(_rigaColori_(cfg));
+  // i filtri di Gmail che avevi gia' e che hai scelto di togliere
+  var daTogliere = _vociFiltri_(cfg).buone.length;
+  if (daTogliere) {
+    righe.push(daTogliere + (daTogliere === 1 ? ' filtro' : ' filtri') +
+               ' di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).');
+  }
   righe.push('');
 
   var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
@@ -1062,6 +1085,331 @@ function _coloraEtichette_(tutte) {
     '\n\nLe etichette delle regole senza colore restano come sono.';
   Logger.log(testo);
   return testo;
+}
+
+
+// ===========================================================================
+//  EXTRA - TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA' (facoltativo)
+//  Un filtro fatto a mano anni fa continua a mettere la sua etichetta anche
+//  quando le etichette le mette lo script. In Campanella (Posta, passo 4,
+//  "Filtri che hai gia' in Gmail...") apri l'esportazione dei tuoi filtri e
+//  spunti quelli da togliere: finiscono in Configurazione.gs, in
+//  filtriDaTogliere, con l'etichetta e i criteri esatti. Serve il servizio
+//  avanzato "Gmail API" (editor -> Servizi (+) -> "Gmail API").
+//  Toglie solo un filtro che ha proprio quei criteri (tutti, e nessuno in
+//  piu') e che mette proprio quell'etichetta; prima di toglierlo ne scrive
+//  una copia completa nel registro, con cui lo si rifa' a mano. Non tocca
+//  gli altri filtri, le etichette ne' i messaggi.
+// ===========================================================================
+function EXTRA_togliFiltri() {
+  var cfg = _config_();
+  var voci = _vociFiltri_(cfg);
+  if (!voci.buone.length && !voci.saltate.length) {
+    var niente = 'Nessun filtro da togliere in Configurazione.gs. I filtri che hai gia\' in Gmail si ' +
+      'scelgono in Campanella (Posta, passo 4, "Filtri che hai gia\' in Gmail..."): poi copia di nuovo ' +
+      'la configurazione ed esegui ancora questa funzione.';
+    Logger.log(niente);
+    return niente;
+  }
+  if (!_servizioFiltri_()) {
+    var senza = 'SERVIZIO "Gmail API" NON ATTIVO: non ho tolto nessun filtro.\n' +
+      'I filtri di Gmail li puo\' togliere solo quel servizio. Nell\'editor, colonna di sinistra: ' +
+      'Servizi -> "+" -> scegli "Gmail API" -> Aggiungi. Poi esegui di nuovo EXTRA_togliFiltri.';
+    Logger.log(senza);
+    return senza;
+  }
+  var prova = !!cfg.provaSenzaModifiche;
+
+  // lo stesso blocco del riordino, dello smistamento e dei colori
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Un\'altra esecuzione (il riordino della posta o lo smistamento) sta lavorando ' +
+                   'proprio adesso: riprova fra un minuto. Non ho tolto nessun filtro.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var esito;
+  try { esito = _togliFiltri_(voci.buone, prova); }
+  finally { lock.releaseLock(); }
+
+  var n = esito.tolti.length;
+  var righe = [];
+  if (prova) {
+    righe.push('MODALITA\' PROVA: non ho tolto nessun filtro, dico soltanto che cosa toglierei.');
+  } else if (!n && !esito.nonRiusciti.length) {
+    righe = righe.concat(_aCapo_('NIENTE DA TOGLIERE: in Gmail non c\'e\' nessun filtro con proprio i ' +
+      'criteri e l\'etichetta di quelli scelti in Campanella.', '', ''));
+  }
+  righe.push((prova ? 'Filtri di Gmail da togliere: ' : 'Filtri di Gmail tolti adesso: ') + n);
+  for (var i = 0; i < n; i++) righe.push(_rientra_(esito.tolti[i], '  - ', '    '));
+  if (esito.nonRiusciti.length) {
+    righe.push('');
+    righe.push('Non riusciti: ' + esito.nonRiusciti.length);
+    for (var r = 0; r < esito.nonRiusciti.length; r++) righe.push('  - ' + esito.nonRiusciti[r]);
+    righe = righe.concat(_aCapo_('Questi filtri ci sono ancora. Riprova fra qualche minuto: gli altri ' +
+      'restano tolti.', '  ', '  '));
+  }
+  if (esito.nonTrovati.length) {
+    righe.push('');
+    righe.push('Non trovati: ' + esito.nonTrovati.length);
+    for (var t = 0; t < esito.nonTrovati.length; t++) righe.push('  - ' + esito.nonTrovati[t]);
+    righe = righe.concat(_aCapo_('In Gmail non c\'e\' un filtro con proprio questi criteri (tutti, e ' +
+      'nessuno in piu\') che mette questa etichetta: se l\'hai cambiato, esportalo di nuovo e sceglilo in ' +
+      'Campanella. Non ho tolto niente al suo posto.', '  ', '  '));
+  }
+  if (esito.giaTolti.length) {
+    righe.push('');
+    righe.push('Gia\' tolti prima da EXTRA_togliFiltri: ' + esito.giaTolti.length);
+    for (var g = 0; g < esito.giaTolti.length; g++) righe.push('  - ' + esito.giaTolti[g]);
+  }
+  if (voci.saltate.length) {
+    righe.push('');
+    righe.push('Voci di Configurazione.gs saltate, perche\' senza etichetta o senza criteri: ' + voci.saltate.length);
+    for (var s = 0; s < voci.saltate.length; s++) righe.push('  - ' + voci.saltate[s]);
+  }
+  righe.push('');
+  righe = righe.concat(_aCapo_('Gli altri filtri non li ho toccati. Le etichette gia\' messe ai messaggi ' +
+    'restano, e i messaggi pure: se un\'etichetta non ti serve piu\', cancellala tu da Gmail ' +
+    '(Impostazioni -> Etichette); i messaggi non si cancellano.', '', ''));
+  if (prova) {
+    righe = righe.concat(_aCapo_('Per togliere davvero questi filtri: in Configurazione.gs metti ' +
+      'provaSenzaModifiche: false ed esegui di nuovo EXTRA_togliFiltri.', '', ''));
+  } else if (n) {
+    righe = righe.concat(_aCapo_('Prima di togliere ogni filtro ne ho scritto una copia completa nel ' +
+      'registro: con quella, se serve, lo rifai a mano (Gmail -> Impostazioni -> Filtri e indirizzi ' +
+      'bloccati -> Crea un nuovo filtro).', '', ''));
+  }
+  var testo = righe.join('\n');
+  if (!prova && cfg.inviaReport && (n || esito.nonRiusciti.length) &&
+      _inviaReport_('Filtri di Gmail tolti', testo)) {
+    testo += '\nLo stesso riepilogo, con le copie dei filtri, e\' nell\'email che ti sei appena mandato.';
+  }
+  Logger.log(testo);
+  return testo;
+}
+
+/**
+ * Le voci di filtriDaTogliere: buone (etichetta, criteri come li confronta
+ * lo script e la loro impronta) e saltate, quelle senza etichetta o senza
+ * criteri. Una voce senza criteri non e' un filtro, e non si cerca.
+ */
+function _vociFiltri_(cfg) {
+  var fuori = { buone: [], saltate: [] };
+  var elenco = cfg.filtriDaTogliere;
+  if (!elenco || typeof elenco.length !== 'number') return fuori;
+  for (var i = 0; i < elenco.length; i++) {
+    var voce = elenco[i] || {};
+    var etichetta = String(voce.etichetta || '').trim();
+    var criteri = _criteriNormali_(voce.criteri);
+    var quanti = 0;
+    for (var k in criteri) quanti++;
+    if (!etichetta || !quanti) {
+      fuori.saltate.push(etichetta ? etichetta + ' (senza criteri)' : '(senza etichetta)');
+      continue;
+    }
+    fuori.buone.push({ etichetta: etichetta, criteri: criteri, firma: _firmaFiltro_(etichetta, criteri) });
+  }
+  return fuori;
+}
+
+/**
+ * Cerca e toglie (in prova soltanto cerca) i filtri delle voci. Per ogni
+ * filtro trovato: la copia nel registro, poi la rimozione. Dice che cosa ha
+ * tolto (le copie), che cosa non e' riuscito a togliere, quali voci non ha
+ * trovato e quali aveva gia' tolto in un giro di prima.
+ */
+function _togliFiltri_(voci, prova) {
+  var esito = { tolti: [], nonRiusciti: [], nonTrovati: [], giaTolti: [] };
+  var etichette = {};                  // id -> { nome, sistema }
+  var lista = Gmail.Users.Labels.list('me').labels || [];
+  for (var i = 0; i < lista.length; i++) {
+    etichette[lista[i].id] = { nome: String(lista[i].name), sistema: lista[i].type === 'system' };
+  }
+  var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
+  var memoria = _leggiMappa_(_CHIAVE_FILTRI_TOLTI);
+  var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  var visti = {};                      // un filtro che vale per due voci si toglie una volta
+  var segnate = false;
+
+  for (var v = 0; v < voci.length; v++) {
+    var voce = voci[v], trovati = 0;
+    var chi = voce.etichetta + ' (' + _righeCriteri_(voce.criteri, '').join('; ') + ')';
+    for (var f = 0; f < esistenti.length; f++) {
+      var filtro = esistenti[f];
+      if (visti[filtro.id] || !_stessoFiltro_(filtro, voce, etichette)) continue;
+      visti[filtro.id] = true;
+      trovati++;
+      var copia = _copiaFiltro_(filtro, etichette);
+      if (prova) { esito.tolti.push(copia); continue; }
+      Logger.log('COPIA DEL FILTRO CHE STO PER TOGLIERE. Per rifarlo: Gmail -> Impostazioni -> Filtri e ' +
+                 'indirizzi bloccati -> Crea un nuovo filtro, con questi criteri e queste azioni.\n' + copia);
+      try {
+        Gmail.Users.Settings.Filters.remove('me', filtro.id);
+        esito.tolti.push(copia);
+        memoria[voce.firma] = oggi;
+        segnate = true;
+      } catch (errore) {
+        esito.nonRiusciti.push(chi + ': ' + errore.message);
+      }
+    }
+    if (trovati) continue;
+    var quando = String(memoria[voce.firma] || '');
+    if (quando) {
+      esito.giaTolti.push(chi + (/^\d{8}$/.test(quando)
+        ? ' (il ' + quando.slice(6, 8) + '/' + quando.slice(4, 6) + '/' + quando.slice(0, 4) + ')' : ''));
+    } else {
+      esito.nonTrovati.push(chi);
+    }
+  }
+  if (segnate) {
+    try { _salvaMappa_(_CHIAVE_FILTRI_TOLTI, memoria); }
+    catch (errore2) {
+      // i filtri sono tolti lo stesso: al prossimo giro risulteranno "non trovati"
+      Logger.log('Filtri tolti, ma non ricordati (' + errore2.message + ').');
+    }
+  }
+  return esito;
+}
+
+/** Vero se nel progetto c'e' il servizio avanzato "Gmail API" con i filtri. */
+function _servizioFiltri_() {
+  return _servizioGmail_() && !!Gmail.Users.Settings && !!Gmail.Users.Settings.Filters;
+}
+
+/**
+ * Il filtro di Gmail e' quello della voce? Mette la sua etichetta (il nome,
+ * senza badare alle maiuscole, come fa Gmail) e ha proprio i suoi criteri:
+ * gli stessi, con gli stessi valori, e nessuno in piu'.
+ */
+function _stessoFiltro_(filtro, voce, etichette) {
+  var aggiunte = (filtro.action || {}).addLabelIds || [];
+  var cercata = voce.etichetta.toLowerCase(), sua = false;
+  for (var i = 0; i < aggiunte.length; i++) {
+    var e = etichette[aggiunte[i]];
+    if (e && e.nome.trim().toLowerCase() === cercata) { sua = true; break; }
+  }
+  if (!sua) return false;
+  var criteri = _criteriNormali_(filtro.criteria), k;
+  for (k in criteri) {
+    if (!Object.prototype.hasOwnProperty.call(voce.criteri, k) || criteri[k] !== voce.criteri[k]) return false;
+  }
+  for (k in voce.criteri) {
+    if (!Object.prototype.hasOwnProperty.call(criteri, k)) return false;
+  }
+  return true;
+}
+
+/**
+ * I criteri di un filtro come si confrontano: solo quelli che dicono
+ * qualcosa (Gmail scrive anche hasAttachment: false, sizeComparison:
+ * 'unspecified'), spazi in fila come uno solo, vero come 'true' e la
+ * dimensione come numero.
+ */
+function _criteriNormali_(criteri) {
+  var fuori = {};
+  if (!criteri || typeof criteri !== 'object') return fuori;
+  for (var k in criteri) {
+    var v = criteri[k];
+    if (v === null || v === undefined || v === false || v === '') continue;
+    if (k === 'hasAttachment' || k === 'excludeChats') {
+      if (v === true || String(v).toLowerCase() === 'true') fuori[k] = 'true';
+      continue;
+    }
+    if (k === 'size') {
+      var n = Number(v);
+      if (n > 0) fuori[k] = String(n);
+      continue;
+    }
+    var t = String(v).replace(/\s+/g, ' ').trim();
+    if (k === 'sizeComparison') t = (t.toLowerCase() === 'unspecified') ? '' : t.toLowerCase();
+    if (t) fuori[k] = t;
+  }
+  if (!fuori.size) delete fuori.sizeComparison;
+  return fuori;
+}
+
+/**
+ * Un'impronta di etichetta e criteri: otto cifre esadecimali (FNV-1a).
+ * Serve a ricordare quali voci sono gia' state tolte senza scrivere nelle
+ * proprieta' dello script indirizzi o parole dei tuoi filtri.
+ */
+function _firmaFiltro_(etichetta, criteri) {
+  var chiavi = [];
+  for (var k in criteri) chiavi.push(k);
+  chiavi.sort();
+  var testo = String(etichetta).trim().toLowerCase();
+  for (var i = 0; i < chiavi.length; i++) testo += '\n' + chiavi[i] + '=' + criteri[chiavi[i]];
+  var h = 0x811c9dc5;
+  for (var j = 0; j < testo.length; j++) {
+    h ^= testo.charCodeAt(j);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return ('0000000' + h.toString(16)).slice(-8);
+}
+
+/** I criteri, una riga per criterio, con i nomi della finestra di Gmail (_NOMI_CRITERI). */
+function _righeCriteri_(criteri, rientro) {
+  var righe = [], fatti = { size: true, sizeComparison: true };
+  for (var i = 0; i < _NOMI_CRITERI.length; i++) {
+    var k = _NOMI_CRITERI[i][0];
+    fatti[k] = true;
+    if (!criteri[k]) continue;
+    var siNo = (k === 'hasAttachment' || k === 'excludeChats');
+    righe.push(rientro + _NOMI_CRITERI[i][1] + (siNo ? '' : ': ' + criteri[k]));
+  }
+  if (criteri.size) {
+    righe.push(rientro + 'Dimensioni: ' +
+      (criteri.sizeComparison === 'smaller' ? 'minore di ' : criteri.sizeComparison === 'larger' ? 'maggiore di ' : '') +
+      _dimensione_(criteri.size));
+  }
+  // un criterio che Gmail aggiungera' un giorno: si scrive com'e'
+  for (var altro in criteri) if (!fatti[altro]) righe.push(rientro + altro + ': ' + criteri[altro]);
+  return righe;
+}
+
+function _dimensione_(byte) {
+  var n = Number(byte);
+  if (n % 1048576 === 0) return (n / 1048576) + ' MB';
+  if (n % 1024 === 0) return (n / 1024) + ' KB';
+  return n + ' byte';
+}
+
+/**
+ * La copia di un filtro, per rifarlo a mano: i criteri e le azioni, con i
+ * nomi delle etichette invece dei loro id. Le azioni che lo script non usa
+ * mai si scrivono con il nome che hanno nel servizio Gmail API.
+ */
+function _copiaFiltro_(filtro, etichette) {
+  var azione = filtro.action || {};
+  var righe = ['Filtro di Gmail', '  Criteri:'].concat(_righeCriteri_(_criteriNormali_(filtro.criteria), '    '));
+  righe.push('  Azioni:');
+  var aggiunte = azione.addLabelIds || [], tolte = azione.removeLabelIds || [];
+  for (var i = 0; i < aggiunte.length; i++) {
+    var e = etichette[aggiunte[i]];
+    if (!e) righe.push('    Applica l\'etichetta con id ' + aggiunte[i] + ' (in Gmail non c\'e\' piu\')');
+    else if (!e.sistema) righe.push('    Applica l\'etichetta: ' + e.nome);
+    else righe.push('    Aggiunge ' + e.nome + ' (etichetta di sistema di Gmail)');
+  }
+  for (var j = 0; j < tolte.length; j++) {
+    var d = etichette[tolte[j]];
+    if (tolte[j] === 'INBOX') righe.push('    Salta la Posta in arrivo (archivia)');
+    else if (tolte[j] === 'UNREAD') righe.push('    Segna come gia\' letto');
+    else if (d && !d.sistema) righe.push('    Toglie l\'etichetta: ' + d.nome);
+    else righe.push('    Toglie ' + (d ? d.nome : tolte[j]) + ' (etichetta di sistema di Gmail)');
+  }
+  for (var k in azione) {
+    if (k === 'addLabelIds' || k === 'removeLabelIds') continue;
+    var valore = azione[k];
+    righe.push('    ' + k + ': ' + (valore && typeof valore === 'object' ? JSON.stringify(valore) : String(valore)));
+  }
+  return righe.join('\n');
+}
+
+/** Un testo di piu' righe dentro un elenco: "prima" davanti alla prima riga, "dopo" davanti alle altre. */
+function _rientra_(testo, prima, dopo) {
+  var righe = String(testo).split('\n');
+  for (var i = 0; i < righe.length; i++) righe[i] = (i === 0 ? prima : dopo) + righe[i];
+  return righe.join('\n');
 }
 
 
