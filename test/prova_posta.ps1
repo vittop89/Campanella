@@ -424,6 +424,20 @@ try {
         $n = [int]$tGen.GetMethod('EtichetteColorate', $FS).Invoke($null, @($k))
         $accese = @($regoleK | Where-Object { $_.Attiva -and [string]$_.Colore -ne '' }).Count
         Verifica "il riepilogo conta regole accese e sottoetichette colorate ($n)" ($n -eq $accese + 2)
+        # ma solo le regole che escono accese: senza indirizzi di Dirigenza e
+        # Segreteria e senza elenco del personale, quelle regole e Colleghi sono
+        # spuntate ma la configurazione le scrive spente, e l'anteprima non le conta
+        $v = NuovoStato
+        Imposta $v 'Dirigenza' ''
+        Imposta $v 'Segreteria' ''
+        $fileV = Join-Path $temporanea 'Configurazione_spente.gs'
+        Scrivi $fileV (Genera $v $true)
+        $conColore = @((LeggiConfigurazione $fileV).CONFIG.regole | Where-Object { $_.attiva -and $_.colore }).Count
+        $nV = [int]$tGen.GetMethod('EtichetteColorate', $FS).Invoke($null, @($v))
+        $rigaV = @(((& node $anteprimaJs $fileV $motore) -join "`n") -split "`n" | Where-Object { $_.StartsWith('Colori: ') })
+        Verifica "e solo le regole che la configurazione scrive accese ($nV; accese con un colore: $conColore)" (
+            $conColore -gt 0 -and $nV -eq $conColore -and $rigaV.Count -eq 1 -and
+            $rigaV[0] -eq "Colori: $conColore etichette con un colore, ma senza il servizio Gmail API non si possono applicare.")
     }
 
     # -----------------------------------------------------------------------

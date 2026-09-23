@@ -194,13 +194,7 @@ namespace Campanella
             {
                 Regola r = s.Regole[i];
                 List<string> da = MittentiDellaRegola(s, r);
-
-                bool inutile = da.Count == 0 && r.Oggetto.Count == 0 &&
-                               r.Contiene.Count == 0 && r.QueryLibera == "";
-                bool attiva = r.Attiva && !inutile;
-                if (da.Count == 1 && da[0] == "@DOMINIO@" && s.DominioPulito() == "") attiva = false;
-                // senza elenco del personale, Colleghi non ha nessuno da riconoscere
-                if (da.Count == 1 && da[0] == "@PERSONALE@" && indirizzi.Count == 0) attiva = false;
+                bool attiva = AttivaNellaConfigurazione(s, r, indirizzi);
 
                 StringBuilder b = new StringBuilder();
                 b.AppendLine("    {");
@@ -274,6 +268,24 @@ namespace Campanella
                 if (s != "" && !fuori.Contains(s)) fuori.Add(s);
             }
             return fuori;
+        }
+
+        /// <summary>
+        /// Vero se la regola esce accesa in Configurazione.gs: spuntata e con
+        /// qualcosa da cercare. Una regola senza mittenti ne' altri criteri, con
+        /// @DOMINIO@ senza dominio o con @PERSONALE@ senza elenco del personale
+        /// (Colleghi non avrebbe nessuno da riconoscere) esce spenta.
+        /// "indirizzi" e' s.IndirizziPersonale(), passato per non rifarlo.
+        /// </summary>
+        public static bool AttivaNellaConfigurazione(Stato s, Regola r, List<string> indirizzi)
+        {
+            if (!r.Attiva) return false;
+            List<string> da = MittentiDellaRegola(s, r);
+            if (da.Count == 0 && r.Oggetto.Count == 0 && r.Contiene.Count == 0 && r.QueryLibera == "")
+                return false;
+            if (da.Count == 1 && da[0] == "@DOMINIO@" && s.DominioPulito() == "") return false;
+            if (da.Count == 1 && da[0] == "@PERSONALE@" && indirizzi.Count == 0) return false;
+            return true;
         }
 
         /// <summary>
@@ -421,14 +433,16 @@ namespace Campanella
 
         /// <summary>
         /// Quante etichette della configurazione hanno un colore: le regole
-        /// accese e le sottoetichette dei ruoli che nasceranno. Per il riepilogo
-        /// del passo 5.
+        /// che escono accese (come le conta PASSO_1_anteprima: una spuntata ma
+        /// senza niente da cercare esce spenta) e le sottoetichette dei ruoli
+        /// che nasceranno. Per il riepilogo del passo 5.
         /// </summary>
         public static int EtichetteColorate(Stato s)
         {
             int n = 0;
+            List<string> indirizzi = s.IndirizziPersonale();
             foreach (Regola r in s.Regole)
-                if (r.Attiva && ColoriEtichette.Pulito(r.Colore) != "") n++;
+                if (AttivaNellaConfigurazione(s, r, indirizzi) && ColoriEtichette.Pulito(r.Colore) != "") n++;
             Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo
                 ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
             string colleghi = ColoriEtichette.DeiColleghi(s.Regole);
