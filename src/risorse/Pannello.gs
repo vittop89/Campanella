@@ -70,6 +70,7 @@ var _PAN_TRIGGER    = 'PANNELLO_chiusura';
 var _PAN_CHIAVE     = 'CAMPANELLA_PANNELLO';
 var _PAN_CHIAVE_FOGLI = 'CAMPANELLA_PANNELLO_FOGLI_';   // + anno: i fogli di quell'anno
 var _PAN_ISTRUZIONI = 'Istruzioni';       // la scheda che ricorda come si usa il foglio
+var _PAN_TEMPO      = 260 * 1000;         // oltre, "Prepara l'anno nuovo" si ferma: Google ferma gli script a 6 minuti
 
 // le colonne della scheda, nell'ordine
 var _PAN_COLONNE = [
@@ -586,6 +587,7 @@ function _panTrovaIModuli() {
 //  IL LAVORO
 // ===========================================================================
 function _panEsegui(davvero) {
+  var inizio = new Date().getTime();
   var foglio = _panScheda(true);
   var dati = _panLeggi(foglio);
   var anno = _panAnno();
@@ -603,11 +605,29 @@ function _panEsegui(davvero) {
   var attive = 0, fatte = 0, problemi = 0;
   var chiusure = {};
 
+  // Google ferma uno script dopo 6 minuti, e con tante righe ci si arriva. Mi fermo prima,
+  // a lavoro salvato. E comincio dalle righe ancora da preparare per quest'anno: se il tempo
+  // finisce, sono quelle gia' pronte ad aspettare, e rieseguendo si va sempre avanti.
+  var memoria = _panMemoria();
+  var ordine = _panOrdine(dati.righe, memoria, anno);
+  var daFare = [], giaPronte = [];                      // le righe che il tempo non ha raggiunto
   var spente = [];
-  for (var i = 0; i < dati.righe.length; i++) {
-    var r = dati.righe[i];
+  for (var i = 0; i < ordine.length; i++) {
+    var r = ordine[i];
     if (!r.attivo) { spente.push(r.nome || '(riga ' + (r.indice + 2) + ')'); continue; }
     attive++;
+    if (new Date().getTime() - inizio > _PAN_TEMPO) {
+      if (memoria.pronti[r.id + '|' + anno] === true) {
+        giaPronte.push(r.nome || '(riga ' + (r.indice + 2) + ')');
+      } else {
+        daFare.push(r.nome || '(riga ' + (r.indice + 2) + ')');
+        if (davvero) {
+          dati.valori[r.indice][_PAN_C.STATO] = 'da preparare: tempo finito, riesegui "Prepara l\'anno nuovo"';
+          dati.valori[r.indice][_PAN_C.QUANDO] = _panAdesso();
+        }
+      }
+      continue;
+    }
     righe.push('--- ' + (r.nome || '(riga ' + (r.indice + 2) + ')'));
     try {
       var esito = _panUnaRiga(r, anno, davvero, righe);
@@ -632,6 +652,16 @@ function _panEsegui(davvero) {
   if (spente.length) {
     righe.push('--- senza la spunta "Attivo", saltate: ' + spente.join(', '));
   }
+  if (daFare.length || giaPronte.length) {
+    righe.push('--- TEMPO FINITO: Google ferma gli script dopo 6 minuti, e mi sono fermato prima.');
+    if (daFare.length) {
+      righe.push('    ' + (davvero ? 'Da preparare ancora: ' : 'Non guardate: ') + daFare.join(', ') + '.');
+      righe.push('    Riesegui "' + (davvero ? 'Prepara l\'anno nuovo' : 'Anteprima') + '": riparte da queste.');
+    }
+    if (giaPronte.length) {
+      righe.push('    Gia\' pronte per quest\'anno, non ricontrollate adesso: ' + giaPronte.join(', ') + '.');
+    }
+  }
   if (attive === 0) {
     righe.push('Nessuna riga attiva: metti la spunta in "Attivo" alle righe da preparare.');
     return righe.join('\n');
@@ -655,6 +685,11 @@ function _panEsegui(davvero) {
   }
 
   righe.push('');
+  if (davvero && daFare.length) {
+    righe.push('NON HO FINITO. Righe preparate: ' + fatte + (problemi ? ', con problemi: ' + problemi : '') +
+               ', da preparare ancora: ' + daFare.length + '. Riesegui "Prepara l\'anno nuovo".');
+    return righe.join('\n');
+  }
   righe.push(davvero
     ? 'FATTO. Righe preparate: ' + fatte + (problemi ? ', con problemi: ' + problemi : '') + '.'
     : 'Se ti convince: menu Campanella -> "Prepara l\'anno nuovo".');
@@ -662,6 +697,17 @@ function _panEsegui(davvero) {
     righe.push('L\'anno prossimo, dal primo settembre: riapri questo foglio e rifai la stessa cosa.');
   }
   return righe.join('\n');
+}
+
+/** Le righe nell'ordine in cui lavorarle: prima quelle attive non ancora pronte per quest'anno. */
+function _panOrdine(righeScheda, memoria, anno) {
+  var prima = [], dopo = [];
+  for (var i = 0; i < righeScheda.length; i++) {
+    var r = righeScheda[i];
+    if (r.attivo && memoria.pronti[r.id + '|' + anno] !== true) prima.push(r);
+    else dopo.push(r);
+  }
+  return prima.concat(dopo);
 }
 
 /** Una riga: cartella, foglio, collegamento, riapertura. Torna stato, url e chiusura da programmare. */

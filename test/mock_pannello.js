@@ -424,6 +424,7 @@ function nuovoMondo(opzioni) {
     FormApp: {
       DestinationType: { SPREADSHEET: 'SPREADSHEET' },
       openById(idModulo) {
+        m.adesso += m.costoApertura || 0;             // per le prove sul tempo: ogni modulo costa qualche secondo
         const f = m.moduli.get(idModulo);
         if (!f) throw new Error('Modulo non trovato: ' + idModulo);
         return f;
@@ -1532,6 +1533,34 @@ titolo('25 MODULI PER 10 ANNI: LA MEMORIA RESTA SOTTO IL TETTO DI GOOGLE');
     p.m.fogliCreati === 2 && JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli &&
     Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO')).fogli).length === 0 &&
     Object.keys(JSON.parse(p.m.proprieta.get('CAMPANELLA_PANNELLO_FOGLI_2026-27'))).length === 2);
+}
+
+// ---- 8g. tante righe: il limite dei 6 minuti ---------------------------------------------------
+titolo('30 RIGHE LENTE: MI FERMO PRIMA DEI 6 MINUTI DI GOOGLE');
+{
+  const moduli = [];
+  for (let i = 1; i <= 30; i++) {
+    const n = ('0' + i).slice(-2);
+    moduli.push({ modulo: 'Modulo ' + n, cartella: '', foglio: 'Risposte ' + n + ' - A.S. {anno}', chiusura: '31/08', svuota: false });
+  }
+  const m = nuovoMondo();
+  for (const x of moduli) new m.Modulo(x.modulo, m.cartella('MODELLI'));
+  const c = carica(m, { config: { moduli } });
+  c.PANNELLO_1_preparaIlFoglio();
+  c.PANNELLO_2_trovaIModuli();
+  m.costoApertura = 15 * 1000;                                // ogni modulo: 15 secondi
+  const inizio = m.adesso;
+  const t = c.PANNELLO_4_preparaAnno();
+  const pronte = scheda(m).filter(r => r[7] === 'pronto per 2026-27').length;
+  verifica('si ferma prima dei 6 minuti (' + Math.round((m.adesso - inizio) / 1000) + ' s)', m.adesso - inizio <= 280 * 1000);
+  verifica('e dice che non ha finito, e cosa manca', t.indexOf('NON HO FINITO') >= 0 && t.indexOf('Da preparare ancora') >= 0);
+  verifica('le righe fatte sono nella scheda, le altre dicono di rieseguire', pronte > 0 && pronte < 30 &&
+    scheda(m).filter(r => String(r[7]).indexOf('tempo finito') >= 0).length === 30 - pronte);
+  verifica('le chiusure delle righe fatte sono programmate', m.trigger.length === 1);
+  const t2 = c.PANNELLO_4_preparaAnno();
+  verifica('rieseguito: riparte dalle righe mancanti e le finisce tutte',
+    scheda(m).every(r => r[7] === 'pronto per 2026-27') && t2.indexOf('FATTO') >= 0 && m.fogliCreati === 30);
+  verifica('e dice quali righe gia\' pronte non ha ricontrollato', t2.indexOf('non ricontrollate adesso') >= 0);
 }
 
 // ---- 9. casi storti --------------------------------------------------------------------------
