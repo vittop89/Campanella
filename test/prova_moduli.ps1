@@ -111,8 +111,17 @@ Verifica "il manifest e' JSON valido, con il fuso italiano" ($manifest.timeZone 
 Verifica "chiede solo il modulo corrente, non tutti i moduli" ($manifest.oauthScopes -contains 'https://www.googleapis.com/auth/forms.currentonly' -and -not ($manifest.oauthScopes -contains 'https://www.googleapis.com/auth/forms'))
 Verifica "Drive solo nella versione con Drive" (($manifest.oauthScopes -contains 'https://www.googleapis.com/auth/drive') -and -not ($manifestSenza.oauthScopes -contains 'https://www.googleapis.com/auth/drive'))
 
+Verifica "il fuso del manifest e' quello di partenza di Campanella" ($manifest.timeZone -eq $tS.GetField('FusoDiDefault').GetValue($null))
+Verifica "il modulo si riapre sempre (l'opzione non si sceglie da Campanella)" ($conDrive -match 'riapri:\s+true' -and $null -eq $tP.GetField('Riapri'))
+
 $istr = Chiama 'Istruzioni' @((Parametri $true), '2026-27')
 Verifica "le istruzioni parlano del menu sotto l'icona a puzzle" ($istr.Contains('puzzle') -and $istr.Contains('Prepara l''anno nuovo'))
+$manifestAl  = $istr.IndexOf('appsscript.json')
+$primaVolta  = $istr.IndexOf('MODULO_1_anteprima  e premi Esegui')
+Verifica "il manifest viene prima della prima esecuzione, consigliato ma facoltativo" ($manifestAl -ge 0 -and $primaVolta -gt $manifestAl -and $istr.Contains('Consigliato, ma facoltativo'))
+Verifica "e le istruzioni dicono di controllare nella finestra di Google quale permesso chiede" ($istr.Contains('lo vedi nella sua finestra'))
+$pSv = Parametri $true; $pSv.Svuota = $true
+Verifica "con lo svuotamento spiegano che ogni risposta viene ritrovata, e che non si annulla" ((Chiama 'Istruzioni' @($pSv, '2026-27')).Contains('una per una') -and (Chiama 'Istruzioni' @($pSv, '2026-27')).Contains('non si puo'' annullare'))
 $pf = Parametri $true; $pf.Anno = '2027-28'
 Verifica "con l'anno scritto a mano avvisano che va rigenerato" ((Chiama 'Istruzioni' @($pf, '2026-27')).Contains('fermo sull''anno 2027-28'))
 
@@ -199,8 +208,8 @@ Verifica "la scheda si chiama Moduli"                ($conf.scheda -eq 'Moduli')
 & node (Join-Path $qui 'mock_pannello.js') $fp | Out-Host
 Verifica "il banco di prova accetta Pannello_prova.gs" ($LASTEXITCODE -eq 0)
 
-$mp = (Chiama 'ManifestPannello' @($uno)) | ConvertFrom-Json
-Verifica "il manifest del pannello chiede tutti i moduli (serve openById)" ($mp.oauthScopes -contains 'https://www.googleapis.com/auth/forms')
+Verifica "il codice del foglio dice che chiede il permesso su tutti i moduli (serve openById)" ($pannello.Contains('su tutti i moduli'))
+Verifica "e non c'e' un manifest da offrirgli: non restringerebbe niente" ($null -eq $tS.GetMethod('ManifestPannello', $FS))
 $argIstr = New-Object 'object[]' 2
 $argIstr[0] = $elenco
 $argIstr[1] = '2026-27'

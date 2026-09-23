@@ -24,20 +24,21 @@ namespace Campanella
     {
         public string Modulo = "";                   // nome del modulo, senza estensione
         public string Anno = "auto";                 // "auto" oppure 2026-27
-        public string CartellaAnno = "A.S. {anno}";  // come la crea lo strumento Cartelle
+        public string CartellaAnno = ScriptModuli.CartellaAnnoDiDefault;
         public string CartellaFoglio = "";           // dentro la cartella dell'anno; vuoto = la cartella dell'anno
         public string NomeFoglio = "";               // puo' contenere {anno}
-        public string Chiusura = "31/08";            // giorno/mese; vuoto = nessuna chiusura
-        public bool Riapri = true;
+        public string Chiusura = ScriptModuli.ChiusuraDiDefault;   // giorno/mese; vuoto = nessuna chiusura
         public bool Svuota = false;
         public bool UsaDrive = true;
-        public string FusoOrario = "Europe/Rome";
+        public string FusoOrario = ScriptModuli.FusoDiDefault;
     }
 
     static class ScriptModuli
     {
         public const string Risorsa = "Moduli.gs";
         public const string ChiusuraDiDefault = "31/08";
+        public const string FusoDiDefault = "Europe/Rome";            // quello delle scuole italiane
+        public const string CartellaAnnoDiDefault = "A.S. {anno}";    // come la crea lo strumento Cartelle
 
         const string InizioConfig = "// >>> CONFIGURAZIONE >>>";
         const string FineConfig = "// <<< CONFIGURAZIONE <<<";
@@ -191,7 +192,7 @@ namespace Campanella
                 string cartella = radice;
                 if (p.UsaDrive)
                 {
-                    cartella = Path.Combine(radice, (p.CartellaAnno ?? "A.S. {anno}").Replace("{anno}", annoScolastico));
+                    cartella = Path.Combine(radice, (p.CartellaAnno ?? CartellaAnnoDiDefault).Replace("{anno}", annoScolastico));
                     string sotto = (p.CartellaFoglio ?? "").Trim().Replace('/', '\\').Trim('\\');
                     if (sotto != "") cartella = Path.Combine(cartella, sotto);
                 }
@@ -208,7 +209,7 @@ namespace Campanella
             string anno = (p.Anno ?? "").Replace(" ", "");
             if (anno == "" || anno.Equals("auto", StringComparison.OrdinalIgnoreCase)) anno = "auto";
             string cartella = (p.CartellaFoglio ?? "").Trim().Replace('\\', '/').Trim('/');
-            string fuso = ((p.FusoOrario ?? "").Trim() == "") ? "Europe/Rome" : p.FusoOrario.Trim();
+            string fuso = Fuso(p);
 
             StringBuilder sb = new StringBuilder();
             sb.Append(InizioConfig).Append("  (scritta da Campanella");
@@ -223,7 +224,7 @@ namespace Campanella
             Riga(sb, "cartellaFoglio", Testo(cartella), "dentro la cartella dell'anno; \"\" = nella cartella dell'anno");
             Riga(sb, "nomeFoglio", Testo((p.NomeFoglio ?? "").Trim()), "");
             Riga(sb, "chiusura", Testo((p.Chiusura ?? "").Replace(" ", "")), "giorno/mese; \"\" = nessuna chiusura automatica");
-            Riga(sb, "riapri", p.Riapri ? "true" : "false", "riapre il modulo alle risposte");
+            Riga(sb, "riapri", "true", "riapre il modulo alle risposte (false = lo lasci come lo trovi)");
             Riga(sb, "svuotaRisposte", p.Svuota ? "true" : "false",
                  "toglie dal modulo le risposte degli anni scorsi, solo se gia' al sicuro in un foglio");
             Riga(sb, "fusoOrario", Testo(fuso), "");
@@ -240,6 +241,12 @@ namespace Campanella
         }
 
         static string Testo(string s) { return "\"" + AnalisiOrario.Js(s ?? "") + "\""; }
+
+        /// <summary>Il fuso orario dello script: quello scelto, o quello delle scuole italiane.</summary>
+        static string Fuso(ParametriModulo p)
+        {
+            return ((p.FusoOrario ?? "").Trim() == "") ? FusoDiDefault : p.FusoOrario.Trim();
+        }
 
         public static string Codice(ParametriModulo p)
         {
@@ -307,7 +314,7 @@ namespace Campanella
             if (a < 0 || b < a) throw new Exception("Nel motore " + RisorsaPannello + " manca il blocco della configurazione.");
 
             ParametriModulo primo = moduli[0];
-            string fuso = ((primo.FusoOrario ?? "").Trim() == "") ? "Europe/Rome" : primo.FusoOrario.Trim();
+            string fuso = Fuso(primo);
             string anno = (primo.Anno ?? "").Replace(" ", "");
             if (anno == "" || anno.Equals("auto", StringComparison.OrdinalIgnoreCase)) anno = "auto";
 
@@ -338,24 +345,6 @@ namespace Campanella
             testo = testo.Substring(0, a) + sb.ToString().Replace("\r\n", "\n") +
                     testo.Substring(b + FineConfig.Length);
             return testo.Replace("\n", "\r\n");
-        }
-
-        public static string ManifestPannello(ParametriModulo p)
-        {
-            string fuso = ((p.FusoOrario ?? "").Trim() == "") ? "Europe/Rome" : p.FusoOrario.Trim();
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("{");
-            sb.AppendLine("  \"timeZone\": \"" + AnalisiOrario.Js(fuso) + "\",");
-            sb.AppendLine("  \"exceptionLogging\": \"STACKDRIVER\",");
-            sb.AppendLine("  \"runtimeVersion\": \"V8\",");
-            sb.AppendLine("  \"oauthScopes\": [");
-            sb.AppendLine("    \"https://www.googleapis.com/auth/forms\",");
-            sb.AppendLine("    \"https://www.googleapis.com/auth/spreadsheets\",");
-            sb.AppendLine("    \"https://www.googleapis.com/auth/drive\",");
-            sb.AppendLine("    \"https://www.googleapis.com/auth/script.scriptapp\"");
-            sb.AppendLine("  ]");
-            sb.AppendLine("}");
-            return sb.ToString();
         }
 
         public static string IstruzioniPannello(IList<ParametriModulo> moduli, string annoAdesso)
@@ -412,8 +401,8 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("5.  Controlla le righe: cartella, nome del foglio, giorno di chiusura, e le due");
             sb.AppendLine("    caselle. \"Attivo\" spento salta la riga; \"Svuota\" toglie dal modulo le");
-            sb.AppendLine("    risposte degli anni scorsi, ma solo dopo aver controllato che stanno gia'");
-            sb.AppendLine("    tutte in un foglio vecchio.");
+            sb.AppendLine("    risposte degli anni scorsi, ma solo dopo averle ritrovate tutte, una per");
+            sb.AppendLine("    una, in un foglio vecchio. Togliere le risposte non si puo' annullare.");
             sb.AppendLine();
             sb.AppendLine("6.  Menu Campanella -> \"Anteprima\": dice cosa farebbe, senza fare niente.");
             sb.AppendLine("    Poi \"Prepara l'anno nuovo\". Nelle colonne Stato, Foglio dell'anno e");
@@ -514,13 +503,18 @@ namespace Campanella
             sb.AppendLine("-----------");
             sb.AppendLine("Lo script programma una chiusura per ogni data diversa che trova nelle righe.");
             sb.AppendLine("Quando arriva il giorno, chiude i moduli scaduti e scollega i loro fogli; gli");
-            sb.AppendLine("altri restano aperti. Tutto questo gira a nome tuo, anche se il modulo ha altri");
-            sb.AppendLine("editor: i fogli nascono nel TUO Drive.");
+            sb.AppendLine("altri restano aperti. Un modulo che Google non riesce a chiudere resta");
+            sb.AppendLine("collegato al suo foglio, la riga lo dice e lo script riprova ogni ora. Tutto");
+            sb.AppendLine("questo gira a nome tuo, anche se il modulo ha altri editor: i fogli nascono");
+            sb.AppendLine("nel TUO Drive.");
             sb.AppendLine();
             sb.AppendLine("SE QUALCOSA NON VA");
             sb.AppendLine("------------------");
             sb.AppendLine("Ogni problema resta nella sua riga, nella colonna Stato, e le altre righe");
             sb.AppendLine("vengono preparate lo stesso.");
+            sb.AppendLine("Con molti moduli \"Prepara l'anno nuovo\" puo' fermarsi prima di finire (Google");
+            sb.AppendLine("ferma gli script dopo 6 minuti): lo dice, salva quello che ha fatto, e");
+            sb.AppendLine("rieseguito riparte dalle righe che mancano.");
             sb.AppendLine("\"Questa app e' bloccata\": la scuola limita i permessi degli script. Il");
             sb.AppendLine("pannello ne chiede di piu' dello script dentro il modulo: se la scuola blocca,");
             sb.AppendLine("la strada piu' facile e' tornare a quello (voce 1 e 2 del menu).");
@@ -530,14 +524,17 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Facoltativo: il file appsscript.json con l'elenco esatto dei permessi.
-        /// Senza, Google li ricava dal codice e sceglie quelli larghi (tutti i
-        /// moduli dell'account); con questo, lo script puo' toccare solo il
-        /// modulo in cui si trova.
+        /// Facoltativo, consigliato prima della prima esecuzione: il file
+        /// appsscript.json con l'elenco esatto dei permessi. Senza, Google li
+        /// ricava dal codice e sceglie quelli larghi (tutti i moduli
+        /// dell'account); questo elenca per i moduli solo forms.currentonly, il
+        /// modulo in cui lo script si trova. Che Google chieda proprio quello si
+        /// vede nella sua finestra dei permessi: il codice, comunque, apre solo
+        /// il modulo in cui si trova (getActiveForm).
         /// </summary>
         public static string Manifest(ParametriModulo p)
         {
-            string fuso = ((p.FusoOrario ?? "").Trim() == "") ? "Europe/Rome" : p.FusoOrario.Trim();
+            string fuso = Fuso(p);
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
             sb.AppendLine("  \"timeZone\": \"" + AnalisiOrario.Js(fuso) + "\",");
@@ -597,7 +594,20 @@ namespace Campanella
             sb.AppendLine("    In alto, al posto di \"Progetto senza titolo\", dagli un nome: per esempio");
             sb.AppendLine("    Campanella - " + (nome == "" ? "modulo" : nome) + ".");
             sb.AppendLine();
-            sb.AppendLine("4.  Nella barra in alto scegli la funzione  MODULO_1_anteprima  e premi Esegui.");
+            sb.AppendLine("4.  Consigliato, ma facoltativo: il manifest, PRIMA della prima esecuzione.");
+            sb.AppendLine("    Senza, Google ricava i permessi dal codice e chiede quello largo, su TUTTI");
+            sb.AppendLine("    i tuoi moduli. Lo script apre comunque solo questo modulo, ma il permesso");
+            sb.AppendLine("    che concedi e' quello. Il manifest (voce 3 del menu qui sopra) chiede per i");
+            sb.AppendLine("    moduli solo il permesso su quello in cui lo script si trova.");
+            sb.AppendLine("    Nell'editor: rotellina (Impostazioni progetto) -> spunta \"Mostra il file");
+            sb.AppendLine("    manifest appsscript.json\"; torna all'editor, apri  appsscript.json  e");
+            sb.AppendLine("    sostituisci tutto con la voce 3. Salva con Ctrl+S.");
+            sb.AppendLine("    Quale permesso Google chiede davvero lo vedi nella sua finestra, al passo 5:");
+            sb.AppendLine("    se parla ancora di tutti i tuoi moduli, il manifest non e' stato preso");
+            sb.AppendLine("    (controlla di averlo salvato). Se invece compare un errore di permessi,");
+            sb.AppendLine("    togli dal file le righe di \"oauthScopes\": lo script funziona anche senza.");
+            sb.AppendLine();
+            sb.AppendLine("5.  Nella barra in alto scegli la funzione  MODULO_1_anteprima  e premi Esegui.");
             sb.AppendLine("    La prima volta Google chiede le autorizzazioni: scegli il tuo account e");
             sb.AppendLine("    LASCIA TUTTE LE SPUNTE, poi Consenti. I permessi che chiede:");
             sb.AppendLine("      - Moduli: leggere e collegare il modulo;");
@@ -612,13 +622,13 @@ namespace Campanella
             sb.AppendLine("    che lo script e' tuo e Google non l'ha esaminato.");
             sb.AppendLine("    E' un progetto a parte da quello della posta: i permessi non si sommano.");
             sb.AppendLine();
-            sb.AppendLine("5.  Leggi il \"Registro di esecuzione\" in basso: dice cosa farebbe, senza fare");
+            sb.AppendLine("6.  Leggi il \"Registro di esecuzione\" in basso: dice cosa farebbe, senza fare");
             sb.AppendLine("    niente. Controlla l'anno, la cartella e il nome del foglio.");
             sb.AppendLine();
-            sb.AppendLine("6.  Scegli  MODULO_2_prepara  ed Esegui. Crea il foglio, lo collega al modulo,");
+            sb.AppendLine("7.  Scegli  MODULO_2_prepara  ed Esegui. Crea il foglio, lo collega al modulo,");
             sb.AppendLine("    riapre il modulo se era chiuso e programma la chiusura.");
             sb.AppendLine();
-            sb.AppendLine("7.  Controlla: nel modulo, scheda Risposte -> \"Visualizza in Fogli\" apre il");
+            sb.AppendLine("8.  Controlla: nel modulo, scheda Risposte -> \"Visualizza in Fogli\" apre il");
             sb.AppendLine("    foglio nuovo. Dopo qualche minuto lo vedi anche sul PC, nella cartella, e");
             sb.AppendLine("    qui sopra la riga di riepilogo diventa verde.");
             sb.AppendLine();
@@ -638,7 +648,8 @@ namespace Campanella
                 sb.AppendLine("Se non compare, ricarica la pagina. L'anno lo calcola da solo (adesso " + annoAdesso + "),");
                 sb.AppendLine("te lo mostra e chiede conferma. In alternativa: dall'editor, MODULO_2_prepara.");
                 sb.AppendLine("Il codice va rigenerato e reincollato solo se cambi i nomi delle cartelle o");
-                sb.AppendLine("del foglio, o quando una nuova versione di Campanella lo dice.");
+                sb.AppendLine("del foglio, o quando una nuova versione di Campanella lo dice: l'anteprima");
+                sb.AppendLine("scrive quale versione dello script sta girando.");
             }
             sb.AppendLine("Lo fa sempre la stessa persona: la chiusura programmata e il foglio");
             sb.AppendLine("appartengono a chi ha eseguito lo script. Se il modulo ha altri editor e il");
@@ -650,10 +661,10 @@ namespace Campanella
             sb.AppendLine("scollegato: quando colleghi un foglio nuovo, Google ce le ricopia tutte.");
             if (p.Svuota)
             {
-                sb.AppendLine("Hai scelto di svuotare il modulo: lo script lo fa solo se trova un foglio");
-                sb.AppendLine("degli anni scorsi che le contiene gia' tutte. Se non lo trova non tocca");
-                sb.AppendLine("niente e te lo dice. Togliere le risposte dal modulo non si puo' annullare:");
-                sb.AppendLine("nel foglio vecchio pero' restano.");
+                sb.AppendLine("Hai scelto di svuotare il modulo: lo script lo fa solo se ritrova ogni");
+                sb.AppendLine("risposta, una per una (dal momento in cui e' arrivata), nei fogli degli anni");
+                sb.AppendLine("scorsi. Se ne manca anche una sola non tocca niente e te lo dice. Togliere");
+                sb.AppendLine("le risposte dal modulo non si puo' annullare: nei fogli vecchi pero' restano.");
             }
             else
             {
@@ -676,14 +687,11 @@ namespace Campanella
             sb.AppendLine("colonna di sinistra, l'icona dell'orologio (Attivazioni), cancella la riga di");
             sb.AppendLine("MODULO_chiusura.");
             sb.AppendLine();
-            sb.AppendLine("PER CHIEDERE MENO PERMESSI  (facoltativo)");
-            sb.AppendLine("-----------------------------------------");
-            sb.AppendLine("Google ricava i permessi dal codice e sceglie quelli larghi: \"tutti i tuoi");
-            sb.AppendLine("moduli\". Si puo' restringere a \"solo questo modulo\": nell'editor, rotellina");
-            sb.AppendLine("(Impostazioni progetto) -> spunta \"Mostra il file manifest appsscript.json\";");
-            sb.AppendLine("torna all'editor, apri  appsscript.json  e sostituisci tutto con la voce 3 del");
-            sb.AppendLine("menu qui sopra. Salva e riesegui MODULO_1_anteprima. Se poi compare un errore");
-            sb.AppendLine("di permessi, togli dal file le righe di \"oauthScopes\" e torna come prima.");
+            sb.AppendLine("IL MANIFEST, SE LO SCRIPT GIRA GIA'");
+            sb.AppendLine("-----------------------------------");
+            sb.AppendLine("Il manifest del passo 4 si puo' aggiungere anche dopo: rifai il passo 4 e");
+            sb.AppendLine("riesegui MODULO_1_anteprima. Google chiede di nuovo i permessi, e nella sua");
+            sb.AppendLine("finestra vedi quali.");
             sb.AppendLine();
             sb.AppendLine("SE QUALCOSA NON VA");
             sb.AppendLine("------------------");
