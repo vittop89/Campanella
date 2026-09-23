@@ -1,5 +1,186 @@
 # Changelog
 
+## 1.5.0 — 23 September 2026
+
+**Before you update.** Update Campanella on every PC that shares the same
+data file in Drive: versions up to 1.4.6 do not know the new format number
+and, when they save, drop the fields they do not know (the calendar name,
+the address check, the timetable layout). The terms of use move to version
+4: point 1 now also covers the control sheet, which asks for permission on
+all the account's forms, sheets and Drive, and whose scheduled closings run
+on their own. Campanella asks you to accept them again at the first start.
+
+Scripts to paste again: Organizzazione_Gmail.gs (and regenerate
+Configurazione.gs), Orari.gs (and regenerate DatiOrari.gs), the form script
+(Moduli.gs) and the control-sheet script (Pannello.gs). Re-create the Chrome
+extension too ("Estensione..." in Posta, step 3) and reload it in
+chrome://extensions. From now on every script preview prints the script's
+version, so you can tell which one is pasted.
+
+**Your data are no longer overwritten by mistake.**
+
+- Closing Campanella without opening Orari, Cartelle or Privacy saved them
+  empty: the timetable, the Drive path, the year, the classes, the form
+  choices and the privacy rules were wiped. A page never opened now touches
+  nothing, and a timetable file that is not recognised no longer erases the
+  one already saved.
+- `campanella-dati.json` in Drive is never overwritten when it could not be
+  read at startup (missing, truncated, empty, locked, or written by a newer
+  version): Campanella warns at start and again at close, and no longer
+  creates it empty when nothing was entered.
+- An unreadable `campanella.json` is left alone instead of being reset, and
+  you are told how to start over; it is now saved atomically.
+- Both files carry a format number: fields this version does not know are
+  kept, and a file written by a newer version is read but never overwritten.
+- Settings > Apply asks whether to use or replace a data file already in the
+  chosen Drive folder; moving between Drive folders removes the old copy, and
+  a failed move rolls back. With data in Drive, the calendar name lives there
+  too, so `campanella.json` holds no names.
+
+**Posta**
+
+- Test mode really changes nothing: PASSO_2_creaEtichette only lists the
+  labels to be created, and EXTRA_creaFiltriGmail creates no filter.
+- With no label group, ANNULLA_etichettatura removes only the labels the
+  script created (it now remembers them) and says "NIENTE DA TOGLIERE" when
+  there are none; labels you already had keep your own sorting and are
+  listed. The new ANNULLA_etichettaturaCompleta empties every active rule's
+  label as 1.4.6 did, for mailboxes organised with 1.4.1–1.4.6, same-named
+  labels made by hand included.
+- EXTRA_codiceStato counts only the tool's own labels and says so in the code,
+  with the script version: with no group, only a 1.5.0 script that counted
+  its own labels makes Campanella say "Gia' fatto". A badly pasted code no
+  longer crashes Home or Settings, and "Gia' fatto" from the guided
+  installation needs every mandatory step and names the missing one.
+- ANNULLA_automazione also stops a pending resume of the Orari sending,
+  ORARI_2_invia and ORARI_3_inviaOrariClassi.
+- EXTRA_elencaIndirizziScuola puts the address list only in the email to
+  yourself; the execution log gets it only if that email fails. Addresses
+  imported from it without a role arrive unchecked, and the new "Togli le
+  righe senza spunta" removes the unchecked rows, for example pupils found in
+  the mailbox.
+- "Scrivere a un gruppo" never puts colleagues' addresses in the Gmail link:
+  they go through the clipboard, to paste into Bcc. The configuration, the
+  timetable data, group addresses and Privacy texts are kept out of Windows
+  clipboard history and cloud sync.
+- The console function downloads `personale_spaggiari.csv` only when the
+  clipboard fails; the Chrome extension works only on ClasseViva pages.
+- Native Gmail filters honour a rule's recipients and attachment condition;
+  a subject word in parentheses, such as "(urgente)", is no longer dropped;
+  internal functions no longer clutter the Run menu.
+
+**Orari**
+
+- Google asks for the Calendar permission for the whole project as soon as
+  Orari.gs is in it: the page says so, and the calendar step asks for your
+  own name.
+- ORARI_4_calendario refuses to run again over the series it already
+  created, instead of doubling every lesson: run ORARI_ANNULLA_calendario
+  first.
+- ORARI_3_inviaOrariClassi saves its progress and resumes like ORARI_2_invia;
+  a resume that finds the lock busy reschedules itself, and a leftover one no
+  longer restarts from scratch. When the daily quota runs out, run it again
+  the next day and it goes on from where it stopped.
+- Sent emails get the "Orari" label ("<group>/Orari" with a Posta group), if
+  it exists.
+- Timetables that do not start on Monday keep every lesson on the right day,
+  also after a restart; CSV files in ANSI or UTF-16 keep their accents;
+  `.xlsx` cells without a reference are read, and references beyond Excel's
+  limits are ignored. Subject and room are no longer stored.
+- A crafted timetable header containing `*/` can no longer inject code into
+  DatiOrari.gs.
+
+**Cartelle and Google Forms**
+
+- Classes are split only on new lines: "1A: Maths; Physics" no longer
+  creates a class "Physics", and a line with several classes is reported
+  instead of becoming a folder.
+- "Genera la struttura" runs in the background with live progress; closing
+  the window stops it after the file being copied. The summary separates
+  what was created now from what was already there, and a "DUPLICA IN GOOGLE
+  DOCS" note you edited is no longer overwritten.
+- Errors in `struttura.json` are reported instead of falling back to the
+  default folders, and entries that would leave "A.S. <year>" are skipped;
+  class, subject and extra-folder names get the same checks. Clear messages
+  replace the .NET error window.
+- Forms scripts: old responses are removed only if every single one is
+  found, by its timestamp, in an earlier year's sheet. A failed year-end
+  closing keeps the form linked and retries every hour; closings wait for a
+  running preparation; 29/02 is refused as a closing day.
+- Script inside the form: re-running "Prepara l'anno nuovo" mid-year no
+  longer reopens a form closed by hand, nor relinks one already closed or
+  unlinked by hand. The optional manifest step now comes before the first
+  run.
+- Control sheet: failed rows keep their closing and retry without piling up
+  triggers; "Prepara l'anno nuovo" stops safely before Google's time limit
+  and resumes from the rows left; a closing that fires a few minutes before
+  midnight still closes the form; the memory of each year stays under
+  Google's 9 KB limit. The help bubble no longer says the sheet updates by
+  itself.
+
+**Privacy and updates**
+
+- "Cerca aggiornamenti" also tells you when a newer Campanella is out, with a
+  button to the releases page. Nothing is downloaded, and nothing connects
+  without a click.
+- The rizzo-pii address must be on this computer (localhost, 127.0.0.0/8 or
+  ::1): any other is refused before anything is sent, with no proxy and no
+  redirects.
+- The rizzo-pii installer is checked against the size and SHA-256 published
+  on GitHub; a bad or stopped download is deleted and never launched, and
+  "Ferma lo scarico" stops it. TLS 1.2 only.
+- A rizzo-pii answer without the anonymised text is an error, not an empty
+  clean copy; a clean copy never overwrites its original; one list of formats
+  (PDF, TXT, MD, CSV, HTM, HTML) everywhere; Settings and Privacy no longer
+  freeze while waiting for rizzo-pii, and Settings shows the rizzo-pii
+  version Campanella is tested with (2.0.0).
+
+**Installers**
+
+- `Installa-Campanella.exe` (Inno Setup, the one published here) no longer
+  records a consent nobody gave in silent installs, installs for the current
+  user only, and requires Windows 10 or 11, like the application manifest.
+- The C# installer, built only locally by `build.ps1`: its uninstaller
+  removes only the files it installed, keeps `struttura.json` with the
+  settings unless you ask, never touches other files and refuses a folder
+  that is not a Campanella installation. When the Inno installation lives in
+  the same folder, it removes only its own uninstaller and entry. A failed
+  rizzo-pii download no longer marks the installation as failed.
+- Removing the settings on uninstall also removes `campanella.json.tmp`.
+
+**The application**
+
+- An unexpected error shows a short Italian message saying whether you can
+  carry on, instead of the .NET dialog with a stack trace.
+- Closing during folder creation, file cleaning or the rizzo-pii download
+  asks first; a stopped download leaves no half installer in %TEMP%.
+- Text and CSV files saved in ANSI keep their accents in "Apri un file..."
+  and in the Privacy cleaning; "Salva su file..." and "Esporta CSV" say when
+  a file could not be saved.
+- Settings > "Rileggile" shows the terms read-only; buttons that jump between
+  tools target the page, not its place in the menu; "Elimina regola" is
+  really red, and changing theme from Settings repaints the side menu.
+
+**For developers**
+
+- New workflow "Prove" on every push and pull request: build with the C#
+  installer, every test through `test\tutte.ps1`, Inno Setup compile. The
+  release checks consent and versions first, stops on any failed test and
+  requires Inno Setup 6. Actions are pinned by commit SHA, with monthly
+  Dependabot updates.
+- New tests: `tutte.ps1`, `prova_versioni.ps1`, `prova_stato.ps1`,
+  `prova_guscio.ps1`, `prova_disinstallazione.ps1`, `prova_posta.ps1`,
+  `prova_cartelle.ps1`, `prova_xlsx.ps1`, `prova_gemelli.js`,
+  `mutazioni_pannello.js`, `nomi_funzioni.js`, `invarianti_script.js`.
+  `prova_installer.ps1` refuses to run where Campanella is installed, and
+  `prova_disposizione.ps1` works on temporary folders.
+- `build.ps1 -Pubblica` requires `-Produzione` (no default folder); the
+  executable is signed before going into the C# installer, and a failed
+  signature stops the build. `strumenti\firma.ps1` creates non-exportable
+  keys and explains what it installs among the trusted certificates.
+- New source files: `GeneratorePosta.cs`, `GeneratoreAnno.cs`, `Testo.cs`,
+  `PaginaHome.cs`, `PaginaImpostazioni.cs`.
+
 ## 1.4.6 — 22 September 2026
 
 **The control sheet tidies itself up and keeps its own instructions.** A new
