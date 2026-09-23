@@ -61,7 +61,8 @@ VersionInfoProductTextVersion={#MyAppVersion}.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoCopyright=Licenza MIT
 VersionInfoDescription=Installazione di Campanella
-MinVersion=6.1sp1
+; Windows 10 o 11, come dicono README e istruzioni
+MinVersion=10.0
 
 [Languages]
 Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"; LicenseFile: "CONDIZIONI-it.txt"
