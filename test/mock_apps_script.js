@@ -535,17 +535,17 @@ intestazione('ELENCO DEL PERSONALE VUOTO');
   const personaleVero = contesto.CONFIG.personale;
   contesto.CONFIG.personale = [];
   const colleghi = contesto.CONFIG.regole.find(r => r.etichetta === 'Colleghi');
-  const q = contesto._queryDellaRegola(contesto.CONFIG, colleghi);
+  const q = contesto._queryDellaRegola_(contesto.CONFIG, colleghi);
   verifica('Colleghi senza personale non cerca niente (non tutta la casella)', q.length === 0);
-  verifica('e non diventa un filtro di Gmail', contesto._criteriFiltro(contesto.CONFIG, colleghi).length === 0);
+  verifica('e non diventa un filtro di Gmail', contesto._criteriFiltro_(contesto.CONFIG, colleghi).length === 0);
   // mittenti piu' parole nell'oggetto: senza mittenti non deve restare un filtro
   // sul solo oggetto, che prenderebbe quelle parole da chiunque
   const mista = { attiva: true, etichetta: 'Colleghi/Verbali', da: ['@PERSONALE@'], oggetto: ['verbale'] };
   verifica('mittenti vuoti e oggetto: nessun filtro sul solo oggetto',
-    contesto._criteriFiltro(contesto.CONFIG, mista).length === 0 &&
-    contesto._queryDellaRegola(contesto.CONFIG, mista).length === 0);
+    contesto._criteriFiltro_(contesto.CONFIG, mista).length === 0 &&
+    contesto._queryDellaRegola_(contesto.CONFIG, mista).length === 0);
   const circolari = contesto.CONFIG.regole.find(r => r.etichetta === 'Circolari');
-  verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola(contesto.CONFIG, circolari).length === 1);
+  verifica('una regola senza mittenti (solo oggetto) cerca come prima', contesto._queryDellaRegola_(contesto.CONFIG, circolari).length === 1);
   contesto.CONFIG.personale = personaleVero;
 }
 
