@@ -935,9 +935,10 @@ namespace Campanella
 
         /// <summary>
         /// Cambia dove stanno i dati personali. Tornando ai dati accanto
-        /// all'eseguibile, il file nel Drive viene cancellato: non ha senso
-        /// lasciarne due copie che poi divergono. Un file dei dati che c'e' gia'
-        /// nella cartella nuova non si sostituisce: per quello serve
+        /// all'eseguibile, o cambiando cartella dentro il Drive, il file di prima
+        /// viene cancellato: non ha senso lasciarne due copie che poi divergono,
+        /// una delle quali in un posto non piu' dichiarato. Un file dei dati che
+        /// c'e' gia' nella cartella nuova non si sostituisce: per quello serve
         /// sostituisci = vero, cioe' che l'utente l'abbia detto.
         /// </summary>
         public bool SpostaDati(bool nelDrive, string cartella, out string errore)
@@ -950,14 +951,17 @@ namespace Campanella
             errore = "";
             bool eraNelDrive = DatiNelDrive;
             string eraCartella = CartellaDati;
+            string eraLetti = datiLetti;
             string vecchio = DatiNelDrive ? PercorsoDati() : null;
 
             DatiNelDrive = nelDrive;
             CartellaDati = nelDrive ? (cartella ?? "").Trim() : CartellaDati;
+            string nuovo = nelDrive ? PercorsoDati() : null;
+            bool cera = false;
             if (nelDrive)
             {
-                string nuovo = PercorsoDati();
-                if (File.Exists(nuovo) && !StessoPercorso(nuovo, datiLetti) && !sostituisci)
+                cera = File.Exists(nuovo);
+                if (cera && !StessoPercorso(nuovo, datiLetti) && !sostituisci)
                 {
                     DatiNelDrive = eraNelDrive;
                     CartellaDati = eraCartella;
@@ -968,11 +972,31 @@ namespace Campanella
             }
 
             Salva();
-            if (UltimoErrore != "") { errore = UltimoErrore; return false; }
-            if (!nelDrive && vecchio != null)
+            if (UltimoErrore != "")
             {
-                try { if (File.Exists(vecchio)) File.Delete(vecchio); }
-                catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
+                errore = UltimoErrore;
+                // torno com'ero: sede e flag di prima, e le impostazioni riscritte
+                // come prima; il file appena creato nel Drive non deve restare
+                try { if (nelDrive && !cera && File.Exists(nuovo)) File.Delete(nuovo); } catch { }
+                DatiNelDrive = eraNelDrive;
+                CartellaDati = eraCartella;
+                datiLetti = eraLetti;
+                Salva();
+                return false;
+            }
+
+            if (vecchio != null && !StessoPercorso(vecchio, nuovo) && File.Exists(vecchio))
+            {
+                // si cancella solo il file che questa sessione ha letto: quello che
+                // c'e' dentro e' appena stato scritto nel posto nuovo
+                if (!StessoPercorso(vecchio, eraLetti))
+                    errore = "dati salvati, ma non tolgo " + vecchio + ": qui non si e' potuto leggere, " +
+                             "e non cancello quello che non ho letto. Controllalo e, se non serve, cancellalo tu";
+                else
+                {
+                    try { File.Delete(vecchio); }
+                    catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
+                }
             }
             return errore == "";
         }
@@ -1001,6 +1025,8 @@ namespace Campanella
 
             bool eraNelDrive = DatiNelDrive;
             string eraCartella = CartellaDati;
+            string eraLetti = datiLetti;
+            string vecchio = DatiNelDrive ? PercorsoDati() : null;
             DatiNelDrive = true;
             CartellaDati = c;
             datiDaRileggere = true;
@@ -1014,7 +1040,13 @@ namespace Campanella
                 Salva();
                 return false;
             }
-            return true;
+            // la copia di prima, se era un altro file del Drive letto qui, non resta in giro
+            if (vecchio != null && !StessoPercorso(vecchio, file) && StessoPercorso(vecchio, eraLetti))
+            {
+                try { if (File.Exists(vecchio)) File.Delete(vecchio); }
+                catch (Exception ex) { errore = "impostazioni salvate, ma non riesco a togliere " + vecchio + ": " + ex.Message; }
+            }
+            return errore == "";
         }
 
         // ===================================================================

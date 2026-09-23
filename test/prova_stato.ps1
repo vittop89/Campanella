@@ -71,6 +71,10 @@ static class ProvaStato
                 case "scrittura-atomica": ScritturaAtomica(); break;
                 case "sposta-su-esistente": SpostaSuEsistente(); break;
                 case "usa-esistente": UsaEsistente(); break;
+                case "cambia-cartella": CambiaCartella(); break;
+                case "sposta-fallito": SpostaFallito(); break;
+                case "torna-locale": TornaLocale(); break;
+                case "torna-locale-illeggibile": TornaLocaleIlleggibile(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
                 default: Console.WriteLine("  caso sconosciuto: " + caso); return 99;
             }
@@ -274,6 +278,64 @@ static class ProvaStato
             t.Personale.Count == 1 && t.Personale[0].Nome == "BIANCHI ANNA");
     }
 
+    // A-62: cambiando cartella dentro il Drive la copia vecchia non resta
+    static void CambiaCartella()
+    {
+        string a = Cartella("A"), b = Cartella("B");
+        ScriviImpostazioni(true, a, null);
+        Scrivi(FileDati(a), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato s = Carica();
+        string errore;
+        bool ok = s.SpostaDati(true, b, out errore);
+        Verifica("sposta nella cartella nuova", ok && File.Exists(FileDati(b)) &&
+            Nomi(Json(FileDati(b))).Contains("ROSSI MARIO"));
+        Verifica("e toglie la copia vecchia", !File.Exists(FileDati(a)));
+    }
+
+    // A-62: se lo spostamento non riesce si torna com'era, senza perdere l'elenco
+    static void SpostaFallito()
+    {
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["personale"] = Elenco(Persona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        ScriviImpostazioni(false, "", altro);
+        Stato s = Carica();
+        string dove = Path.Combine(Base, "manca", "sotto", "Campanella");
+        string errore;
+        bool ok = s.SpostaDati(true, dove, out errore);
+        Verifica("se il Drive non c'e' non riesce, e lo dice", !ok && errore != "");
+        Verifica("torna com'era: dati accanto al programma", !s.DatiNelDrive && s.CartellaDati == "");
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Verifica("campanella.json ha ancora l'elenco e la sede di prima",
+            !Vero(imp, "datiNelDrive") && Nomi(imp).Contains("ROSSI MARIO"));
+    }
+
+    static void TornaLocale()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("ROSSI MARIO", "mario.rossi@scuola.example"))));
+        Stato s = Carica();
+        string errore;
+        bool ok = s.SpostaDati(false, "", out errore);
+        Verifica("riporta i dati accanto al programma", ok && Nomi(Json(Impostazioni())).Contains("ROSSI MARIO"));
+        Verifica("e toglie il file dal Drive", !File.Exists(FileDati(c)));
+    }
+
+    // un file del Drive che non si e' letto non si cancella
+    static void TornaLocaleIlleggibile()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), "{rotto");
+        Stato s = Carica();
+        string errore;
+        s.SpostaDati(false, "", out errore);
+        Verifica("i dati adesso stanno accanto al programma", !s.DatiNelDrive &&
+            !Vero(Json(Impostazioni()), "datiNelDrive"));
+        Verifica("il file non letto non viene cancellato", File.Exists(FileDati(c)) && Leggi(FileDati(c)) == "{rotto");
+        Verifica("e lo dice", errore != "");
+    }
+
     // quello che si salva si rilegge uguale
     static void AndataERitorno()
     {
@@ -438,6 +500,10 @@ $casi = @(
     'scrittura-atomica'
     'sposta-su-esistente'
     'usa-esistente'
+    'cambia-cartella'
+    'sposta-fallito'
+    'torna-locale'
+    'torna-locale-illeggibile'
     'andata-e-ritorno'
 )
 

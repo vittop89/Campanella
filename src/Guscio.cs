@@ -1024,10 +1024,11 @@ namespace Campanella
                             "Creare il file dei dati?", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                             MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 }
-                else if (!S.DatiNelDrive && MessageBox.Show(this,
+                else if (!stesso && MessageBox.Show(this,
                         "Sposto l'elenco del personale, gli indirizzi e gli orari in\n\n" + file + "\n\n" +
-                        "e li tolgo dal file accanto al programma. Il Drive li sincronizzera' " +
-                        "nell'account della scuola.\n\nProcedo?",
+                        "e li tolgo " + (S.DatiNelDrive ? "da\n\n" + S.PercorsoDati() + "\n\n"
+                                                        : "dal file accanto al programma. ") +
+                        "Il Drive li sincronizzera' nell'account della scuola.\n\nProcedo?",
                         "Spostare i dati nel Drive?", MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question) != DialogResult.Yes) return;
             }
