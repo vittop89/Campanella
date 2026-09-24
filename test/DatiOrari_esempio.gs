@@ -43,7 +43,7 @@ var ORARI = {
       celle: ["VERDI","","","DE GIULI","DE GIULI","",  "","","","ROSSI","","",  "","","","","","",  "","","","","","",  "","","","","",""] }
   ],
 
-  // l'orario da mettere su Google Calendar (ORARI_4_calendario)
+  // l'orario da mettere su Google Calendar (ORARI_4_calendario, ORARI_5_cambioOrario)
   calendario: {
     docente:   "ROSSI",
     nome:      "Orario ROSSI",
@@ -51,6 +51,22 @@ var ORARI = {
     fine:      "2027-06-10",
     minutiOra: 60,
     inizioOre: ["08:00", "09:00", "10:00", "11:10", "12:10", "13:10"],
-    colore:    "BLUE"
+    colore:    "BLUE",
+    // i giorni senza lezione: feste isolate, un ponte, vacanze lunghe. Pasqua e
+    // Pasquetta stanno da sole (niente vacanze di Pasqua): Pasquetta spezza i
+    // blocchi del lunedi' e lascia interi quelli del mercoledi'
+    sospensioni: [
+      { dal: "2026-11-01", al: "2026-11-01", nome: "Tutti i Santi" },
+      { dal: "2026-12-07", al: "2026-12-07", nome: "Ponte dell'Immacolata" },
+      { dal: "2026-12-08", al: "2026-12-08", nome: "Immacolata" },
+      { dal: "2026-12-23", al: "2027-01-06", nome: "Vacanze di Natale" },
+      { dal: "2027-02-15", al: "2027-02-16", nome: "Carnevale" },
+      { dal: "2027-03-28", al: "2027-03-28", nome: "Pasqua" },
+      { dal: "2027-03-29", al: "2027-03-29", nome: "Lunedi' dell'Angelo" },
+      { dal: "2027-04-25", al: "2027-04-25", nome: "Festa della Liberazione" },
+      { dal: "2027-05-01", al: "2027-05-01", nome: "Festa del Lavoro" },
+      { dal: "2027-06-02", al: "2027-06-02", nome: "Festa della Repubblica" }
+    ],
+    validoDal: "2026-10-05"      // l'orario cambiato vale da qui (ORARI_5_cambioOrario), un lunedi'
   }
 };

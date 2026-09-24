@@ -567,7 +567,7 @@ namespace Campanella
             if (docenteCal != "")
             {
                 List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
-                sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario)");
+                sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario; se cambia, ORARI_5_cambioOrario)");
                 sb.AppendLine("  calendario: {");
                 sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
                 sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
@@ -577,7 +577,34 @@ namespace Campanella
                 sb.Append("    inizioOre: [");
                 for (int i = 0; i < inizi.Count; i++) sb.Append((i > 0 ? ", " : "") + "\"" + inizi[i] + "\"");
                 sb.AppendLine("],   // quando comincia ogni ora di lezione");
-                sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\"      // vuoto = colore scelto da Google");
+                sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\",     // vuoto = colore scelto da Google");
+
+                // i giorni senza lezione: solo le righe capite, con le date
+                // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)
+                DateTime inizioPeriodo;
+                if (!DateTime.TryParseExact(s.CalInizio ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                            DateTimeStyles.None, out inizioPeriodo))
+                    inizioPeriodo = DateTime.Today;
+                List<string> nonCapite;
+                List<Sospensione> sospensioni = Calendario.Leggi(s.CalSospensioni, inizioPeriodo, out nonCapite);
+                sb.AppendLine("    // i giorni senza lezione: in quei giorni sul calendario non c'e' nessuna lezione");
+                if (sospensioni.Count == 0) sb.AppendLine("    sospensioni: [],");
+                else
+                {
+                    sb.AppendLine("    sospensioni: [");
+                    for (int i = 0; i < sospensioni.Count; i++)
+                    {
+                        Sospensione x = sospensioni[i];
+                        sb.AppendLine("      { dal: \"" + x.Dal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
+                                      "\", al: \"" + x.Al.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
+                                      "\", nome: \"" + Js(x.Nome) + "\" }" + (i < sospensioni.Count - 1 ? "," : ""));
+                    }
+                    sb.AppendLine("    ],");
+                }
+                DateTime validoDal;
+                string cambio = DateTime.TryParseExact(s.CalValidoDal ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                                       DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
+                sb.AppendLine("    validoDal: \"" + cambio + "\"   // l'orario cambiato vale da qui (ORARI_5_cambioOrario); vuoto = nessun cambio");
                 sb.AppendLine("  }");
             }
             else

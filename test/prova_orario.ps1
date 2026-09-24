@@ -473,6 +473,50 @@ console.log(JSON.stringify({
         Verifica "senza giorni senza lezione: una serie per blocco, fino all'ultima settimana" (($p.Serie -join '|') -eq '3C 2027-03-02..2027-03-30 (5)' -and $p.Saltate -eq 0)
     }
 
+    # --- DatiOrari.gs porta i giorni senza lezione e la data del cambio -----
+    Write-Host "`nDATIORARI.GS: GIORNI SENZA LEZIONE E CAMBIO D'ORARIO" -ForegroundColor Cyan
+    $leggiCal = Join-Path $tmp 'leggi_calendario.js'
+    [System.IO.File]::WriteAllText($leggiCal, @'
+// carica DatiOrari.gs e stampa la parte del calendario che serve alla prova
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const c = contesto.ORARI && contesto.ORARI.calendario;
+console.log(JSON.stringify({
+  sospensioni: c && Array.isArray(c.sospensioni) ? c.sospensioni : null,
+  validoDal: c && typeof c.validoDal === 'string' ? c.validoDal : null
+}));
+'@, $utf8)
+    function CalendarioGenerato($s) {
+        $gs = GeneraDati (AnalizzaFile $File) $s $false
+        $f = Join-Path $tmp 'DatiOrari_calendario.gs'
+        [System.IO.File]::WriteAllText($f, $gs, $utf8)
+        $esito = & node $leggiCal $f
+        if ($LASTEXITCODE -ne 0 -or -not $esito) { return $null }
+        ($esito | Select-Object -Last 1) | ConvertFrom-Json
+    }
+    $s = NuovoStato
+    $s.CalDocente = [string]($o.Docenti() | Select-Object -First 1)
+    $s.CalInizio = '2026-09-14'
+    $s.CalFine = '2027-06-10'
+    $s.CalSospensioni = "01/11 Tutti i Santi`r`n# una nota`r`n23/12-06/01 Vacanze di ""Natale"" \ prova`r`nquesta no`r`n31/02/2027 nemmeno questa`r`n29/03/2027"
+    $s.CalValidoDal = '2026-10-05'
+    $r = CalendarioGenerato $s
+    Verifica "DatiOrari.gs si carica e ha sospensioni e validoDal" ($null -ne $r -and $null -ne $r.sospensioni -and $null -ne $r.validoDal)
+    if ($null -ne $r -and $null -ne $r.sospensioni) {
+        $sosp = @($r.sospensioni | ForEach-Object { $_.dal + '..' + $_.al + ' ' + $_.nome })
+        Verifica "solo le righe capite, come date aaaa-mm-gg ($($sosp -join ' | '))" (
+            ($sosp -join '|') -eq ('2026-11-01..2026-11-01 Tutti i Santi|2026-12-23..2027-01-06 Vacanze di "Natale" \ prova|' +
+                                   '2027-03-29..2027-03-29 '))
+        Verifica "la data del cambio d'orario" ($r.validoDal -eq '2026-10-05')
+    }
+    $s.CalSospensioni = ''
+    $s.CalValidoDal = ''
+    $r = CalendarioGenerato $s
+    Verifica "senza giorni senza lezione e senza cambio: un elenco vuoto e validoDal vuoto" (
+        $null -ne $r -and $null -ne $r.sospensioni -and @($r.sospensioni).Count -eq 0 -and $r.validoDal -eq '')
+
     # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------
     # i banchi girano di solito su DatiOrari_esempio.gs, scritto a mano: qui
     # il file lo scrive GeneraDatiGs, cosi' un nome cambiato da una parte
