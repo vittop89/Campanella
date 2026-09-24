@@ -790,7 +790,10 @@ function _orariNostri_(cal, inizio, fine) {
     var id = serie.getId();
     var voce = perSerie[id];
     if (!voce) {
-      voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), lezioni: [] };
+      var descrizione = '';
+      try { descrizione = String(serie.getDescription() || ''); } catch (e4) { }
+      voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), descrizione: descrizione,
+                              lezioni: [] };
       fuori.push(voce);
     }
     if (contrassegno) voce.contrassegno = true;
@@ -805,10 +808,10 @@ function _orariNostri_(cal, inizio, fine) {
  * primo evento. getEvents da' le lezioni spostate a mano all'ora nuova: la
  * prima trovata non basta (una prima lezione spostata sposterebbe tutta la
  * serie). Giorno, ora e durata della serie sono quelli piu' frequenti; la
- * prima lezione e' la prima con quelli, o qualche settimana prima se prima
- * c'e' una lezione spostata (la sua settimana, arrotondando). Poi
- * voce.ultimo, l'inizio dell'ultima lezione, e voce.irregolare: ci sono
- * lezioni spostate, o settimane che mancano (cancellate a mano).
+ * prima lezione e' la prima con quelli, o qualche settimana prima se ci sono
+ * lezioni spostate che vengono da prima (vedi sotto). Poi voce.ultimo,
+ * l'inizio dell'ultima lezione, e voce.irregolare: ci sono lezioni spostate,
+ * o settimane che mancano (cancellate a mano).
  */
 function _orariPrimaLezione_(voce) {
   var settimana = 7 * 24 * 3600 * 1000;
@@ -818,13 +821,19 @@ function _orariPrimaLezione_(voce) {
     var f = _orariForma_(lezioni[i]);
     conta[f] = (conta[f] || 0) + 1;
   }
-  // la forma della serie: la piu' frequente; a parita', quella della lezione
-  // piu' presto. Si pareggia solo con pochissime lezioni, e allora conta la
-  // prima: e' quella che resta dopo il cambio, e si vede dov'era
-  var forma = '', quante = 0;
+  // la forma della serie: la piu' frequente. A parita' (succede solo con
+  // pochissime lezioni) quella del giorno scritto nella descrizione, il giorno
+  // in cui Campanella ha messo la serie; se non basta, quella della lezione
+  // piu' presto: con due lezioni e' quella che resta dopo il cambio, e cosi'
+  // si vede dov'era
+  var scritto = _orariGiornoDellaDescrizione_(voce.descrizione);
+  var forma = '', quante = 0, delGiorno = false;
   for (var j = 0; j < lezioni.length; j++) {
     var g = _orariForma_(lezioni[j]);
-    if (conta[g] > quante) { quante = conta[g]; forma = g; }
+    var giusto = (lezioni[j].inizio.getDay() === scritto);
+    if (conta[g] > quante || (conta[g] === quante && giusto && !delGiorno)) {
+      quante = conta[g]; forma = g; delGiorno = giusto;
+    }
   }
   var prima = null, ultimaRegolare = null;
   for (var k = 0; k < lezioni.length; k++) {
@@ -832,10 +841,22 @@ function _orariPrimaLezione_(voce) {
     if (!prima) prima = lezioni[k];
     ultimaRegolare = lezioni[k];
   }
-  var indietro = 0;
-  for (var m = 0; m < lezioni.length && lezioni[m].inizio < prima.inizio; m++) {
-    indietro = Math.max(indietro, Math.round((prima.inizio - lezioni[m].inizio) / settimana));
+  // quante settimane prima della prima lezione regolare comincia la serie.
+  // Ogni lezione spostata viene da una settimana senza la sua lezione: quelle
+  // che stanno prima della prima regolare dalle settimane prima, una per
+  // settimana (contate, non misurate: spostata di quattro giorni o anticipata
+  // alla settimana prima e' sempre una settimana); quelle fra la prima e
+  // l'ultima regolare dalle settimane vuote in mezzo, e se sono di piu' anche
+  // loro da prima (una lezione rimandata oltre quella della settimana dopo)
+  var primaDellaPrima = 0, inMezzo = 0;
+  for (var m = 0; m < lezioni.length; m++) {
+    if (_orariForma_(lezioni[m]) === forma) continue;
+    if (lezioni[m].inizio < prima.inizio) primaDellaPrima++;
+    else if (lezioni[m].inizio < ultimaRegolare.inizio) inMezzo++;
   }
+  // (mai meno di zero: una lezione spostata proprio all'ora di un'altra conta due volte)
+  var vuoteInMezzo = Math.max(0, Math.round((ultimaRegolare.inizio - prima.inizio) / settimana) + 1 - quante);
+  var indietro = primaDellaPrima + Math.max(0, inMezzo - vuoteInMezzo);
   var p = prima.inizio;
   voce.inizio = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * indietro,
                          p.getHours(), p.getMinutes(), p.getSeconds());
@@ -843,6 +864,18 @@ function _orariPrimaLezione_(voce) {
   voce.ultimo = lezioni[lezioni.length - 1].inizio;
   var attese = Math.round((ultimaRegolare.inizio - voce.inizio) / settimana) + 1;
   voce.irregolare = (quante < lezioni.length) || (lezioni.length < attese);
+}
+
+/**
+ * Il giorno della settimana (0 = domenica) scritto da _orariDescrizione_,
+ * subito prima delle ore: "[Campanella] Orario di ROSSI, Lunedi', 1a ora".
+ * -1 se la descrizione non e' questa (cambiata a mano, o di un'altra
+ * versione). Una virgola nel nome del docente non confonde: il giorno e'
+ * il pezzo seguito dalle ore.
+ */
+function _orariGiornoDellaDescrizione_(descrizione) {
+  var m = String(descrizione || '').match(/^\[Campanella\][^\n]*?,\s*([^,\n]+?)\s*,\s*(?:dalla\s+)?\d+a\s/);
+  return m ? _orariGiornoSettimana_(m[1]) : -1;
 }
 
 /** Giorno della settimana, ora e durata di una lezione: in una serie sono uguali, se nessuno le ha cambiate. */

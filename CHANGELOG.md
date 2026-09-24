@@ -48,8 +48,14 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   calendar (the default name "Orario COGNOME" is the same every year) are
   not touched, and preview and message say that the new timetable holds for
   the whole period. The first lesson of a series, needed to shorten it, is
-  the first with its most frequent day, time and length: a first lesson
-  moved by hand no longer moves the whole series. Only events with the mark
+  the first with its most frequent day, time and length, as many weeks
+  earlier as there are lessons moved by hand before it (counted, not
+  measured) or moved past the next week: a first lesson moved by hand, by
+  four days, to the week before or past the next lesson, neither moves the
+  whole series nor disappears nor leaves a lesson too many. With two shapes
+  equally frequent (only in very short series) the weekday written in the
+  description, where Campanella put the series, decides, then the earliest
+  lesson. Only events with the mark
   are shortened or removed; a series recognised only by the description (a
   copy made by hand) is left and named. The final message says how many
   series were shortened, removed and created, how many single events were
@@ -132,7 +138,9 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   (shortened, removed, created, weeks before untouched, no old lesson after
   the date, same result when run again, resumed halfway, a date before the
   start with last year in the same calendar, a "Dal" moved forward, lessons
-  moved or cancelled by hand, a copy made by hand), undo of a job half done,
+  moved or cancelled by hand, also by four days, before the start of the
+  period, past the next week or two out of four, a copy made by hand), undo
+  of a job half done,
   undo stopped by time or by Google's limits, and ANNULLA_automazione with a
   resume already started and the other calendar function run by hand.
 - invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only

@@ -1312,6 +1312,86 @@ if (conCalendario) {
       verifica('e dal cambio c\'e\' l\'orario nuovo', uguali(lezioniSul(calM, vd, ultimoGiorno), nuovoPiano.lezioni));
       docOriginale.celle = celleOriginali.slice();
     }
+
+    // la prima lezione spostata di quattro giorni, anticipata alla settimana
+    // prima (anche prima dell'inizio del periodo) o rimandata oltre la lezione
+    // della settimana dopo: la serie riparte dalla sua prima settimana, senza
+    // perdere la lezione spostata e senza una lezione in piu'
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    const calS = calendari[0];
+    const altreAccorciabili = vive(calS).filter(s => chiave(s.inizio) < validoDal &&
+      chiave(s.ricorrenza.until) >= validoDal && s.inizi(giornoPrima).length >= 3);
+    if (altreAccorciabili.length >= 3) {
+      const [diQuattro, anticipata, rimandata] = altreAccorciabili;
+      const sposta = (s, giorni) => {
+        const t = s.inizio;
+        s.sposta(0, new Date(t.getFullYear(), t.getMonth(), t.getDate() + giorni, 15, 0),
+                    new Date(t.getFullYear(), t.getMonth(), t.getDate() + giorni, 16, 0));
+      };
+      sposta(diQuattro, 4);
+      sposta(anticipata, -5);
+      sposta(rimandata, 8);
+      const settimanaPrima = giorniDopo(primoGiorno, -7);
+      const primaS = lezioniSul(calS, settimanaPrima, giornoPrima);
+      docOriginale.celle = ruotata(celleOriginali);
+      const esitoS = contesto.ORARI_5_cambioOrario();
+      const dopoS = lezioniSul(calS, settimanaPrima, giornoPrima);
+      verifica('con la prima lezione spostata di quattro giorni, anticipata alla settimana prima o rimandata oltre ' +
+        'quella dopo, le lezioni prima del cambio restano come erano (' + primaS.length + ')' +
+        (uguali(dopoS, primaS) ? '' : ' (sparite: ' + primaS.filter(x => dopoS.indexOf(x) < 0).join(', ') +
+          '; comparse: ' + dopoS.filter(x => primaS.indexOf(x) < 0).join(', ') + ')'), uguali(dopoS, primaS));
+      verifica('  ...le tre serie tengono il loro inizio',
+        [diQuattro, anticipata, rimandata].every(s => s.inizio.getTime() === s.inizioOriginale.getTime()));
+      verifica('  ...e il messaggio le nomina fra quelle con lezioni spostate (3)',
+        numero(/spostate o cancellate a mano[^:]*: (\d+)/, esitoS) === 3);
+      docOriginale.celle = celleOriginali.slice();
+    } else {
+      verifica('ci sono tre serie da accorciare per le lezioni spostate di piu\' giorni', false);
+    }
+
+    // due lezioni spostate nello stesso posto su quattro: le due forme sono
+    // pari. Vale il giorno scritto nella descrizione, quello in cui Campanella
+    // ha messo la serie: spostate le prime due o le ultime due, le lezioni
+    // prima del cambio restano dove si vedono
+    azzeraCalendario();
+    const calPari = CalendarApp.createCalendar(c.nome);
+    const nomiGiorni = ['Domenica', 'Lunedi\'', 'Martedi\'', 'Mercoledi\'', 'Giovedi\'', 'Venerdi\'', 'Sabato'];
+    const serieDiQuattro = (titolo, primo, ora) => {
+      const inizio = new Date(primo.getFullYear(), primo.getMonth(), primo.getDate(), ora, 0);
+      const s = calPari.createEventSeries(titolo, inizio, new Date(inizio.getTime() + 3600 * 1000),
+        CalendarApp.newRecurrence().addWeeklyRule().until(new Date(primo.getFullYear(), primo.getMonth(),
+          primo.getDate() + 21, 23, 59, 59)),
+        { description: '[Campanella] Orario di ' + c.docente + ', ' + nomiGiorni[primo.getDay()] + ', 2a ora (prova)' });
+      s.setTag('campanella', 'orario');
+      return s;
+    };
+    const spostaA = (s, n, giorni, ora) => {
+      const t = settimaneDopo(s.inizio, n);
+      s.sposta(n, new Date(t.getFullYear(), t.getMonth(), t.getDate() + giorni, ora, 0),
+                  new Date(t.getFullYear(), t.getMonth(), t.getDate() + giorni, ora + 1, 0));
+    };
+    // alle 9 nel giorno del cambio, le prime due spostate due giorni dopo alle 15
+    const primeSpostate = serieDiQuattro('Pari prime', giorniDopo(vd, -21), 9);
+    spostaA(primeSpostate, 0, 2, 15);
+    spostaA(primeSpostate, 1, 2, 15);
+    // alle 15 due giorni dopo, le ultime due spostate due giorni prima alle 9
+    const ultimeSpostate = serieDiQuattro('Pari ultime', giorniDopo(vd, -19), 15);
+    spostaA(ultimeSpostate, 2, -2, 9);
+    spostaA(ultimeSpostate, 3, -2, 9);
+    const soloPari = l => / Pari /.test(l + ' ');
+    const primaPari = lezioniSul(calPari, giorniDopo(vd, -28), giornoPrima).filter(soloPari);
+    docOriginale.celle = ruotata(celleOriginali);
+    contesto.ORARI_5_cambioOrario();
+    const dopoPari = lezioniSul(calPari, giorniDopo(vd, -28), giornoPrima).filter(soloPari);
+    verifica('quattro lezioni con due spostate nello stesso posto, le prime o le ultime: le lezioni prima del cambio ' +
+      'restano dove si vedono (' + primaPari.length + ')' + (uguali(dopoPari, primaPari) ? '' :
+      ' (prima: ' + primaPari.join(', ') + '; dopo: ' + dopoPari.join(', ') + ')'),
+      primaPari.length === 6 && uguali(dopoPari, primaPari));
+    verifica('  ...e le due serie tengono il loro inizio', [primeSpostate, ultimeSpostate].every(s =>
+      s.inizio.getTime() === s.inizioOriginale.getTime() && chiave(s.ricorrenza.until) === chiave(giornoPrima)));
+    docOriginale.celle = celleOriginali.slice();
+
     // una serie di due lezioni, una prima e una dopo il cambio, una delle due
     // spostata: a parita' vale la prima, cosi' la lezione che resta si vede
     // dov'era (quella dopo il cambio si toglie comunque)
@@ -1332,6 +1412,19 @@ if (conCalendario) {
     contesto._orariPrimaLezione_(conSpostata);
     verifica('tre lezioni, la prima spostata di due giorni: la serie comincia dalla sua settimana, lunedi\' alle 9, ' +
       'e si nota', conSpostata.inizio.getTime() === lun9.getTime() && conSpostata.irregolare === true);
+    // a parita' decide il giorno scritto nella descrizione, anche con una
+    // virgola nel nome del docente
+    const conDescrizione = { descrizione: '[Campanella] Orario di ' + c.docente + ', Lunedi\', dalla 1a alla 2a ora (prova)',
+      lezioni: [{ inizio: mer15, fine: mer16 }, { inizio: lun9dopo, fine: lun10dopo }] };
+    contesto._orariPrimaLezione_(conDescrizione);
+    verifica('due lezioni, la prima spostata, e la descrizione dice lunedi\': la serie comincia dalla settimana ' +
+      'della prima, lunedi\' alle 9', conDescrizione.inizio.getTime() === lun9.getTime() && conDescrizione.irregolare === true);
+    const mar9 = new Date(2026, 8, 29, 9, 0), mar10 = new Date(2026, 8, 29, 10, 0);
+    const conVirgola = { descrizione: '[Campanella] Orario di ROSSI, MARIA, Mercoledi\', 3a ora (prova)',
+      lezioni: [{ inizio: mar9, fine: mar10 }, { inizio: mer15dopo, fine: mer16dopo }] };
+    contesto._orariPrimaLezione_(conVirgola);
+    verifica('  ...e con "ROSSI, MARIA" nel nome il giorno e\' mercoledi\', non martedi\'',
+      conVirgola.inizio.getTime() === mer15.getTime() && conVirgola.fine.getTime() === mer16.getTime());
   }
 
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');
