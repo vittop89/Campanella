@@ -954,7 +954,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
                               '3AS-3bs' = '3AS|3bs'; '3BS-3Cs' = '3BS|3Cs'; '4AINF-4BINF LAB' = '4AINF|4BINF LAB'
                               '3as 3bs' = '3as|3bs'
                               # due lettere minuscole accanto a una classe di una lettera sola: un gruppo, non una classe
-                              '4A 2gr' = '4A 2gr'; '3A 1gr' = '3A 1gr'; '4A 2sq' = '4A 2sq' }
+                              '4A 2gr' = '4A 2gr'; '3A 1gr' = '3A 1gr'; '4A 2sq' = '4A 2sq'
+                              # i gruppi anche in maiuscolo, o accanto a una sezione di due lettere: non hanno la
+                              # forma della prima classe (le chiavi sono diverse: la tabella non bada alle maiuscole)
+                              '4C 2GR' = '4C 2GR'; '4A 1SQ' = '4A 1SQ'; '3A 1SQ' = '3A 1SQ'; '4AS 2gr' = '4AS 2gr'
+                              '3BS 1gr' = '3BS 1gr'; '4BS 2GR' = '4BS 2GR'
+                              # la sezione attaccata con le maiuscole miste, con la stessa forma: due classi
+                              '5Cinf/5Dinf' = '5Cinf|5Dinf'; '3Ccat 3Dcat' = '3Ccat|3Dcat'; '3AS/3BS' = '3AS|3BS' }
         $storteS = @()
         foreach ($k in $separa.Keys) {
             $pezzi = @((MC 'Separa').Invoke($null, @([string]$k))) -join '|'

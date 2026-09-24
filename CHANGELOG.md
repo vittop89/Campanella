@@ -208,10 +208,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   sender is a student of that class. Class labels add to the others:
   Studenti, Colleghi and the rest stay.
 - The classes come from the timetable (your lessons, without the "a
-  disposizione" hours; a lesson for 3A/3B or 5AINF/5BINF is two classes, a
-  cell such as "3B 2 gruppi" or "4A 2gr" stays one (a two-letter section
-  not all in capitals, as in 3AS-3bs, only next to another two-letter
-  one): Orari, the timetable file and your
+  disposizione" hours; a lesson for 3A/3B, 5AINF/5BINF or 5Ainf/5Binf is
+  two classes, a cell such as "3B 2 gruppi", "4A 2gr", "4A 2GR" or "4AS
+  2gr" stays one: every piece needs a section shaped like the first one, as
+  long and with the same letters after the first, case aside, as in
+  3AS-3bs): Orari, the timetable file and your
   name in step 4) and from the classes written in Cartelle; others are
   added by hand.
   3B, 3 B and 3^B are the same class; 3B LSA and 3B ITE are other classes,

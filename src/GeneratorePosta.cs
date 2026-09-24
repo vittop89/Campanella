@@ -669,10 +669,11 @@ namespace Campanella
 
         /// <summary>
         /// Le classi di una cella dell'orario o di una riga: "3A/3B", "3A-3B",
-        /// "3A 3B", "3A + 3B" e "5AINF/5BINF" sono due classi (una lezione
-        /// insieme); "2B-Ls", "3B LSA" e "3A/B" una. Si spezza solo se ogni
-        /// pezzo sembra una classe (ClasseNellaCella): "3B 2 gruppi", "1A 2 ore"
-        /// e "4A 2gr" restano una.
+        /// "3A 3B", "3A + 3B", "5AINF/5BINF" e "5Ainf/5Binf" sono due classi
+        /// (una lezione insieme); "2B-Ls", "3B LSA" e "3A/B" una. Si spezza solo
+        /// se ogni pezzo sembra una classe (ClasseNellaCella) con la forma della
+        /// prima (StessaForma): "3B 2 gruppi", "1A 2 ore", "4A 2gr", "4A 2GR",
+        /// "4AS 2gr" e "3BS 1gr" restano una.
         /// </summary>
         public static List<string> Separa(string grezzo)
         {
@@ -683,30 +684,55 @@ namespace Campanella
             for (int i = 0; i < pezzi.Length; i++) pezzi[i] = pezzi[i].Trim();
             bool tutte = pezzi.Length > 1;
             for (int i = 0; i < pezzi.Length; i++)
-                if (!ClasseNellaCella(pezzi, i)) tutte = false;
+                if (!ClasseNellaCella(pezzi[i]) || !StessaForma(pezzi[0], pezzi[i])) tutte = false;
             if (!tutte) { fuori.Add(s); return fuori; }
             fuori.AddRange(pezzi);
             return fuori;
         }
 
         /// <summary>
-        /// Vero se il pezzo i di una cella e' una classe, per Separa: una classe
-        /// ben fatta (ClasseBenFatta), oppure una sezione attaccata al numero
-        /// tutta maiuscola di qualunque lunghezza ("5AINF", "3ACAT", "5AAFM":
-        /// SezioneAttaccata), con al piu' una sigla dopo. Una sezione attaccata di
-        /// due lettere non tutte maiuscole ("3bs", "3Cs") solo se un altro pezzo
-        /// della cella ha anche lui una sezione di due lettere ("3AS-3bs"): "4A
-        /// 2gr", "3A 1gr" (i gruppi) restano una cella. Resta fuori la parola:
-        /// "2 gruppi", "2 ore", "5 per", "2ore", "2 Ore".
+        /// Vero se un pezzo di una cella puo' essere una classe, per Separa: una
+        /// classe ben fatta (ClasseBenFatta), una sezione attaccata al numero
+        /// tutta maiuscola di qualunque lunghezza ("5AINF", "3ACAT":
+        /// SezioneAttaccata) o con le maiuscole miste ("5Ainf": SezioneMista), o
+        /// di due lettere anche minuscole ("3bs", "3Cs"), con al piu' una sigla
+        /// dopo. Resta fuori la parola: "2 gruppi", "2 ore", "5 per", "2ore", "2
+        /// Ore". Un gruppo come "2gr" o "2GR" qui passa: lo ferma StessaForma.
         /// </summary>
-        static bool ClasseNellaCella(string[] pezzi, int i)
+        static bool ClasseNellaCella(string s)
         {
-            string s = pezzi[i];
-            if (ClasseBenFatta(s) || SezioneAttaccata(s)) return true;
-            if (!DueLettereAttaccate(s)) return false;
-            for (int k = 0; k < pezzi.Length; k++)
-                if (k != i && DueLettereAttaccate(pezzi[k])) return true;
-            return false;
+            return ClasseBenFatta(s) || SezioneAttaccata(s) || SezioneMista(s) || DueLettereAttaccate(s);
+        }
+
+        /// <summary>
+        /// Vero se due pezzi di una cella hanno la forma della stessa scuola: la
+        /// sezione lunga uguale e, dopo la prima lettera, le stesse lettere
+        /// (maiuscole a parte). 3AS/3BS, 3AS-3bs, 5AINF/5BINF e 5Ainf/5Binf si';
+        /// "4A 2GR", "4AS 2gr", "3A 1SQ" e "3BS 1gr" (i gruppi) no.
+        /// </summary>
+        static bool StessaForma(string prima, string altra)
+        {
+            Match a = NumeroSezione.Match(prima ?? ""), b = NumeroSezione.Match(altra ?? "");
+            if (!a.Success || !b.Success) return false;
+            string sa = a.Groups[2].Value, sb = b.Groups[2].Value;
+            return sa.Length == sb.Length && string.Equals(sa.Substring(1), sb.Substring(1), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Vero se il nome e' il numero con attaccata una sezione con le
+        /// maiuscole miste, come si scrive a volte quella dei tecnici: la prima
+        /// lettera maiuscola, poi da una a quattro lettere, non tutte maiuscole
+        /// ("5Ainf", "3Acat", "4BAfm", "3Bs"), e al piu' una sigla dopo. Nome la
+        /// scrive tutta maiuscola (5AINF). Non "2gr" o "5per", che cominciano
+        /// con la minuscola.
+        /// </summary>
+        static bool SezioneMista(string s)
+        {
+            Match m = NumeroSezione.Match(s ?? "");
+            if (!m.Success || m.Groups[2].Index != m.Groups[1].Index + 1) return false;
+            string sezione = m.Groups[2].Value;
+            return sezione.Length >= 2 && sezione.Length <= 5 && char.IsUpper(sezione[0]) &&
+                   sezione != sezione.ToUpperInvariant() && SoloArticolazione(m.Groups[3]);
         }
 
         /// <summary>

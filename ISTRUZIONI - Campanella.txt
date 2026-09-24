@@ -245,8 +245,10 @@ POSTA - riordinare la casella
    etichette delle classi si aggiungono alle altre: Studenti, Colleghi e le
    altre restano. Le classi vengono dall'orario (Orari: il tabellone al
    passo 1 e il tuo nome al passo 4; le ore a disposizione non contano; una
-   lezione 3A/3B o 5AINF/5BINF sono due classi, una cella come "3B 2
-   gruppi" o "4A 2gr" resta una) e da Cartelle; le altre le aggiungi a
+   lezione 3A/3B, 5AINF/5BINF o 5Ainf/5Binf sono due classi, una cella
+   come "3B 2 gruppi", "4A 2gr", "4A 2GR" o "4AS 2gr" resta una: ogni
+   pezzo deve avere la sezione fatta come quella della prima classe) e da
+   Cartelle; le altre le aggiungi a
    mano. 3B, 3 B
    e 3^B sono la stessa classe; 3B LSA e 3B ITE sono altre (se nell'elenco
    ci sono 3B e 3B LSA, la finestra chiede di scegliere).
