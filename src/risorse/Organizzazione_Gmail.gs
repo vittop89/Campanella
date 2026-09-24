@@ -2118,12 +2118,7 @@ function _notaClasse_(cfg, regola, nome) {
   var quanti = _espandi_(cfg, ['@CLASSE:' + nome + '@'], regola).length;
   if (quanti) return 'studenti della ' + nome + ': ' + quanti + (quanti === 1 ? ' indirizzo' : ' indirizzi') +
                      ', dal file ' + file + _quandoCopiato_(dati.copiato);
-  // destinatari previsti e nessuno rimasto: _queryDellaRegola_ non cerca niente
-  var resta = (regola.a && regola.a.length && !_espandi_(cfg, regola.a, regola).length)
-    ? 'questa regola non trova niente'
-    : _bastaUno_(regola)
-    ? ((regola.oggetto && regola.oggetto.length) ? 'conta solo l\'oggetto' : 'conta solo le parole cercate')
-    : (_espandi_(cfg, regola.da || [], regola).length ? 'conta solo gli altri mittenti' : 'questa regola non trova niente');
+  var resta = _cercaSenzaStudenti_(cfg, regola);
   var sua = dati ? dati.etichetta : null;
   if (sua === null) return 'manca il file ' + file + ': ' + resta;
   if (sua === '') return 'il file ' + file + ' non dice per quale etichetta e\': copialo di nuovo da Campanella; ' +
@@ -2146,6 +2141,39 @@ function _notaClasse_(cfg, regola, nome) {
            'Campanella; intanto ' + resta;
   }
   return 'il file ' + file + ' non ha indirizzi: ' + resta;
+}
+
+/**
+ * Che cosa cerca davvero una regola senza gli studenti delle sue classi, per
+ * l'anteprima: "questa regola non trova niente" solo se _queryDellaRegola_
+ * non fa nessuna ricerca; altrimenti le parti che restano, come le unisce
+ * _queryDellaRegola_ (con unoQualsiasi il testo oppure i mittenti rimasti,
+ * altrimenti tutto insieme). "Altri" mittenti o destinatari se fra quelli
+ * c'era una classe.
+ */
+function _cercaSenzaStudenti_(cfg, regola) {
+  if (!_queryDellaRegola_(cfg, regola).length) return 'questa regola non trova niente';
+  var da = regola.da || [], a = regola.a || [];
+  var mittenti = !_espandi_(cfg, da, regola).length ? ''
+    : (_senzaClassi_(da).length < da.length ? 'gli altri mittenti' : 'i mittenti');
+  var destinatari = !_espandi_(cfg, a, regola).length ? ''
+    : (_senzaClassi_(a).length < a.length ? 'gli altri destinatari' : 'i destinatari');
+  var testo = [];
+  if (regola.oggetto && regola.oggetto.length) testo.push('l\'oggetto');
+  if (regola.contiene && regola.contiene.length) testo.push('le parole cercate');
+  var parti = [];
+  if (_bastaUno_(regola)) {
+    parti.push(testo.join(' e ') + (mittenti ? ' oppure ' + mittenti : ''));
+  } else {
+    if (mittenti) parti.push(mittenti);
+    parti = parti.concat(testo);
+  }
+  if (destinatari) parti.push(destinatari);
+  if (regola.haAllegato) parti.push('l\'allegato');
+  if (regola.queryLibera) parti.push('la ricerca avanzata');
+  if (!parti.length) return 'cerca senza altre condizioni';
+  var ultima = parti.pop();
+  return 'conta solo ' + (parti.length ? parti.join(', ') + ' e ' : '') + ultima;
 }
 
 /**

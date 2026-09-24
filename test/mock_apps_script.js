@@ -2134,6 +2134,34 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   const notaLei = contesto._notaClasse_(cfgLei, aLeiDa, '3B');
   verifica('e senza i suoi studenti l\'anteprima dice che non trova niente (' + notaLei + ')',
     contesto._queryDellaRegola_(cfgLei, aLeiDa).length === 0 && /intanto questa regola non trova niente$/.test(notaLei));
+  // con altri destinatari oltre alla classe la regola cerca lo stesso:
+  // l'anteprima dice che cosa, e "non trova niente" solo quando non cerca
+  const cercaAncora = [
+    [{ attiva: true, etichetta: 'Verifiche 3B', a: ['@CLASSE:3B@', colleghi[1]], oggetto: ['verifica'] },
+     'conta solo l\'oggetto e gli altri destinatari'],
+    [{ attiva: true, etichetta: 'Verifiche 3B', da: [colleghi[0]], a: ['@CLASSE:3B@', colleghi[1]], oggetto: ['verifica'] },
+     'conta solo i mittenti, l\'oggetto e gli altri destinatari'],
+    [{ attiva: true, etichetta: 'Verifiche 3B', da: ['@CLASSE:3B@', colleghi[0]], oggetto: ['3B'], unoQualsiasi: true },
+     'conta solo l\'oggetto oppure gli altri mittenti'],
+    [{ attiva: true, etichetta: 'Verifiche 3B', da: ['@CLASSE:3B@', colleghi[0]], oggetto: ['3B'] },
+     'conta solo gli altri mittenti e l\'oggetto']
+  ];
+  const fileDellaTerza = contesto.CLASSI_STUDENTI;
+  for (const [regolaLei, detto] of cercaAncora) {
+    const cfgAncora = Object.assign({}, cfg, { regole: [regolaLei] });
+    // il file e' di un'altra etichetta, oppure non c'e'
+    for (const conFile of [true, false]) {
+      contesto.CLASSI_STUDENTI = conFile ? fileDellaTerza : undefined;
+      const qAncora = contesto._queryDellaRegola_(cfgAncora, regolaLei);
+      const notaAncora = contesto._notaClasse_(cfgAncora, regolaLei, '3B');
+      const come = conFile ? 'intanto ' + detto : 'manca il file Classe_3B.gs: ' + detto;
+      verifica('senza i suoi studenti, se la regola cerca ancora (ricerche: ' + qAncora.length + ') l\'anteprima dice ' +
+               'che cosa: ' + notaAncora,
+        qAncora.length >= 1 && !studenti.some(x => qAncora.join(' ').indexOf(x) >= 0) &&
+        notaAncora.slice(-come.length) === come && notaAncora.indexOf('non trova niente') < 0);
+    }
+  }
+  contesto.CLASSI_STUDENTI = fileDellaTerza;
   // se il file e' di un'altra regola accesa, per toglierla non c'e' la
   // spunta delle classi: la regola non sta sotto un'etichetta madre
   const notaLei2 = contesto._notaClasse_(Object.assign({}, cfg, { regole: [classe, aLeiDa] }), aLeiDa, '3B');

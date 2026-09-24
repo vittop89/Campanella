@@ -218,7 +218,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   hourly sorting, and EXTRA_creaFiltriGmail says that PASSO_4 must stay on
   for them. PASSO_1_anteprima says how many addresses each class file has
   (never which ones) and when it was copied (warning if from a past school
-  year), or that the file is missing or belongs to another label, and
+  year), or that the file is missing or belongs to another label and what
+  the rule still looks for meanwhile (the subject, the other senders or
+  recipients; "finds nothing" only when it makes no search at all), and
   lists the class files no active rule uses. When last year's rules are
   kept, last year's 3B and this year's share the one Classe_3B.gs: the
   preview says which rule the file serves and how to switch off or remove
