@@ -1976,7 +1976,7 @@ function _virgolette_(s) { return '"' + String(s).replace(/"/g, '') + '"'; }
 //  ha studenti. Sono dati di minori: servono solo alle ricerche. Nel registro
 //  e nei riepiloghi va al massimo quanti sono, mai quali, e nei filtri veri di
 //  Gmail non vanno mai (_criteriFiltro_). CLASSI_STUDENTI si legge solo in
-//  _classiNeiFile_, _etichettaDelFile_ e _studentiDellaClasse_, l'unica che
+//  _classiNeiFile_, _fileDellaClasse_ e _studentiDellaClasse_, l'unica che
 //  da' gli indirizzi, e che chiama solo _espandi_: test/invarianti_script.js
 //  lo controlla.
 // ---------------------------------------------------------------------------
@@ -2016,13 +2016,16 @@ function _classiNeiFile_() {
 }
 
 /**
- * L'etichetta della regola per cui e' stato copiato il file di una classe:
- * null se il file non c'e', '' se non la dice (scritto a mano).
+ * Il file di una classe, senza gli indirizzi: l'etichetta della regola per
+ * cui e' stato copiato ('' se non la dice, scritto a mano) e il giorno
+ * ('2026-09-24', '' se non lo dice). null se il file non c'e'.
  */
-function _etichettaDelFile_(nome) {
+function _fileDellaClasse_(nome) {
   if (_classiNeiFile_().indexOf(nome) < 0) return null;
   var voce = CLASSI_STUDENTI[nome];
-  return (voce && typeof voce === 'object' && typeof voce.etichetta === 'string') ? voce.etichetta.trim() : '';
+  var ok = !!voce && typeof voce === 'object';
+  return { etichetta: (ok && typeof voce.etichetta === 'string') ? voce.etichetta.trim() : '',
+           copiato: (ok && typeof voce.copiato === 'string') ? voce.copiato.trim() : '' };
 }
 
 /**
@@ -2031,7 +2034,8 @@ function _etichettaDelFile_(nome) {
  * _espandi_.
  */
 function _studentiDellaClasse_(nome, etichetta) {
-  var sua = _etichettaDelFile_(nome);
+  var file = _fileDellaClasse_(nome);
+  var sua = file ? file.etichetta : '';
   if (!sua || sua.toLowerCase() !== String(etichetta || '').trim().toLowerCase()) return null;
   var elenco = CLASSI_STUDENTI[nome].indirizzi;
   return (elenco && typeof elenco.length === 'number') ? elenco : null;
@@ -2058,13 +2062,14 @@ function _fileClasse_(nome) {
  */
 function _notaClasse_(cfg, regola, nome) {
   var file = _fileClasse_(nome);
+  var dati = _fileDellaClasse_(nome);
   var quanti = _espandi_(cfg, ['@CLASSE:' + nome + '@'], regola).length;
   if (quanti) return 'studenti della ' + nome + ': ' + quanti + (quanti === 1 ? ' indirizzo' : ' indirizzi') +
-                     ', dal file ' + file;
+                     ', dal file ' + file + _quandoCopiato_(dati.copiato);
   var resta = _bastaUno_(regola)
     ? ((regola.oggetto && regola.oggetto.length) ? 'conta solo l\'oggetto' : 'conta solo le parole cercate')
     : (_espandi_(cfg, regola.da || [], regola).length ? 'conta solo gli altri mittenti' : 'questa regola non trova niente');
-  var sua = _etichettaDelFile_(nome);
+  var sua = dati ? dati.etichetta : null;
   if (sua === null) return 'manca il file ' + file + ': ' + resta;
   if (sua === '') return 'il file ' + file + ' non dice per quale etichetta e\': copialo di nuovo da Campanella; ' +
                          'intanto ' + resta;
@@ -2076,6 +2081,24 @@ function _notaClasse_(cfg, regola, nome) {
 }
 
 /**
+ * Quando e' stato copiato il file di una classe, per l'anteprima: " copiato
+ * il 24/09/2026". Se e' di un anno scolastico passato (quello comincia a
+ * settembre) lo dice: con un'etichetta madre senza anno ("Le mie classi")
+ * la regola resta la stessa, ma gli studenti sono cambiati.
+ */
+function _quandoCopiato_(copiato) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(copiato || ''));
+  if (!m) return '';
+  var testo = ' copiato il ' + m[3] + '/' + m[2] + '/' + m[1];
+  var adesso = new Date();
+  var annoAdesso = adesso.getMonth() >= 8 ? adesso.getFullYear() : adesso.getFullYear() - 1;
+  var annoFile = Number(m[2]) >= 9 ? Number(m[1]) : Number(m[1]) - 1;
+  if (annoFile >= annoAdesso) return testo;
+  return testo + ': e\' dell\'anno scolastico ' + annoFile + '-' + String(annoFile + 1).slice(2) +
+         ', se la classe e\' cambiata copialo di nuovo da Campanella';
+}
+
+/**
  * I file delle classi che nessuna delle regole usa: la classe tolta, la
  * regola spenta, il file dell'anno prima. Per ognuno il nome, quanti
  * indirizzi ha (mai quali) e per quale etichetta era stato copiato.
@@ -2083,7 +2106,7 @@ function _notaClasse_(cfg, regola, nome) {
 function _fileSenzaRegola_(cfg, regole) {
   var fuori = [], nomi = _classiNeiFile_();
   for (var i = 0; i < nomi.length; i++) {
-    var sua = _etichettaDelFile_(nomi[i]);
+    var sua = _fileDellaClasse_(nomi[i]).etichetta;
     var usato = false;
     for (var r = 0; r < regole.length && !usato; r++) {
       usato = !!sua && _classiDellaRegola_(regole[r]).indexOf(nomi[i]) >= 0 &&

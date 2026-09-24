@@ -1041,8 +1041,9 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
             $unoPoi.classi.'3B' -eq 'Classi 2026-27/3B:25' -and $unoPoi.classi.'4A' -eq 'Classi 2026-27/4A:1' -and
             $poiUno.classi.'3B' -eq 'Classi 2026-27/3B:25' -and $poiUno.classi.'4A' -eq 'Classi 2026-27/4A:1' -and
             ($unoPoi.globali -join ',') -eq 'CLASSI_STUDENTI')
-        Verifica "e ognuno dice per quale regola vale: solo per quella etichetta" (
-            $testo3B.Contains('etichetta: "Classi 2026-27/3B",') -and $testo3B -match 'Valgono solo per' -and
+        Verifica "e ognuno dice per quale regola vale, solo per quella etichetta, e quando e' stato copiato" (
+            $testo3B.Contains('etichetta: "Classi 2026-27/3B",') -and $testo3B.Contains('copiato: "2026-09-24",') -and
+            $testo3B -match 'Valgono solo per' -and
             $testo3B -match 'non li mette nei filtri di Gmail')
 
         # -------------------------------------------------------------------

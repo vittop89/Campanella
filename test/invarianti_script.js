@@ -255,7 +255,7 @@ const REGOLE = {
     // nelle ricerche. Nessun'altra funzione li puo' scrivere nel registro, in
     // un riepilogo o in un filtro senza passare di li'
     nomiSoloIn: {
-      CLASSI_STUDENTI: ['_classiNeiFile_', '_etichettaDelFile_', '_studentiDellaClasse_'],
+      CLASSI_STUDENTI: ['_classiNeiFile_', '_fileDellaClasse_', '_studentiDellaClasse_'],
       _studentiDellaClasse_: ['_espandi_']
     }
   },

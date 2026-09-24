@@ -1910,11 +1910,12 @@ indirizzoAttivo = IO;
 // il file di una classe come lo scrive Campanella (LeMieClassi.FileClasse): la
 // classe, l'etichetta della regola per cui e' stato copiato e gli indirizzi.
 // Piu' file nello stesso progetto si sommano, in qualunque ordine li legga Google
-function fileClasse(nome, etichetta, indirizzi) {
+function fileClasse(nome, etichetta, indirizzi, copiato) {
   return '/* indirizzi degli studenti della ' + nome + ' */\n' +
     'var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
     'CLASSI_STUDENTI[' + JSON.stringify(nome) + '] = {\n' +
     '  etichetta: ' + JSON.stringify(etichetta) + ',\n' +
+    (copiato ? '  copiato: ' + JSON.stringify(copiato) + ',\n' : '') +
     '  indirizzi: [\n' + indirizzi.map(x => '    ' + JSON.stringify(x)).join(',\n') + '\n  ]\n};\n';
 }
 
@@ -2181,6 +2182,26 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   verifica('un file senza l\'etichetta della regola non da\' studenti',
     contesto._queryDellaRegola_(cfg, classe).length === 1 &&
     /il file Classe_3B\.gs non dice per quale etichetta e'/.test(contesto._notaClasse_(cfg, classe, '3B')));
+  contesto.CLASSI_STUDENTI = salvato;
+  // con una madre senza anno ("Le mie classi") l'etichetta resta la stessa
+  // l'anno dopo: il file dice quando e' stato copiato, e quello di un anno
+  // scolastico passato si fa notare
+  const senzaAnno = { attiva: true, etichetta: 'Le mie classi/3B', da: ['@CLASSE:3B@'], oggetto: ['3B'], unoQualsiasi: true };
+  const oggi = new Date();
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const annoPassato = (oggi.getMonth() >= 8 ? oggi.getFullYear() - 1 : oggi.getFullYear() - 2) + '-10-01';
+  contesto.CLASSI_STUDENTI = undefined;
+  vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, annoPassato), contesto);
+  const vecchio = contesto._notaClasse_(cfg, senzaAnno, '3B');
+  const annoDi = Number(annoPassato.slice(0, 4));
+  verifica('un file copiato in un anno scolastico passato lo dice (' + vecchio + ')',
+    vecchio.indexOf('studenti della 3B: 25 indirizzi, dal file Classe_3B.gs copiato il 01/10/' + annoDi) === 0 &&
+    vecchio.indexOf('e\' dell\'anno scolastico ' + annoDi + '-' + String(annoDi + 1).slice(2)) > 0);
+  contesto.CLASSI_STUDENTI = undefined;
+  vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, iso(oggi)), contesto);
+  const nuovo = contesto._notaClasse_(cfg, senzaAnno, '3B');
+  verifica('uno di quest\'anno dice solo quando (' + nuovo + ')',
+    /copiato il \d\d\/\d\d\/\d{4}$/.test(nuovo) && nuovo.indexOf('anno scolastico') < 0);
   contesto.CLASSI_STUDENTI = salvato;
 
   verifica('in tutto questo, nel registro nessun indirizzo di uno studente',

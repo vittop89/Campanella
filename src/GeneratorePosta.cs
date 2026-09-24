@@ -905,6 +905,8 @@ namespace Campanella
             sb.AppendLine("var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== 'undefined' && CLASSI_STUDENTI) || {};");
             sb.AppendLine("CLASSI_STUDENTI[\"" + AnalisiOrario.Js(classe) + "\"] = {");
             sb.AppendLine("  etichetta: \"" + AnalisiOrario.Js(etichetta) + "\",");
+            // il giorno: l'anteprima lo dice, e avvisa se e' di un anno scolastico passato
+            sb.AppendLine("  copiato: \"" + quando.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) + "\",");
             sb.AppendLine("  indirizzi: [");
             for (int i = 0; i < n; i++)
                 sb.AppendLine("    \"" + AnalisiOrario.Js(indirizzi[i]) + "\"" + (i < n - 1 ? "," : ""));
