@@ -976,6 +976,15 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         Verifica "gli indirizzi del personale (e della dirigenza) si tolgono, e si sa quali" (
             $restano.Count -eq 4 -and ($tolti -join ',') -eq 'prof.rossi@scuola-esempio.edu.it,preside@scuola-esempio.edu.it' -and
             -not ($restano -contains 'preside@scuola-esempio.edu.it'))
+        # nell'elenco del passo 3 senza spunta ci sono anche gli studenti (ruolo
+        # Studente, o presi dalla casella senza ruolo): quelli restano studenti
+        AggiungiPersona $sp 'VERDI LUCA' 'Studente' "luca.verdi@$dominioStudenti" $false
+        AggiungiPersona $sp '' '' "anna.rossi@$dominioStudenti" $false
+        $tolti = New-Object 'System.Collections.Generic.List[string]'
+        $restano = @((MC 'TogliPersonale').Invoke($null, @($letti.PSObject.BaseObject, $sp.PSObject.BaseObject, $tolti.PSObject.BaseObject)))
+        Verifica "chi nell'elenco del passo 3 e' senza spunta (studenti, indirizzi presi dalla casella) non si toglie ($($restano.Count))" (
+            $restano.Count -eq 4 -and ($restano -contains "luca.verdi@$dominioStudenti") -and ($restano -contains "anna.rossi@$dominioStudenti") -and
+            ($tolti -join ',') -eq 'prof.rossi@scuola-esempio.edu.it,preside@scuola-esempio.edu.it')
         Verifica "piu' di $([int]$tClassi.GetField('TroppiStudenti', $FS).GetValue($null)) indirizzi sembrano piu' di una classe" (
             [int]$tClassi.GetField('TroppiStudenti', $FS).GetValue($null) -eq 40)
 
@@ -1104,7 +1113,13 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         $avviso = $fc.Avviso($i3B)
         Verifica "incollati: 25 indirizzi, e uno del personale tolto, detto ('$avviso')" (
             $fc.Classi[$i3B].Indirizzi.Count -eq 25 -and $avviso -match '25 indirizzi' -and $avviso -match '1 del personale' -and
-            -not ($avviso -match 'prof\.rossi'))
+            $avviso -match "dall'elenco del passo 3" -and -not ($avviso -match 'prof\.rossi'))
+        $fc.Incolla($i3B, $incolla3B + ', preside@scuola-esempio.edu.it')
+        $avviso = $fc.Avviso($i3B)
+        Verifica "e dice da dove vengono quelli tolti: il passo 3 e la pagina La tua scuola ('$avviso')" (
+            $avviso -match '2 del personale tolti' -and $avviso -match "1 dall'elenco del passo 3" -and
+            $avviso -match '1 dalla pagina "La tua scuola"')
+        $fc.Incolla($i3B, $incolla3B)
         $tanti = @(for ($k = 1; $k -le 45; $k++) { "alunno$k@$dominioStudenti" }) -join "`r`n"
         $i1A = Indice $fc '1A'
         $fc.Incolla($i1A, $tanti)

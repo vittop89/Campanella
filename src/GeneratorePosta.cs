@@ -789,22 +789,19 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Gli indirizzi senza quelli del personale (l'elenco del passo 3, la
-        /// dirigenza e la segreteria della pagina "La tua scuola"): un collega
-        /// fra gli studenti avrebbe l'etichetta della classe su tutta la sua
-        /// posta. Quelli tolti vanno in "tolti", se non e' null.
+        /// Gli indirizzi senza quelli del personale (chi ha la spunta
+        /// nell'elenco del passo 3, la dirigenza e la segreteria della pagina "La
+        /// tua scuola"): un collega fra gli studenti avrebbe l'etichetta della
+        /// classe su tutta la sua posta. Chi nell'elenco e' senza spunta resta:
+        /// sono gli studenti e le famiglie (li lascia fuori l'import) e gli
+        /// indirizzi presi dalla casella, dove ci sono anche gli studenti. Quelli
+        /// tolti vanno in "tolti", se non e' null.
         /// </summary>
         public static List<string> TogliPersonale(List<string> indirizzi, Stato s, List<string> tolti)
         {
             List<string> personale = new List<string>();
-            if (s.Personale != null)
-                foreach (Persona p in s.Personale)
-                {
-                    string e = (p.Email ?? "").Trim().ToLowerInvariant();
-                    if (e != "") personale.Add(e);
-                }
-            foreach (string e in GeneratorePosta.Righe(s.Dirigenza)) personale.Add(e.ToLowerInvariant());
-            foreach (string e in GeneratorePosta.Righe(s.Segreteria)) personale.Add(e.ToLowerInvariant());
+            if (s.Personale != null) personale.AddRange(s.IndirizziPersonale());
+            personale.AddRange(DallaScuola(s));
             List<string> fuori = new List<string>();
             foreach (string e in indirizzi ?? new List<string>())
             {
@@ -827,6 +824,15 @@ namespace Campanella
             Match m = NumeroSezione.Match(s);
             if (m.Success) return m.Groups[2].Value.Length <= 3;
             return Regex.IsMatch(s, @"^(I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9])");
+        }
+
+        /// <summary>Gli indirizzi della dirigenza e della segreteria (pagina "La tua scuola"), minuscoli.</summary>
+        public static List<string> DallaScuola(Stato s)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string e in GeneratorePosta.Righe(s.Dirigenza)) fuori.Add(e.Trim().ToLowerInvariant());
+            foreach (string e in GeneratorePosta.Righe(s.Segreteria)) fuori.Add(e.Trim().ToLowerInvariant());
+            return fuori;
         }
 
         /// <summary>Il file con gli indirizzi di una classe: Classe_3B.gs (lo stesso nome che cerca lo script, _fileClasse_).</summary>

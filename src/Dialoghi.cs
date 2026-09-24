@@ -1241,8 +1241,16 @@ namespace Campanella
         {
             string file = LeMieClassi.NomeFile(c.Nome);
             int tolti = (c.Tolti == null) ? 0 : c.Tolti.Count;
+            // da dove: l'elenco del personale (passo 3) o la pagina "La tua scuola"
+            List<string> scuola = LeMieClassi.DallaScuola(stato);
+            int dallaScuola = 0;
+            if (c.Tolti != null) foreach (string e in c.Tolti) if (scuola.Contains(e)) dallaScuola++;
+            int dalPasso3 = tolti - dallaScuola;
+            string dove = (dallaScuola == 0) ? "dall'elenco del passo 3"
+                : (dalPasso3 == 0) ? "dalla pagina \"La tua scuola\""
+                : dalPasso3 + " dall'elenco del passo 3, " + dallaScuola + " dalla pagina \"La tua scuola\"";
             string delPersonale = (tolti == 0) ? "" : " " + tolti + " del personale " + (tolti == 1 ? "tolto" : "tolti") +
-                                  " (sono nell'elenco del passo 3).";
+                                  " (" + dove + ").";
             if (c.Indirizzi != null && c.Indirizzi.Count > 0)
             {
                 int n = c.Indirizzi.Count;
@@ -1271,7 +1279,9 @@ namespace Campanella
             for (int k = 0; k < 100; k++) prova.Indirizzi.Add("x");
             prova.Tolti = new List<string>(new string[] { "a", "b" });
             Classi.Add(prova);
-            string a = Avviso(Classi.Count - 1);
+            // quelli tolti vengono da tutte e due le parti: la frase piu' lunga
+            string a = Avviso(Classi.Count - 1).Replace("(dall'elenco del passo 3)",
+                "(99 dall'elenco del passo 3, 99 dalla pagina \"La tua scuola\")");
             prova.Indirizzi = null;
             prova.Regola = new Regola();
             string b = Avviso(Classi.Count - 1);
