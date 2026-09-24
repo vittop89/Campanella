@@ -170,13 +170,13 @@ on every push and pull request, and the release workflow before publishing:
 
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
-node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: days without lessons, resume, timetable change
+node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: days without lessons, resume, timetable change; next to the mail script and a class file
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
 node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical
 node test\mutazioni_pannello.js   # mutations of the control-sheet engine: the bench must catch each one
 node test\nomi_funzioni.js        # every script function named by the app and the documents exists
-node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions, on the calendar only Campanella's events, series shortened only in the timetable change
+node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions, on the calendar only Campanella's events, series shortened only in the timetable change, class students only in searches, neither script uses the other's functions
 .\test\prova_orario.ps1           # reads a timetable, checks the grid, the days without lessons and the generated DatiOrari.gs, same calendar plan as the script
 .\test\prova_xlsx.ps1             # the .xlsx reader and CSV files in ANSI, UTF-8 and UTF-16
 .\test\prova_moduli.ps1           # generates both forms scripts and runs them in the benches

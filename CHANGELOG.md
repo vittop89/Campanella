@@ -289,6 +289,14 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   concat or an index, a single event with only the description taken as
   marked, Object.assign with JSON.parse, Object.defineProperty) and more
   must fail, as the eight copies of before.
+- Posta and Orari in the same project: invarianti_script.js checks that
+  neither script uses the other's functions or variables, not even after a
+  dot, and that Orari.gs never names CLASSI_STUDENTI or the functions that
+  read it, not even in quotes (the timetables cannot reach the class
+  students, the mail script cannot touch the calendar); the ways around it
+  must fail. mock_orari.js puts a Classe_3B.gs file next to both scripts:
+  the mail script finds it, and the timetable preview, the sendings, the
+  calendar and ANNULLA_automazione never write a student address.
 - prova_orario.ps1: the line formats (also with a full stop, "fino al",
   other line breaks), lines not understood (two dates written another way,
   the second in words or as a day only, another day in the name, digits of

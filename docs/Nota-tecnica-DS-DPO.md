@@ -191,7 +191,10 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   calendario non li tocca. `test/invarianti_script.js` controlla sul codice
   che nessun'altra funzione possa prendere un calendario o un evento, né
   cambiarlo o toglierlo, e che fra gli eventi da accorciare o togliere
-  finiscano solo quelli riconosciuti così.
+  finiscano solo quelli riconosciuti così. Controlla anche che i due
+  script, che stanno nello stesso progetto, non usino le funzioni l'uno
+  dell'altro: quello della posta non arriva al calendario, quello degli
+  orari non arriva agli indirizzi degli studenti delle classi.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
   facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
   dello script i colori scelti in Campanella e per togliere i filtri di Gmail

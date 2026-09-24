@@ -170,13 +170,13 @@ pubblicare:
 
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
-node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: giorni senza lezione, ripresa, cambio d'orario
+node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: giorni senza lezione, ripresa, cambio d'orario; accanto alla Posta e al file di una classe
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
 node test\mock_pannello.js        # il foglio di controllo per più moduli
 node test\prova_gemelli.js        # le funzioni gemelle dei due script dei moduli restano uguali
 node test\mutazioni_pannello.js   # mutazioni del motore del foglio di controllo: il banco deve accorgersene
 node test\nomi_funzioni.js        # ogni funzione degli script citata da app e documenti esiste
-node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse, sul calendario solo gli eventi di Campanella, serie accorciate solo nel cambio d'orario
+node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse, sul calendario solo gli eventi di Campanella, serie accorciate solo nel cambio d'orario, gli studenti delle classi solo nelle ricerche, nessuno dei due usa le funzioni dell'altro
 .\test\prova_orario.ps1           # legge un tabellone, controlla la griglia, i giorni senza lezione e il DatiOrari.gs generato, stesso piano del calendario dello script
 .\test\prova_xlsx.ps1             # il lettore .xlsx e i CSV in ANSI, UTF-8 e UTF-16
 .\test\prova_moduli.ps1           # genera i due script dei moduli e li fa girare nei banchi
