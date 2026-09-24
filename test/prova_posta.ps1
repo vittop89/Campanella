@@ -908,6 +908,406 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     }
 
     # -----------------------------------------------------------------------
+    Intestazione 'LE MIE CLASSI: I NOMI E LE PAROLE DELL''OGGETTO'
+    # Posta, passo 4, "Le mie classi...": una regola per classe. Gmail cerca
+    # parole intere: 3B, "3 B" (dovrebbe prendere anche 3^B e la B dopo il segno di grado) e III B
+    $tClassi = $asm.GetType('Campanella.LeMieClassi')
+    $tScelta = $asm.GetType('Campanella.ClasseScelta')
+    $tFC = $asm.GetType('Campanella.FormClassi')
+    Verifica "ci sono LeMieClassi, ClasseScelta e la finestra FormClassi" ($null -ne $tClassi -and $null -ne $tScelta -and $null -ne $tFC)
+    if ($null -ne $tClassi -and $null -ne $tScelta -and $null -ne $tFC) {
+        function MC($nome) { return $tClassi.GetMethod($nome, $FS) }
+        function Varianti($c) { return (@((MC 'Varianti').Invoke($null, @([string]$c))) -join '|') }
+        function ChiaveClasse($c) { return [string](MC 'Chiave').Invoke($null, @([string]$c)) }
+        function NomeClasse($c) { return [string](MC 'Nome').Invoke($null, @([string]$c)) }
+        $grado = [string][char]0x00B0
+        $attese = [ordered]@{
+            '3B' = '3B|3 B|III B'; '3^B' = '3B|3 B|III B'; ('3' + $grado + 'B') = '3B|3 B|III B'; ' 3 b ' = '3B|3 B|III B'
+            '3B LSA' = '3B|3 B|III B'; '2B-Ls' = '2B|2 B|II B'; '5AL' = '5AL|5 AL|V AL'; '4Ar' = '4AR|4 AR|IV AR'
+            'A5' = 'A5'; '1A2' = '1A2'; '10A' = '10A'
+        }
+        $storte = @()
+        foreach ($k in $attese.Keys) { if ((Varianti $k) -ne $attese[$k]) { $storte += "$k -> $(Varianti $k)" } }
+        Verifica "le parole di partenza: 3B, ""3 B"", III B; per 3B LSA le stesse; un codice che non e' numero e sezione resta com'e'$(if ($storte.Count) { ': no ' + ($storte -join '; ') })" (
+            $storte.Count -eq 0)
+        Verifica "3B, 3 B, 3^B e 3$($grado)B sono la stessa classe, e anche 3B LSA; 3BL no" (
+            (ChiaveClasse '3B') -eq (ChiaveClasse '3 B') -and (ChiaveClasse '3^B') -eq (ChiaveClasse '3b') -and
+            (ChiaveClasse ('3' + $grado + 'B')) -eq (ChiaveClasse '3B') -and (ChiaveClasse '3B LSA') -eq (ChiaveClasse '3B') -and
+            (ChiaveClasse '3BL') -ne (ChiaveClasse '3B'))
+        Verifica "il nome come lo scrive Campanella: 3^b -> 3B, 3b LSA -> 3B LSA, A5 resta A5" (
+            (NomeClasse '3^b') -eq '3B' -and (NomeClasse ' 3b  LSA ') -eq '3B LSA' -and (NomeClasse 'A5') -eq 'A5')
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: GLI INDIRIZZI INCOLLATI'
+        $dominioStudenti = 'studenti.scuola-esempio.edu.it'
+        $incollato = "Anna Rossi <Anna.Rossi@$dominioStudenti>, luca.verdi@$dominioStudenti;`r`n" +
+                     "MARIO.BIANCHI@$dominioStudenti`t""Sara Neri"" <sara.neri@$dominioStudenti>  " +
+                     "anna.rossi@$dominioStudenti, prof.rossi@scuola-esempio.edu.it; preside@scuola-esempio.edu.it " +
+                     "non-e-un-indirizzo, @solodominio, a@b"
+        $letti = (MC 'Indirizzi').Invoke($null, @([string]$incollato))
+        Verifica "solo gli indirizzi (anche nella forma Nome <indirizzo>), minuscoli, senza doppioni ($($letti.Count))" (
+            ($letti -join ',') -eq ("anna.rossi@$dominioStudenti,luca.verdi@$dominioStudenti,mario.bianchi@$dominioStudenti," +
+                                    "sara.neri@$dominioStudenti,prof.rossi@scuola-esempio.edu.it,preside@scuola-esempio.edu.it"))
+        $sp = NuovoStato
+        AggiungiPersona $sp 'ROSSI PAOLO' 'DOCENTE' 'Prof.Rossi@scuola-esempio.edu.it' $true
+        $tolti = New-Object 'System.Collections.Generic.List[string]'
+        $restano = (MC 'TogliPersonale').Invoke($null, @($letti.PSObject.BaseObject, $sp.PSObject.BaseObject, $tolti.PSObject.BaseObject))
+        Verifica "gli indirizzi del personale (e della dirigenza) si tolgono, e si sa quali" (
+            $restano.Count -eq 4 -and ($tolti -join ',') -eq 'prof.rossi@scuola-esempio.edu.it,preside@scuola-esempio.edu.it' -and
+            -not ($restano -contains 'preside@scuola-esempio.edu.it'))
+        Verifica "piu' di $([int]$tClassi.GetField('TroppiStudenti', $FS).GetValue($null)) indirizzi sembrano piu' di una classe" (
+            [int]$tClassi.GetField('TroppiStudenti', $FS).GetValue($null) -eq 40)
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: IL FILE Classe_3B.gs'
+        $nomiFile = [ordered]@{ '3B' = 'Classe_3B.gs'; '3B LSA' = 'Classe_3B_LSA.gs'; '2B-Ls' = 'Classe_2B_Ls.gs'; 'IV A' = 'Classe_IV_A.gs' }
+        $fileJs = Join-Path $temporanea 'file_classe.js'
+        Scrivi $fileJs @'
+const vm = require('vm'), fs = require('fs');
+const c = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), c, { filename: 'Organizzazione_Gmail.gs' });
+process.stdout.write(JSON.stringify({ nomi: process.argv.slice(3).map(n => c._fileClasse_(n)) }));
+'@
+        $delMotore = @(((& node $fileJs $motore @($nomiFile.Keys)) | ConvertFrom-Json).nomi)
+        $delC = @($nomiFile.Keys | ForEach-Object { [string](MC 'NomeFile').Invoke($null, @([string]$_)) })
+        Verifica "il nome del file e' quello che lo script cerca ($($delC -join ', '))" (
+            ($delC -join '|') -eq (@($nomiFile.Values) -join '|') -and ($delMotore -join '|') -eq ($delC -join '|'))
+        $studenti = New-Object 'System.Collections.Generic.List[string]'
+        for ($k = 1; $k -le 25; $k++) { $studenti.Add(('studente{0:00}.terzab@{1}' -f $k, $dominioStudenti)) }
+        $quarta = New-Object 'System.Collections.Generic.List[string]'
+        $quarta.Add("studente.quartaa@$dominioStudenti")
+        $mFile = MC 'FileClasse'
+        $quando = [datetime]'2026-09-24T10:00:00'
+        $testo3B = [string]$mFile.Invoke($null, @([string]'3B', [string]'Classi 2026-27/3B', $studenti.PSObject.BaseObject, $quando))
+        $testo4A = [string]$mFile.Invoke($null, @([string]'4A', [string]'Classi 2026-27/4A', $quarta.PSObject.BaseObject, $quando))
+        $file3B = Join-Path $temporanea 'Classe_3B.gs'
+        $file4A = Join-Path $temporanea 'Classe_4A.gs'
+        Scrivi $file3B $testo3B
+        Scrivi $file4A $testo4A
+        Verifica "l'intestazione dice di chi sono, che Campanella non ne tiene copia, come aggiornarli e di cancellarlo a fine anno" (
+            $testo3B -match 'studenti della 3B' -and $testo3B -match 'Campanella non ne tiene copia' -and
+            $testo3B -match 'incollali di nuovo' -and $testo3B -match 'fine anno' -and $testo3B -match 'cancella')
+        $sommaJs = Join-Path $temporanea 'somma_classi.js'
+        Scrivi $sommaJs @'
+const vm = require('vm'), fs = require('fs');
+const c = vm.createContext({});
+for (const f of process.argv.slice(2)) vm.runInContext(fs.readFileSync(f, 'utf8'), c, { filename: f });
+const fuori = {};
+for (const k of Object.keys(c.CLASSI_STUDENTI || {}).sort()) fuori[k] = c.CLASSI_STUDENTI[k].length;
+process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sort() }));
+'@
+        $unoPoi = (& node $sommaJs $file3B $file4A) | ConvertFrom-Json
+        $poiUno = (& node $sommaJs $file4A $file3B) | ConvertFrom-Json
+        Verifica "due file nello stesso progetto si sommano, in tutti e due gli ordini, e definiscono solo CLASSI_STUDENTI" (
+            $unoPoi.classi.'3B' -eq 25 -and $unoPoi.classi.'4A' -eq 1 -and $poiUno.classi.'3B' -eq 25 -and
+            $poiUno.classi.'4A' -eq 1 -and ($unoPoi.globali -join ',') -eq 'CLASSI_STUDENTI')
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: DA DOVE VENGONO'
+        # lo Stato vero, con CartellaDiProva: Salva scrive solo qui dentro
+        $salvati = Join-Path $temporanea 'salvati'
+        New-Item -ItemType Directory -Path $salvati | Out-Null
+        $tStato.GetField('CartellaDiProva', $FS).SetValue($null, $salvati)
+        $s7 = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+        Imposta $s7 'Dominio' 'scuola-esempio.edu.it'
+        Imposta $s7 'Prefisso' ''
+        Imposta $s7 'Anno' '2026-27'
+        Imposta $s7 'CalDocente' 'Rossi'
+        Imposta $s7 'Classi' "1A: Matematica, Fisica`r`n3 B: Fisica`r`n4Ar`r`n"
+        Imposta $s7 'Dirigenza' 'preside@scuola-esempio.edu.it'
+        AggiungiPersona $s7 'ROSSI PAOLO' 'DOCENTE' 'prof.rossi@scuola-esempio.edu.it' $true
+        $tLezione = $asm.GetType('Campanella.Lezione')
+        foreach ($l in @(@('ROSSI', 0, 1, '3B'), @('ROSSI', 1, 2, '3^B'), @('ROSSI', 2, 3, 'D'), @('ROSSI', 3, 1, '5AL'),
+                         @('BIANCHI', 0, 2, '1C'))) {
+            $x = [Activator]::CreateInstance($tLezione)
+            $tLezione.GetField('Docente').SetValue($x, $l[0])
+            $tLezione.GetField('Giorno').SetValue($x, [int]$l[1])
+            $tLezione.GetField('Ora').SetValue($x, [int]$l[2])
+            $tLezione.GetField('Classe').SetValue($x, $l[3])
+            (Leggi $s7 'Lezioni').Add($x)
+        }
+        $trovate = @((MC 'DaLezioniECartelle').Invoke($null, @($s7.PSObject.BaseObject)))
+        Verifica "dalle lezioni del docente (senza le ore a disposizione) e da Cartelle, senza doppioni ($($trovate -join ', '))" (
+            ($trovate -join '|') -eq '1A|3B|4AR|5AL')
+        Verifica "l'etichetta madre di partenza e' Classi e l'anno" ([string](MC 'MadreDiPartenza').Invoke($null, @($s7.PSObject.BaseObject)) -eq 'Classi 2026-27')
+        $vuoto7 = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+        Verifica "senza orario ne' Cartelle nessuna classe" (@((MC 'DaLezioniECartelle').Invoke($null, @($vuoto7.PSObject.BaseObject))).Count -eq 0)
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: LA FINESTRA, COSTRUITA E MAI MOSTRATA'
+        function NuovaFC($stato) { return [Activator]::CreateInstance($tFC, @($stato.PSObject.BaseObject)) }
+        function Righe($fc) { return @($fc.Classi | ForEach-Object { $_.Nome + $(if ($_.Spuntata) { '+' } else { '-' }) }) -join ',' }
+        function Indice($fc, $nome) { for ($i = 0; $i -lt $fc.Classi.Count; $i++) { if ($fc.Classi[$i].Nome -eq $nome) { return $i } }; return -1 }
+        $fc = NuovaFC $s7
+        Verifica "parte dalle classi trovate, tutte spuntate ($(Righe $fc)), con la madre di partenza" (
+            (Righe $fc) -eq '1A+,3B+,4AR+,5AL+' -and $fc.Madre -eq 'Classi 2026-27')
+        Verifica "e le parole dell'oggetto di partenza (3B: $($fc.Classi[1].Oggetto))" ($fc.Classi[1].Oggetto -eq '3B, 3 B, III B')
+        $i3B = Indice $fc '3B'
+        $incolla3B = ($studenti -join ', ') + ", PROF.ROSSI@scuola-esempio.edu.it, " + $studenti[0].ToUpperInvariant()
+        $fc.Incolla($i3B, $incolla3B)
+        $avviso = $fc.Avviso($i3B)
+        Verifica "incollati: 25 indirizzi, e uno del personale tolto, detto ('$avviso')" (
+            $fc.Classi[$i3B].Indirizzi.Count -eq 25 -and $avviso -match '25 indirizzi' -and $avviso -match '1 del personale' -and
+            -not ($avviso -match 'prof\.rossi'))
+        $tanti = @(for ($k = 1; $k -le 45; $k++) { "alunno$k@$dominioStudenti" }) -join "`r`n"
+        $i1A = Indice $fc '1A'
+        $fc.Incolla($i1A, $tanti)
+        Verifica "oltre 40 indirizzi lo dice: sembra piu' di una classe ('$($fc.Avviso($i1A))')" ($fc.Avviso($i1A) -match "sembra piu' di una classe")
+        $fc.Incolla($i1A, '')
+        Verifica "e incollando niente la classe torna senza indirizzi" ($null -eq $fc.Classi[$i1A].Indirizzi -or $fc.Classi[$i1A].Indirizzi.Count -eq 0)
+        $testoFile = $fc.TestoFile($i3B)
+        Verifica "il file Classe_3B.gs ha i 25 studenti, e non il collega" (
+            @($studenti | Where-Object { -not $testoFile.Contains('"' + $_ + '"') }).Count -eq 0 -and -not ($testoFile -match 'prof\.rossi'))
+        Verifica "una classe senza indirizzi incollati non ha file" ($fc.TestoFile($i1A) -eq '')
+        [void]$fc.Aggiungi('2c')
+        Verifica "una classe aggiunta a mano ($(Righe $fc)), e una che c'e' gia' non si ripete" (
+            (Righe $fc) -eq '1A+,2C+,3B+,4AR+,5AL+' -and $fc.Aggiungi('3^B') -eq (Indice $fc '3B') -and $fc.Classi.Count -eq 5)
+        $fc.Classi[(Indice $fc '4AR')].Spuntata = $false
+        $fc.Classi[(Indice $fc '2C')].Spuntata = $false
+        $regolePrima = (Leggi $s7 'Regole').Count
+        $esito = [string](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc.Madre, $fc.Classi.PSObject.BaseObject, [bool]$fc.TogliVecchie))
+        $fc.Dispose()
+        $regole7 = Leggi $s7 'Regole'
+        $delleClassi = @($regole7 | Where-Object { $_.Sorgente -eq 'classe' })
+        $r3B = @($delleClassi | Where-Object { $_.Etichetta -eq 'Classi 2026-27/3B' })[0]
+        Verifica "una regola per classe spuntata, in fondo: $(@($delleClassi | ForEach-Object { $_.Etichetta }) -join ', ') ('$esito')" (
+            $delleClassi.Count -eq 3 -and $regole7.Count -eq $regolePrima + 3 -and
+            (@($regole7 | Select-Object -Last 3 | ForEach-Object { $_.Etichetta }) -join '|') -eq 'Classi 2026-27/1A|Classi 2026-27/3B|Classi 2026-27/5AL')
+        Verifica "la regola della 3B: le parole, il solo segnaposto fra i mittenti, basta uno dei due" (
+            $null -ne $r3B -and ($r3B.Oggetto -join '|') -eq '3B|3 B|III B' -and ($r3B.Da -join '|') -eq '@CLASSE:3B@' -and
+            $r3B.UnoQualsiasi -and $r3B.Attiva -and -not $r3B.Archivia -and $r3B.EscludiEtichette.Count -eq 0 -and
+            $r3B.Descrizione -match '3B nell''oggetto' -and $r3B.Descrizione -match 'studenti della 3B')
+        $sfondi = @($delleClassi | ForEach-Object { ([string]$_.Colore).Split('/')[0] })
+        Verifica "colori: sfumature diverse del verde acqua, che le regole accese non usano ($($sfondi -join ' '))" (
+            ($sfondi -join '|') -eq '#c6f3de|#a0eac9|#68dfa9')
+        Verifica "nel riepilogo niente indirizzi" (-not ($esito -match '@'))
+
+        # gli indirizzi degli studenti non si conservano: ne' nei file salvati ne' in Configurazione.gs
+        Imposta $s7 'DatiNelDrive' $true
+        $datiDrive = Join-Path $salvati 'drive\Campanella'
+        New-Item -ItemType Directory -Path $datiDrive | Out-Null
+        Imposta $s7 'CartellaDati' $datiDrive
+        $s7.Salva()
+        Verifica "Salva riesce ($($s7.UltimoErrore))" ($s7.UltimoErrore -eq '')
+        $salvatiTesto = @(Get-ChildItem -Path $salvati -Recurse -File | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $conf7 = Genera $s7 $false
+        $incollati = @($studenti) + @("alunno1@$dominioStudenti")
+        Verifica "nei file salvati (campanella.json e i dati nel Drive) nessuno degli indirizzi incollati" (
+            $salvatiTesto.Contains('@CLASSE:3B@') -and @($incollati | Where-Object { $salvatiTesto.ToLowerInvariant().Contains($_) }).Count -eq 0)
+        Verifica "e nemmeno in Configurazione.gs, che ha il segnaposto e unoQualsiasi" (
+            $conf7.Contains('da:        ["@CLASSE:3B@"],') -and $conf7.Contains('unoQualsiasi: true,') -and
+            @($incollati | Where-Object { $conf7.ToLowerInvariant().Contains($_) }).Count -eq 0)
+        Verifica "li ha solo il file Classe_3B.gs" ($testoFile.Contains($studenti[24]))
+
+        # riaperta: gli indirizzi non ci sono piu', e lo dice
+        $fc2 = NuovaFC $s7
+        $j3B = Indice $fc2 '3B'
+        Verifica "riaperta, le classi con la regola sono spuntate ($(Righe $fc2))" ((Righe $fc2) -eq '1A+,3B+,4AR-,5AL+')
+        Verifica "e dice che gli indirizzi non sono conservati: si incollano di nuovo ('$($fc2.Avviso($j3B))')" (
+            ($null -eq $fc2.Classi[$j3B].Indirizzi) -and $fc2.Avviso($j3B) -match 'non li conserva' -and $fc2.Avviso($j3B) -match 'Classe_3B\.gs' -and
+            $fc2.TestoFile($j3B) -eq '')
+        $colore3B = $r3B.Colore
+        $fc2.Classi[$j3B].Oggetto = '3B, III B, terza B'
+        $fc2.Classi[(Indice $fc2 '1A')].Spuntata = $false
+        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc2.Madre, $fc2.Classi.PSObject.BaseObject, [bool]$fc2.TogliVecchie))
+        $fc2.Dispose()
+        $delleClassi = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' })
+        $r3B = @($delleClassi | Where-Object { $_.Etichetta -eq 'Classi 2026-27/3B' })[0]
+        Verifica "aggiornata: la 3B ha le parole nuove e tiene il suo colore; la 1A tolta non ha piu' la regola" (
+            $delleClassi.Count -eq 2 -and ($r3B.Oggetto -join '|') -eq '3B|III B|terza B' -and $r3B.Colore -eq $colore3B -and
+            @($delleClassi | Where-Object { $_.Etichetta -eq 'Classi 2026-27/1A' }).Count -eq 0)
+
+        # l'anno dopo: le regole dell'anno prima si tolgono solo se lo chiedi
+        Imposta $s7 'Anno' '2027-28'
+        $fc3 = NuovaFC $s7
+        Verifica "l'anno dopo la madre e' Classi 2027-28, e le regole del 2026-27 sono 'vecchie' (2), da non togliere di partenza" (
+            $fc3.Madre -eq 'Classi 2027-28' -and $fc3.Vecchie.Count -eq 2 -and -not $fc3.TogliVecchie -and
+            $fc3.TestoVecchie() -match 'del 2026-27 \(2\)')
+        Verifica "e ricorda di cancellare i file Classe_*.gs dal progetto (l'app non puo')" ($fc3.NotaVecchie() -match 'Classe_\*\.gs')
+        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc3.Madre, $fc3.Classi.PSObject.BaseObject, $false))
+        $etichette7 = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta })
+        Verifica "senza la spunta restano anche quelle del 2026-27 ($($etichette7 -join ', '))" (
+            @($etichette7 | Where-Object { $_ -like 'Classi 2026-27/*' }).Count -eq 2 -and
+            @($etichette7 | Where-Object { $_ -like 'Classi 2027-28/*' }).Count -eq 4)
+        $fc3.TogliVecchie = $true
+        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc3.Madre, $fc3.Classi.PSObject.BaseObject, [bool]$fc3.TogliVecchie))
+        $fc3.Dispose()
+        $etichette7 = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta })
+        Verifica "con la spunta si tolgono ($($etichette7 -join ', '))" (
+            @($etichette7 | Where-Object { $_ -like 'Classi 2026-27/*' }).Count -eq 0 -and $etichette7.Count -eq 4)
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: LA CONFIGURAZIONE E L''IMPRONTA'
+        $senza = NuovoStato
+        AggiungiPersona $senza 'ROSSI MARIO' 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'mario.rossi@scuola-esempio.edu.it' $true
+        AggiungiPersona $senza 'DE LUCA ANNA' 'ASSISTENTE AMMINISTRATIVO' 'anna.deluca@scuola-esempio.edu.it' $true
+        $confSenza = Genera $senza $true
+        Verifica "senza classi la configurazione non ha unoQualsiasi, ne' il suo commento" (
+            -not $confSenza.Contains('unoQualsiasi') -and -not $confSenza.Contains('@CLASSE:'))
+        if ($null -ne $mImpronta) {
+            Verifica "e l'impronta e' quella della 1.5.3 (E9111A66)" (([string]$mImpronta.Invoke($null, @($senza.PSObject.BaseObject))) -eq 'E9111A66')
+        }
+        $conClasse = NuovoStato
+        $classe = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+        $classe.Etichetta = 'Classi 2026-27/3B'
+        $classe.Sorgente = 'classe'
+        $classe.Da.Add('@CLASSE:3B@')
+        foreach ($p in @('3B', '3 B', 'III B')) { $classe.Oggetto.Add($p) }
+        $classe.UnoQualsiasi = $true
+        (Leggi $conClasse 'Regole').Add($classe)
+        $fileC = Join-Path $temporanea 'Configurazione_classe.gs'
+        Scrivi $fileC (Genera $conClasse $false)
+        $cc = (LeggiConfigurazione $fileC).CONFIG
+        $letta = @($cc.regole | Where-Object { $_.etichetta -eq 'Classi 2026-27/3B' })[0]
+        Verifica "con una classe: unoQualsiasi true, il segnaposto, le parole" (
+            $letta.unoQualsiasi -eq $true -and ($letta.da -join '|') -eq '@CLASSE:3B@' -and ($letta.oggetto -join '|') -eq '3B|3 B|III B')
+        Verifica "e le altre regole senza unoQualsiasi" (@($cc.regole | Where-Object { $null -ne $_.unoQualsiasi }).Count -eq 1)
+        $classe.UnoQualsiasi = $false
+        $impSenzaUno = [string]$mImpronta.Invoke($null, @($conClasse))
+        $classe.UnoQualsiasi = $true
+        Verifica "unoQualsiasi cambia l'impronta" (([string]$mImpronta.Invoke($null, @($conClasse))) -ne $impSenzaUno)
+
+        # il motore vero con la configurazione generata, con e senza il file della classe
+        $anteprimaClassiJs = Join-Path $temporanea 'anteprima_classi.js'
+        Scrivi $anteprimaClassiJs @'
+const vm = require('vm'), fs = require('fs');
+const contesto = vm.createContext({
+  GmailApp: { search: () => [], getUserLabelByName: () => null },
+  PropertiesService: { getUserProperties: () => ({ getProperty: () => null }) },
+  Session: { getActiveUser: () => ({ getEmail: () => 'docente@scuola.example' }) },
+  Logger: { log: () => {} }
+});
+const [conf, motore, ...classi] = process.argv.slice(2);
+vm.runInContext(fs.readFileSync(conf, 'utf8'), contesto, { filename: 'Configurazione.gs' });
+for (const f of classi) vm.runInContext(fs.readFileSync(f, 'utf8'), contesto, { filename: f });
+vm.runInContext(fs.readFileSync(motore, 'utf8'), contesto, { filename: 'Organizzazione_Gmail.gs' });
+const regola = contesto.CONFIG.regole.find(r => r.unoQualsiasi);
+process.stdout.write(JSON.stringify({ anteprima: contesto.PASSO_1_anteprima(),
+  ricerche: contesto._queryDellaRegola_(contesto.CONFIG, regola).length }));
+'@
+        $senzaFile = (& node $anteprimaClassiJs $fileC $motore) | ConvertFrom-Json
+        $conFile = (& node $anteprimaClassiJs $fileC $motore $file3B $file4A) | ConvertFrom-Json
+        Verifica "nel motore, senza il file: una ricerca (l'oggetto), e l'anteprima dice che manca Classe_3B.gs" (
+            $senzaFile.ricerche -eq 1 -and ($senzaFile.anteprima -replace '\s+', ' ').Contains('manca il file Classe_3B.gs: conta solo l''oggetto'))
+        Verifica "con i file: tre ricerche, e l'anteprima dice 25 indirizzi e nessuno di loro" (
+            $conFile.ricerche -eq 3 -and ($conFile.anteprima -replace '\s+', ' ').Contains('studenti della 3B: 25 indirizzi, dal file Classe_3B.gs') -and
+            @($studenti | Where-Object { $conFile.anteprima.Contains($_) }).Count -eq 0)
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: I FILTRI DI GMAIL'
+        # FiltriDiCampanella non conosce gli studenti (non li ha nessuno in
+        # Campanella): per una classe calcola il filtro dell'oggetto, come lo
+        # script senza il file. I filtri degli studenti che lo script crea con il
+        # file hanno gli indirizzi: nella finestra non si possono spuntare, cosi'
+        # non finiscono ne' nello Stato ne' in Configurazione.gs.
+        $filtriClassiJs = Join-Path $temporanea 'filtri_classi.js'
+        Scrivi $filtriClassiJs @'
+const vm = require('vm'), fs = require('fs');
+const contesto = vm.createContext({});
+const [conf, motore, ...classi] = process.argv.slice(2);
+vm.runInContext(fs.readFileSync(conf, 'utf8'), contesto, { filename: 'Configurazione.gs' });
+for (const f of classi) vm.runInContext(fs.readFileSync(f, 'utf8'), contesto, { filename: f });
+vm.runInContext(fs.readFileSync(motore, 'utf8'), contesto, { filename: 'Organizzazione_Gmail.gs' });
+const cfg = contesto.CONFIG, filtri = [];
+contesto._regoleAttive_(cfg).forEach(r => {
+  if (r.escludiEtichette && r.escludiEtichette.length) return;
+  contesto._criteriFiltro_(cfg, r).forEach(c => {
+    const nome = contesto._etichettaCompleta_(cfg, r);
+    const chiave = nome.trim().toLowerCase() + Object.keys(c).sort()
+      .map(k => '\n' + k + '=' + String(c[k] === true ? 'true' : c[k]).replace(/\s+/g, ' ').trim()).join('');
+    filtri.push({ etichetta: nome, criteri: c, chiave });
+  });
+});
+process.stdout.write(JSON.stringify({ filtri: filtri }));
+'@
+        $tFiltriG = $asm.GetType('Campanella.FiltriGmail')
+        $mDiC = $tFiltriG.GetMethod('FiltriDiCampanella', $FS)
+        $delCsharp = @($mDiC.Invoke($null, @($conClasse.PSObject.BaseObject)) | ForEach-Object { $_.Chiave() } | Sort-Object)
+        $motoreSenza = @(((& node $filtriClassiJs $fileC $motore) | ConvertFrom-Json).filtri)
+        $motoreCon = @(((& node $filtriClassiJs $fileC $motore $file3B) | ConvertFrom-Json).filtri)
+        Verifica "senza il file, i filtri del C# sono proprio quelli dello script ($($motoreSenza.Count))" (
+            ($delCsharp -join "`n|") -eq (@($motoreSenza | ForEach-Object { $_.chiave } | Sort-Object) -join "`n|"))
+        $degliStudenti = @($motoreCon | Where-Object { -not ($delCsharp -contains $_.chiave) })
+        Verifica "con il file lo script ne crea in piu' solo per gli studenti della 3B, due gruppi ($($degliStudenti.Count))" (
+            $degliStudenti.Count -eq 2 -and @($degliStudenti | Where-Object { $_.etichetta -ne 'Scuola/Classi 2026-27/3B' -or -not $_.criteri.from }).Count -eq 0)
+        # l'esportazione di Gmail con quei filtri
+        $nomiExp = @{ from = 'from'; subject = 'subject'; query = 'hasTheWord' }
+        $vociC = foreach ($f in $motoreCon) {
+            $p = @()
+            foreach ($k in $f.criteri.PSObject.Properties) {
+                $p += "<apps:property name='$($nomiExp[$k.Name])' value='$([System.Security.SecurityElement]::Escape([string]$k.Value))'/>"
+            }
+            $p += "<apps:property name='label' value='$([System.Security.SecurityElement]::Escape($f.etichetta))'/>"
+            '<entry><category term=''filter''></category><title>Mail Filter</title>' + ($p -join '') + '</entry>'
+        }
+        # e un filtro di una classe dell'anno prima, le cui regole non ci sono piu'
+        $vociC += "<entry><category term='filter'></category><title>Mail Filter</title><apps:property name='from' " +
+                  "value='vecchio.studente@$dominioStudenti'/><apps:property name='label' value='Classi 2025-26/3B'/></entry>"
+        $espC = "<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' " +
+                "xmlns:apps='http://schemas.google.com/apps/2006'><title>Mail Filters</title>" + ($vociC -join '') + '</feed>'
+        $lettiC = @($tFiltriG.GetMethod('Leggi', $FS, $null, [Type[]]@([string]), $null).Invoke($null, @([string]$espC)))
+        $mConfrontaC = $tFiltriG.GetMethod('Confronta', $FS, $null, [Type[]]@($asm.GetType('Campanella.FiltroGmail'), $tStato), $null)
+        $mPartenzaC = $tFiltriG.GetMethod('DiPartenza', $FS)
+        $tipi = @($lettiC | ForEach-Object {
+            $x = $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $conClasse))
+            $_.Etichetta + '=' + $x.Tipo + '|' + [bool]$mPartenzaC.Invoke($null, @($_.PSObject.BaseObject, $x)) })
+        $classiT = @($tipi | Where-Object { $_ -like '*Classi 202*' })
+        Verifica "i filtri delle classi non partono mai spuntati; quelli con gli studenti sono 'di una classe' ($($classiT -join '; '))" (
+            ($classiT -join ';') -eq ('Scuola/Classi 2026-27/3B=campanella|False;Scuola/Classi 2026-27/3B=classe|False;' +
+                                      'Scuola/Classi 2026-27/3B=classe|False;Classi 2025-26/3B=classe|False'))
+        $ffC = [Activator]::CreateInstance($asm.GetType('Campanella.FormFiltriGmail'), @($conClasse.PSObject.BaseObject))
+        $ffC.Carica($lettiC)
+        for ($i = 0; $i -lt $lettiC.Count; $i++) { $ffC.Spunta($i, $true) }
+        $sceltiC = @($ffC.SceltiAdesso())
+        $conIndirizzi = @($sceltiC | Where-Object { (@($_.Criteri.Values) -join ' ') -match '@' -and $_.Etichetta -like '*Classi 202*' })
+        Verifica "nella finestra, nemmeno spuntandoli a mano, i filtri con gli studenti non si scelgono (scelti: $($sceltiC.Count))" (
+            $conIndirizzi.Count -eq 0 -and @($sceltiC | Where-Object { $_.Etichetta -eq 'Scuola/Classi 2026-27/3B' }).Count -eq 1)
+        $ffC.Dispose()
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: LA REGOLA DI UNA CLASSE NELLA SUA FINESTRA'
+        # "Modifica" al passo 4: la spunta "basta uno dei due" e, al posto dei
+        # mittenti, il segnaposto della classe, che non si cambia da li'
+        $tFR = $asm.GetType('Campanella.FormRegola')
+        $FIn2 = [System.Reflection.BindingFlags]'NonPublic,Instance'
+        $chkUnoF = $tFR.GetField('chkUno', $FIn2)
+        Verifica "la finestra della regola ha la spunta 'Basta uno dei due'" ($null -ne $chkUnoF)
+        if ($null -ne $chkUnoF) {
+            $fr = [Activator]::CreateInstance($tFR, @($classe.PSObject.BaseObject))
+            $spunta = $chkUnoF.GetValue($fr)
+            $txtDaF = [string]$tFR.GetField('txtDa', $FIn2).GetValue($fr).Text
+            Verifica "per una classe e' spuntata, dice che cosa vuol dire, e i mittenti sono il segnaposto, da non toccare" (
+                $spunta.Checked -and $spunta.Text -eq "Basta uno dei due: l'oggetto oppure i mittenti" -and
+                $txtDaF.StartsWith('@CLASSE:3B@') -and $txtDaF.Contains('Classe_3B.gs') -and
+                $tFR.GetField('txtDa', $FIn2).GetValue($fr).ReadOnly)
+            $elimina = @($fr.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq 'Elimina regola' })
+            Verifica "e si puo' eliminare, come le regole tue" ($elimina.Count -eq 1)
+            $spunta.Checked = $false
+            $composta = $tFR.GetMethod('Componi', $FIn2).Invoke($fr, @())
+            Verifica "tolta la spunta, la regola ha i criteri insieme; il segnaposto resta" (
+                -not $composta.UnoQualsiasi -and ($composta.Da -join '|') -eq '@CLASSE:3B@' -and $composta.Sorgente -eq 'classe')
+            $fr.Dispose()
+            $nuovaR = [Activator]::CreateInstance($tFR, @($null))
+            $chkUnoF.GetValue($nuovaR).Checked = $true
+            $tFR.GetField('txtDa', $FIn2).GetValue($nuovaR).Text = "a@scuola-esempio.edu.it"
+            $tFR.GetField('txtOggetto', $FIn2).GetValue($nuovaR).Text = "verbale"
+            $composta = $tFR.GetMethod('Componi', $FIn2).Invoke($nuovaR, @())
+            Verifica "in una regola nuova la spunta parte tolta, e messa vale" (
+                $composta.UnoQualsiasi -and ($composta.Da -join '|') -eq 'a@scuola-esempio.edu.it')
+            $nuovaR.Dispose()
+        }
+
+        # gli indirizzi si copiano fuori dalla cronologia degli appunti, e non si salvano su file
+        $dialoghi = Get-Content -Raw (Join-Path $radice 'src\Dialoghi.cs')
+        $inizioFC = $dialoghi.IndexOf('class FormClassi')
+        $fineFC = $dialoghi.IndexOf("`n    class ", $inizioFC + 10)
+        $testoFC = if ($inizioFC -ge 0 -and $fineFC -gt $inizioFC) { $dialoghi.Substring($inizioFC, $fineFC - $inizioFC) } else { '' }
+        Verifica "la finestra delle classi copia con Guscio.MettiNegliAppunti, senza Clipboard.SetText ne' file su disco" (
+            $testoFC -ne '' -and $testoFC.Contains('Guscio.MettiNegliAppunti(') -and -not $testoFC.Contains('Clipboard.Set') -and
+            -not $testoFC.Contains('SaveFileDialog') -and -not ($testoFC -match 'File\.(Write|Append|Create)'))
+    }
+
+    # -----------------------------------------------------------------------
     Intestazione 'NOMI STRANI: NIENTE ESCE DA STRINGHE E COMMENTI'
     $strano = NuovoStato
     $a_capo = [string][char]0x2028

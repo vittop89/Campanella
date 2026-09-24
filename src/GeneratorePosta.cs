@@ -186,6 +186,13 @@ namespace Campanella
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
             sb.AppendLine("  //  colore = sfondo e testo dell'etichetta in Gmail, dalla tavolozza di Gmail:");
             sb.AppendLine("  //  li mette il servizio Gmail API (EXTRA_coloraEtichette).");
+            // solo con le classi: chi non le usa ha la configurazione di prima
+            if (ConClassi(s.Regole))
+            {
+                sb.AppendLine("  //  unoQualsiasi = basta l'oggetto (o le parole) oppure i mittenti, non tutti e due.");
+                sb.AppendLine("  //  @CLASSE:3B@ = gli studenti della 3B: gli indirizzi non stanno qui, li porta il");
+                sb.AppendLine("  //  file Classe_3B.gs (Posta, passo 4, \"Le mie classi...\"). Senza, conta l'oggetto.");
+            }
             sb.AppendLine("  regole: [");
 
             // le sottoetichette dei ruoli: sfumature del colore di Colleghi, o scelte a mano
@@ -204,6 +211,8 @@ namespace Campanella
                 if (da.Count > 0) b.AppendLine("      da:        " + ListaJs(da) + ",");
                 if (r.Oggetto.Count > 0) b.AppendLine("      oggetto:   " + ListaJs(r.Oggetto) + ",");
                 if (r.Contiene.Count > 0) b.AppendLine("      contiene:  " + ListaJs(r.Contiene) + ",");
+                // solo se vero: le regole di sempre restano scritte come prima
+                if (r.UnoQualsiasi) b.AppendLine("      unoQualsiasi: true,");
                 if (r.QueryLibera != "") b.AppendLine("      queryLibera: \"" + AnalisiOrario.Js(r.QueryLibera) + "\",");
                 if (r.EscludiEtichette.Count > 0)
                     b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
@@ -288,6 +297,14 @@ namespace Campanella
                           "      criteri:   { " + string.Join(", ", criteri.ToArray()) + " } }");
             }
             return fuori;
+        }
+
+        /// <summary>Vero se c'e' una regola delle classi, o una a cui basta l'oggetto oppure i mittenti.</summary>
+        static bool ConClassi(List<Regola> regole)
+        {
+            foreach (Regola r in regole)
+                if (r.UnoQualsiasi || LeMieClassi.ClasseDi(r) != null) return true;
+            return false;
         }
 
         /// <summary>Quanti filtri di Gmail da togliere finiscono nella configurazione.</summary>
@@ -531,5 +548,371 @@ namespace Campanella
         /// diventare codice il resto del testo.
         /// </summary>
         static string SoloUnaRiga(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
+    }
+
+    /// <summary>
+    /// Una classe nella finestra "Le mie classi..." (Posta, passo 4). Gli
+    /// indirizzi incollati degli studenti stanno qui, in memoria, finche' la
+    /// finestra e' aperta: non vanno mai nello Stato ne' in Configurazione.gs,
+    /// solo nel file Classe_3B.gs che il docente copia nel progetto dello script.
+    /// </summary>
+    class ClasseScelta
+    {
+        /// <summary>Il nome come lo scrive Campanella (LeMieClassi.Nome): "3B", "3B LSA", "A5".</summary>
+        public string Nome = "";
+        /// <summary>Spuntata: ha (o avra') la sua regola. Tolta la spunta, la regola va via.</summary>
+        public bool Spuntata = true;
+        /// <summary>Le parole da cercare nell'oggetto, separate da virgole.</summary>
+        public string Oggetto = "";
+        /// <summary>Da dove viene: "orario", "Cartelle", "regola", "a mano".</summary>
+        public string Provenienza = "";
+        /// <summary>La regola che la classe ha gia' sotto l'etichetta madre di adesso, o null.</summary>
+        public Regola Regola = null;
+        /// <summary>Gli indirizzi degli studenti incollati adesso, senza il personale; null = nessuno.</summary>
+        public List<string> Indirizzi = null;
+        /// <summary>Gli indirizzi del personale tolti da quelli incollati (non si mostrano: si contano).</summary>
+        public List<string> Tolti = new List<string>();
+        /// <summary>Il file Classe_*.gs e' stato copiato dopo l'ultimo incolla.</summary>
+        public bool Copiato = false;
+    }
+
+    /// <summary>
+    /// Le classi del docente per la Posta (passo 4, "Le mie classi..."): una
+    /// regola per classe, con l'etichetta "Classi 2026-27/3B", che prende i
+    /// messaggi con la classe nell'oggetto (da chiunque) oppure mandati dagli
+    /// studenti della classe (unoQualsiasi). Da dove vengono le classi, come
+    /// si cercano nell'oggetto, gli indirizzi incollati e il file Classe_3B.gs
+    /// che li porta nel progetto dello script. Gli indirizzi degli studenti
+    /// (dati di minori) non vanno mai nello Stato: le regole hanno solo il
+    /// segnaposto @CLASSE:3B@. Senza finestre: test\prova_posta.ps1 lo prova.
+    /// </summary>
+    static class LeMieClassi
+    {
+        /// <summary>Oltre questi indirizzi incollati per una classe, sembrano piu' classi.</summary>
+        public const int TroppiStudenti = 40;
+
+        // Numero e sezione: "3B", "3 B", "3^B", "3(grado)B", "5AL". La sezione sono le
+        // lettere attaccate; dopo puo' venire solo un separatore (spazio,
+        // trattino, parentesi...) e il resto: "3B LSA", "2B-Ls". "10A", "1A2" e
+        // "A5" non lo sono, e restano come sono.
+        static readonly Regex NumeroSezione =
+            new Regex(@"^([1-9]) ?[\^\u00b0\u00ba\u00aa.]? ?([A-Za-z]+)(?:$|[^A-Za-z0-9](.*)$)");
+        static readonly string[] Romani = { "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX" };
+        // un indirizzo email dentro un testo qualunque (anche "Nome Cognome <indirizzo>")
+        static readonly Regex Indirizzo =
+            new Regex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}");
+
+        static string Pulito(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
+
+        /// <summary>Il nome di una classe come lo scrive Campanella: "3^b" -> "3B", "3b  LSA" -> "3B LSA"; gli altri codici restano.</summary>
+        public static string Nome(string grezzo)
+        {
+            string s = Pulito(grezzo);
+            Match m = NumeroSezione.Match(s);
+            if (!m.Success) return s;
+            string testa = m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant();
+            string resto = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "";
+            if (resto == "") return testa;
+            // il separatore scritto (un trattino resta un trattino), uno spazio se era uno spazio
+            string separatore = s.Substring(m.Groups[2].Index + m.Groups[2].Length, 1);
+            return testa + (separatore.Trim() == "" ? " " : separatore) + resto;
+        }
+
+        /// <summary>
+        /// Quello che fa di due nomi la stessa classe: numero e sezione in
+        /// maiuscolo ("3B" per 3B, 3 B, 3^B, 3(grado)B e 3B LSA); per gli altri codici
+        /// lettere e cifre, in maiuscolo.
+        /// </summary>
+        public static string Chiave(string grezzo)
+        {
+            Match m = NumeroSezione.Match(Pulito(grezzo));
+            if (m.Success) return m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant();
+            return Regex.Replace(Stato.SenzaAccenti(grezzo ?? "").ToUpperInvariant(), "[^A-Z0-9]", "");
+        }
+
+        /// <summary>
+        /// Le parole di partenza per l'oggetto: per la 3B (e la 3B LSA) 3B, "3 B"
+        /// e III B. Gmail cerca parole intere: "3 B" dovrebbe prendere anche 3^B
+        /// e 3(grado)B (da verificare con l'anteprima). Un codice che non e' numero e
+        /// sezione resta com'e'.
+        /// </summary>
+        public static List<string> Varianti(string grezzo)
+        {
+            List<string> fuori = new List<string>();
+            string s = Pulito(grezzo);
+            Match m = NumeroSezione.Match(s);
+            if (!m.Success)
+            {
+                if (s != "") fuori.Add(s);
+                return fuori;
+            }
+            string n = m.Groups[1].Value, sezione = m.Groups[2].Value.ToUpperInvariant();
+            fuori.Add(n + sezione);
+            fuori.Add(n + " " + sezione);
+            fuori.Add(Romani[int.Parse(n)] + " " + sezione);
+            return fuori;
+        }
+
+        /// <summary>Le parole dell'oggetto scritte nella finestra: separate da virgole, una volta ciascuna (maiuscole a parte).</summary>
+        public static List<string> ParoleOggetto(string testo)
+        {
+            List<string> fuori = new List<string>(), viste = new List<string>();
+            foreach (string p in (testo ?? "").Split(new char[] { ',', ';', '\r', '\n' }))
+            {
+                string t = Pulito(p);
+                if (t == "" || viste.Contains(t.ToLowerInvariant())) continue;
+                viste.Add(t.ToLowerInvariant());
+                fuori.Add(t);
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// Gli indirizzi email di un testo incollato, in qualunque forma (uno per
+        /// riga, separati da virgole, "Nome Cognome &lt;indirizzo&gt;"):
+        /// minuscoli, una volta ciascuno, nell'ordine.
+        /// </summary>
+        public static List<string> Indirizzi(string testo)
+        {
+            List<string> fuori = new List<string>();
+            foreach (Match m in Indirizzo.Matches(testo ?? ""))
+            {
+                string e = m.Value.Trim('.').ToLowerInvariant();
+                if (e.IndexOf('@') > 0 && !fuori.Contains(e)) fuori.Add(e);
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// Gli indirizzi senza quelli del personale (l'elenco del passo 3, la
+        /// dirigenza e la segreteria della pagina "La tua scuola"): un collega
+        /// fra gli studenti avrebbe l'etichetta della classe su tutta la sua
+        /// posta. Quelli tolti vanno in "tolti", se non e' null.
+        /// </summary>
+        public static List<string> TogliPersonale(List<string> indirizzi, Stato s, List<string> tolti)
+        {
+            List<string> personale = new List<string>();
+            if (s.Personale != null)
+                foreach (Persona p in s.Personale)
+                {
+                    string e = (p.Email ?? "").Trim().ToLowerInvariant();
+                    if (e != "") personale.Add(e);
+                }
+            foreach (string e in GeneratorePosta.Righe(s.Dirigenza)) personale.Add(e.ToLowerInvariant());
+            foreach (string e in GeneratorePosta.Righe(s.Segreteria)) personale.Add(e.ToLowerInvariant());
+            List<string> fuori = new List<string>();
+            foreach (string e in indirizzi ?? new List<string>())
+            {
+                if (!personale.Contains(e)) fuori.Add(e);
+                else if (tolti != null && !tolti.Contains(e)) tolti.Add(e);
+            }
+            return fuori;
+        }
+
+        /// <summary>Il file con gli indirizzi di una classe: Classe_3B.gs (lo stesso nome che cerca lo script, _fileClasse_).</summary>
+        public static string NomeFile(string classe)
+        {
+            string pulito = Regex.Replace(classe ?? "", "[^A-Za-z0-9]+", "_").Trim('_');
+            return "Classe_" + (pulito == "" ? "senza_nome" : pulito) + ".gs";
+        }
+
+        /// <summary>Il segnaposto degli studenti di una classe fra i mittenti: @CLASSE:3B@.</summary>
+        public static string Segnaposto(string classe) { return "@CLASSE:" + classe + "@"; }
+
+        /// <summary>La classe di una regola delle classi (dal segnaposto), o null se la regola non e' di una classe.</summary>
+        public static string ClasseDi(Regola r)
+        {
+            if (r == null || r.Sorgente != Regola.SorgenteClasse) return null;
+            foreach (string d in r.Da)
+            {
+                string v = (d ?? "").Trim();
+                if (v.StartsWith("@CLASSE:", StringComparison.Ordinal) && v.Length >= 10 && v.EndsWith("@", StringComparison.Ordinal))
+                    return v.Substring(8, v.Length - 9);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Il testo del file Classe_3B.gs: un'intestazione che dice di chi sono
+        /// gli indirizzi, che Campanella non ne tiene copia, come aggiornarli e
+        /// di cancellarlo a fine anno; poi gli indirizzi in CLASSI_STUDENTI.
+        /// Piu' file nello stesso progetto si sommano, in qualunque ordine Google
+        /// li legga.
+        /// </summary>
+        public static string FileClasse(string classe, string etichetta, List<string> indirizzi, DateTime quando)
+        {
+            string nome = AnalisiOrario.TestoCommento(classe);
+            int n = (indirizzi == null) ? 0 : indirizzi.Count;
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("/* =========================================================================");
+            sb.AppendLine("   STUDENTI DELLA " + nome + "  -  file " + NomeFile(classe));
+            sb.AppendLine("   Generato il " + quando.ToString("dd/MM/yyyy HH:mm") + " dall'applicazione Campanella " +
+                          Aggiornamenti.VersioneCampanella + ".");
+            sb.AppendLine();
+            sb.AppendLine("   Gli indirizzi email degli studenti della " + nome + " (" + n + "), per la regola");
+            sb.AppendLine("   \"" + AnalisiOrario.TestoCommento(etichetta) + "\" dello script della posta: i loro messaggi");
+            sb.AppendLine("   prendono quell'etichetta anche senza la classe nell'oggetto.");
+            sb.AppendLine();
+            sb.AppendLine("   Campanella non ne tiene copia: ci sono solo qui, nel tuo progetto.");
+            sb.AppendLine("   Per aggiornarli incollali di nuovo in Campanella (Posta, passo 4,");
+            sb.AppendLine("   \"Le mie classi...\"), copia di nuovo il file e sostituisci tutto questo.");
+            sb.AppendLine("   Sono dati di studenti, spesso minorenni: a fine anno cancella questo file");
+            sb.AppendLine("   (nell'editor, i tre puntini accanto al suo nome -> Elimina).");
+            sb.AppendLine("   ========================================================================= */");
+            sb.AppendLine();
+            sb.AppendLine("var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== 'undefined' && CLASSI_STUDENTI) || {};");
+            sb.AppendLine("CLASSI_STUDENTI[\"" + AnalisiOrario.Js(classe) + "\"] = [");
+            for (int i = 0; i < n; i++)
+                sb.AppendLine("  \"" + AnalisiOrario.Js(indirizzi[i]) + "\"" + (i < n - 1 ? "," : ""));
+            sb.AppendLine("];");
+            return sb.ToString();
+        }
+
+        /// <summary>L'etichetta madre di partenza: "Classi " e l'anno scolastico (quello di Cartelle, o quello di adesso).</summary>
+        public static string MadreDiPartenza(Stato s)
+        {
+            string anno = (s.Anno ?? "").Trim();
+            return "Classi " + (anno != "" ? anno : Stato.AnnoScolastico(DateTime.Now));
+        }
+
+        /// <summary>L'etichetta madre scritta nella finestra: senza barre in fondo e spazi doppi; vuota, "Classi".</summary>
+        public static string Madre(string scritta)
+        {
+            string m = Pulito(scritta).Trim('/').Trim();
+            return (m == "") ? "Classi" : m;
+        }
+
+        /// <summary>Vero se la regola sta sotto questa etichetta madre (maiuscole a parte).</summary>
+        public static bool SottoMadre(Regola r, string madre)
+        {
+            return (r.Etichetta ?? "").StartsWith(Madre(madre) + "/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Le classi del docente: quelle delle sue lezioni (il docente scelto in
+        /// Orari, passo 4; senza le ore a disposizione) e quelle scritte in
+        /// Cartelle (una per riga, le materie dopo i due punti). Una volta
+        /// ciascuna (3B, 3 B e 3^B sono la stessa), in ordine.
+        /// </summary>
+        public static List<string> DaLezioniECartelle(Stato s)
+        {
+            List<string> trovate = DalleLezioni(s);
+            trovate.AddRange(DaCartelle(s));
+            return SenzaDoppioni(trovate);
+        }
+
+        /// <summary>Le classi delle lezioni del docente scelto in Orari (passo 4), senza le ore a disposizione.</summary>
+        public static List<string> DalleLezioni(Stato s)
+        {
+            List<string> trovate = new List<string>();
+            if (s.Lezioni == null || s.Lezioni.Count == 0 || (s.CalDocente ?? "").Trim() == "") return trovate;
+            RisultatoOrario o = RisultatoOrario.Ripristina(s);
+            string docente = o.TrovaDocente(s.CalDocente);
+            if (docente == "") return trovate;
+            foreach (Lezione l in o.Lezioni)
+                if (string.Equals(l.Docente, docente, StringComparison.CurrentCultureIgnoreCase) &&
+                    (l.Classe ?? "").Trim() != "" && !o.EDisposizione(l.Classe))
+                    trovate.Add(l.Classe);
+            return trovate;
+        }
+
+        /// <summary>Le classi scritte in Cartelle: una per riga, le materie dopo i due punti.</summary>
+        public static List<string> DaCartelle(Stato s)
+        {
+            List<string> trovate = new List<string>();
+            foreach (string riga in (s.Classi ?? "").Replace("\r\n", "\n").Split('\n'))
+            {
+                string nome = riga;
+                int due = nome.IndexOf(':');
+                if (due >= 0) nome = nome.Substring(0, due);
+                nome = nome.Trim();
+                // "1A; 2B" su una riga: Cartelle lo rifiuta, e qui non e' una classe
+                if (nome == "" || nome.IndexOfAny(new char[] { ';', ',' }) >= 0) continue;
+                trovate.Add(nome);
+            }
+            return trovate;
+        }
+
+        /// <summary>I nomi (LeMieClassi.Nome) una volta per classe, il primo trovato, in ordine di chiave.</summary>
+        public static List<string> SenzaDoppioni(IEnumerable<string> nomi)
+        {
+            List<string> fuori = new List<string>(), chiavi = new List<string>();
+            foreach (string grezzo in nomi)
+            {
+                string k = Chiave(grezzo);
+                if (k == "" || chiavi.Contains(k)) continue;
+                chiavi.Add(k);
+                fuori.Add(Nome(grezzo));
+            }
+            fuori.Sort(delegate(string a, string b) { return string.CompareOrdinal(Chiave(a), Chiave(b)); });
+            return fuori;
+        }
+
+        /// <summary>A cosa serve la regola di una classe, per il passo 4 e per la nota in Configurazione.gs.</summary>
+        public static string Descrizione(string classe)
+        {
+            return "Le email con la " + classe + " nell'oggetto o mandate dagli studenti della " + classe + ". " +
+                   "Gli indirizzi degli studenti non stanno in Campanella: li porta il file " + NomeFile(classe) +
+                   ", nel progetto dello script.";
+        }
+
+        /// <summary>
+        /// Mette nello Stato le classi scelte nella finestra: per ogni classe
+        /// spuntata crea (in fondo all'elenco) o aggiorna la sua regola sotto
+        /// l'etichetta madre, con le parole dell'oggetto e fra i mittenti solo
+        /// il segnaposto; una classe senza spunta perde la sua regola. Con
+        /// togliVecchie toglie le regole delle classi sotto un'altra etichetta
+        /// madre (l'anno prima). Poi i colori delle classi nuove. Dice che cosa
+        /// ha fatto, senza indirizzi.
+        /// </summary>
+        public static string Applica(Stato s, string madre, List<ClasseScelta> classi, bool togliVecchie)
+        {
+            string m = Madre(madre);
+            int nuove = 0, aggiornate = 0, tolte = 0, vecchie = 0;
+            if (togliVecchie)
+                vecchie = s.Regole.RemoveAll(delegate(Regola r) { return ClasseDi(r) != null && !SottoMadre(r, m); });
+            foreach (ClasseScelta c in classi ?? new List<ClasseScelta>())
+            {
+                Regola r = RegolaDellaClasse(s, m, Chiave(c.Nome));
+                if (!c.Spuntata)
+                {
+                    if (r != null) { s.Regole.Remove(r); tolte++; }
+                    continue;
+                }
+                // il nome della regola che c'e' gia': il file Classe_*.gs incollato ha quello
+                string nome = (r != null) ? ClasseDi(r) : Nome(c.Nome);
+                if (r == null)
+                {
+                    r = new Regola();
+                    s.Regole.Add(r);
+                    nuove++;
+                }
+                else aggiornate++;
+                r.Etichetta = m + "/" + nome;
+                r.Sorgente = Regola.SorgenteClasse;
+                r.Da = new List<string>(new string[] { Segnaposto(nome) });
+                r.Oggetto = ParoleOggetto(c.Oggetto);
+                r.UnoQualsiasi = true;
+                r.Descrizione = Descrizione(nome);
+            }
+            ColoriEtichette.DelleClassi(s.Regole, s.ColoriRuoli);
+            List<string> parti = new List<string>();
+            if (nuove > 0) parti.Add(nuove + (nuove == 1 ? " regola nuova" : " regole nuove"));
+            if (aggiornate > 0) parti.Add(aggiornate + (aggiornate == 1 ? " aggiornata" : " aggiornate"));
+            if (tolte > 0) parti.Add(tolte + (tolte == 1 ? " tolta" : " tolte"));
+            if (vecchie > 0) parti.Add(vecchie + (vecchie == 1 ? " dell'anno prima tolta" : " degli anni prima tolte"));
+            return "Classi: " + (parti.Count == 0 ? "niente da cambiare" : string.Join(", ", parti.ToArray())) + ".";
+        }
+
+        /// <summary>La regola di una classe (per chiave) sotto l'etichetta madre, o null.</summary>
+        public static Regola RegolaDellaClasse(Stato s, string madre, string chiave)
+        {
+            foreach (Regola r in s.Regole)
+            {
+                string c = ClasseDi(r);
+                if (c != null && SottoMadre(r, madre) && Chiave(c) == chiave) return r;
+            }
+            return null;
+        }
     }
 }

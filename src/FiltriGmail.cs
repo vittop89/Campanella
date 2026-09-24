@@ -68,6 +68,8 @@ namespace Campanella
         public bool Spenta = false;
         /// <summary>Le azioni del filtro che le regole non fanno (FiltroGmail.AltreAzioni), in una riga; "" se non ce ne sono.</summary>
         public string Anche = "";
+        /// <summary>L'etichetta e' di una classe (FiltriGmail.EtichettaDiUnaClasse): il filtro non parte mai spuntato.</summary>
+        public bool Classe = false;
 
         public string Testo()
         {
@@ -84,6 +86,9 @@ namespace Campanella
             if (Tipo == FiltriGmail.SenzaEtichetta) return "non mette etichette: resta com'e'";
             if (Tipo == FiltriGmail.SenzaCriteri) return "senza criteri: resta com'e'";
             if (Tipo == FiltriGmail.NonCapito) return "ha un criterio che Campanella non capisce: resta com'e'";
+            if (Tipo == FiltriGmail.DiUnaClasse)
+                return "di una classe, con gli indirizzi degli studenti: Campanella non li conserva, quindi non lo " +
+                       "toglie; se non ti serve piu', toglilo in Gmail (Impostazioni -> Filtri e indirizzi bloccati)";
             return "tuo";
         }
     }
@@ -97,6 +102,7 @@ namespace Campanella
         public const string SenzaEtichetta = "senza";
         public const string SenzaCriteri = "senzacriteri";
         public const string NonCapito = "noncapito";
+        public const string DiUnaClasse = "classe";
 
         /// <summary>Un'esportazione vera pesa pochi KB: oltre questo non e' quella.</summary>
         public const int DimensioneMassima = 20 * 1024 * 1024;
@@ -459,8 +465,20 @@ namespace Campanella
             if (f == null || f.Etichetta == "") { x = new Somiglianza(); x.Tipo = SenzaEtichetta; }
             else if (f.CriteriIncompleti) { x = new Somiglianza(); x.Tipo = NonCapito; }
             else if (f.DaTogliere() == null) { x = new Somiglianza(); x.Tipo = SenzaCriteri; }
+            else if (EtichettaDiUnaClasse(f.Etichetta, s) && ConIndirizzi(f.Criteri))
+            {
+                // gli studenti di una classe: nella voce da togliere finirebbero i
+                // loro indirizzi, e Campanella non li deve conservare
+                x = new Somiglianza();
+                x.Tipo = DiUnaClasse;
+                x.Regola = f.Etichetta.Trim();
+            }
             else x = Confronta(f.Etichetta, f.Criteri, s);
-            if (f != null) x.Anche = string.Join(", ", f.AltreAzioni.ToArray());
+            if (f != null)
+            {
+                x.Anche = string.Join(", ", f.AltreAzioni.ToArray());
+                x.Classe = EtichettaDiUnaClasse(f.Etichetta, s);
+            }
             return x;
         }
 
@@ -473,7 +491,45 @@ namespace Campanella
         /// </summary>
         public static bool DiPartenza(FiltroGmail f, Somiglianza x)
         {
-            return f != null && x != null && x.Tipo == Uguale && f.AltreAzioni.Count == 0 && f.DaTogliere() != null;
+            // quelli delle classi mai: il filtro degli studenti Campanella non lo
+            // conosce, e con quello dell'oggetto si toglie anche la classe da Gmail
+            return f != null && x != null && x.Tipo == Uguale && !x.Classe && f.AltreAzioni.Count == 0 &&
+                   f.DaTogliere() != null;
+        }
+
+        /// <summary>
+        /// Vero se l'etichetta e' di una classe (Posta, passo 4, "Le mie
+        /// classi..."): quella di una regola delle classi, una sotto la stessa
+        /// etichetta madre, o una sotto "Classi 2025-26" (il nome di partenza,
+        /// anche di un anno le cui regole sono gia' state tolte). Con il gruppo
+        /// il nome e' intero, come in Gmail.
+        /// </summary>
+        public static bool EtichettaDiUnaClasse(string etichetta, Stato s)
+        {
+            string e = (etichetta ?? "").Trim().Trim('/');
+            int barra = e.LastIndexOf('/');
+            if (barra <= 0) return false;
+            string madre = e.Substring(0, barra);
+            string pre = s.PrefissoPulito();
+            string davanti = (pre == "") ? "" : pre + "/";
+            foreach (Regola r in s.Regole)
+            {
+                if (LeMieClassi.ClasseDi(r) == null) continue;
+                string nome = (davanti + r.Etichetta).Trim().Trim('/');
+                int b = nome.LastIndexOf('/');
+                if (string.Equals(e, nome, StringComparison.OrdinalIgnoreCase) ||
+                    (b > 0 && string.Equals(madre, nome.Substring(0, b), StringComparison.OrdinalIgnoreCase))) return true;
+            }
+            return Regex.IsMatch(madre.Substring(madre.LastIndexOf('/') + 1), @"^Classi \d{4}-\d{2}$", RegexOptions.IgnoreCase);
+        }
+
+        /// <summary>Vero se un criterio ha un indirizzo (o un dominio): una "@" nel valore.</summary>
+        static bool ConIndirizzi(Dictionary<string, string> criteri)
+        {
+            if (criteri != null)
+                foreach (KeyValuePair<string, string> kv in criteri)
+                    if ((kv.Value ?? "").IndexOf('@') >= 0) return true;
+            return false;
         }
 
         /// <summary>Lo stesso, dall'etichetta sola (senza criteri non si riconoscono i filtri creati da Campanella).</summary>
@@ -518,6 +574,7 @@ namespace Campanella
                 if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, indirizzi))
                 { nomi.Add(davanti + r.Etichetta); proprie.Add(r.Etichetta); spente.Add(true); }
 
+            x.Classe = EtichettaDiUnaClasse(e, s);
             for (int i = 0; i < nomi.Count; i++)
             {
                 if (!string.Equals(e, nomi[i].Trim(), StringComparison.OrdinalIgnoreCase)) continue;
@@ -563,7 +620,10 @@ namespace Campanella
         /// fa lo script (_criteriFiltro_), nel contenitore di un filtro da
         /// togliere. Non ne creano le regole che la configurazione scrive spente
         /// e quelle che escludono altre etichette (restano allo script); una
-        /// regola con tanti mittenti ne crea uno ogni IndirizziPerFiltro.
+        /// regola con tanti mittenti ne crea uno ogni IndirizziPerFiltro. Degli
+        /// studenti delle classi Campanella non sa niente (gli indirizzi stanno
+        /// solo nei file Classe_*.gs del progetto): per una classe c'e' il filtro
+        /// dell'oggetto, come lo script senza quel file.
         /// test\prova_posta.ps1 li confronta con quelli dello script vero.
         /// </summary>
         public static List<FiltroDaTogliere> FiltriDiCampanella(Stato s)
@@ -580,7 +640,7 @@ namespace Campanella
             {
                 if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) || r.EscludiEtichette.Count > 0) continue;
                 AggiungiFiltri(fuori, davanti + r.Etichetta, CriteriCreati(GeneratorePosta.MittentiDellaRegola(s, r),
-                    r.Oggetto, r.Contiene, r.QueryLibera ?? "", dominio, personale, gruppi));
+                    r.Oggetto, r.Contiene, r.QueryLibera ?? "", r.UnoQualsiasi, dominio, personale, gruppi));
             }
             // le sottoetichette dei ruoli: un gruppo dell'elenco del personale per mittente
             string colleghi = GeneratorePosta.EtichettaColleghi(s.Regole);
@@ -588,7 +648,7 @@ namespace Campanella
             {
                 List<string> gruppo = new List<string>(new string[] { "@GRUPPO:" + c + "@" });
                 AggiungiFiltri(fuori, davanti + colleghi + "/" + c,
-                    CriteriCreati(gruppo, niente, niente, "", dominio, personale, gruppi));
+                    CriteriCreati(gruppo, niente, niente, "", false, dominio, personale, gruppi));
             }
             return fuori;
         }
@@ -604,16 +664,38 @@ namespace Campanella
             }
         }
 
-        /// <summary>I criteri dei filtri di una regola, come _criteriFiltro_ e _altriCriteri_ nello script.</summary>
+        /// <summary>
+        /// I criteri dei filtri di una regola, come _criteriFiltro_ e _altriCriteri_
+        /// nello script. Con unoQualsiasi, mittenti e testo (oggetto o parole)
+        /// un filtro per il testo e uno per ogni gruppo di mittenti (_bastaUno_).
+        /// </summary>
         static List<Dictionary<string, string>> CriteriCreati(List<string> da, List<string> oggetto, List<string> contiene,
-            string queryLibera, string dominio, List<string> personale, Dictionary<string, List<string>> gruppi)
+            string queryLibera, bool unoQualsiasi, string dominio, List<string> personale,
+            Dictionary<string, List<string>> gruppi)
         {
             List<Dictionary<string, string>> fuori = new List<Dictionary<string, string>>();
             List<string> mittenti = Espandi(da, dominio, personale, gruppi);
+            List<string> avanzata = new List<string>();
+            if (queryLibera != "") avanzata.Add("(" + queryLibera + ")");
             List<string> libera = new List<string>();
             if (contiene.Count > 0) libera.Add("(" + OrDiTesti(contiene) + ")");
-            if (queryLibera != "") libera.Add("(" + queryLibera + ")");
+            libera.AddRange(avanzata);
             string soggetto = (oggetto.Count > 0) ? OrDiTesti(oggetto) : "";
+            if (unoQualsiasi && da.Count > 0 && (oggetto.Count > 0 || contiene.Count > 0))
+            {
+                // il testo da chiunque, poi i mittenti senza il testo
+                Dictionary<string, string> testo = new Dictionary<string, string>();
+                AltriCriteri(testo, soggetto, libera);
+                fuori.Add(testo);
+                for (int i = 0; i < mittenti.Count; i += IndirizziPerFiltro)
+                {
+                    Dictionary<string, string> c = new Dictionary<string, string>();
+                    c["from"] = string.Join(" OR ", mittenti.GetRange(i, Math.Min(IndirizziPerFiltro, mittenti.Count - i)).ToArray());
+                    AltriCriteri(c, "", avanzata);
+                    fuori.Add(c);
+                }
+                return fuori;
+            }
             // mittenti previsti ma nessuno rimasto: niente filtro
             if (mittenti.Count == 0 && da.Count > 0) return fuori;
             if (mittenti.Count > 0)
@@ -666,6 +748,9 @@ namespace Campanella
                 {
                     if (dominio != "") tutti.Add("@" + dominio);
                 }
+                // gli studenti di una classe: stanno solo nel file Classe_*.gs del progetto
+                else if (v.StartsWith("@CLASSE:", StringComparison.Ordinal) && v.Length >= 10 &&
+                         v.EndsWith("@", StringComparison.Ordinal)) { }
                 else tutti.Add(v);
             }
             List<string> fuori = new List<string>(), visti = new List<string>();

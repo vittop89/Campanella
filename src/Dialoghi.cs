@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace Campanella
@@ -156,16 +157,26 @@ namespace Campanella
     class FormRegola : Form
     {
         TextBox txtEtichetta, txtDa, txtOggetto, txtQuery, txtDescrizione;
-        CheckBox chkArchivia, chkLette;
+        CheckBox chkArchivia, chkLette, chkUno;
         public Regola Risultato;
         public bool Elimina = false;
         Regola originale;
+
+        /// <summary>
+        /// Vero se i mittenti della regola non si scrivono qui: quelli della
+        /// pagina "La tua scuola" e il segnaposto degli studenti di una classe,
+        /// i cui indirizzi Campanella non conserva.
+        /// </summary>
+        static bool MittentiFissi(Regola r)
+        {
+            return r != null && (r.MittentiDallaScuola() || LeMieClassi.ClasseDi(r) != null);
+        }
 
         public FormRegola(Regola daModificare)
         {
             originale = daModificare;
             Text = (daModificare == null) ? "Nuova regola" : "Modifica la regola";
-            Size = new Size(620, 580);
+            Size = new Size(620, 610);
             StartPosition = FormStartPosition.CenterParent;
             Font = Tema.Normale;
             MinimizeBox = false;
@@ -187,7 +198,14 @@ namespace Campanella
             Controls.Add(Tema.Testo1("Parole nell'oggetto  (una per riga)", 16, y, 560, Tema.Grassetto, Ruolo.Normale));
             txtOggetto = Tema.CasellaMulti(16, y + 22, 560, 66);
             Controls.Add(txtOggetto);
-            y += 98;
+            y += 96;
+
+            // di partenza mittenti e parole valgono insieme; le regole delle
+            // classi ne vogliono uno solo: la classe nell'oggetto, da chiunque,
+            // oppure un messaggio di uno studente
+            chkUno = Tema.Spunta("Basta uno dei due: l'oggetto oppure i mittenti", 16, y, Ruolo.Normale);
+            Controls.Add(chkUno);
+            y += 30;
 
             Controls.Add(Tema.Testo1("Ricerca avanzata di Gmail  (facoltativa)", 16, y, 560, Tema.Grassetto, Ruolo.Normale));
             txtQuery = Tema.Casella(16, y + 22, 560);
@@ -226,7 +244,7 @@ namespace Campanella
             Controls.Add(ann);
             CancelButton = ann;
 
-            if (daModificare != null && daModificare.Sorgente == "")
+            if (daModificare != null && !daModificare.MittentiDallaScuola())
             {
                 Button el = Tema.Bottone("Elimina regola", 16, y + 2, 140, null);
                 el.Click += delegate
@@ -249,8 +267,16 @@ namespace Campanella
                 txtDescrizione.Text = daModificare.Descrizione;
                 chkArchivia.Checked = daModificare.Archivia;
                 chkLette.Checked = daModificare.SegnaComeLette;
+                chkUno.Checked = daModificare.UnoQualsiasi;
 
-                if (daModificare.Sorgente != "")
+                string classe = LeMieClassi.ClasseDi(daModificare);
+                if (classe != null)
+                {
+                    // gli studenti: il segnaposto, e gli indirizzi solo nel file del progetto
+                    txtDa.ReadOnly = true;
+                    txtDa.Text = LeMieClassi.Segnaposto(classe) + "\r\n" + AvvisoClasse(classe);
+                }
+                else if (daModificare.MittentiDallaScuola())
                 {
                     txtDa.ReadOnly = true;
                     txtDa.Text = "(i mittenti di questa regola si scrivono nella pagina \"La tua scuola\")";
@@ -269,11 +295,19 @@ namespace Campanella
             r.Descrizione = txtDescrizione.Text.Trim();
             r.Archivia = chkArchivia.Checked;
             r.SegnaComeLette = chkLette.Checked;
+            r.UnoQualsiasi = chkUno.Checked;
             if (r.Descrizione == "") r.Descrizione = "Regola personalizzata.";
 
             r.Oggetto = Spezza(txtOggetto.Text);
-            if (originale == null || originale.Sorgente == "") r.Da = Spezza(txtDa.Text);
+            if (!MittentiFissi(originale)) r.Da = Spezza(txtDa.Text);
             return r;
+        }
+
+        /// <summary>Quello che sta sotto il segnaposto di una classe, al posto dei mittenti.</summary>
+        static string AvvisoClasse(string classe)
+        {
+            return "(gli studenti della " + classe + ": gli indirizzi non stanno in Campanella, li porta il file " +
+                   LeMieClassi.NomeFile(classe) + " nel progetto dello script; si incollano in \"Le mie classi...\")";
         }
 
         /// <summary>
@@ -375,8 +409,9 @@ namespace Campanella
             // alta quanto l'esito piu' lungo che Carica puo' scrivere
             lblEsito.Height = Tema.AltezzaTesto("Nel file ci sono 999 filtri: 999 uguali a una regola di Campanella " +
                 "(999 gia' spuntati, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
-                "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce. In fondo, 999 " +
-                "scelti prima che nel file non ci sono.", Tema.Normale, lblEsito.Width);
+                "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 delle " +
+                "classi con gli studenti (si tolgono in Gmail). In fondo, 999 scelti prima che nel file non ci sono.",
+                Tema.Normale, lblEsito.Width);
             Controls.Add(lblEsito);
             y += Math.Max(38, lblEsito.Height + 10);
 
@@ -547,13 +582,15 @@ namespace Campanella
             righe.Clear();
             List<bool> spunte = new List<bool>();
             List<string> nelFile = new List<string>();
-            int uguali = 0, ugualiSpuntati = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0;
+            int uguali = 0, ugualiSpuntati = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0, classi = 0;
             foreach (FiltroGmail f in filtri ?? new List<FiltroGmail>())
             {
                 Riga r = new Riga();
                 r.Filtro = f;
-                r.Voce = f.DaTogliere();
                 r.Somiglia = FiltriGmail.Confronta(f, stato);
+                // quello degli studenti di una classe non si sceglie: la voce da
+                // togliere porterebbe i loro indirizzi nello Stato e nella configurazione
+                r.Voce = (r.Somiglia.Tipo == FiltriGmail.DiUnaClasse) ? null : f.DaTogliere();
                 r.Prima = r.Voce != null && prima.Contains(r.Voce.Chiave());
                 righe.Add(r);
                 bool di = FiltriGmail.DiPartenza(f, r.Somiglia);
@@ -565,6 +602,7 @@ namespace Campanella
                 else if (tipo == FiltriGmail.Simile) simili++;
                 else if (tipo == FiltriGmail.SenzaEtichetta || tipo == FiltriGmail.SenzaCriteri) senza++;
                 else if (tipo == FiltriGmail.NonCapito) nonCapiti++;
+                else if (tipo == FiltriGmail.DiUnaClasse) classi++;
                 else tuoi++;
             }
             int mancano = 0;
@@ -592,6 +630,7 @@ namespace Campanella
             if (tuoi > 0) parti.Add(Quanti(tuoi, "tuo", "tuoi"));
             if (senza > 0) parti.Add(senza + " senza etichetta o senza criteri");
             if (nonCapiti > 0) parti.Add(nonCapiti + " con un criterio che Campanella non capisce");
+            if (classi > 0) parti.Add(classi + " delle classi con gli studenti (si tolgono in Gmail)");
             lblEsito.Text = (n == 0 ? "Nel file non ci sono filtri." :
                 (n == 1 ? "Nel file c'e' 1 filtro: " : "Nel file ci sono " + n + " filtri: ") +
                 string.Join(", ", parti.ToArray()) + ".") +
@@ -710,6 +749,524 @@ namespace Campanella
             sb.Append("Suggerimento: ").Append(Suggerimento(r));
             txtDettaglio.Text = sb.ToString();
             txtDettaglio.Select(0, 0);
+        }
+    }
+
+    /// <summary>
+    /// Le classi del docente (Posta, passo 4, "Le mie classi..."): una regola
+    /// per classe, con l'etichetta "Classi 2026-27/3B", per i messaggi con la
+    /// classe nell'oggetto oppure mandati dagli studenti della classe. Le
+    /// classi vengono dall'orario, da Cartelle e dalle regole che ci sono gia';
+    /// se ne aggiungono a mano. Gli indirizzi degli studenti si incollano qui,
+    /// restano in memoria finche' la finestra e' aperta e finiscono solo nel
+    /// file Classe_3B.gs che il docente copia nel progetto dello script: mai
+    /// nello Stato. Le regole le mette nello Stato LeMieClassi.Applica, con
+    /// Madre, Classi e TogliVecchie di questa finestra.
+    /// </summary>
+    class FormClassi : Form
+    {
+        /// <summary>Le classi della finestra, in ordine: quelle spuntate avranno la loro regola.</summary>
+        public readonly List<ClasseScelta> Classi = new List<ClasseScelta>();
+        /// <summary>Le regole delle classi sotto un'altra etichetta madre (l'anno prima).</summary>
+        public List<Regola> Vecchie = new List<Regola>();
+
+        readonly Stato stato;
+        readonly TextBox txtMadre, txtNuova, txtIncolla;
+        readonly Label lblMadre, lblNessuna, lblTitoloIncolla, lblAvviso, lblNotaVecchie;
+        readonly DataGridView griglia;
+        readonly Button btnCopia;
+        readonly CheckBox chkVecchie;
+        int scelta = -1;
+        bool riempiendo = false;
+        const int Larga = 860;
+
+        public FormClassi(Stato s)
+        {
+            stato = s;
+            Text = "Le mie classi";
+            StartPosition = FormStartPosition.CenterParent;
+            Font = Tema.Normale;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ShowInTaskbar = false;
+
+            int y = 14;
+            Label spiega = Tema.Testo1(
+                "Una regola per ogni classe, con un'etichetta come \"Classi 2026-27/3B\". Un messaggio la prende se " +
+                "vale uno dei due: la classe e' nell'oggetto, chiunque lo mandi (la dirigenza, i colleghi, Classroom), " +
+                "oppure l'ha mandato uno studente della classe. Le etichette delle classi si aggiungono alle altre: " +
+                "Studenti, Colleghi e le altre restano.",
+                16, y, Larga, Tema.Normale, Ruolo.Normale);
+            Controls.Add(spiega);
+            y += spiega.Height + 4;
+            Label privato = Tema.Testo1(
+                "Gli indirizzi degli studenti sono dati di minori: Campanella non li conserva. Li incolli qui, copi il " +
+                "file della classe (per esempio Classe_3B.gs) nel progetto dello script, nell'account della scuola, e " +
+                "chiusa questa finestra spariscono. A fine anno togli le classi e cancella quei file.",
+                16, y, Larga, Tema.Normale, Ruolo.Avviso);
+            Controls.Add(privato);
+            y += privato.Height + 10;
+
+            Label lblM = Tema.Testo1("Etichetta madre", 16, y + 4, 0, Tema.Grassetto, Ruolo.Normale);
+            Controls.Add(lblM);
+            int xm = 16 + TextRenderer.MeasureText(lblM.Text, Tema.Grassetto).Width + 12;
+            txtMadre = Tema.Casella(xm, y, 220);
+            txtMadre.Text = LeMieClassi.MadreDiPartenza(s);
+            Controls.Add(txtMadre);
+            lblMadre = Tema.Testo1("", xm + 232, y + 4, 16 + Larga - (xm + 232), Tema.Normale, Ruolo.Tenue);
+            lblMadre.AutoSize = false;
+            lblMadre.Height = Tema.AltezzaTesto("In Gmail: Classi 2026-27/3B, Classi 2026-27/4A...", Tema.Normale, lblMadre.Width);
+            Controls.Add(lblMadre);
+            y += 38;
+
+            lblNessuna = Tema.Testo1(
+                "Non ho trovato classi. Le prendo dall'orario (Orari, passo 1 il tabellone e passo 4 il tuo nome) " +
+                "oppure da Cartelle (una classe per riga); altrimenti aggiungile qui sotto, una alla volta.",
+                16, y, Larga, Tema.Normale, Ruolo.Avviso);
+            Controls.Add(lblNessuna);
+            y += lblNessuna.Height + 4;
+
+            griglia = new DataGridView();
+            griglia.Location = new Point(16, y);
+            griglia.Size = new Size(Larga, 196);
+            griglia.Font = Tema.Normale;
+            griglia.BorderStyle = BorderStyle.FixedSingle;
+            griglia.AllowUserToAddRows = false;
+            griglia.AllowUserToDeleteRows = false;
+            griglia.AllowUserToResizeRows = false;
+            griglia.RowHeadersVisible = false;
+            griglia.MultiSelect = false;
+            griglia.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            griglia.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            DataGridViewCheckBoxColumn usa = new DataGridViewCheckBoxColumn();
+            usa.HeaderText = "Usa";
+            usa.Width = 42;
+            usa.SortMode = DataGridViewColumnSortMode.NotSortable;
+            griglia.Columns.Add(usa);
+            string[] titoli = { "Classe", "Cerca nell'oggetto (separate da virgole)", "Studenti", "Da dove" };
+            int[] larghe = { 90, 0, 200, 90 };
+            for (int i = 0; i < titoli.Length; i++)
+            {
+                DataGridViewTextBoxColumn c = new DataGridViewTextBoxColumn();
+                c.HeaderText = titoli[i];
+                c.ReadOnly = (i != 1);
+                c.SortMode = DataGridViewColumnSortMode.NotSortable;
+                if (larghe[i] == 0) c.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                else c.Width = larghe[i];
+                griglia.Columns.Add(c);
+            }
+            griglia.CurrentCellDirtyStateChanged += delegate
+            {
+                if (griglia.IsCurrentCellDirty && griglia.CurrentCell is DataGridViewCheckBoxCell)
+                    griglia.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
+            griglia.CellValueChanged += delegate(object o, DataGridViewCellEventArgs e)
+            {
+                if (riempiendo || e.RowIndex < 0 || e.RowIndex >= Classi.Count) return;
+                object v = griglia.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
+                if (e.ColumnIndex == 0) Classi[e.RowIndex].Spuntata = v is bool && (bool)v;
+                else if (e.ColumnIndex == 2) Classi[e.RowIndex].Oggetto = Convert.ToString(v) ?? "";
+            };
+            griglia.CurrentCellChanged += delegate
+            {
+                if (!riempiendo && griglia.CurrentRow != null) Scegli(griglia.CurrentRow.Index);
+            };
+            griglia.AccessibleName = "Le classi";
+            Controls.Add(griglia);
+            y += griglia.Height + 8;
+
+            Label lblN = Tema.Testo1("Aggiungi una classe", 16, y + 4, 0, Tema.Normale, Ruolo.Normale);
+            Controls.Add(lblN);
+            int xn = 16 + TextRenderer.MeasureText(lblN.Text, Tema.Normale).Width + 12;
+            txtNuova = Tema.Casella(xn, y, 110, "per es. 3B");
+            Controls.Add(txtNuova);
+            Controls.Add(Tema.Bottone("Aggiungi", xn + 120, y - 1, 100, delegate
+            {
+                int i = Aggiungi(txtNuova.Text);
+                if (i < 0) return;
+                txtNuova.Text = "";
+                Scegli(i);
+            }));
+            y += 42;
+
+            lblTitoloIncolla = Tema.Testo1("", 16, y, 0, Tema.Grassetto, Ruolo.Normale);
+            lblTitoloIncolla.AutoSize = false;
+            lblTitoloIncolla.Width = 560;
+            lblTitoloIncolla.Height = Tema.AltezzaTesto("Gli indirizzi degli studenti della 3B LSA", Tema.Grassetto, 560);
+            Controls.Add(lblTitoloIncolla);
+            Controls.Add(Tema.Aiuto(16 + 566, y + 2, "Dove prendere gli indirizzi degli studenti",
+                "Per esempio da Google Classroom: apri il corso, scheda Persone, spunta la casella sopra l'elenco " +
+                "degli studenti e scegli Azioni -> Invia email. Gmail apre un messaggio con tutti gli indirizzi nel " +
+                "campo A: selezionali, copiali (Ctrl+C) e incollali qui, poi chiudi il messaggio senza mandarlo. " +
+                "I nomi dei menu di Classroom possono cambiare.\r\n\r\n" +
+                "Oppure, se la scuola ha un gruppo Google per la classe, dall'elenco dei membri del gruppo.\r\n\r\n" +
+                "Va bene qualunque testo: Campanella prende solo gli indirizzi email, anche nella forma Nome " +
+                "Cognome <indirizzo>, in minuscolo e una volta sola. Quelli del personale (l'elenco del passo 3, la " +
+                "dirigenza e la segreteria) li toglie: un collega fra gli studenti avrebbe l'etichetta della classe " +
+                "su tutta la sua posta.\r\n\r\n" +
+                "Poi premi \"Copia\" e nel progetto dello script crea un file nuovo (+ accanto a File -> Script) con " +
+                "il nome che vedi, per esempio Classe_3B, e incollaci il testo. Campanella non conserva gli " +
+                "indirizzi: per cambiarli incollali di nuovo qui e sostituisci il file."));
+            y += lblTitoloIncolla.Height + 4;
+
+            txtIncolla = Tema.CasellaMulti(16, y, Larga, 84, "incolla qui gli indirizzi (Ctrl+V)");
+            txtIncolla.ScrollBars = ScrollBars.Vertical;
+            txtIncolla.TextChanged += delegate
+            {
+                if (riempiendo || scelta < 0) return;
+                Incolla(scelta, txtIncolla.Text);
+            };
+            Controls.Add(txtIncolla);
+            y += txtIncolla.Height + 6;
+
+            btnCopia = Tema.Bottone("Copia Classe_3B.gs", 16, y, 230, delegate { CopiaFile(scelta); });
+            Controls.Add(btnCopia);
+            lblAvviso = Tema.Testo1("", 16 + 242, y + 2, Larga - 242, Tema.Normale, Ruolo.Tenue);
+            lblAvviso.AutoSize = false;
+            // alta quanto l'avviso piu' lungo che Avviso puo' scrivere
+            lblAvviso.Height = Tema.AltezzaTesto(AvvisoPiuLungo(), Tema.Normale, lblAvviso.Width);
+            Controls.Add(lblAvviso);
+            y += Math.Max(36, lblAvviso.Height + 6);
+
+            chkVecchie = Tema.Spunta("", 16, y, Ruolo.Normale);
+            Controls.Add(chkVecchie);
+            y += 26;
+            lblNotaVecchie = Tema.Testo1("", 16, y, Larga, Tema.Normale, Ruolo.Tenue);
+            lblNotaVecchie.AutoSize = false;
+            lblNotaVecchie.Height = Tema.AltezzaTesto(NotaVecchie(), Tema.Normale, Larga);
+            Controls.Add(lblNotaVecchie);
+            y += lblNotaVecchie.Height + 4;
+
+            Label gmail = Tema.Testo1(
+                "Le etichette in Gmail non si cancellano mai: togliendo una classe resta la sua etichetta, con i " +
+                "messaggi. Dopo \"Usa queste classi\" copia di nuovo la configurazione (passo 5), e i file delle classi.",
+                16, y, Larga, Tema.Normale, Ruolo.Tenue);
+            Controls.Add(gmail);
+            y += gmail.Height + 10;
+
+            Button ok = Tema.BottonePrincipale("Usa queste classi", 16 + Larga - 200, y, 200, null);
+            ok.Click += delegate
+            {
+                if (!Confermato()) return;
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(ok);
+            Button ann = Tema.Bottone("Annulla", 16 + Larga - 200 - 98, y + 2, 90, null);
+            ann.DialogResult = DialogResult.Cancel;
+            Controls.Add(ann);
+            CancelButton = ann;
+            ClientSize = new Size(16 + Larga + 16, y + 34 + 16);
+
+            Riempi(s);
+            txtMadre.TextChanged += delegate { CambiaMadre(); };
+            CambiaMadre();
+            Tema.Applica(this);
+        }
+
+        /// <summary>L'etichetta madre scritta adesso (vuota: "Classi").</summary>
+        public string Madre
+        {
+            get { return LeMieClassi.Madre(txtMadre.Text); }
+            set { txtMadre.Text = value ?? ""; }
+        }
+
+        /// <summary>Togliere le regole delle classi sotto un'altra etichetta madre (di partenza no).</summary>
+        public bool TogliVecchie
+        {
+            get { return Vecchie.Count > 0 && chkVecchie.Checked; }
+            set { chkVecchie.Checked = value; }
+        }
+
+        /// <summary>
+        /// Le classi di partenza: quelle che hanno gia' la regola sotto l'etichetta
+        /// madre (spuntate), poi quelle dell'orario e di Cartelle, spuntate solo
+        /// se di classi non ce n'e' ancora nessuna (la prima volta, o l'anno nuovo).
+        /// </summary>
+        void Riempi(Stato s)
+        {
+            string madre = Madre;
+            foreach (Regola r in s.Regole)
+            {
+                string c = LeMieClassi.ClasseDi(r);
+                if (c == null || !LeMieClassi.SottoMadre(r, madre) || Indice(c) >= 0) continue;
+                ClasseScelta x = new ClasseScelta();
+                x.Nome = c;
+                x.Spuntata = true;
+                x.Oggetto = string.Join(", ", r.Oggetto.ToArray());
+                x.Provenienza = "regola";
+                x.Regola = r;
+                Classi.Add(x);
+            }
+            bool primaVolta = Classi.Count == 0;
+            Metti(LeMieClassi.DalleLezioni(s), "orario", primaVolta);
+            Metti(LeMieClassi.DaCartelle(s), "Cartelle", primaVolta);
+            Ordina();
+            AggiornaGriglia();
+            if (Classi.Count > 0) Scegli(0); else Scegli(-1);
+        }
+
+        void Metti(List<string> nomi, string da, bool spuntate)
+        {
+            foreach (string n in nomi)
+            {
+                if (LeMieClassi.Chiave(n) == "" || Indice(n) >= 0) continue;
+                ClasseScelta x = new ClasseScelta();
+                x.Nome = LeMieClassi.Nome(n);
+                x.Spuntata = spuntate;
+                x.Oggetto = string.Join(", ", LeMieClassi.Varianti(n).ToArray());
+                x.Provenienza = da;
+                Classi.Add(x);
+            }
+        }
+
+        void Ordina()
+        {
+            Classi.Sort(delegate(ClasseScelta a, ClasseScelta b)
+            {
+                return string.CompareOrdinal(LeMieClassi.Chiave(a.Nome), LeMieClassi.Chiave(b.Nome));
+            });
+        }
+
+        /// <summary>La riga della classe (3B, 3 B e 3^B sono la stessa), o -1.</summary>
+        int Indice(string nome)
+        {
+            string k = LeMieClassi.Chiave(nome);
+            for (int i = 0; i < Classi.Count; i++)
+                if (LeMieClassi.Chiave(Classi[i].Nome) == k) return i;
+            return -1;
+        }
+
+        /// <summary>Aggiunge a mano una classe, spuntata; se c'e' gia', la sua riga. -1 se il nome e' vuoto.</summary>
+        public int Aggiungi(string nome)
+        {
+            if (LeMieClassi.Chiave(nome) == "") return -1;
+            int gia = Indice(nome);
+            if (gia >= 0) return gia;
+            ClasseScelta x = new ClasseScelta();
+            x.Nome = LeMieClassi.Nome(nome);
+            x.Oggetto = string.Join(", ", LeMieClassi.Varianti(nome).ToArray());
+            x.Provenienza = "a mano";
+            x.Regola = LeMieClassi.RegolaDellaClasse(stato, Madre, LeMieClassi.Chiave(nome));
+            Classi.Add(x);
+            Ordina();
+            AggiornaGriglia();
+            return Indice(nome);
+        }
+
+        void AggiornaGriglia()
+        {
+            riempiendo = true;
+            try
+            {
+                griglia.Rows.Clear();
+                foreach (ClasseScelta c in Classi)
+                    griglia.Rows.Add(c.Spuntata, c.Nome, c.Oggetto, Studenti(c), c.Provenienza);
+            }
+            finally { riempiendo = false; }
+            lblNessuna.Visible = Classi.Count == 0;
+        }
+
+        /// <summary>La colonna "Studenti": quanti indirizzi incollati, o che non si conservano.</summary>
+        static string Studenti(ClasseScelta c)
+        {
+            if (c.Indirizzi != null && c.Indirizzi.Count > 0)
+                return c.Indirizzi.Count + " incollati" + (c.Copiato ? ", file copiato" : ", da copiare");
+            return (c.Regola != null) ? "non conservati" : "nessuno";
+        }
+
+        /// <summary>Sceglie la classe i: la casella degli indirizzi e il bottone del file sono i suoi.</summary>
+        public void Scegli(int i)
+        {
+            scelta = (i >= 0 && i < Classi.Count) ? i : -1;
+            riempiendo = true;
+            try
+            {
+                if (scelta >= 0 && (griglia.CurrentRow == null || griglia.CurrentRow.Index != scelta) &&
+                    scelta < griglia.Rows.Count)
+                    griglia.CurrentCell = griglia.Rows[scelta].Cells[1];
+                ClasseScelta c = (scelta >= 0) ? Classi[scelta] : null;
+                txtIncolla.Text = (c != null && c.Indirizzi != null) ? string.Join("\r\n", c.Indirizzi.ToArray()) : "";
+                txtIncolla.Enabled = c != null;
+            }
+            finally { riempiendo = false; }
+            AggiornaScelta();
+        }
+
+        void AggiornaScelta()
+        {
+            ClasseScelta c = (scelta >= 0) ? Classi[scelta] : null;
+            lblTitoloIncolla.Text = (c == null) ? "Gli indirizzi degli studenti: scegli una classe"
+                                                : "Gli indirizzi degli studenti della " + c.Nome;
+            btnCopia.Text = "Copia " + LeMieClassi.NomeFile(c == null ? "3B" : c.Nome);
+            btnCopia.Enabled = c != null && c.Indirizzi != null && c.Indirizzi.Count > 0;
+            lblAvviso.Text = (c == null) ? "" : Avviso(scelta);
+            lblAvviso.Tag = (c != null && c.Indirizzi != null && c.Indirizzi.Count > LeMieClassi.TroppiStudenti)
+                ? Ruolo.Avviso : Ruolo.Tenue;
+            Tema.Applica(lblAvviso);
+        }
+
+        /// <summary>
+        /// Gli indirizzi incollati per la classe i: solo gli indirizzi email del
+        /// testo, senza quelli del personale; il testo vuoto, nessuno. Restano in
+        /// memoria finche' la finestra e' aperta.
+        /// </summary>
+        public void Incolla(int i, string testo)
+        {
+            if (i < 0 || i >= Classi.Count) return;
+            ClasseScelta c = Classi[i];
+            c.Tolti = new List<string>();
+            List<string> letti = LeMieClassi.Indirizzi(testo);
+            c.Indirizzi = ((testo ?? "").Trim() == "") ? null : LeMieClassi.TogliPersonale(letti, stato, c.Tolti);
+            c.Copiato = false;
+            riempiendo = true;
+            try { if (i < griglia.Rows.Count) griglia.Rows[i].Cells[3].Value = Studenti(c); }
+            finally { riempiendo = false; }
+            if (i == scelta) AggiornaScelta();
+        }
+
+        /// <summary>Che cosa dire degli studenti della classe i: quanti, quelli tolti, se sembrano troppi; mai quali.</summary>
+        public string Avviso(int i)
+        {
+            if (i < 0 || i >= Classi.Count) return "";
+            ClasseScelta c = Classi[i];
+            string file = LeMieClassi.NomeFile(c.Nome);
+            int tolti = (c.Tolti == null) ? 0 : c.Tolti.Count;
+            string delPersonale = (tolti == 0) ? "" : " " + tolti + " del personale " + (tolti == 1 ? "tolto" : "tolti") +
+                                  " (sono nell'elenco del passo 3).";
+            if (c.Indirizzi != null && c.Indirizzi.Count > 0)
+            {
+                int n = c.Indirizzi.Count;
+                return n + (n == 1 ? " indirizzo." : " indirizzi.") + delPersonale +
+                       (n > LeMieClassi.TroppiStudenti
+                           ? " Sono piu' di " + LeMieClassi.TroppiStudenti + ": sembra piu' di una classe, controlla di " +
+                             "aver copiato quella giusta."
+                           : "") +
+                       " Adesso copia " + file + " e incollalo nel progetto dello script: chiusa la finestra, " +
+                       "Campanella li dimentica.";
+            }
+            if (c.Indirizzi != null)
+                return "Nel testo incollato non c'e' nessun indirizzo di uno studente." + delPersonale;
+            if (c.Regola != null)
+                return "Gli indirizzi degli studenti Campanella non li conserva: se " + file + " e' gia' nel progetto " +
+                       "dello script, la regola li usa. Per cambiarli incollali qui di nuovo e copia di nuovo il file.";
+            return "Nessun indirizzo incollato: senza " + file + " nel progetto la regola prende solo i messaggi con " +
+                   "la classe nell'oggetto.";
+        }
+
+        string AvvisoPiuLungo()
+        {
+            ClasseScelta prova = new ClasseScelta();
+            prova.Nome = "3B LSA";
+            prova.Indirizzi = new List<string>();
+            for (int k = 0; k < 100; k++) prova.Indirizzi.Add("x");
+            prova.Tolti = new List<string>(new string[] { "a", "b" });
+            Classi.Add(prova);
+            string a = Avviso(Classi.Count - 1);
+            prova.Indirizzi = null;
+            prova.Regola = new Regola();
+            string b = Avviso(Classi.Count - 1);
+            Classi.RemoveAt(Classi.Count - 1);
+            return (Tema.AltezzaTesto(a, Tema.Normale, Larga - 242) >= Tema.AltezzaTesto(b, Tema.Normale, Larga - 242)) ? a : b;
+        }
+
+        /// <summary>Il testo del file Classe_*.gs della classe i, con gli indirizzi incollati; "" se non ce ne sono.</summary>
+        public string TestoFile(int i)
+        {
+            if (i < 0 || i >= Classi.Count) return "";
+            ClasseScelta c = Classi[i];
+            if (c.Indirizzi == null || c.Indirizzi.Count == 0) return "";
+            string nome = (c.Regola != null && LeMieClassi.ClasseDi(c.Regola) != null) ? LeMieClassi.ClasseDi(c.Regola) : c.Nome;
+            return LeMieClassi.FileClasse(nome, Madre + "/" + nome, c.Indirizzi, DateTime.Now);
+        }
+
+        /// <summary>Copia il file della classe negli appunti, fuori dalla cronologia di Windows. Niente file su disco.</summary>
+        void CopiaFile(int i)
+        {
+            string testo = TestoFile(i);
+            if (testo == "") return;
+            for (int tentativo = 0; tentativo < 3; tentativo++)
+            {
+                try
+                {
+                    Guscio.MettiNegliAppunti(testo);
+                    Classi[i].Copiato = true;
+                    riempiendo = true;
+                    try { if (i < griglia.Rows.Count) griglia.Rows[i].Cells[3].Value = Studenti(Classi[i]); }
+                    finally { riempiendo = false; }
+                    MessageBox.Show(this, "Copiato negli appunti.\n\nNel progetto dello script crea un file nuovo (+ accanto " +
+                        "a File -> Script), chiamalo " + LeMieClassi.NomeFile(Classi[i].Nome).Replace(".gs", "") +
+                        " e incolla con Ctrl+V; se c'e' gia', sostituisci tutto il suo testo. Poi salva (Ctrl+S).",
+                        "Fatto", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                catch (System.Runtime.InteropServices.ExternalException) { System.Threading.Thread.Sleep(120); }
+            }
+            MessageBox.Show(this, "Windows non mi ha lasciato usare gli appunti: di solito e' un altro programma che li " +
+                "tiene occupati per un istante.\n\nRiprova.", "Appunti occupati", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        /// <summary>Con indirizzi incollati e non copiati, chiede prima di chiudere: chiusa la finestra spariscono.</summary>
+        bool Confermato()
+        {
+            List<string> nonCopiati = new List<string>();
+            foreach (ClasseScelta c in Classi)
+                if (c.Spuntata && c.Indirizzi != null && c.Indirizzi.Count > 0 && !c.Copiato)
+                    nonCopiati.Add(LeMieClassi.NomeFile(c.Nome));
+            if (nonCopiati.Count == 0) return true;
+            return MessageBox.Show(this, "Non hai copiato " + string.Join(", ", nonCopiati.ToArray()) + ". Campanella non " +
+                "conserva gli indirizzi degli studenti: chiusa la finestra spariscono, e per quei file andranno " +
+                "incollati di nuovo.\n\nChiudere lo stesso?", "File delle classi non copiati",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        /// <summary>
+        /// L'etichetta madre e' cambiata: le regole delle classi sotto un'altra
+        /// madre sono quelle dell'anno prima, e ogni classe ritrova la sua regola
+        /// sotto quella di adesso.
+        /// </summary>
+        void CambiaMadre()
+        {
+            string madre = Madre;
+            lblMadre.Text = "In Gmail: " + madre + "/" + (Classi.Count > 0 ? Classi[0].Nome : "3B") + ", " + madre + "/...";
+            Vecchie = new List<Regola>();
+            foreach (Regola r in stato.Regole)
+                if (LeMieClassi.ClasseDi(r) != null && !LeMieClassi.SottoMadre(r, madre)) Vecchie.Add(r);
+            foreach (ClasseScelta c in Classi)
+                c.Regola = LeMieClassi.RegolaDellaClasse(stato, madre, LeMieClassi.Chiave(c.Nome));
+            chkVecchie.Text = TestoVecchie();
+            chkVecchie.Visible = Vecchie.Count > 0;
+            lblNotaVecchie.Text = NotaVecchie();
+            lblNotaVecchie.Visible = Vecchie.Count > 0;
+            if (scelta >= 0) AggiornaScelta();
+        }
+
+        /// <summary>"Togli le regole delle classi del 2026-27 (2)": la spunta per le classi dell'anno prima.</summary>
+        public string TestoVecchie()
+        {
+            List<string> madri = new List<string>();
+            foreach (Regola r in Vecchie)
+            {
+                string e = r.Etichetta ?? "";
+                string m = (e.LastIndexOf('/') > 0) ? e.Substring(0, e.LastIndexOf('/')) : e;
+                if (!madri.Contains(m)) madri.Add(m);
+            }
+            string di;
+            if (madri.Count == 1)
+            {
+                Match anno = Regex.Match(madri[0], @"\d{4}-\d{2}");
+                di = anno.Success ? "del " + anno.Value : "di \"" + madri[0] + "\"";
+            }
+            else di = "di \"" + string.Join("\", \"", madri.ToArray()) + "\"";
+            return "Togli le regole delle classi " + di + " (" + Vecchie.Count + ")";
+        }
+
+        /// <summary>Quello che Campanella non puo' togliere da solo, per le classi dell'anno prima.</summary>
+        public string NotaVecchie()
+        {
+            return "Nel progetto dello script cancella tu i loro file Classe_*.gs, con gli indirizzi degli studenti, e se " +
+                   "avevi creato i filtri veri di Gmail togli anche i loro (Gmail -> Impostazioni -> Filtri e indirizzi " +
+                   "bloccati): Campanella non puo' farlo.";
         }
     }
 
