@@ -538,12 +538,13 @@ namespace Campanella
         /// perderebbe, e i filtri li lascerebbe in campanella.json anche con i
         /// dati nel Drive.
         /// Formato 3 (1.6.0): i giorni senza lezione degli Orari
-        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati()) e
+        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati()),
         /// "unoQualsiasi" dentro le regole (le regole delle classi: l'oggetto
-        /// oppure gli studenti); la 1.5.3 riscrivendo i file lascerebbe i giorni
-        /// senza lezione in campanella.json anche con i dati nel Drive, e
-        /// perderebbe unoQualsiasi: la regola di una classe vorrebbe senza dirlo
-        /// l'oggetto E gli studenti.
+        /// oppure gli studenti) e le etichette madri delle classi ("madriClassi",
+        /// solo nomi, anche questa in cima a Dati()); la 1.5.3 riscrivendo i file
+        /// lascerebbe i giorni senza lezione in campanella.json anche con i dati
+        /// nel Drive, e perderebbe unoQualsiasi: la regola di una classe vorrebbe
+        /// senza dirlo l'oggetto E gli studenti.
         /// </summary>
         public const int Formato = 3;
 
