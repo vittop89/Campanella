@@ -2113,6 +2113,33 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   GmailApp.search = cercaGiusta;
   cfg.provaSenzaModifiche = false;
 
+  // --- la classe fra i destinatari --------------------------------------------
+  // Campanella la mette solo fra i mittenti; una configurazione scritta a mano
+  // puo' metterla in "a": anche li' _espandi_ la riempie con gli studenti, e
+  // la ricerca rifiutata non si scrive
+  const aLei = { attiva: true, etichetta: 'Classi 2026-27/3B', a: ['@CLASSE:3B@'], oggetto: ['verifica'] };
+  const qaLei = contesto._queryDellaRegola_(cfg, aLei);
+  const rifiutaLei = contesto._ricercaRifiutata_(aLei, aLei.etichetta, qaLei, 0,
+    new Error('Invalid search query: ' + qaLei[0]));
+  verifica('una classe fra i destinatari e\' una classe della regola, e la sua ricerca rifiutata non si ' +
+           'scrive (' + rifiutaLei + ')',
+    qaLei.length === 1 && qaLei[0].indexOf(studenti[0]) > 0 && contesto._classiDellaRegola_(aLei).join() === '3B' &&
+    !studenti.some(x => rifiutaLei.indexOf(x) >= 0) && rifiutaLei.indexOf('Invalid search query') < 0 &&
+    rifiutaLei.indexOf('(la ricerca con gli studenti fra i destinatari). Ricerca saltata.') > 0);
+  // senza studenti (il file e' per un'altra etichetta) la regola non cerca
+  // niente: nemmeno i mittenti scritti, che senza "a" prenderebbero di piu'
+  const aLeiDa = { attiva: true, etichetta: 'Verifiche 3B', da: [colleghi[0]], a: ['@CLASSE:3B@'], oggetto: ['verifica'] };
+  const cfgLei = Object.assign({}, cfg, { regole: [aLeiDa] });
+  const notaLei = contesto._notaClasse_(cfgLei, aLeiDa, '3B');
+  verifica('e senza i suoi studenti l\'anteprima dice che non trova niente (' + notaLei + ')',
+    contesto._queryDellaRegola_(cfgLei, aLeiDa).length === 0 && /intanto questa regola non trova niente$/.test(notaLei));
+  // se il file e' di un'altra regola accesa, per toglierla non c'e' la
+  // spunta delle classi: la regola non sta sotto un'etichetta madre
+  const notaLei2 = contesto._notaClasse_(Object.assign({}, cfg, { regole: [classe, aLeiDa] }), aLeiDa, '3B');
+  verifica('e con il file di un\'altra regola accesa dice di spegnerla o toglierla al passo 4 (' + notaLei2 + ')',
+    notaLei2.indexOf('Se questa non ti serve piu\', spegnila o toglila (Posta, passo 4); se e\' questa') > 0 &&
+    /Intanto questa regola non trova niente$/.test(notaLei2));
+
   // --- i filtri veri: solo quello dell'oggetto ------------------------------
   // Gli indirizzi degli studenti nei filtri di Gmail resterebbero nelle
   // impostazioni dell'account anche cancellando Classe_3B.gs, finirebbero
@@ -2259,10 +2286,11 @@ intestazione('GLI INDIRIZZI DEGLI STUDENTI NON ESCONO: OGNI FUNZIONE, ANCHE CON 
   // si trovano da sole: una nuova entra qui senza doverla aggiungere. Le
   // email vanno all'account di sempre (IO): in fondo si controlla anche questo.
   const S = 'scuola.example';
-  const studenti = [], quarta = [];
+  const studenti = [], quarta = [], quinta = [];
   for (let i = 0; i < 23; i++) studenti.push('alunno' + i + '.terzab@studenti.' + S);
   for (let i = 0; i < 3; i++) quarta.push('d\'amico' + i + '.quartaa@studenti.' + S);
-  const pezzi = studenti.concat(quarta).map(x => x.split('@')[0].toLowerCase());
+  for (let i = 0; i < 2; i++) quinta.push('alunno' + i + '.quintaa@studenti.' + S);
+  const pezzi = studenti.concat(quarta, quinta).map(x => x.split('@')[0].toLowerCase());
   const pubbliche = Object.keys(contesto).filter(n => typeof contesto[n] === 'function' &&
     (/^(PASSO|EXTRA|ANNULLA)_/.test(n) || n === 'smistaNuoviMessaggi')).sort();
   verifica('le funzioni da provare sono quelle che il docente puo\' eseguire, e il trigger (' + pubbliche.length + ')',
@@ -2278,7 +2306,10 @@ intestazione('GLI INDIRIZZI DEGLI STUDENTI NON ESCONO: OGNI FUNZIONE, ANCHE CON 
         { attiva: true, etichetta: 'Classi 2026-27/3B', da: ['@CLASSE:3B@'], oggetto: ['3B', '3 B', 'III B'],
           unoQualsiasi: true, colore: { sfondo: '#c6f3de', testo: '#000000' } },
         // la 4A in AND: gli studenti E l'oggetto
-        { attiva: true, etichetta: 'Classi 2026-27/4A', da: ['@CLASSE:4A@'], oggetto: ['compito'] }
+        { attiva: true, etichetta: 'Classi 2026-27/4A', da: ['@CLASSE:4A@'], oggetto: ['compito'] },
+        // la 5A fra i destinatari: Campanella non la scrive cosi', una
+        // configurazione scritta a mano si'
+        { attiva: true, etichetta: 'Classi 2026-27/5A', a: ['@CLASSE:5A@'], oggetto: ['verifica'] }
       ],
       filtriDaTogliere: [{ etichetta: 'Famiglie', criteri: { query: 'from:(@famiglie.example)' } }]
     };
@@ -2332,6 +2363,7 @@ intestazione('GLI INDIRIZZI DEGLI STUDENTI NON ESCONO: OGNI FUNZIONE, ANCHE CON 
       contesto.CLASSI_STUDENTI = undefined;
       vm.runInContext(fileClasse('3B', 'Classi 2026-27/3B', studenti), contesto);
       vm.runInContext(fileClasse('4A', 'Classi 2026-27/4A', quarta), contesto);
+      vm.runInContext(fileClasse('5A', 'Classi 2026-27/5A', quinta), contesto);
       // un file che nessuna regola usa: l'anteprima lo elenca
       vm.runInContext(fileClasse('2C', 'Classi 2026-27/2C', [studenti[0]]), contesto);
       aggiungi('preside@' + S, 'Consiglio di classe 3B', '', { giorniFa: 20 });

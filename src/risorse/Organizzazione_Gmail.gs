@@ -1990,11 +1990,15 @@ function _nomeClasse_(voce) {
   return v.substring(8, v.length - 1);
 }
 
-/** Le classi fra i mittenti di una regola, una volta ciascuna. */
+/**
+ * Le classi di una regola, una volta ciascuna: fra i mittenti, dove le mette
+ * Campanella, e fra i destinatari, dove puo' metterle una configurazione
+ * scritta a mano (_espandi_ riempie di studenti anche quelle).
+ */
 function _classiDellaRegola_(regola) {
-  var fuori = [], da = regola.da || [];
-  for (var i = 0; i < da.length; i++) {
-    var nome = _nomeClasse_(da[i]);
+  var fuori = [], voci = (regola.da || []).concat(regola.a || []);
+  for (var i = 0; i < voci.length; i++) {
+    var nome = _nomeClasse_(voci[i]);
     if (nome !== null && fuori.indexOf(nome) < 0) fuori.push(nome);
   }
   return fuori;
@@ -2069,7 +2073,10 @@ function _notaClasse_(cfg, regola, nome) {
   var quanti = _espandi_(cfg, ['@CLASSE:' + nome + '@'], regola).length;
   if (quanti) return 'studenti della ' + nome + ': ' + quanti + (quanti === 1 ? ' indirizzo' : ' indirizzi') +
                      ', dal file ' + file + _quandoCopiato_(dati.copiato);
-  var resta = _bastaUno_(regola)
+  // destinatari previsti e nessuno rimasto: _queryDellaRegola_ non cerca niente
+  var resta = (regola.a && regola.a.length && !_espandi_(cfg, regola.a, regola).length)
+    ? 'questa regola non trova niente'
+    : _bastaUno_(regola)
     ? ((regola.oggetto && regola.oggetto.length) ? 'conta solo l\'oggetto' : 'conta solo le parole cercate')
     : (_espandi_(cfg, regola.da || [], regola).length ? 'conta solo gli altri mittenti' : 'questa regola non trova niente');
   var sua = dati ? dati.etichetta : null;
@@ -2080,10 +2087,14 @@ function _notaClasse_(cfg, regola, nome) {
   if (altra) {
     // l'anno dopo, senza togliere le regole dell'anno prima: quale delle due
     // serve lo sa solo il docente
+    // la spunta per toglierla c'e' solo per le regole sotto un'etichetta madre
+    var sottoMadre = String(regola.etichetta || '').trim().lastIndexOf('/') > 0;
     return 'il file ' + file + ' e\' della regola ' + altra + ', accesa anche lei: il file di una classe vale ' +
-           'per una regola sola. Se questa non ti serve piu\', spegnila (Posta, passo 4) o toglila (in "Le mie ' +
-           'classi...", la spunta "Togli le regole delle classi ' + _diQualeAnno_(regola.etichetta) + '"); se ' +
-           'e\' questa quella giusta, copia il suo file da Campanella. Intanto ' + resta;
+           'per una regola sola. Se questa non ti serve piu\', ' + (sottoMadre
+             ? 'spegnila (Posta, passo 4) o toglila (in "Le mie classi...", la spunta "Togli le regole delle ' +
+               'classi ' + _diQualeAnno_(regola.etichetta) + '")'
+             : 'spegnila o toglila (Posta, passo 4)') +
+           '; se e\' questa quella giusta, copia il suo file da Campanella. Intanto ' + resta;
   }
   if (sua.toLowerCase() !== String(regola.etichetta || '').trim().toLowerCase()) {
     return 'il file ' + file + ' e\' di ' + sua + ', non di questa regola: cancellalo e copia quello nuovo da ' +
@@ -2177,7 +2188,8 @@ function _ricercaRifiutata_(regola, nome, queries, q, errore) {
   var testo = _bastaUno_(regola) ? 1 : 0;
   var quale = (q < testo)
     ? ((regola.oggetto && regola.oggetto.length) ? 'la ricerca dell\'oggetto' : 'la ricerca delle parole')
-    : 'i mittenti, gruppo ' + (q - testo + 1) + ' di ' + (queries.length - testo);
+    : (regola.da && regola.da.length) ? 'i mittenti, gruppo ' + (q - testo + 1) + ' di ' + (queries.length - testo)
+    : 'la ricerca con gli studenti fra i destinatari';
   return 'Regola "' + nome + '": ricerca non accettata da Gmail (' + quale + '). Ricerca saltata.';
 }
 
