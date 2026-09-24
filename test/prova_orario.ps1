@@ -411,6 +411,12 @@ console.log(JSON.stringify({
             @('05/05/2027 gita al museo', '2027-05-05..2027-05-05 gita al museo'),
             # un giorno solo con un nome qualunque, e un periodo che parla di vacanze o di rientro: niente da guardare
             @('07/12/2026 ponte', '2026-12-07..2026-12-07 ponte'),
+            # la durata in lettere che torna con le date, e un giorno della settimana solo
+            @('07/12/2026-08/12/2026 ponte di due giorni', '2026-12-07..2026-12-08 ponte di due giorni'),
+            @('07/12/2026 ponte di un giorno', '2026-12-07..2026-12-07 ponte di un giorno'),
+            @('22/02/2027-23/02/2027 carnevale lunedi e martedi', '2027-02-22..2027-02-23 carnevale lunedi e martedi'),
+            @("29/03/2027 Lunedi' dell'Angelo", "2027-03-29..2027-03-29 Lunedi' dell'Angelo"),
+            @('07/12/2026 ponte, sei ore in meno', '2026-12-07..2026-12-07 ponte, sei ore in meno'),
             @('23/12/2026-06/01/2027 Vacanze natalizie', '2026-12-23..2027-01-06 Vacanze natalizie'),
             @('dal 1 al 6/04/2027 vacanze pasquali, rientro dopo Pasquetta', '2027-04-01..2027-04-06 vacanze pasquali, rientro dopo Pasquetta')
         )
@@ -457,7 +463,14 @@ console.log(JSON.stringify({
             @('23/12/2026 vacanze di Natale (15 giorni)', '2026-12-23..2026-12-23 vacanze di Natale (15 giorni)'),
             @('07/12/2026 ponte 2gg', '2026-12-07..2026-12-07 ponte 2gg'),
             @("07/12/2026 ponte sino al lunedi'", "2026-12-07..2026-12-07 ponte sino al lunedi'"),
-            @('07/12/2026-08/12/2026 ponte di 3 giorni', '2026-12-07..2026-12-08 ponte di 3 giorni')
+            @('07/12/2026-08/12/2026 ponte di 3 giorni', '2026-12-07..2026-12-08 ponte di 3 giorni'),
+            # la durata in lettere, e due giorni della settimana in un giorno solo
+            @('07/12/2026 ponte di due giorni', '2026-12-07..2026-12-07 ponte di due giorni'),
+            @('07/12/2026-08/12/2026 ponte di tre giorni', '2026-12-07..2026-12-08 ponte di tre giorni'),
+            @('23/12/2026 Natale, quindici gg', '2026-12-23..2026-12-23 Natale, quindici gg'),
+            @('22/02/2027 carnevale lunedi e martedi', '2027-02-22..2027-02-22 carnevale lunedi e martedi'),
+            @("22/02/2027 carnevale lunedi' e martedi'", "2027-02-22..2027-02-22 carnevale lunedi' e martedi'"),
+            @("22/02/2027 carnevale luned$([char]0xEC) e Marted$([char]0xEC)", "2027-02-22..2027-02-22 carnevale luned$([char]0xEC) e Marted$([char]0xEC)")
         )
         Verifica "c'e' l'avviso per una fine o una durata nel nome ('$avvisoDurata')" ($avvisoDurata -match 'fine' -and $avvisoDurata -match 'durata')
         foreach ($c in $conDurata) {

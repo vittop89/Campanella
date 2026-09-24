@@ -155,6 +155,21 @@ namespace Campanella
         static readonly Regex GiorniNelNome = new Regex(@"(?<![0-9.,])([0-9]{1,3})\s*(?:giorni|gg)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        // lo stesso con il numero in lettere: "di due giorni", "tre gg", "un giorno"
+        static readonly Regex GiorniInLettere = new Regex(
+            @"(?<!\p{L})(un|uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci|quindici)\s+(?:giorni|giorno|gg)(?!\p{L})",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        static readonly string[] NumeriInLettere = { "un", "uno", "due", "tre", "quattro", "cinque", "sei", "sette",
+                                                     "otto", "nove", "dieci", "quindici" };
+        static readonly int[] ValoriInLettere = { 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15 };
+
+        // un giorno della settimana nel nome: "lunedi'", "martedi", "lunedì", "sabato".
+        // Due diversi in una riga di un giorno solo sono un periodo scritto come un
+        // giorno ("22/02/2027 carnevale lunedi' e martedi'")
+        static readonly Regex GiornoDellaSettimana = new Regex(
+            @"(?<!\p{L})(?:(luned|marted|mercoled|gioved|venerd)(?:i|ì)|(sabato|domenica))(?!\p{L})",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         // nel nome l'inizio o la fine di un periodo, o un giorno di lezione: "Inizio
         // delle lezioni", "Vacanze natalizie", "fine vacanze", "Ripresa delle
         // lezioni", "Rientro dalle vacanze". In una riga di un giorno solo non e'
@@ -234,7 +249,9 @@ namespace Campanella
         /// ("07/12/2026 ponte 7-8", "8.12") non ferma la riga, ma le da' un
         /// Avviso: la pagina la mostra da controllare. Lo stesso, in una riga di
         /// un giorno solo, la fine di un periodo a parole ("fino all'Epifania"),
-        /// e una durata che non torna con le date ("di 2 giorni", "2gg"). E una
+        /// e una durata che non torna con le date ("di 2 giorni", "2gg", "di due
+        /// giorni", e in un giorno solo due giorni della settimana, "lunedi' e
+        /// martedi'"). E una
         /// riga di un giorno solo che parla del confine di un periodo o di un
         /// giorno di lezione ("23/12/2026 Vacanze natalizie", "14/09/2026 Inizio
         /// delle lezioni", "07/01/2027 Ripresa delle lezioni").
@@ -352,6 +369,24 @@ namespace Campanella
                 if (durata == 1 && FineNelNome.IsMatch(nome)) r.Avviso = AvvisoDurata;
                 foreach (Match n in GiorniNelNome.Matches(nome))
                     if (int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture) != durata) r.Avviso = AvvisoDurata;
+                // in lettere: "07/12/2026 ponte di due giorni"
+                foreach (Match n in GiorniInLettere.Matches(nome))
+                {
+                    int i = Array.IndexOf(NumeriInLettere, n.Groups[1].Value.ToLowerInvariant());
+                    if (i >= 0 && ValoriInLettere[i] != durata) r.Avviso = AvvisoDurata;
+                }
+                // due giorni della settimana in una riga di un giorno solo:
+                // "22/02/2027 carnevale lunedi' e martedi'" e' solo il lunedi'
+                if (durata == 1)
+                {
+                    List<string> settimana = new List<string>();
+                    foreach (Match g in GiornoDellaSettimana.Matches(nome))
+                    {
+                        string quale = g.Value.Substring(0, 3).ToLowerInvariant();
+                        if (!settimana.Contains(quale)) settimana.Add(quale);
+                    }
+                    if (settimana.Count >= 2) r.Avviso = AvvisoDurata;
+                }
             }
             // un giorno solo che parla del confine di un periodo o di un giorno di
             // lezione: "23/12/2026 Vacanze natalizie" e' solo il 23, "14/09/2026
