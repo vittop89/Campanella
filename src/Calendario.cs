@@ -173,9 +173,10 @@ namespace Campanella
         // nel nome l'inizio o la fine di un periodo, o un giorno di lezione: "Inizio
         // delle lezioni", "Vacanze natalizie", "fine vacanze", "Ripresa delle
         // lezioni", "Rientro dalle vacanze". In una riga di un giorno solo non e'
-        // un giorno senza lezione: e' un confine scritto al posto del periodo
+        // un giorno senza lezione: e' un confine scritto al posto del periodo.
+        // "Vacanze" al plurale: "ponte, giorno di vacanza" e' proprio un giorno
         static readonly Regex ConfineNelNome = new Regex(
-            @"(?<!\p{L})(?:vacanz\p{L}*|inizio|iniziano|termine|terminano|fine|ripresa|riprendono|rientro)(?!\p{L})",
+            @"(?<!\p{L})(?:vacanze|inizio|iniziano|termine|terminano|fine|ripresa|riprendono|rientro)(?!\p{L})",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web

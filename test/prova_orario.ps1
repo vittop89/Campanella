@@ -417,6 +417,8 @@ console.log(JSON.stringify({
             @('22/02/2027-23/02/2027 carnevale lunedi e martedi', '2027-02-22..2027-02-23 carnevale lunedi e martedi'),
             @("29/03/2027 Lunedi' dell'Angelo", "2027-03-29..2027-03-29 Lunedi' dell'Angelo"),
             @('07/12/2026 ponte, sei ore in meno', '2026-12-07..2026-12-07 ponte, sei ore in meno'),
+            # un giorno di vacanza, al singolare, e' proprio un giorno
+            @('02/11/2026 ponte, giorno di vacanza', '2026-11-02..2026-11-02 ponte, giorno di vacanza'),
             @('23/12/2026-06/01/2027 Vacanze natalizie', '2026-12-23..2027-01-06 Vacanze natalizie'),
             @('dal 1 al 6/04/2027 vacanze pasquali, rientro dopo Pasquetta', '2027-04-01..2027-04-06 vacanze pasquali, rientro dopo Pasquetta')
         )
