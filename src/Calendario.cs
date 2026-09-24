@@ -51,16 +51,28 @@ namespace Campanella
 
     static class Calendario
     {
-        // una data: 2026-11-01, oppure 1/11/2026, 01/11/26, 01/11 (anche con i punti)
-        const string Data = @"(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.]\d{1,2}(?:[/.](?:\d{4}|\d{2}))?)";
+        // una data: 2026-11-01, oppure 1/11/2026, 01/11/26, 01/11 (anche con i punti).
+        // [0-9] e non \d: \d prende anche le cifre degli altri alfabeti (quelle a
+        // larghezza piena di un PDF, per esempio), che poi int.Parse non legge
+        const string Data = @"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}[/.][0-9]{1,2}(?:[/.](?:[0-9]{4}|[0-9]{2}))?)";
 
-        // [dal] data [ (- | al) data ] [nome]. Dopo le date non ci devono essere
-        // altre cifre attaccate: "1/11/202" non e' un anno a due cifre
+        // [dal] data [ (- | [fino] al) data ] [nome]. Dopo le date non ci devono
+        // essere altre cifre attaccate ("1/11/202" non e' un anno a due cifre);
+        // un punto o una parentesi si', come in fondo a una frase della circolare
         static readonly Regex RigaSospensione = new Regex(
             @"^(?:dal\s+)?" + Data +
-            @"(?:\s*[-–—]\s*" + Data + @"|\s+al\s+" + Data + @")?" +
-            @"(?=$|[\s:,;–—-])[\s:,;–—-]*(.*)$",
+            @"(?:\s*[-–—]\s*" + Data + @"|\s+(?:fino\s+)?al\s+" + Data + @")?" +
+            @"(?=$|[\s:,;.)–—-])[\s:,;.)–—-]*(.*)$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // una data dentro il nome: "07/12/2026, 08/12/2026 ponte", "dal 23/12/2026 a
+        // 06/01/2027". Con il punto solo se c'e' l'anno: "alle 10.30" e' un'ora
+        static readonly Regex DataNelNome = new Regex(
+            @"(?<![0-9])(?:[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}(?:/[0-9]{2,4})?|" +
+            @"[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{2,4})(?![0-9])", RegexOptions.CultureInvariant);
+
+        // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web
+        static readonly Regex ACapo = new Regex("\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]");
 
         // ===================================================================
         //  LE RIGHE SCRITTE DAL DOCENTE
@@ -74,15 +86,18 @@ namespace Campanella
         /// scolastico del periodo (da settembre a dicembre l'anno in cui
         /// comincia, da gennaio ad agosto quello dopo). Le righe vuote e
         /// quelle che cominciano con # non contano. Le righe che non si
-        /// capiscono (una data impossibile, la fine prima dell'inizio) finiscono
-        /// in nonCapite, cosi' come sono state scritte.
+        /// capiscono (una data impossibile, la fine prima dell'inizio, un
+        /// periodo scritto in un altro modo, come "dal 23/12 a 06/01" o
+        /// "2026-11-01-03", due giorni sulla stessa riga) finiscono in
+        /// nonCapite, cosi' come sono state scritte: mai un giorno solo con il
+        /// resto nel nome.
         /// </summary>
         public static List<Sospensione> Leggi(string testo, DateTime inizioPeriodo, out List<string> nonCapite)
         {
             List<Sospensione> fuori = new List<Sospensione>();
             nonCapite = new List<string>();
             int annoInizio = AnnoScolastico(inizioPeriodo);
-            foreach (string grezza in (testo ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            foreach (string grezza in ACapo.Split(testo ?? ""))
             {
                 string riga = grezza.Trim();
                 if (riga == "" || riga.StartsWith("#")) continue;
@@ -96,15 +111,26 @@ namespace Campanella
                     nonCapite.Add(riga);
                     continue;
                 }
-                string seconda = m.Groups[2].Success ? m.Groups[2].Value : (m.Groups[3].Success ? m.Groups[3].Value : "");
-                if (seconda == "") al = dal;
-                else if (!LeggiData(seconda, annoInizio, out al)) { nonCapite.Add(riga); continue; }
+                Group seconda = m.Groups[2].Success ? m.Groups[2] : m.Groups[3];
+                if (!seconda.Success) al = dal;
+                else if (!LeggiData(seconda.Value, annoInizio, out al)) { nonCapite.Add(riga); continue; }
                 if (al < dal) { nonCapite.Add(riga); continue; }
+
+                // dopo le date un trattino attaccato a una cifra ("2026-11-01-03"),
+                // o un'altra data nel nome: un periodo che non ho capito
+                Group ultima = seconda.Success ? seconda : m.Groups[1];
+                string dopo = senzaPunto.Substring(ultima.Index + ultima.Length);
+                string nome = m.Groups[4].Value.Trim();
+                if (Regex.IsMatch(dopo, @"^[-–—/]\s*[0-9]|^\s*[-–—/][0-9]") || DataNelNome.IsMatch(nome))
+                {
+                    nonCapite.Add(riga);
+                    continue;
+                }
 
                 Sospensione s = new Sospensione();
                 s.Dal = dal;
                 s.Al = al;
-                s.Nome = m.Groups[4].Value.Trim();
+                s.Nome = nome;
                 fuori.Add(s);
             }
             return fuori;
@@ -125,7 +151,7 @@ namespace Campanella
         {
             d = DateTime.MinValue;
             int anno, mese, giorno;
-            Match iso = Regex.Match(s, @"^(\d{4})-(\d{1,2})-(\d{1,2})$");
+            Match iso = Regex.Match(s, @"^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$");
             if (iso.Success)
             {
                 anno = int.Parse(iso.Groups[1].Value);

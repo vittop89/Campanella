@@ -358,16 +358,40 @@ console.log(JSON.stringify({
             @('01/11 Tutti i Santi', '2026-11-01..2026-11-01 Tutti i Santi'),
             @('23/12-06/01 Natale', '2026-12-23..2027-01-06 Natale'),
             @('29/3 Pasquetta', '2027-03-29..2027-03-29 Pasquetta'),
-            @('  04/10/2026:  San Francesco  ', '2026-10-04..2026-10-04 San Francesco')
+            @('  04/10/2026:  San Francesco  ', '2026-10-04..2026-10-04 San Francesco'),
+            # le righe delle circolari finiscono spesso con il punto: il periodo resta intero
+            @('dal 23/12/2026 al 06/01/2027.', '2026-12-23..2027-01-06 '),
+            @('23/12/2026-06/01/2027.', '2026-12-23..2027-01-06 '),
+            @('23/12/2026 - 06/01/2027.', '2026-12-23..2027-01-06 '),
+            @('23/12/2026-06/01/2027; Natale', '2026-12-23..2027-01-06 Natale'),
+            @('dal 23/12/2026 fino al 06/01/2027 Natale', '2026-12-23..2027-01-06 Natale'),
+            @('01/11/2026.', '2026-11-01..2026-11-01 '),
+            # un'ora scritta con il punto nel nome non e' una data
+            @('01/12/2026 assemblea alle 10.30', '2026-12-01..2026-12-01 assemblea alle 10.30'),
+            @('25/04/2027 - 25 aprile', '2027-04-25..2027-04-25 25 aprile')
         )
         foreach ($c in $capite) {
             $r = LeggiRighe $c[0] '2026-09-14'
             Verifica "'$($c[0].Trim())' -> $($c[1])" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0)
         }
-        $nonCapite = @('31/02/2027 Carnevale', '06/01/2027-23/12/2026 al contrario', 'Natale', '1/11/202 anno di tre cifre', '32/01/2027')
+        # un periodo scritto in un altro modo, o due giorni sulla stessa riga: la
+        # riga non si capisce, e lo dice. Mai un giorno solo con il resto nel nome
+        $cifreLarghe = [string][char]0xFF10 + [char]0xFF11 + '/11/2026 cifre a larghezza piena'
+        $cifreArabe = '0' + [char]0x0661 + '/11/2026 una cifra araba'
+        $nonCapite = @('31/02/2027 Carnevale', '06/01/2027-23/12/2026 al contrario', 'Natale', '1/11/202 anno di tre cifre', '32/01/2027',
+                       'dal 23/12/2026 a 06/01/2027 Natale', '23/12/2026 / 06/01/2027 Natale', '07/12/2026, 08/12/2026 ponte',
+                       '07/12/2026 e 08/12/2026 ponte', '2026-11-01-03 ponte', 'dal 23/12 fino a 06/01 Natale',
+                       $cifreLarghe, $cifreArabe)
         foreach ($n in $nonCapite) {
-            $r = LeggiRighe $n '2026-09-14'
+            try { $r = LeggiRighe $n '2026-09-14' }
+            catch { Verifica "'$n' non si capisce, e lo dice (invece: $($_.Exception.InnerException.GetType().Name))" $false; continue }
             Verifica "'$n' non si capisce, e lo dice" ($r.Righe.Count -eq 0 -and $r.NonCapite.Count -eq 1 -and $r.NonCapite[0] -eq $n)
+        }
+        # gli a capo che non sono \r o \n (incollati da un PDF o da una pagina web)
+        foreach ($acapo in @([char]0x2028, [char]0x2029, [char]0x0B, [char]0x0C, [char]0x85)) {
+            $r = LeggiRighe ("01/11/2026 Tutti i Santi" + $acapo + "08/12/2026 Immacolata") '2026-09-14'
+            Verifica ("con l'a capo U+{0:X4} fra due righe, due giorni" -f [int]$acapo) (
+                ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2026-12-08..2026-12-08 Immacolata' -and $r.NonCapite.Count -eq 0)
         }
         $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') + $nonCapite) -join "`r`n"
         $r = LeggiRighe $tutto '2026-09-14'
