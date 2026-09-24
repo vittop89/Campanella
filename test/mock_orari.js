@@ -1573,6 +1573,40 @@ verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
     trigger.length === 1 && /riprova fra un minuto/.test(occupata) && !/spenta|Fermata/.test(occupata));
   trigger.length = 0;
 }
+{
+  // Un file Classe_3B.gs nel progetto, come lo copia "Le mie classi..." della
+  // Posta: un terzo file, con il suo nome globale CLASSI_STUDENTI, che nessuno
+  // dei due script dichiara. La posta lo legge; gli orari, accanto, non
+  // scrivono gli studenti da nessuna parte (registro, email, calendario).
+  verifica('ne\' Orari.gs ne\' Organizzazione_Gmail.gs dichiarano CLASSI_STUDENTI, il nome dei file delle classi',
+    !nomiOrari.has('CLASSI_STUDENTI') && !nomiGlobali(posta).has('CLASSI_STUDENTI'));
+  const studenti = [];
+  for (let i = 0; i < 25; i++) studenti.push('studente' + i + '.terzab@studenti.scuola-esempio.edu.it');
+  vm.runInContext('var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
+    'CLASSI_STUDENTI["3B"] = {\n  etichetta: "Classi 2026-27/3B",\n  copiato: "2026-09-20",\n  indirizzi: ' +
+    JSON.stringify(studenti) + '\n};\n', contesto, { filename: 'Classe_3B.gs' });
+  const file = contesto._fileDellaClasse_('3B');
+  verifica('la posta, nello stesso progetto degli orari, trova il file della classe',
+    contesto._classiNeiFile_().join() === '3B' && !!file && file.etichetta === 'Classi 2026-27/3B');
+  const dalRegistro = registro.length;
+  mandate.length = 0; proprieta.clear(); trigger.length = 0; quota = 1000;
+  const detti = [contesto.ORARI_1_anteprima(), contesto.ORARI_2_invia(), contesto.ORARI_3_inviaOrariClassi()];
+  let descrizioni = [];
+  if (attrezziCalendario) {
+    attrezziCalendario.azzeraCalendario();
+    detti.push(contesto.ORARI_4_calendario());
+    descrizioni = calendari.reduce((tutte, cal) => tutte.concat(cal.serie.map(s => s.titolo + ' ' + s.descrizione)), []);
+    attrezziCalendario.azzeraCalendario();
+  }
+  detti.push(contesto.ANNULLA_automazione());
+  const scritto = detti.concat(registro.slice(dalRegistro), descrizioni,
+    mandate.map(m => [m.to, m.subject, m.body, m.htmlBody].join(' '))).join('\n');
+  verifica('con il file della classe nel progetto gli orari lavorano come prima (' + mandate.length + ' email, ' +
+    descrizioni.length + ' serie)', mandate.length > 0 && descrizioni.length > 0 && mandate.every(m => m.to === IO));
+  verifica('e gli studenti non finiscono ne\' nel registro, ne\' nelle email, ne\' nel calendario',
+    !/terzab@/.test(scritto));
+  mandate.length = 0; proprieta.clear(); trigger.length = 0;
+}
 
 // Una ripresa del calendario scattata un attimo prima di ANNULLA_automazione
 // aspetta il blocco: quando lo prende, il suo trigger e' gia' stato tolto, ma
