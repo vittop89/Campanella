@@ -65,9 +65,14 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   skipped, and, with a change date, that the change is made with
   ORARI_5_cambioOrario and how many new series it would create.
 - DatiOrari.gs: the `calendario` block has `sospensioni` (only the lines
-  understood, with full dates) and `validoDal`. The two new settings,
-  `calSospensioni` and `calValidoDal`, are in campanella.json: dates and
-  holiday names, not personal data.
+  understood, with full dates) and `validoDal`. The days without lessons
+  (`calSospensioni`) are free text, where a leave or a colleague's name
+  ends up easily next to the holidays: they follow the personal data, so
+  with the data in Drive they are in campanella-dati.json and
+  campanella.json has no trace of them. The change date (`calValidoDal`),
+  only a date, is a setting in campanella.json. The settings files move to
+  format 3, so Campanella 1.5.3 does not overwrite them (it would leave the
+  days without lessons in campanella.json) and says it needs updating.
 - Posta: ANNULLA_automazione also removes and names the calendar resumes
   (ORARI_4_calendario, ORARI_5_cambioOrario).
 

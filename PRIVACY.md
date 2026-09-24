@@ -91,7 +91,9 @@ dirigenza e segreteria e gli orari con i cognomi stanno in `campanella.json`
 accanto al programma, oppure — dalle Impostazioni, ed è la scelta
 consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
-non ne resta traccia, nemmeno il nome del calendario degli orari. Se poi
+non ne resta traccia, nemmeno il nome del calendario degli orari o i giorni
+senza lezione che hai scritto (un testo libero, dove accanto alle feste può
+finire un permesso o il nome di un collega). Se poi
 sposti i dati in un'altra cartella del Drive o di nuovo accanto al
 programma, Campanella, dopo averlo chiesto, cancella il file che lasciano;
 se quel file non l'ha letto, o nel frattempo l'ha cambiato un altro

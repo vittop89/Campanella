@@ -730,10 +730,12 @@ static class ProvaStato
             t.Drive == Finto());
     }
 
-    // I giorni senza lezione e la data del cambio d'orario (Orari, passo 4)
-    // sono impostazioni: date e nomi di feste, niente che riguardi altre
-    // persone. Stanno in campanella.json anche con i dati nel Drive, si
-    // rileggono uguali (a capo compresi) e di partenza sono vuoti.
+    // I giorni senza lezione (Orari, passo 4) sono testo libero: accanto alle
+    // feste ci si scrive facilmente un permesso o il nome di un collega. Per
+    // questo seguono i dati personali: con i dati nel Drive stanno nel file dei
+    // dati, e campanella.json non li ha (lo promettono PRIVACY.md e la nota per
+    // il DPO). La data del cambio d'orario e' solo una data: resta nelle
+    // impostazioni. Si rileggono uguali (a capo compresi) e di partenza sono vuoti.
     static void CalendarioAndataERitorno()
     {
         string c = Cartella("Campanella");
@@ -742,16 +744,18 @@ static class ProvaStato
         Stato s = Carica();
         Verifica("di partenza niente giorni senza lezione e nessun cambio d'orario",
             Testo(s, "CalSospensioni") == "" && Testo(s, "CalValidoDal") == "");
-        string sospensioni = "01/11/2026 Tutti i Santi\r\n23/12/2026-06/01/2027 Vacanze di \"Natale\"\r\n# una nota\r\n";
+        string sospensioni = "01/11/2026 Tutti i Santi\r\n23/12/2026-06/01/2027 Vacanze di \"Natale\"\r\n" +
+                             "12/03/2027 permesso di BIANCHI\r\n# una nota\r\n";
         if (!Metti(s, "CalSospensioni", sospensioni) || !Metti(s, "CalValidoDal", "2026-10-05")) return;
         s.Salva();
         Verifica("Salva riesce", s.UltimoErrore == "");
         Dictionary<string, object> imp = Json(Impostazioni());
         Dictionary<string, object> dati = Json(FileDati(c));
-        Verifica("stanno in campanella.json, con le impostazioni",
-            Str(imp, "calSospensioni") == sospensioni && Str(imp, "calValidoDal") == "2026-10-05");
-        Verifica("e non nel file dei dati personali",
-            dati.ContainsKey("personale") && !dati.ContainsKey("calSospensioni") && !dati.ContainsKey("calValidoDal"));
+        Verifica("con i dati nel Drive i giorni senza lezione stanno nel file dei dati",
+            Str(dati, "calSospensioni") == sospensioni && !dati.ContainsKey("calValidoDal"));
+        Verifica("e campanella.json non li ha (ha solo la data del cambio)",
+            !imp.ContainsKey("calSospensioni") && Str(imp, "calValidoDal") == "2026-10-05" &&
+            File.ReadAllText(Impostazioni()).IndexOf("BIANCHI") < 0);
         Stato t = Carica();
         Verifica("si rileggono uguali, a capo compresi",
             Testo(t, "CalSospensioni") == sospensioni && Testo(t, "CalValidoDal") == "2026-10-05");
@@ -760,8 +764,13 @@ static class ProvaStato
         Verifica("la spunta del cambio tolta resta tolta", Testo(Carica(), "CalValidoDal") == "");
         string errore;
         t.SpostaDati(false, "", out errore);
-        Verifica("con i dati accanto al programma restano dove sono",
+        Verifica("riportati i dati accanto al programma, vanno con loro in campanella.json",
             Str(Json(Impostazioni()), "calSospensioni") == sospensioni && Testo(Carica(), "CalSospensioni") == sospensioni);
+        Stato u = Carica();
+        string c2 = Cartella("Campanella2");
+        u.SpostaDati(true, c2, out errore);
+        Verifica("e rimandati nel Drive, lasciano campanella.json (" + errore + ")",
+            !Json(Impostazioni()).ContainsKey("calSospensioni") && Str(Json(FileDati(c2)), "calSospensioni") == sospensioni);
     }
 
     // i colori delle etichette si salvano e si rileggono, anche "nessun colore"
