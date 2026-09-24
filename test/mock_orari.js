@@ -955,12 +955,58 @@ if (conCalendario) {
       uguali(lezioniSul(calL, primoGiorno, ultimoGiorno), piano.lezioni) &&
       !proprieta.has(PROGRESSO_CALENDARIO) && ripresaDi('ORARI_4_calendario').length === 0);
     if (op === 'setTag') {
+      // la serie a cui Google non ha salvato il contrassegno lo riceve alla
+      // ripresa: il cambio d'orario la accorcia o la toglie come le altre, e
+      // nessuna lezione compare due volte
       const senzaTag = vive(calL).filter(s => s.getTag('campanella') !== 'orario');
-      contesto.ORARI_ANNULLA_calendario();
-      verifica('  ...la serie rimasta senza contrassegno ha la descrizione di Campanella, e l\'annullamento la toglie',
-        senzaTag.length === 1 && senzaTag[0].getDescription().indexOf('[Campanella]') === 0 && vive(calL).length === 0);
+      verifica('  ...e la serie a cui Google non ha salvato il contrassegno lo riceve alla ripresa (' + senzaTag.length +
+        ' senza)', senzaTag.length === 0 && calL.serie[3].getTag('campanella') === 'orario');
+      if (c.validoDal) {
+        docOriginale.celle = ruotata(celleOriginali);
+        const cambioTag = contesto.ORARI_5_cambioOrario();
+        const attesoTag = piano.lezioni.filter(l => l.slice(0, 10) < c.validoDal)
+          .concat(pianoAtteso(ruotata(celleOriginali), dataDa(c.validoDal)).lezioni).sort();
+        const doppie = lezioniSul(calL, primoGiorno, ultimoGiorno).filter((l, i, t) => t.indexOf(l) !== i);
+        verifica('  ...e il cambio d\'orario dopo non lascia lezioni doppie' + (doppie.length ? ' (doppie: ' +
+          doppie.slice(0, 3).join(', ') + ')' : ''),
+          uguali(lezioniSul(calL, primoGiorno, ultimoGiorno), attesoTag) && !/senza contrassegno/.test(cambioTag));
+        docOriginale.celle = celleOriginali.slice();
+      }
     }
   }
+  // il contrassegno non riesce neanche alla ripresa: si riprova la volta dopo
+  azzeraCalendario();
+  const LIMITE_TAG = 'You have been creating or deleting too many calendars or calendar events in a short time. Please try again later.';
+  guasti([{ op: 'setTag', alla: 4, messaggio: LIMITE_TAG }, { op: 'setTag', alla: 5, messaggio: LIMITE_TAG }]);
+  contesto.ORARI_4_calendario();
+  const calR = calendari[0];
+  contesto.ORARI_4_calendario({ triggerUid: 'ripresa' });
+  verifica('se il contrassegno non riesce neanche alla ripresa, la serie resta da contrassegnare e non si crea ' +
+    'nient\'altro', vive(calR).length === 4 && !!salvato() && salvato().daContrassegnare.length === 1 &&
+    ripresaDi('ORARI_4_calendario').length === 1);
+  riprendiFinoInFondo('ORARI_4_calendario');
+  verifica('  ...e alla ripresa dopo lo riceve, e il lavoro finisce senza doppioni',
+    vive(calR).length === piano.tratti.length && senzaDoppioni(calR) &&
+    vive(calR).every(s => s.getTag('campanella') === 'orario') && !proprieta.has(PROGRESSO_CALENDARIO));
+  // la serie senza contrassegno copiata a mano prima della ripresa: due uguali,
+  // e non si sceglie. Nessuna delle due riceve il contrassegno, e il messaggio
+  // finale lo dice, con il rimedio
+  azzeraCalendario();
+  guasti([{ op: 'setTag', alla: 4, messaggio: LIMITE_TAG }]);
+  contesto.ORARI_4_calendario();
+  const calD = calendari[0];
+  const quarta = calD.serie[3];
+  const gemella = calD.createEventSeries(quarta.titolo, quarta.inizio, quarta.fine, quarta.ricorrenza,
+                                         { description: quarta.getDescription() });
+  riprendiFinoInFondo('ORARI_4_calendario');
+  const fineD = registro[registro.length - 1];
+  verifica('con due serie uguali senza contrassegno (una copiata a mano) non ne sceglie una: nessuna lo riceve',
+    !quarta.getTag('campanella') && !gemella.getTag('campanella') && !proprieta.has(PROGRESSO_CALENDARIO) &&
+    vive(calD).filter(s => s.getTag('campanella') === 'orario').length === piano.tratti.length - 1);
+  verifica('  ...e il messaggio finale lo dice, che il cambio d\'orario non la accorcera\' e come rimediare',
+    /non ha salvato il contrassegno/.test(fineD) && /non sono riuscito a rimetterlo/.test(fineD) &&
+    fineD.indexOf(quarta.titolo + ', ') >= 0 && /due volte/.test(fineD) &&
+    /ORARI_ANNULLA_calendario, poi di nuovo ORARI_4_calendario/.test(fineD));
   // un errore che non e' un limite: il punto resta, l'errore si vede
   azzeraCalendario();
   guasti([{ op: 'createEventSeries', alla: 3, messaggio: 'Errore interno di prova' }]);
@@ -1185,6 +1231,46 @@ if (conCalendario) {
     riprendiFinoInFondo('ORARI_5_cambioOrario');
     verifica('  ...e riprendendo arriva allo stesso calendario',
       !proprieta.has(PROGRESSO_CALENDARIO) && uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio));
+
+    // il contrassegno di una serie nuova del cambio che Google non salva: alla
+    // ripresa lo riceve, e un secondo cambio la accorcia come le altre
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    docOriginale.celle = ruotata(celleOriginali);
+    guasti([{ op: 'setTag', alla: 2, messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+    const limiteTag = contesto.ORARI_5_cambioOrario();
+    const nuovaSenza = vive(calendari[0]).filter(s => s.getTag('campanella') !== 'orario');
+    verifica('il contrassegno di una serie nuova del cambio non riesce: si ferma e riprende fra un minuto',
+      /fra un minuto/.test(limiteTag) && nuovaSenza.length === 1 && salvato().daContrassegnare.length === 1);
+    riprendiFinoInFondo('ORARI_5_cambioOrario');
+    verifica('  ...alla ripresa la serie lo riceve, e il cambio arriva allo stesso calendario',
+      nuovaSenza[0].getTag('campanella') === 'orario' && !proprieta.has(PROGRESSO_CALENDARIO) &&
+      uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio));
+    const salvaTag = contesto.ORARI.calendario;
+    const secondoCambio = chiave(giorniDopo(vd, 35));
+    contesto.ORARI.calendario = Object.assign({}, salvaTag, { validoDal: secondoCambio });
+    docOriginale.celle = celleOriginali.slice();
+    const esitoSecondo = contesto.ORARI_5_cambioOrario();
+    const attesoSecondo = attesoDopoCambio.filter(l => l.slice(0, 10) < secondoCambio)
+      .concat(pianoAtteso(celleOriginali, dataDa(secondoCambio)).lezioni).sort();
+    verifica('  ...e un secondo cambio d\'orario, dal ' + secondoCambio + ', la accorcia come le altre: niente lezioni doppie',
+      uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoSecondo) && !/senza contrassegno/.test(esitoSecondo));
+    // la serie senza contrassegno e DatiOrari.gs cambiato prima della ripresa:
+    // il cambio si rifa' da capo, e l'errore dice di cancellarla prima
+    azzeraCalendario();
+    contesto.ORARI.calendario = salvaTag;
+    contesto.ORARI_4_calendario();
+    docOriginale.celle = ruotata(celleOriginali);
+    guasti([{ op: 'setTag', alla: 2, messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+    contesto.ORARI_5_cambioOrario();
+    const daCancellare = vive(calendari[0]).filter(s => s.getTag('campanella') !== 'orario')[0];
+    contesto.ORARI.calendario = Object.assign({}, salvaTag, { validoDal: secondoCambio });
+    const cambiatoTag = errore(() => contesto.ORARI_5_cambioOrario({ triggerUid: 'ripresa' }));
+    verifica('  ...con DatiOrari.gs cambiato prima della ripresa, l\'errore nomina la serie senza contrassegno e dice ' +
+      'di cancellarla prima di rieseguire', /cambiato/.test(cambiatoTag) && !!daCancellare &&
+      cambiatoTag.indexOf(daCancellare.titolo + ', ') >= 0 && /cancellala/.test(cambiatoTag) && !salvato());
+    contesto.ORARI.calendario = salvaTag;
+    docOriginale.celle = celleOriginali.slice();
 
     // ORARI_4_calendario con un cambio a meta'
     azzeraCalendario();

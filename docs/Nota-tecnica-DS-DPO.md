@@ -179,7 +179,10 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   `ORARI_4_calendario`, che crea o usa un calendario del docente con il nome
   scelto, scritto esattamente così (non un calendario di altri a cui è
   iscritto), e vi inserisce gli eventi del proprio orario, marcati con un
-  contrassegno e senza i giorni senza lezione indicati dal docente;
+  contrassegno e senza i giorni senza lezione indicati dal docente (se
+  Google non salva il contrassegno di una serie appena creata, alla ripresa
+  lo script lo rimette a quella serie, riconosciuta da titolo, descrizione e
+  prima lezione, e solo se ce n'è una sola così);
   `ORARI_5_cambioOrario`, che quando l'orario cambia accorcia le serie già
   messe perché finiscano il giorno prima della data indicata (o le toglie,
   se cominciano da quella data in poi) e inserisce l'orario nuovo da quella

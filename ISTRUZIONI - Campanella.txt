@@ -454,7 +454,9 @@ ORARI - le email a te e il calendario
    quindi piu' serie, una per ogni tratto di settimane senza interruzioni
    (quante, lo dicono il riepilogo della pagina e ORARI_1_anteprima). Se
    finisce il tempo, o se Google chiede di rallentare, riprende da solo
-   dopo un minuto da dove era arrivato.
+   dopo un minuto da dove era arrivato. Se Google non ha salvato il
+   contrassegno di una serie, alla ripresa lo rimette; se non ci riesce,
+   il messaggio finale te lo dice, con che cosa fare.
    Se l'orario cambia: carica il nuovo tabellone, spunta "L'orario e'
    cambiato: il nuovo vale dal" con la data, rigenera e incolla
    DatiOrari.gs ed esegui ORARI_5_cambioOrario. Il periodo ("Dal" e "al")

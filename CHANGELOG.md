@@ -114,7 +114,22 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   does not work nor reschedule itself. There is a short pause between series;
   the description goes in the options of createEventSeries and the mark right
   after, and a series whose mark fails counts as done (its description still
-  identifies it), so a resume never creates it twice.
+  identifies it), so a resume never creates it twice. The saved point
+  remembers it, and the resume, before creating other series, puts the mark
+  back on it: found among Campanella's events in the dates of its stretch by
+  title, description and first lesson, and only when exactly one matches
+  (two equal series mean a copy made by hand, and none is picked). Without
+  the mark a later timetable change would neither shorten nor remove it, and
+  its lessons would appear twice. When the mark cannot be put back, the final
+  message names the series and says how to fix it (ORARI_ANNULLA_calendario
+  and ORARI_4_calendario again; after ORARI_5_cambioOrario, delete it by hand
+  and run the change again); a change started over because DatiOrari.gs
+  changed says to delete it before running again.
+  `test/invarianti_script.js` allows this one more setTag, on the series found
+  that way, after its guard, with a fingerprint of the functions that
+  recognise it; it also wants the `continue` closing the guard of the cut to
+  be a statement of its own (not inside an if or a while, after an else or a
+  label).
 - ORARI_4_calendario, ORARI_5_cambioOrario and ORARI_ANNULLA_calendario take
   the same lock as the sending: with the lock busy and a job half done, the
   first two schedule its resume, otherwise they ask to retry; the messages of

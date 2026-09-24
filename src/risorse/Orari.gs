@@ -446,7 +446,7 @@ function _orariCalendario_(funzione, e) {
       throw new Error('DatiOrari.gs e\' cambiato a meta\' del lavoro: ORARI_5_cambioOrario aveva cominciato con ' +
         'un altro orario (o altre date) e non va avanti mescolandoli. Ho dimenticato il lavoro a meta\'; le serie ' +
         'gia\' messe restano.\nRiesegui ORARI_5_cambioOrario: rifa\' il cambio dal ' + c.validoDal + ' con i ' +
-        'dati di adesso, e le settimane prima restano.');
+        'dati di adesso, e le settimane prima restano.' + _orariAvvisoDaContrassegnare_(salvato));
     }
     // ORARI_4_calendario: il punto resta, cosi' con i dati di prima si finisce.
     // Con un orario nuovo e la data da cui vale, annullare e rimettere darebbe
@@ -506,6 +506,10 @@ function _orariCalendario_(funzione, e) {
   }
   // rieseguita a mano dopo ANNULLA_automazione: si riparte, e le riprese tornano a valere
   if (stato.fermato) stato.fermato = false;
+  // le serie a cui rimettere il contrassegno, e quelle che non ho ritrovato
+  // (anche in un punto salvato da una versione di prima, che non le aveva)
+  if (!stato.daContrassegnare) stato.daContrassegnare = [];
+  if (!stato.nonRitrovate) { stato.nonRitrovate = []; stato.nNonRitrovate = 0; }
 
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
   var salva = function () { prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato)); };
@@ -517,15 +521,31 @@ function _orariCalendario_(funzione, e) {
       stato.fase = 'crea';
       salva();
     }
+    // una serie a cui Google non ha salvato il contrassegno (qui sotto): prima
+    // di crearne altre glielo rimetto, se la ritrovo. Senza, il cambio d'orario
+    // non la accorcerebbe ne' la toglierebbe, e le sue lezioni comparirebbero
+    // due volte. Se il contrassegno non riesce ancora, resta da fare
+    while (stato.daContrassegnare.length) {
+      if (!_orariRimettiContrassegno_(cal, stato.daContrassegnare[0])) {
+        stato.nNonRitrovate++;
+        if (stato.nonRitrovate.length < 10) stato.nonRitrovate.push(_orariEtichettaDelTratto_(stato.daContrassegnare[0]));
+      }
+      stato.daContrassegnare.shift();
+      stato.rifiuti = 0;
+      salva();
+    }
     while (stato.fatti < piano.serie.length) {
       if (Date.now() > scadenza) return _orariCalendarioInterrotto_(funzione, stato, piano, 'tempo', salva);
       var serie = _orariCreaSerie_(cal, piano.serie[stato.fatti], c, d, doc);
-      // contata subito: se poi il contrassegno non riesce, la serie c'e' gia'
-      // (e la descrizione la riconosce): alla ripresa non si rifa'
+      // contata subito, e ricordata fra quelle da contrassegnare: se poi il
+      // contrassegno non riesce, la serie c'e' gia'. Alla ripresa non si rifa',
+      // e le si rimette il contrassegno (qui sopra)
+      stato.daContrassegnare.push(_orariTrattoFatto_(piano.serie[stato.fatti], c, d, doc));
       stato.fatti++;
       stato.rifiuti = 0;
       salva();
       serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      stato.daContrassegnare.pop();
       Utilities.sleep(_ORARI_PAUSA_MS);
     }
   } catch (err) {
@@ -613,6 +633,89 @@ function _orariCreaSerie_(cal, voce, c, d, doc) {
 }
 
 /**
+ * Quello che serve per ritrovare la serie di un tratto del piano appena
+ * creata da _orariCreaSerie_, se Google non le salva il contrassegno: le
+ * date del tratto, il titolo, l'inizio della prima lezione e la descrizione.
+ */
+function _orariTrattoFatto_(voce, c, d, doc) {
+  var primo = _orariData_(voce.dal);
+  return { dal: voce.dal, al: voce.al, titolo: voce.blocco.testo,
+           inizio: _orariOraDel_(primo, c.inizioOre, voce.blocco.oraDa, c.minutiOra, false).getTime(),
+           descrizione: _orariDescrizione_(doc.nome, voce.blocco, d) };
+}
+
+/**
+ * Rimette il contrassegno alla serie di un tratto (_orariTrattoFatto_) a cui
+ * Google non l'ha salvato. La cerca fra quelle di Campanella nelle date del
+ * tratto (_orariNostri_), e la tocca solo se ce n'e' una sola uguale
+ * (_orariSerieDelTratto_): con due, una e' una copia fatta a mano, e non si
+ * sceglie. False se non l'ha ritrovata, o ce n'erano due.
+ */
+function _orariRimettiContrassegno_(cal, tratto) {
+  var nostri = _orariNostri_(cal, _orariData_(tratto.dal), _orariFineGiornata_(_orariData_(tratto.al)));
+  var uguali = 0;
+  for (var k = 0; k < nostri.length; k++) if (_orariSerieDelTratto_(nostri[k], tratto)) uguali++;
+  if (uguali !== 1) return false;
+  for (var i = 0; i < nostri.length; i++) {
+    var voce = nostri[i];
+    if (!_orariSerieDelTratto_(voce, tratto)) continue;
+    voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Vero se la voce di _orariNostri_ e' la serie del tratto come l'ha creata
+ * Campanella: una serie, con lo stesso titolo, la stessa descrizione e la
+ * prima lezione proprio all'inizio del tratto (appena creata, nessuno l'ha
+ * ancora spostata).
+ */
+function _orariSerieDelTratto_(voce, tratto) {
+  return !!voce.serie && voce.titolo === tratto.titolo && voce.descrizione === tratto.descrizione &&
+         voce.inizio.getTime() === tratto.inizio;
+}
+
+/** "2B, lunedi' 09:00, dal 2027-02-22": la serie di un tratto nei messaggi. */
+function _orariEtichettaDelTratto_(tratto) {
+  return _orariEtichetta_({ titolo: tratto.titolo, inizio: new Date(tratto.inizio) });
+}
+
+/** Per l'errore di un cambio d'orario rifatto da capo: le serie rimaste senza contrassegno, da togliere a mano. */
+function _orariAvvisoDaContrassegnare_(stato) {
+  var n = (stato && stato.daContrassegnare) ? stato.daContrassegnare.length : 0;
+  if (!n) return '';
+  var nomi = [], una = (n === 1);
+  for (var i = 0; i < n; i++) nomi.push(_orariEtichettaDelTratto_(stato.daContrassegnare[i]));
+  return '\nAttenzione: Google non aveva salvato il contrassegno ' + (una ? 'della serie' : 'delle serie') + ' ' +
+    nomi.join('; ') + ', appena ' + (una ? 'messa' : 'messe') + '. Il cambio d\'orario accorcia e toglie solo le ' +
+    'serie con il contrassegno: prima di rieseguirlo ' + (una ? 'cancellala' : 'cancellale') + ' tu da Google ' +
+    'Calendar (tutti gli eventi della serie; se ce ne sono due uguali, tutte e due), altrimenti quelle lezioni ' +
+    'comparirebbero due volte.';
+}
+
+/**
+ * Per il messaggio finale di ORARI_4_calendario e ORARI_5_cambioOrario: le
+ * serie a cui Google non ha salvato il contrassegno e che non ho ritrovato
+ * per rimetterlo, con il rimedio. "" se non ce ne sono.
+ */
+function _orariAvvisoNonRitrovate_(stato, cambio) {
+  var n = stato.nNonRitrovate || 0;
+  if (!n) return '';
+  var una = (n === 1);
+  return '\n\nAttenzione: Google non ha salvato il contrassegno di ' + (una ? 'una serie' : n + ' serie') + ', e ' +
+    'non sono riuscito a rimetterlo (non ' + (una ? 'l\'ho ritrovata' : 'le ho ritrovate') + ', o ce n\'erano due ' +
+    'uguali): ' + stato.nonRitrovate.join('; ') + (n > stato.nonRitrovate.length ? '; ...' : '') + '. Il cambio ' +
+    'd\'orario accorcia e toglie solo le serie con il contrassegno: dopo un cambio quelle lezioni comparirebbero ' +
+    'due volte. ' +
+    (cambio
+      ? 'Per sistemare: ' + (una ? 'cancellala' : 'cancellale') + ' tu da Google Calendar (tutti gli eventi della ' +
+        'serie; se ce ne sono due uguali, tutte e due), poi riesegui ORARI_5_cambioOrario con lo stesso ' +
+        'DatiOrari.gs, che ' + (una ? 'la' : 'le') + ' rimette con il contrassegno.'
+      : 'Per sistemare: ORARI_ANNULLA_calendario, poi di nuovo ORARI_4_calendario.');
+}
+
+/**
  * Un lavoro sul calendario si ferma prima della fine: per il tempo massimo
  * o per un limite di Google riprende da solo fra un minuto; per il limite
  * della giornata, o se Google rifiuta ancora dopo tante riprese, aspetta che
@@ -668,7 +771,7 @@ function _orariFineCalendario_(c, doc, periodo, piano, stato) {
     (piano.blocchiFuori ? '\nSaltati ' + piano.blocchiFuori + ' blocchi (giorno non riconosciuto o fuori dal periodo).' : '') +
     '\n\nSe l\'orario cambia a meta\' anno, ORARI_5_cambioOrario lo cambia dalla data che scegli e lascia ' +
     'le settimane prima. Se qualcosa non va, ORARI_ANNULLA_calendario toglie solo questi eventi e lascia ' +
-    'il resto del calendario com\'e\'.';
+    'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false);
 }
 
 /** Il messaggio finale del cambio d'orario. validoDal e' la data vera del cambio, mai prima dell'inizio. */
@@ -701,7 +804,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     '\nLe settimane prima del ' + dal + ' restano come erano. Attenzione: le modifiche fatte a mano ' +
     'su singole lezioni delle serie accorciate (una lezione spostata o cancellata) potrebbero non restare: ' +
     'dai un\'occhiata.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data e riesegui ' +
-    'ORARI_5_cambioOrario.';
+    'ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
 }
 
 /**
