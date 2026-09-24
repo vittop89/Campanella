@@ -103,11 +103,14 @@ salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
 quelli che spunti, con l'etichetta e i criteri. Un filtro che sembra di una
-classe (l'etichetta finisce con 3B, o sta sotto una madre con «classi» o
-usata per le classi) e ha degli indirizzi non si può spuntare: sarebbero
-quelli degli studenti, e si toglie da Gmail. Il file che Gmail esporta
-(di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo averlo
-aperto in Campanella puoi cancellarlo. Quando Campanella copia
+classe (l'etichetta finisce con 3B o 3B LSA, o sta sotto una madre con la
+parola «classi» o usata per le classi) e ha degli indirizzi non si può
+spuntare: potrebbero essere quelli degli studenti, e si toglie da Gmail. Se
+l'avevi scelto prima (con la 1.5.3, o prima di creare le classi sotto
+quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa
+queste classi», e non lo scrive nella configurazione. Il file che Gmail
+esporta (di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo
+averlo aperto in Campanella puoi cancellarlo. Quando Campanella copia
 negli appunti la configurazione degli script, i dati degli orari, gli
 indirizzi di un gruppo o i testi della Privacy, chiede a Windows di non
 tenerli nella cronologia degli appunti e di non sincronizzarli con altri
@@ -136,9 +139,13 @@ fra le parole dell'oggetto viene scartato. Esistono solo nel file
 `Classe_3B.gs` che copi dalla finestra (mai su un file del computer) e
 incolli nel progetto Apps Script del tuo account della scuola, dove servono
 alle ricerche dello smistamento; il file vale solo per l'etichetta per cui
-l'hai copiato. Lo script non li scrive nel registro, nei riepiloghi né nei
-messaggi d'errore (l'anteprima dice solo quanti sono), e non li mette nei
-filtri veri di Gmail: per le classi il filtro cerca solo l'oggetto. Per
+l'hai copiato. Con un'etichetta madre senza l'anno («Le mie classi») la
+regola l'anno dopo è la stessa ma gli studenti no: la finestra ricorda di
+copiare di nuovo il file, e l'anteprima, il riordino e lo smistamento
+avvisano se è di un anno scolastico passato. Lo script non li scrive nel
+registro, nei riepiloghi né nei messaggi d'errore (l'anteprima dice solo
+quanti sono), e non li mette nei filtri veri di Gmail: per le classi il
+filtro cerca solo l'oggetto. Per
 toglierli si cancella quel file dal progetto; a fine anno toglili, e togli le
 classi (l'anteprima elenca i file che nessuna regola usa).
 

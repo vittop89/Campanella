@@ -245,9 +245,10 @@ POSTA - riordinare la casella
    etichette delle classi si aggiungono alle altre: Studenti, Colleghi e le
    altre restano. Le classi vengono dall'orario (Orari: il tabellone al
    passo 1 e il tuo nome al passo 4; le ore a disposizione non contano; una
-   lezione 3A/3B sono due classi) e da Cartelle; le altre le aggiungi a
-   mano. 3B, 3 B e 3^B sono la stessa classe; 3B LSA e 3B ITE sono altre
-   (se nell'elenco ci sono 3B e 3B LSA, la finestra chiede di scegliere).
+   lezione 3A/3B sono due classi, una cella come "3B 2 gruppi" resta una) e
+   da Cartelle; le altre le aggiungi a mano. 3B, 3 B e 3^B sono la stessa
+   classe; 3B LSA e 3B ITE sono altre (se nell'elenco ci sono 3B e 3B LSA,
+   la finestra chiede di scegliere).
    Per ognuna "Cerca nell'oggetto" parte da 3B, "3 B" e III B (Gmail cerca
    parole intere; per la 3B LSA le stesse). Se la sezione e' anche una
    parola (A, E, I, O, AL...) parte da 3A, "classe 3 A" e "classe III A":
@@ -268,31 +269,39 @@ POSTA - riordinare la casella
    nella cronologia degli appunti di Windows, se e' attiva: poi premi Win+V
    e togli quella voce; oppure trascina il testo nella casella, che non
    passa dagli appunti. Campanella prende solo gli indirizzi, anche nella
-   forma Nome Cognome <indirizzo> o con l'apostrofo (d'amico...), e toglie
-   quelli del personale (chi ha la spunta nel passo 3, la dirigenza e la
-   segreteria); oltre 40 avvisa che sembrano piu' di una classe. Sono dati
-   di minori e Campanella non li conserva: non vanno ne' nelle
-   impostazioni, ne' nel file dei dati, ne' in Configurazione.gs, dove la
-   regola ha solo il segnaposto @CLASSE:3B@.
+   forma Nome Cognome <indirizzo> o con l'apostrofo (d'amico...), senza
+   quello che ci sta attaccato davanti (il "?email=" di un collegamento,
+   "Rossi|" di una riga a colonne), e toglie quelli del personale (chi ha
+   la spunta nel passo 3, la dirigenza e la segreteria); oltre 40 avvisa
+   che sembrano piu' di una classe. Sono dati di minori e Campanella non li
+   conserva: non vanno ne' nelle impostazioni, ne' nel file dei dati, ne' in
+   Configurazione.gs, dove la regola ha solo il segnaposto @CLASSE:3B@.
    "Copia Classe_3B.gs" copia un file a parte (fuori dalla cronologia degli
    appunti, mai su disco), da incollare nel progetto dello script in un file
    nuovo con quel nome, accanto a Configurazione. Il file vale solo per
    l'etichetta per cui l'hai copiato (cambiando la madre, o l'anno dopo, va
-   copiato di nuovo) e dice il giorno della copia. Chiusa la finestra gli
-   indirizzi spariscono, e riaprendola lo dice; negli appunti il file resta
-   finche' non copi altro, e chiudendo la finestra Campanella chiede se
-   svuotarli (poi ci restano anche chiusa Campanella). Per cambiarli li
-   incolli di nuovo e sostituisci il file. Senza quel file la regola della
-   classe prende solo i messaggi con la classe nell'oggetto.
+   copiato di nuovo) e dice il giorno della copia. Con una madre senza
+   l'anno, come "Le mie classi", l'anno dopo la regola e' la stessa ma gli
+   studenti no: la finestra ricorda di incollarli e copiare di nuovo il
+   file, e l'anteprima, il riepilogo del riordino (PASSO_3) e quello dello
+   smistamento avvisano se un file e' di un anno scolastico passato. Chiusa
+   la finestra gli indirizzi spariscono, e riaprendola lo dice; negli
+   appunti il file resta finche' non copi altro, e chiudendo la finestra
+   Campanella chiede se svuotarli (poi ci restano anche chiusa Campanella).
+   Per cambiarli li incolli di nuovo e sostituisci il file. Senza quel file
+   la regola della classe prende solo i messaggi con la classe nell'oggetto.
    "Usa queste classi" crea o aggiorna una regola per classe spuntata (in
    fondo all'elenco, con sfumature diverse di un colore solo) e toglie quella
    delle classi senza spunta, ricordando di cancellare il loro file.
    Chiudendo con Annulla o la X chiede prima, se hai copiato un file o
    cambiato qualcosa. L'anno dopo propone di togliere le regole delle classi
-   dell'anno prima (di partenza no). Le etichette in Gmail non si cancellano
-   mai. A fine anno cancella tu, nel progetto dello script, i file
-   Classe_*.gs: l'anteprima elenca quelli che nessuna regola usa. Dopo ogni
-   cambio copia di nuovo la configurazione (passo 5).
+   dell'anno prima (di partenza no). Se le tieni, la 3B dell'anno prima e
+   quella nuova usano lo stesso file Classe_3B.gs, che vale per una sola:
+   l'anteprima dice di quale e come spegnere o togliere l'altra. Le
+   etichette in Gmail non si cancellano mai. A fine anno cancella tu, nel
+   progetto dello script, i file Classe_*.gs: l'anteprima elenca quelli che
+   nessuna regola usa. Dopo ogni cambio copia di nuovo la configurazione
+   (passo 5).
    In "Modifica" ogni regola ha la spunta "Basta uno dei due: l'oggetto
    oppure i mittenti": e' quella delle classi, e vale anche per le tue
    regole. I filtri veri di Gmail (EXTRA_creaFiltriGmail) per le classi
@@ -302,8 +311,10 @@ POSTA - riordinare la casella
    (PASSO_4), che quindi deve restare acceso; lo dice anche il riepilogo di
    EXTRA_creaFiltriGmail. Nella finestra dei filtri di Gmail quelli delle
    classi non partono mai spuntati, e quelli con degli indirizzi sotto
-   un'etichetta che sembra di una classe (3B, una madre con "classi" o usata
-   per le classi) non si possono scegliere: si tolgono da Gmail.
+   un'etichetta che sembra di una classe (3B, 3B LSA, una madre con la parola
+   "classi" o usata per le classi) non si possono scegliere, nemmeno se li
+   avevi scelti prima: Campanella li toglie dalla scelta (all'avvio e con
+   "Usa queste classi") e lo dice. Si tolgono da Gmail.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
@@ -330,7 +341,8 @@ POSTA - riordinare la casella
    quanti filtri di Gmail ci sono da togliere. Sotto la regola di una classe
    dice quanti indirizzi di studenti ha il suo file Classe_*.gs (mai quali)
    e quando l'hai copiato (avvisa se e' di un anno scolastico passato),
-   oppure che il file manca, o che e' di un'altra etichetta, e che la regola
+   oppure che il file manca, o che e' di un'altra etichetta (se e' di
+   un'altra regola accesa della stessa classe, di quale), e che la regola
    conta solo l'oggetto. In fondo elenca i file delle classi che nessuna
    regola accesa usa, da cancellare.
 
