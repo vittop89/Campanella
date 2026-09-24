@@ -84,7 +84,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   fingerprint of the plan, and schedule themselves again a minute later. When
   the day's quota is over, or Google keeps refusing after ten resumes in a
   row, they stop and ask to be run again later; any other error keeps the
-  saved point and shows. A resume that finds a different DatiOrari.gs stops
+  saved point and shows. A resume removes its own trigger as soon as it
+  starts (a fired trigger stays among the project's): after an error it is
+  not counted as a scheduled resume, and the other calendar function says
+  to run the job again instead of promising it resumes by itself. A resume
+  that finds a different DatiOrari.gs stops
   and explains instead of mixing two timetables: for ORARI_4_calendario the
   saved point stays, and the message says to finish with the previous
   DatiOrari.gs and then, with a change date, to run ORARI_5_cambioOrario

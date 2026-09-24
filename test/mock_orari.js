@@ -1676,7 +1676,21 @@ if (attrezziCalendario) {
   const conRipresa = errore(() => contesto.ORARI_5_cambioOrario());
   verifica('  ...mentre con la ripresa programmata dice che riprende da solo fra poco',
     ripresaDi('ORARI_4_calendario').length === 1 && /riprende da solo fra poco/.test(conRipresa));
-  riprendiFinoInFondo('ORARI_4_calendario');
+  // la ripresa parte e finisce con un errore che non e' un limite di Google:
+  // il suo trigger, gia' scattato, resta fra quelli del progetto (come in
+  // Google) ma non e' piu' una ripresa programmata. L'altra funzione non deve
+  // dire che il lavoro riprende da solo
+  guasti([{ op: 'createEventSeries', alla: 1, messaggio: 'Errore interno di prova' }]);
+  const ripresaRotta = errore(() => contesto.ORARI_4_calendario({ triggerUid: 'ripresa rotta' }));
+  guasti([]);
+  const dopoLaRotta = errore(() => contesto.ORARI_5_cambioOrario());
+  verifica('una ripresa finita con un altro errore toglie il suo trigger, e l\'altra funzione dice di rieseguire il ' +
+    'lavoro (invece: ' + dopoLaRotta.slice(0, 90) + ')',
+    /Errore interno di prova/.test(ripresaRotta) && !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 &&
+    /non riprende da solo/.test(dopoLaRotta) && /rieseguilo/.test(dopoLaRotta) && !/fra poco/.test(dopoLaRotta));
+  contesto.ORARI_4_calendario();
+  verifica('  ...e rieseguito a mano finisce da dove era arrivato',
+    !salvato() && ripresaDi('ORARI_4_calendario').length === 0 && vive(calendari[0]).length === piano.tratti.length);
   azzeraCalendario();
 } else {
   verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);

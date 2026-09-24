@@ -344,6 +344,11 @@ function ORARI_ANNULLA_calendario() {
 
 // --- pezzi del calendario ---------------------------------------------------
 function _orariCalendarioConLock_(funzione, e) {
+  // una ripresa toglie subito il proprio trigger: scattato, resta fra quelli
+  // del progetto, e una ripresa finita con un errore che non e' un limite di
+  // Google sembrerebbe ancora programmata (_orariRipresaProgrammata_). Se serve
+  // un'altra ripresa, la rimette _programmaRipresaOrari_
+  if (e && e.triggerUid) _togliTriggerOrari_(funzione);
   var lock = LockService.getUserLock();
   if (!lock.tryLock(5000)) {
     // il lock e' lo stesso dell'invio e della Posta: un lavoro a meta' non
@@ -401,7 +406,9 @@ function _orariCalendario_(funzione, e) {
   if (salvato && salvato.funzione !== funzione) {
     // riprende da solo se la sua ripresa c'e' ancora: ANNULLA_automazione
     // (che lo segna fermato), il limite della giornata o Google che rifiuta
-    // ancora dopo tante riprese la tolgono, e allora va rieseguito a mano
+    // ancora dopo tante riprese la tolgono, e una ripresa partita toglie la
+    // sua appena comincia (finita con un altro errore, non ce n'e' un'altra):
+    // allora va rieseguito a mano
     var daSolo = !salvato.fermato && _orariRipresaProgrammata_(salvato.funzione);
     var come = daSolo
       ? 'riprende da solo fra poco, oppure rieseguilo tu per finirlo'
