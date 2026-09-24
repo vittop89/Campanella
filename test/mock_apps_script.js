@@ -2204,6 +2204,41 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
     /copiato il \d\d\/\d\d\/\d{4}$/.test(nuovo) && nuovo.indexOf('anno scolastico') < 0);
   contesto.CLASSI_STUDENTI = salvato;
 
+  // --- due regole accese con la stessa classe: il file vale per una --------
+  // L'anno dopo, senza togliere le regole dell'anno prima (la spunta parte
+  // senza segno), la 3B del 2026-27 e quella del 2027-28 sono accese tutte e
+  // due, con lo stesso @CLASSE:3B@, e il file Classe_3B.gs e' uno solo. A
+  // quella che non ce l'ha l'anteprima non deve dire di cancellarlo: l'altra
+  // perderebbe gli studenti, e ricopiandolo direbbe di nuovo lo stesso
+  for (const diChi of ['Classi 2027-28/3B', 'Classi 2026-27/3B']) {
+    const altra = diChi === 'Classi 2027-28/3B' ? 'Classi 2026-27/3B' : 'Classi 2027-28/3B';
+    const cfgDue = Object.assign({}, cfg, { regole: [classe, dopo] });
+    contesto.CLASSI_STUDENTI = undefined;
+    vm.runInContext(fileClasse('3B', diChi, studenti, iso(oggi)), contesto);
+    contesto.CONFIG = cfgDue;
+    const aDue = contesto.PASSO_1_anteprima();
+    contesto.CONFIG = cfg;
+    const piattaDue = aDue.replace(/\s+/g, ' ');
+    const suaNota = contesto._notaClasse_(cfgDue, diChi === dopo.etichetta ? classe : dopo, '3B');
+    verifica('due regole accese per la 3B, il file di ' + diChi + ': a ' + altra + ' l\'anteprima non dice ' +
+             'di cancellarlo (' + suaNota + ')',
+      piattaDue.indexOf('cancellalo') < 0 && suaNota.indexOf('cancell') < 0 &&
+      suaNota.indexOf('il file Classe_3B.gs e\' della regola ' + diChi + ', accesa anche lei') === 0);
+    verifica('ma che vale per una regola sola, come togliere questa o prendere il file per lei, e che intanto ' +
+             'conta solo l\'oggetto',
+      suaNota.indexOf('vale per una regola sola') > 0 &&
+      suaNota.indexOf('la spunta "Togli le regole delle classi del ' + altra.slice(7, 14) + '"') > 0 &&
+      suaNota.indexOf('se e\' questa quella giusta, copia il suo file da Campanella') > 0 &&
+      /Intanto conta solo l'oggetto$/.test(suaNota));
+    verifica('la regola di ' + diChi + ' ha i suoi 25 studenti, e l\'anteprima non chiede di copiare un file ' +
+             'che c\'e\' gia\'',
+      piattaDue.indexOf('studenti della 3B: 25 indirizzi, dal file Classe_3B.gs') > 0 &&
+      piattaDue.indexOf('Gli indirizzi degli studenti di una classe li porta il suo file') < 0 &&
+      piattaDue.indexOf('File delle classi che nessuna regola accesa usa') < 0 &&
+      !studenti.some(x => aDue.indexOf(x) >= 0));
+  }
+  contesto.CLASSI_STUDENTI = salvato;
+
   verifica('in tutto questo, nel registro nessun indirizzo di uno studente',
     !studenti.concat(quarta).some(x => registro.slice(inizioRegistro).some(r => r.indexOf(x) >= 0)));
   contesto.CLASSI_STUDENTI = undefined;

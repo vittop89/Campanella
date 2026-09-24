@@ -212,10 +212,12 @@ function PASSO_1_anteprima() {
       righe = righe.concat(_aCapo_('nessun messaggio da questi mittenti: controlla gli indirizzi ' +
         '(per il registro elettronico, guarda il mittente vero di una notifica)', '      ', '      '));
     }
-    // gli studenti delle classi: quanti indirizzi (mai quali), o che il file manca
+    // gli studenti delle classi: quanti indirizzi (mai quali), o che il file
+    // manca. Quello di un'altra regola accesa della classe c'e' gia'
     var classi = _classiDellaRegola_(regole[r]);
     for (var k = 0; k < classi.length; k++) {
-      if (!_espandi_(cfg, ['@CLASSE:' + classi[k] + '@'], regole[r]).length) senzaFile = true;
+      if (!_espandi_(cfg, ['@CLASSE:' + classi[k] + '@'], regole[r]).length &&
+          !_altraRegolaDelFile_(cfg, regole[r], classi[k])) senzaFile = true;
       righe = righe.concat(_aCapo_(_notaClasse_(cfg, regole[r], classi[k]), '      ', '      '));
     }
   }
@@ -2058,7 +2060,8 @@ function _fileClasse_(nome) {
  * Che cosa l'anteprima dice degli studenti di una classe: quanti indirizzi
  * ha il suo file (il numero, mai gli indirizzi), oppure che il file manca, o
  * che e' stato copiato per un'altra etichetta, e che cosa conta allora la
- * regola.
+ * regola. Se quell'etichetta e' di un'altra regola accesa della stessa
+ * classe il file le serve: non si dice di cancellarlo.
  */
 function _notaClasse_(cfg, regola, nome) {
   var file = _fileClasse_(nome);
@@ -2073,11 +2076,50 @@ function _notaClasse_(cfg, regola, nome) {
   if (sua === null) return 'manca il file ' + file + ': ' + resta;
   if (sua === '') return 'il file ' + file + ' non dice per quale etichetta e\': copialo di nuovo da Campanella; ' +
                          'intanto ' + resta;
+  var altra = _altraRegolaDelFile_(cfg, regola, nome);
+  if (altra) {
+    // l'anno dopo, senza togliere le regole dell'anno prima: quale delle due
+    // serve lo sa solo il docente
+    return 'il file ' + file + ' e\' della regola ' + altra + ', accesa anche lei: il file di una classe vale ' +
+           'per una regola sola. Se questa non ti serve piu\', spegnila (Posta, passo 4) o toglila (in "Le mie ' +
+           'classi...", la spunta "Togli le regole delle classi ' + _diQualeAnno_(regola.etichetta) + '"); se ' +
+           'e\' questa quella giusta, copia il suo file da Campanella. Intanto ' + resta;
+  }
   if (sua.toLowerCase() !== String(regola.etichetta || '').trim().toLowerCase()) {
     return 'il file ' + file + ' e\' di ' + sua + ', non di questa regola: cancellalo e copia quello nuovo da ' +
            'Campanella; intanto ' + resta;
   }
   return 'il file ' + file + ' non ha indirizzi: ' + resta;
+}
+
+/**
+ * L'etichetta dell'altra regola accesa della classe per cui e' stato
+ * copiato il suo file, oppure ''. L'anno dopo, senza togliere le regole
+ * dell'anno prima, la 3B del 2026-27 e quella del 2027-28 sono accese tutte
+ * e due con @CLASSE:3B@, e il file Classe_3B.gs, uno solo, vale per una.
+ */
+function _altraRegolaDelFile_(cfg, regola, nome) {
+  var dati = _fileDellaClasse_(nome);
+  var sua = dati ? dati.etichetta.toLowerCase() : '';
+  if (!sua || sua === String(regola.etichetta || '').trim().toLowerCase()) return '';
+  var regole = _regoleAttive_(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    var e = String(regole[i].etichetta || '').trim();
+    if (e.toLowerCase() === sua && _classiDellaRegola_(regole[i]).indexOf(nome) >= 0) return e;
+  }
+  return '';
+}
+
+/**
+ * Come la finestra "Le mie classi..." chiama le regole delle classi sotto la
+ * madre di questa etichetta, nella spunta che le toglie: "del 2026-27" se la
+ * madre ha l'anno, altrimenti "di "Le mie classi"".
+ */
+function _diQualeAnno_(etichetta) {
+  var e = String(etichetta || '').trim();
+  var madre = e.lastIndexOf('/') > 0 ? e.substring(0, e.lastIndexOf('/')) : e;
+  var anno = /\d{4}[-\/]\d{2}(\d{2})?/.exec(madre);
+  return anno ? 'del ' + anno[0] : 'di "' + madre + '"';
 }
 
 /**
