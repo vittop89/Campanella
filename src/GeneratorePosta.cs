@@ -604,30 +604,70 @@ namespace Campanella
 
         static string Pulito(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
 
-        /// <summary>Il nome di una classe come lo scrive Campanella: "3^b" -> "3B", "3b  LSA" -> "3B LSA"; gli altri codici restano.</summary>
+        /// <summary>
+        /// Il nome di una classe come lo scrive Campanella: "3^b" -> "3B", "3b  LSA"
+        /// -> "3B LSA"; gli altri codici restano. Le barre diventano trattini:
+        /// il nome va nell'etichetta di Gmail, dove una barra farebbe
+        /// un'etichetta dentro l'altra ("3A/B" -> "3A-B").
+        /// </summary>
         public static string Nome(string grezzo)
         {
             string s = Pulito(grezzo);
             Match m = NumeroSezione.Match(s);
-            if (!m.Success) return s;
+            if (!m.Success) return SenzaBarre(s);
             string testa = m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant();
             string resto = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "";
             if (resto == "") return testa;
             // il separatore scritto (un trattino resta un trattino), uno spazio se era uno spazio
             string separatore = s.Substring(m.Groups[2].Index + m.Groups[2].Length, 1);
-            return testa + (separatore.Trim() == "" ? " " : separatore) + resto;
+            return SenzaBarre(testa + (separatore.Trim() == "" ? " " : separatore) + resto);
         }
+
+        static string SenzaBarre(string s) { return (s ?? "").Replace('/', '-').Replace('\\', '-'); }
 
         /// <summary>
         /// Quello che fa di due nomi la stessa classe: numero e sezione in
-        /// maiuscolo ("3B" per 3B, 3 B, 3^B, 3(grado)B e 3B LSA); per gli altri codici
+        /// maiuscolo e, se c'e', il resto (l'articolazione) in lettere e cifre
+        /// maiuscole. 3B, 3 B, 3^B e 3(grado)B sono "3B"; 3B LSA, 3B-LSA e 3b_lsa
+        /// sono "3B LSA", un'altra classe, come 3B ITE. Per gli altri codici
         /// lettere e cifre, in maiuscolo.
         /// </summary>
         public static string Chiave(string grezzo)
         {
             Match m = NumeroSezione.Match(Pulito(grezzo));
-            if (m.Success) return m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant();
+            if (m.Success)
+            {
+                string resto = m.Groups[3].Success
+                    ? Regex.Replace(Stato.SenzaAccenti(m.Groups[3].Value).ToUpperInvariant(), "[^A-Z0-9]", "") : "";
+                return m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + (resto == "" ? "" : " " + resto);
+            }
             return Regex.Replace(Stato.SenzaAccenti(grezzo ?? "").ToUpperInvariant(), "[^A-Z0-9]", "");
+        }
+
+        /// <summary>Numero e sezione di una classe, in maiuscolo ("3B" anche per 3B LSA); "" per gli altri codici.</summary>
+        public static string NumeroESezione(string grezzo)
+        {
+            Match m = NumeroSezione.Match(Pulito(grezzo));
+            return m.Success ? m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() : "";
+        }
+
+        /// <summary>
+        /// Le classi di una cella dell'orario o di una riga: "3A/3B", "3A-3B",
+        /// "3A 3B" e "3A + 3B" sono due classi (una lezione insieme); "2B-Ls",
+        /// "3B LSA" e "3A/B" una. Si spezza solo se ogni pezzo e' numero e sezione.
+        /// </summary>
+        public static List<string> Separa(string grezzo)
+        {
+            string s = Pulito(grezzo);
+            List<string> fuori = new List<string>();
+            if (s == "") return fuori;
+            string[] pezzi = Regex.Split(s, @"\s*[/+&\-]\s*(?=[1-9])|\s+(?=[1-9])");
+            bool tutte = pezzi.Length > 1;
+            foreach (string p in pezzi)
+                if (!NumeroSezione.IsMatch(p.Trim())) tutte = false;
+            if (!tutte) { fuori.Add(s); return fuori; }
+            foreach (string p in pezzi) fuori.Add(p.Trim());
+            return fuori;
         }
 
         /// <summary>
@@ -813,8 +853,9 @@ namespace Campanella
         /// <summary>
         /// Le classi del docente: quelle delle sue lezioni (il docente scelto in
         /// Orari, passo 4; senza le ore a disposizione) e quelle scritte in
-        /// Cartelle (una per riga, le materie dopo i due punti). Una volta
-        /// ciascuna (3B, 3 B e 3^B sono la stessa), in ordine.
+        /// Cartelle (una per riga, le materie dopo i due punti). Una lezione
+        /// di due classi insieme (3A/3B) sono due classi. Una volta ciascuna
+        /// (3B, 3 B e 3^B sono la stessa; 3B LSA e' un'altra), in ordine.
         /// </summary>
         public static List<string> DaLezioniECartelle(Stato s)
         {
@@ -834,7 +875,7 @@ namespace Campanella
             foreach (Lezione l in o.Lezioni)
                 if (string.Equals(l.Docente, docente, StringComparison.CurrentCultureIgnoreCase) &&
                     (l.Classe ?? "").Trim() != "" && !o.EDisposizione(l.Classe))
-                    trovate.Add(l.Classe);
+                    trovate.AddRange(Separa(l.Classe));
             return trovate;
         }
 
@@ -850,7 +891,7 @@ namespace Campanella
                 nome = nome.Trim();
                 // "1A; 2B" su una riga: Cartelle lo rifiuta, e qui non e' una classe
                 if (nome == "" || nome.IndexOfAny(new char[] { ';', ',' }) >= 0) continue;
-                trovate.Add(nome);
+                trovate.AddRange(Separa(nome));
             }
             return trovate;
         }

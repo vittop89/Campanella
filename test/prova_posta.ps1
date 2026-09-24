@@ -930,10 +930,27 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         foreach ($k in $attese.Keys) { if ((Varianti $k) -ne $attese[$k]) { $storte += "$k -> $(Varianti $k)" } }
         Verifica "le parole di partenza: 3B, ""3 B"", III B; per 3B LSA le stesse; un codice che non e' numero e sezione resta com'e'$(if ($storte.Count) { ': no ' + ($storte -join '; ') })" (
             $storte.Count -eq 0)
-        Verifica "3B, 3 B, 3^B e 3$($grado)B sono la stessa classe, e anche 3B LSA; 3BL no" (
+        Verifica "3B, 3 B, 3^B e 3$($grado)B sono la stessa classe; 3B LSA, 3B ITE e 3BL sono altre" (
             (ChiaveClasse '3B') -eq (ChiaveClasse '3 B') -and (ChiaveClasse '3^B') -eq (ChiaveClasse '3b') -and
-            (ChiaveClasse ('3' + $grado + 'B')) -eq (ChiaveClasse '3B') -and (ChiaveClasse '3B LSA') -eq (ChiaveClasse '3B') -and
-            (ChiaveClasse '3BL') -ne (ChiaveClasse '3B'))
+            (ChiaveClasse ('3' + $grado + 'B')) -eq (ChiaveClasse '3B') -and (ChiaveClasse '3B LSA') -ne (ChiaveClasse '3B') -and
+            (ChiaveClasse '3B LSA') -ne (ChiaveClasse '3B ITE') -and (ChiaveClasse '3BL') -ne (ChiaveClasse '3B'))
+        Verifica "3B LSA, 3B-LSA, 3b_lsa e 3 B lsa sono la stessa classe" (
+            (ChiaveClasse '3B-LSA') -eq (ChiaveClasse '3B LSA') -and (ChiaveClasse '3b_lsa') -eq (ChiaveClasse '3B LSA') -and
+            (ChiaveClasse '3 B lsa') -eq (ChiaveClasse '3B LSA'))
+        $senzaDoppi = @((MC 'SenzaDoppioni').Invoke($null, @(,[string[]]@('3B LSA', '3B ITE', '1A AFM', '1A CAT', '3B', '3 B')))) -join '|'
+        Verifica "le classi con lo stesso numero e la stessa sezione restano diverse ($senzaDoppi)" (
+            $senzaDoppi -eq '1A AFM|1A CAT|3B|3B ITE|3B LSA')
+        $separa = [ordered]@{ '3A/3B' = '3A|3B'; '3A-3B' = '3A|3B'; '3A 3B' = '3A|3B'; '3A + 3B' = '3A|3B'; '2B-Ls' = '2B-Ls';
+                              '3B LSA' = '3B LSA'; '3A/B' = '3A/B'; 'A5 AF' = 'A5 AF' }
+        $storteS = @()
+        foreach ($k in $separa.Keys) {
+            $pezzi = @((MC 'Separa').Invoke($null, @([string]$k))) -join '|'
+            if ($pezzi -ne $separa[$k]) { $storteS += "$k -> $pezzi" }
+        }
+        Verifica "una cella con due classi (3A/3B, 3A-3B, 3A 3B) sono due classi, 2B-Ls e 3B LSA una$(if ($storteS.Count) { ': no ' + ($storteS -join '; ') })" (
+            $storteS.Count -eq 0)
+        Verifica "e nel nome non restano barre, che in Gmail farebbero un'etichetta dentro l'altra (3A/B -> $(NomeClasse '3A/B'))" (
+            (NomeClasse '3A/B') -eq '3A-B' -and (NomeClasse '3B\LSA') -eq '3B-LSA' -and (NomeClasse 'Recupero/Mat') -eq 'Recupero-Mat')
         Verifica "il nome come lo scrive Campanella: 3^b -> 3B, 3b LSA -> 3B LSA, A5 resta A5" (
             (NomeClasse '3^b') -eq '3B' -and (NomeClasse ' 3b  LSA ') -eq '3B LSA' -and (NomeClasse 'A5') -eq 'A5')
 
@@ -1038,6 +1055,16 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "l'etichetta madre di partenza e' Classi e l'anno" ([string](MC 'MadreDiPartenza').Invoke($null, @($s7.PSObject.BaseObject)) -eq 'Classi 2026-27')
         $vuoto7 = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
         Verifica "senza orario ne' Cartelle nessuna classe" (@((MC 'DaLezioniECartelle').Invoke($null, @($vuoto7.PSObject.BaseObject))).Count -eq 0)
+        # una lezione di due classi insieme, e in Cartelle la stessa classe con l'articolazione
+        $s7b = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+        Imposta $s7b 'CalDocente' 'Rossi'
+        Imposta $s7b 'Classi' "2C LSA: Fisica`r`n"
+        $x = [Activator]::CreateInstance($tLezione)
+        $tLezione.GetField('Docente').SetValue($x, 'ROSSI')
+        $tLezione.GetField('Classe').SetValue($x, '2C/2D')
+        (Leggi $s7b 'Lezioni').Add($x)
+        $trovate7b = @((MC 'DaLezioniECartelle').Invoke($null, @($s7b.PSObject.BaseObject))) -join '|'
+        Verifica "la lezione 2C/2D sono due classi, e la 2C LSA di Cartelle una terza ($trovate7b)" ($trovate7b -eq '2C|2C LSA|2D')
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA FINESTRA, COSTRUITA E MAI MOSTRATA'
@@ -1048,6 +1075,13 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "parte dalle classi trovate, tutte spuntate ($(Righe $fc)), con la madre di partenza" (
             (Righe $fc) -eq '1A+,3B+,4AR+,5AL+' -and $fc.Madre -eq 'Classi 2026-27')
         Verifica "e le parole dell'oggetto di partenza (3B: $($fc.Classi[1].Oggetto))" ($fc.Classi[1].Oggetto -eq '3B, 3 B, III B')
+        $fcS = NuovaFC $s7b
+        Verifica "2C e 2C LSA sono due righe, e la finestra lo dice: cercano le stesse parole ($($fcS.AvvisoSimili()))" (
+            (Righe $fcS) -eq '2C+,2C LSA+,2D+' -and $fcS.AvvisoSimili() -match '2C e 2C LSA' -and
+            $fcS.AvvisoSimili() -match "togli la spunta" -and $fc.AvvisoSimili() -eq '')
+        [void]$fcS.Aggiungi('2C ITE')
+        Verifica "e la 2C ITE aggiunta a mano e' un'altra riga ($(Righe $fcS))" ((Righe $fcS) -eq '2C+,2C ITE+,2C LSA+,2D+')
+        $fcS.Dispose()
         $i3B = Indice $fc '3B'
         $incolla3B = ($studenti -join ', ') + ", PROF.ROSSI@scuola-esempio.edu.it, " + $studenti[0].ToUpperInvariant()
         $fc.Incolla($i3B, $incolla3B)

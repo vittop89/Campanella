@@ -822,7 +822,9 @@ namespace Campanella
             // da dove vengono le classi; senza classi, dove prenderle (AggiornaGriglia)
             lblDaDove = Tema.Testo1("", 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             lblDaDove.AutoSize = false;
-            lblDaDove.Height = Math.Max(Tema.AltezzaTesto(DaDove(false), Tema.Normale, Larga),
+            lblDaDove.Height = Math.Max(Tema.AltezzaTesto(DaDove(false) + " 3B e 3B LSA; 4A, 4A ITE e 4A LSA hanno lo " +
+                "stesso numero e la stessa sezione: se sono la stessa classe togli la spunta a una; se sono classi " +
+                "diverse, cambia le parole dell'oggetto, che di partenza sono le stesse.", Tema.Normale, Larga),
                                         Tema.AltezzaTesto(DaDove(true), Tema.Normale, Larga));
             Controls.Add(lblDaDove);
             y += lblDaDove.Height + 2;
@@ -1041,21 +1043,62 @@ namespace Campanella
             return -1;
         }
 
-        /// <summary>Aggiunge a mano una classe, spuntata; se c'e' gia', la sua riga. -1 se il nome e' vuoto.</summary>
+        /// <summary>
+        /// Aggiunge a mano una classe, spuntata (due, per "3A/3B"); se c'e'
+        /// gia', la sua riga. La riga della prima; -1 se il nome e' vuoto.
+        /// </summary>
         public int Aggiungi(string nome)
         {
-            if (LeMieClassi.Chiave(nome) == "") return -1;
-            int gia = Indice(nome);
-            if (gia >= 0) return gia;
-            ClasseScelta x = new ClasseScelta();
-            x.Nome = LeMieClassi.Nome(nome);
-            x.Oggetto = string.Join(", ", LeMieClassi.Varianti(nome).ToArray());
-            x.Provenienza = "a mano";
-            x.Regola = LeMieClassi.RegolaDellaClasse(stato, Madre, LeMieClassi.Chiave(nome));
-            Classi.Add(x);
-            Ordina();
-            AggiornaGriglia();
-            return Indice(nome);
+            List<string> pezzi = LeMieClassi.Separa(nome);
+            if (pezzi.Count == 0 || LeMieClassi.Chiave(pezzi[0]) == "") return -1;
+            bool nuove = false;
+            foreach (string p in pezzi)
+            {
+                if (LeMieClassi.Chiave(p) == "" || Indice(p) >= 0) continue;
+                ClasseScelta x = new ClasseScelta();
+                x.Nome = LeMieClassi.Nome(p);
+                x.Oggetto = string.Join(", ", LeMieClassi.Varianti(p).ToArray());
+                x.Provenienza = "a mano";
+                x.Regola = LeMieClassi.RegolaDellaClasse(stato, Madre, LeMieClassi.Chiave(p));
+                Classi.Add(x);
+                nuove = true;
+            }
+            if (nuove)
+            {
+                Ordina();
+                AggiornaGriglia();
+            }
+            return Indice(pezzi[0]);
+        }
+
+        /// <summary>
+        /// Le classi con lo stesso numero e la stessa sezione (3B e 3B LSA):
+        /// possono essere la stessa classe scritta in due modi (l'orario e
+        /// Cartelle), o due classi, che di partenza cercano le stesse parole
+        /// nell'oggetto. Lo dice, perche' il docente scelga; "" se non ce ne sono.
+        /// </summary>
+        public string AvvisoSimili()
+        {
+            List<string> chiavi = new List<string>();
+            List<List<string>> gruppi = new List<List<string>>();
+            foreach (ClasseScelta c in Classi)
+            {
+                string k = LeMieClassi.NumeroESezione(c.Nome);
+                if (k == "") continue;
+                int i = chiavi.IndexOf(k);
+                if (i < 0) { chiavi.Add(k); gruppi.Add(new List<string>()); i = chiavi.Count - 1; }
+                gruppi[i].Add(c.Nome);
+            }
+            List<string> frasi = new List<string>();
+            foreach (List<string> g in gruppi)
+            {
+                if (g.Count < 2) continue;
+                frasi.Add(string.Join(", ", g.GetRange(0, g.Count - 1).ToArray()) + " e " + g[g.Count - 1]);
+            }
+            if (frasi.Count == 0) return "";
+            return string.Join("; ", frasi.ToArray()) + " hanno lo stesso numero e la stessa sezione: se sono la " +
+                   "stessa classe togli la spunta a una; se sono classi diverse, cambia le parole dell'oggetto, che di " +
+                   "partenza sono le stesse.";
         }
 
         void AggiornaGriglia()
@@ -1068,8 +1111,9 @@ namespace Campanella
                     griglia.Rows.Add(c.Spuntata, c.Nome, c.Oggetto, Studenti(c), c.Provenienza);
             }
             finally { riempiendo = false; }
-            lblDaDove.Text = DaDove(Classi.Count == 0);
-            lblDaDove.Tag = (Classi.Count == 0) ? Ruolo.Avviso : Ruolo.Tenue;
+            string simili = AvvisoSimili();
+            lblDaDove.Text = DaDove(Classi.Count == 0) + (simili == "" ? "" : " " + simili);
+            lblDaDove.Tag = (Classi.Count == 0 || simili != "") ? Ruolo.Avviso : Ruolo.Tenue;
             Tema.Applica(lblDaDove);
         }
 
