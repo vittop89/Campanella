@@ -1584,6 +1584,55 @@ if (conCalendario) {
     } else {
       verifica('ci sono due serie da accorciare per la prima lezione spostata e la seconda cancellata', false);
     }
+
+    // due cambi d'orario, e fra i due la prima lezione di una serie messa dal
+    // primo anticipata alla settimana prima. Quella settimana, dopo l'inizio
+    // del periodo e senza giorni senza lezione, aveva ancora l'orario di
+    // prima: la serie non comincia li', e il secondo cambio non aggiunge una
+    // lezione nel passato
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    const calDue = calendari[0];
+    const salvaDue = contesto.ORARI.calendario;
+    const primoCambio = chiave(giorniDopo(vd, 2)), secondoCambio = chiave(giorniDopo(vd, 35));
+    contesto.ORARI.calendario = Object.assign({}, salvaDue, { validoDal: primoCambio });
+    contesto.ORARI_5_cambioOrario();
+    const lunediDopo = giorniDopo(vd, 7);
+    const nuovaLun = vive(calDue).find(s => chiave(s.inizio) === chiave(lunediDopo));
+    verifica('il primo cambio, dal ' + primoCambio + ', mette una serie nuova che comincia il ' + chiave(lunediDopo),
+      !!nuovaLun && nuovaLun.getDescription().indexOf('[Campanella]') === 0);
+    if (nuovaLun) {
+      const t = nuovaLun.inizio, durata = nuovaLun.fine - nuovaLun.inizio;
+      const anticipata = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 3, t.getHours(), t.getMinutes());
+      nuovaLun.sposta(0, anticipata, new Date(anticipata.getTime() + durata));
+      const primaDue = lezioniSul(calDue, primoGiorno, giorniDopo(dataDa(secondoCambio), -1));
+      contesto.ORARI.calendario = Object.assign({}, salvaDue, { validoDal: secondoCambio });
+      docOriginale.celle = ruotata(celleOriginali);
+      const esitoDue = contesto.ORARI_5_cambioOrario();
+      const dopoDue = lezioniSul(calDue, primoGiorno, giorniDopo(dataDa(secondoCambio), -1));
+      verifica('  ...la sua prima lezione anticipata alla settimana prima, e un secondo cambio dal ' + secondoCambio +
+        ': le lezioni prima restano come erano (' + primaDue.length + ')' + (uguali(dopoDue, primaDue) ? '' :
+        ' (invece ' + dopoDue.length + ', doppie: ' + dopoDue.filter((x, i, tt) => tt.indexOf(x) !== i).join(', ') +
+        '; sparite: ' + primaDue.filter(x => dopoDue.indexOf(x) < 0).join(', ') + ')'), uguali(dopoDue, primaDue));
+      verifica('  ...la serie tiene il suo inizio, e il messaggio la nomina da quel giorno',
+        nuovaLun.inizio.getTime() === nuovaLun.inizioOriginale.getTime() &&
+        esitoDue.indexOf(nuovaLun.titolo + ', lunedi\'') >= 0 && esitoDue.indexOf('dal ' + chiave(lunediDopo)) >= 0 &&
+        esitoDue.indexOf('dal ' + chiave(vd)) < 0);
+      verifica('  ...perche\' la descrizione dice il primo giorno della serie',
+        nuovaLun.getDescription().indexOf(', serie dal ' + chiave(lunediDopo)) > 0);
+    }
+    contesto.ORARI.calendario = salvaDue;
+    docOriginale.celle = celleOriginali.slice();
+    // e la data nella descrizione, per _orariPrimaLezione_: la serie non comincia prima
+    const conData = { descrizione: '[Campanella] Orario di ' + c.docente + ', Lunedi\', 1a ora, serie dal 2026-10-12 (prova)',
+      lezioni: [lez(9, 9, 9), lez(9, 19, 9), lez(9, 26, 9), lez(10, 2, 9)] };
+    contesto._orariPrimaLezione_(conData, dal14);
+    verifica('con la descrizione "serie dal 2026-10-12" la prima lezione anticipata a venerdi\' 9/10 e\' ancora del ' +
+      '12/10 (' + chiave(conData.inizio) + '), anche con il periodo dal 14/09', alle(conData, 9, 12, 9));
+    const senzaData = { descrizione: lunedi, lezioni: [lez(9, 9, 9), lez(9, 19, 9), lez(9, 26, 9), lez(10, 2, 9)] };
+    contesto._orariPrimaLezione_(senzaData, dal14);
+    verifica('  ...mentre senza la data (una serie di una versione di prima) conta il periodo: dal 05/10 (' +
+      chiave(senzaData.inizio) + ')', alle(senzaData, 9, 5, 9));
   }
 
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');

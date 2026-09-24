@@ -385,7 +385,7 @@ const CALENDARIO_ORARI = {
   // E cosi' le funzioni che rimettono il contrassegno a una serie a cui Google
   // non l'ha salvato: quali serie lo ricevono, e da che cosa le si riconosce
   impronte: { _orariNostri_: '00b0d489da7b1ae3', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
-              _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: '5c3ce65c52fe97dd' },
+              _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
     _orariNostri_: { guardia: 'if (!nostro) continue;', prima: ['getEventSeries', 'push'] },

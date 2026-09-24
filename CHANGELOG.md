@@ -74,7 +74,15 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   lesson moved by one to three days and the second cancelled) stays in the
   week it falls in, when Campanella could have put a lesson there (from the
   start of the period, not on a day off); otherwise it is counted as
-  above. With two shapes
+  above. The description of every series says the day of its first lesson
+  (`serie dal 2026-10-12`): a series never starts before it, and for a
+  series put by an earlier timetable change that day, not the start of the
+  period, is the first week Campanella could have put a lesson in (the
+  earlier change date is not kept in DatiOrari.gs). So a second change does
+  not give back a lesson in the past, twice in the same hour, when the first
+  lesson after the first change was moved to the week before. Series
+  without that day (put by earlier versions, which had no timetable change)
+  go by the period as above. With two shapes
   equally frequent (only in very short series) the weekday written in the
   description, where Campanella put the series, decides, then the earliest
   lesson. Only events with the mark are shortened or removed; a series or a

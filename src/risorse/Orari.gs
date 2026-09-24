@@ -629,7 +629,7 @@ function _orariCreaSerie_(cal, voce, c, d, doc) {
   var a  = _orariOraDel_(primo, c.inizioOre, voce.blocco.oraA,  c.minutiOra, true);
   var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(ultimo);
   return cal.createEventSeries(voce.blocco.testo, da, a, ricorrenza,
-                               { description: _orariDescrizione_(doc.nome, voce.blocco, d) });
+                               { description: _orariDescrizione_(doc.nome, voce.blocco, d, voce.dal) });
 }
 
 /**
@@ -641,7 +641,7 @@ function _orariTrattoFatto_(voce, c, d, doc) {
   var primo = _orariData_(voce.dal);
   return { dal: voce.dal, al: voce.al, titolo: voce.blocco.testo,
            inizio: _orariOraDel_(primo, c.inizioOre, voce.blocco.oraDa, c.minutiOra, false).getTime(),
-           descrizione: _orariDescrizione_(doc.nome, voce.blocco, d) };
+           descrizione: _orariDescrizione_(doc.nome, voce.blocco, d, voce.dal) };
 }
 
 /**
@@ -927,7 +927,9 @@ function _orariNostri_(cal, inizio, fine) {
  * l'inizio dell'ultima lezione, e voce.irregolare: ci sono lezioni spostate,
  * o settimane che mancano (cancellate a mano). Con il periodo (inizio e
  * giorni senza lezione, come da _orariPeriodo_) una lezione spostata prima
- * della prima regolare sta, se puo', nella settimana in cui cade.
+ * della prima regolare sta, se puo', nella settimana in cui cade. La serie
+ * non comincia mai prima del giorno scritto nella sua descrizione ("serie
+ * dal 2026-10-12"), se c'e'.
  */
 function _orariPrimaLezione_(voce, periodo) {
   var settimana = 7 * 24 * 3600 * 1000;
@@ -979,13 +981,25 @@ function _orariPrimaLezione_(voce, periodo) {
   // sarebbe piu'). Con il periodo, ogni lezione spostata prima della prima
   // regolare sta nella settimana in cui cade, se puo' (_orariSettimaneProprie_);
   // anticipata alla settimana prima dell'inizio o di un giorno senza lezione,
-  // dove Campanella non ha messo lezioni, si conta come sopra
+  // dove Campanella non ha messo lezioni, si conta come sopra. Il giorno
+  // della prima lezione scritto nella descrizione, se c'e', vale come
+  // l'inizio del periodo: una serie messa da un cambio d'orario comincia al
+  // giorno del cambio di allora, che DatiOrari.gs non conserva, e la
+  // settimana prima aveva ancora l'orario di prima
+  var dalScritto = _orariPrimoGiornoDellaDescrizione_(voce.descrizione, prima);
   if (periodo && primaDellaPrima && inMezzo <= vuoteInMezzo) {
-    indietro = Math.max(indietro, _orariSettimaneProprie_(lezioni, forma, prima, periodo));
+    var limite = (dalScritto && dalScritto > periodo.inizio)
+      ? { inizio: dalScritto, fine: periodo.fine, sospensioni: periodo.sospensioni } : periodo;
+    indietro = Math.max(indietro, _orariSettimaneProprie_(lezioni, forma, prima, limite));
   }
   var p = prima.inizio;
   voce.inizio = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * indietro,
                          p.getHours(), p.getMinutes(), p.getSeconds());
+  // e la serie non comincia mai prima di quel giorno
+  if (dalScritto && voce.inizio < dalScritto) {
+    voce.inizio = new Date(dalScritto.getFullYear(), dalScritto.getMonth(), dalScritto.getDate(),
+                           p.getHours(), p.getMinutes(), p.getSeconds());
+  }
   voce.fine = new Date(voce.inizio.getTime() + (prima.fine - prima.inizio));
   voce.ultimo = lezioni[lezioni.length - 1].inizio;
   var attese = Math.round((ultimaRegolare.inizio - voce.inizio) / settimana) + 1;
@@ -1028,6 +1042,22 @@ function _orariSettimaneProprie_(lezioni, forma, prima, periodo) {
 function _orariGiornoDellaDescrizione_(descrizione) {
   var m = String(descrizione || '').match(/^\[Campanella\][^\n]*?,\s*([^,\n]+?)\s*,\s*(?:dalla\s+)?\d+a\s/);
   return m ? _orariGiornoSettimana_(m[1]) : -1;
+}
+
+/**
+ * Il giorno della prima lezione scritto da _orariDescrizione_ ("..., serie
+ * dal 2026-10-12"), a mezzanotte; null se non c'e' (una serie di una
+ * versione di prima, o la descrizione cambiata a mano) o se non torna con la
+ * prima lezione regolare: un altro giorno della settimana, dopo, o non a
+ * settimane intere.
+ */
+function _orariPrimoGiornoDellaDescrizione_(descrizione, prima) {
+  var m = String(descrizione || '').match(/^\[Campanella\][^\n]*?, serie dal (\d{4}-\d{1,2}-\d{1,2})(?![\d])/);
+  var g = m ? _orariData_(m[1]) : null;
+  if (!g) return null;
+  var p = prima.inizio;
+  var giorni = Math.round((new Date(p.getFullYear(), p.getMonth(), p.getDate()) - g) / (24 * 3600 * 1000));
+  return (g.getDay() === p.getDay() && giorni >= 0 && giorni % 7 === 0) ? g : null;
 }
 
 /** Giorno della settimana, ora e durata di una lezione: in una serie sono uguali, se nessuno le ha cambiate. */
@@ -1273,11 +1303,18 @@ function _orariBlocchi_(celle, d) {
   return blocchi;
 }
 
-function _orariDescrizione_(docente, blocco, d) {
+/**
+ * La descrizione di una serie: di chi e', il giorno, le ore e, se c'e' dal,
+ * il giorno della prima lezione ("serie dal 2026-10-12"), che
+ * _orariPrimaLezione_ rilegge. L'impronta del piano la usa senza dal, come
+ * le versioni di prima.
+ */
+function _orariDescrizione_(docente, blocco, d, dal) {
   var ore = (blocco.oraDa === blocco.oraA)
     ? blocco.oraDa + 'a ora'
     : 'dalla ' + blocco.oraDa + 'a alla ' + blocco.oraA + 'a ora';
   return '[Campanella] Orario di ' + docente + ', ' + d.giorni[blocco.giorno] + ', ' + ore +
+         (dal ? ', serie dal ' + dal : '') +
          (d.periodo ? ' (' + d.periodo + ')' : '') +
          '. Se qualcosa non torna, l\'orario ufficiale resta quello pubblicato dalla scuola.';
 }
