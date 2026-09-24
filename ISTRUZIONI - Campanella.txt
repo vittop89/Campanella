@@ -280,9 +280,10 @@ POSTA - riordinare la casella
    l'etichetta per cui l'hai copiato (cambiando la madre, o l'anno dopo, va
    copiato di nuovo) e dice il giorno della copia. Chiusa la finestra gli
    indirizzi spariscono, e riaprendola lo dice; negli appunti il file resta
-   finche' non copi altro, e chiudendo Campanella chiede se svuotarli. Per
-   cambiarli li incolli di nuovo e sostituisci il file. Senza quel file la
-   regola della classe prende solo i messaggi con la classe nell'oggetto.
+   finche' non copi altro, e chiudendo la finestra Campanella chiede se
+   svuotarli (poi ci restano anche chiusa Campanella). Per cambiarli li
+   incolli di nuovo e sostituisci il file. Senza quel file la regola della
+   classe prende solo i messaggi con la classe nell'oggetto.
    "Usa queste classi" crea o aggiorna una regola per classe spuntata (in
    fondo all'elenco, con sfumature diverse di un colore solo) e toglie quella
    delle classi senza spunta, ricordando di cancellare il loro file.

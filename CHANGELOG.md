@@ -50,8 +50,9 @@ copied from "Le mie classi...".
   Apps Script project next to Configurazione.gs: it holds the label of its
   rule, the day it was copied and the addresses. Once the window is closed
   the addresses are gone, and reopening it says so; if the copied file is
-  still on the clipboard, closing offers to clear it. The rule holds only
-  the placeholder @CLASSE:3B@. Without that file the rule still labels the
+  still on the clipboard, closing the window offers to clear it (otherwise
+  it stays there even after Campanella is closed). The rule holds only the
+  placeholder @CLASSE:3B@. Without that file the rule still labels the
   messages with the class in the subject.
 - "Usa queste classi" creates or updates one rule per ticked class (at the
   end of the list, in shades of one colour that no other rule uses, each
