@@ -1622,17 +1622,23 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Quello che Campanella non puo' togliere da solo, per le classi
-        /// dell'anno prima. Non il file di una classe che c'e' anche quest'anno:
-        /// ha lo stesso nome (Classe_3B.gs), e cancellandolo la regola nuova
-        /// perderebbe gli studenti; lo sostituisce il file nuovo.
+        /// Quello che Campanella non toglie da solo, per le classi dell'anno
+        /// prima. Non il file di una classe che c'e' anche quest'anno: ha lo
+        /// stesso nome (Classe_3B.gs), e cancellandolo la regola nuova
+        /// perderebbe gli studenti; lo sostituisce il file nuovo. I filtri veri
+        /// di Gmail delle classi cercano solo l'oggetto: si scelgono nella
+        /// finestra dei filtri e li toglie EXTRA_togliFiltri. Uno con gli
+        /// indirizzi degli studenti (fatto a mano) non si puo' scegliere
+        /// (FiltriGmail.DiUnaClasseConIndirizzi): si toglie da Gmail.
         /// </summary>
         public string NotaVecchie()
         {
             return "Nel progetto dello script cancella tu i loro file Classe_*.gs, con gli indirizzi degli studenti, ma " +
                    "non quelli con lo stesso nome di una classe di quest'anno, che il file nuovo sostituisce: dopo \"Usa " +
-                   "queste classi\" Campanella dice quali. Se avevi creato i filtri veri di Gmail togli anche i loro " +
-                   "(Gmail -> Impostazioni -> Filtri e indirizzi bloccati): Campanella non puo' farlo.";
+                   "queste classi\" Campanella dice quali. Se avevi creato i filtri veri di Gmail togli anche i loro: " +
+                   "quelli che cercano solo l'oggetto, come li crea EXTRA_creaFiltriGmail, spuntali in \"Filtri che hai " +
+                   "gia' in Gmail...\" e li toglie EXTRA_togliFiltri; quelli con gli indirizzi degli studenti non si " +
+                   "possono scegliere: toglili tu (Gmail -> Impostazioni -> Filtri e indirizzi bloccati).";
         }
     }
 

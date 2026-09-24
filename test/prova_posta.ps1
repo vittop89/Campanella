@@ -1288,6 +1288,12 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "ma non quelli con lo stesso nome di una classe di quest'anno, che il file nuovo sostituisce ('$($fc3.NotaVecchie())')" (
             $fc3.NotaVecchie() -match "non quelli con lo stesso nome di una classe di quest'anno" -and
             $fc3.NotaVecchie() -match 'Usa queste classi')
+        # i filtri veri di Gmail delle classi (solo l'oggetto) li toglie EXTRA_togliFiltri;
+        # quelli con gli indirizzi degli studenti non si scelgono, e si tolgono a mano
+        Verifica "e dei filtri veri di Gmail dice che quelli dell'oggetto li toglie EXTRA_togliFiltri, quelli con gli studenti a mano" (
+            -not ($fc3.NotaVecchie() -match "non puo' farlo") -and
+            $fc3.NotaVecchie() -match "cercano solo l'oggetto.*Filtri che hai gia' in Gmail\.\.\..*EXTRA_togliFiltri" -and
+            $fc3.NotaVecchie() -match "con gli indirizzi degli studenti non si possono scegliere.*Filtri e indirizzi bloccati")
         [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc3.Madre, $fc3.Classi.PSObject.BaseObject, $false))
         $etichette7 = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta })
         Verifica "senza la spunta restano anche quelle del 2026-27 ($($etichette7 -join ', '))" (
