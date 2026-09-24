@@ -293,10 +293,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   the date, same result when run again, resumed halfway, a date before the
   start with last year in the same calendar, a "Dal" moved forward, lessons
   moved or cancelled by hand, also by four days, before the start of the
-  period, past the next week or two out of four, a series and a single
+  period, past the next week or two out of four, the first one moved by
+  one to three days with the second cancelled, a series and a single
   lesson copied by hand), undo of a job half done, undo stopped by time or
-  by Google's limits, and ANNULLA_automazione with a resume already started
-  and the other calendar function run by hand.
+  by Google's limits, ANNULLA_automazione with a resume already started
+  and the other calendar function run by hand, and a resume that ends with
+  an error that is not one of Google's limits.
 - invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only
   four members of CalendarApp; every method that reads, creates, changes or
   removes events only in a few functions, on a receiver written exactly so,
