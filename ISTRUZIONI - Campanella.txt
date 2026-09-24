@@ -325,9 +325,12 @@ POSTA - riordinare la casella
    (PASSO_4), che quindi deve restare acceso; lo dice anche il riepilogo di
    EXTRA_creaFiltriGmail. Nella finestra dei filtri di Gmail quelli delle
    classi non partono mai spuntati, e quelli con degli indirizzi sotto
-   un'etichetta che sembra di una classe (3B, 3B LSA, 5AINF, 3ACAT, una
-   madre con la parola "classi" o usata per le classi) non si possono
-   scegliere, nemmeno se li
+   un'etichetta che sembra di una classe (l'ultima parte finisce con 3B,
+   3B LSA, 5AINF, 3ACAT o 5Ainf, anche dopo altre parole o con l'anno dopo:
+   Classe 3B, Inglese 3B, 3B 2025-26; oppure sta sotto una madre con la
+   parola "classi" o usata per le classi) non si possono scegliere; "3B
+   Inglese", una classe seguita da altre parole, non basta: un filtro cosi'
+   con gli studenti non spuntarlo. Non si possono scegliere nemmeno se li
    avevi scelti prima: Campanella li toglie dalla scelta (all'avvio e con
    "Usa queste classi") e lo dice (quelli tolti all'avvio, al passo 4 sotto
    "Filtri che hai gia' in Gmail..." e nella finestra dei filtri, finche'

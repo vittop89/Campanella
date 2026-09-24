@@ -928,16 +928,17 @@ namespace Campanella
         /// Vero se un nome sembra quello di una classe: numero, sezione e al
         /// piu' un'articolazione (ClasseBenFatta: "3B", "3 B", "5AL", "3B LSA"),
         /// la sezione attaccata al numero tutta maiuscola, anche lunga, dei
-        /// tecnici (SezioneAttaccata: "5AINF", "3ACAT", "4BAFM", "4AINF LAB"),
-        /// o il numero romano, da I a V, uno spazio e la sezione in maiuscolo
-        /// ("III B", "IV A LSA"). Serve a riconoscere le etichette delle classi
-        /// nei filtri di Gmail: "5 per mille", "5A Praga" e "3B 2 gruppi" non lo
-        /// sono.
+        /// tecnici (SezioneAttaccata: "5AINF", "3ACAT", "4BAFM", "4AINF LAB") o
+        /// con le maiuscole miste, come la scrive Nome (SezioneMista: "5Ainf",
+        /// "3Acat"), o il numero romano, da I a V, uno spazio e la sezione in
+        /// maiuscolo ("III B", "IV A LSA"). Serve a riconoscere le etichette
+        /// delle classi nei filtri di Gmail (FiltriGmail.EtichettaDiUnaClasse):
+        /// "5 per mille", "5A Praga", "3B 2 gruppi" e "2gr" non lo sono.
         /// </summary>
         public static bool SembraClasse(string nome)
         {
             string s = Pulito(nome);
-            if (ClasseBenFatta(s) || SezioneAttaccata(s)) return true;
+            if (ClasseBenFatta(s) || SezioneAttaccata(s) || SezioneMista(s)) return true;
             Match m = Regex.Match(s, @"^(?:I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9](.*)$)");
             return m.Success && SoloArticolazione(m.Groups[1]);
         }

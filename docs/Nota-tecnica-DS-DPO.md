@@ -323,10 +323,15 @@ eseguendo lo script il [data].]*
    cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,
    oppure esportarli, sceglierli in Campanella (Posta, passo 4) ed eseguire
    `EXTRA_togliFiltri`, che toglie solo i filtri scelti. Quelli delle classi
-   cercano solo l'oggetto e si scelgono come gli altri; un filtro con gli
-   indirizzi degli studenti (fatto a mano) Campanella non lo lascia scegliere,
-   e si toglie da Gmail. Il file esportato si può cancellare dopo averlo
-   aperto. I messaggi segnati come letti da una regola restano letti.
+   cercano solo l'oggetto e si scelgono come gli altri; un filtro con degli
+   indirizzi (fatto a mano) sotto un'etichetta che sembra di una classe
+   (l'ultima parte finisce con una classe, come «3B», «Classe 3B», «Inglese
+   3B» o «3B 2025-26», o una madre con la parola «classi» o usata per le
+   classi) Campanella non lo lascia scegliere, e si toglie da Gmail; una
+   classe seguita da altre parole («3B Inglese») non basta, e un filtro così
+   con gli studenti il docente non deve sceglierlo. Il file esportato si
+   può cancellare dopo averlo aperto. I messaggi segnati come letti da una
+   regola restano letti.
 3. Se usa lo script dei moduli: eseguire `MODULO_ANNULLA` in ogni modulo in
    cui l'ha incollato; se usa il foglio di controllo, `PANNELLO_ANNULLA`
    (menu Campanella del foglio). Tolgono le chiusure programmate e

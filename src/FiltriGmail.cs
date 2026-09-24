@@ -504,17 +504,41 @@ namespace Campanella
         // non Liceo Classico, Classici
         static readonly Regex ParolaClassi = new Regex(@"(?<!\p{L})classi(?!\p{L})", RegexOptions.IgnoreCase);
 
+        // in fondo all'ultima parte di un'etichetta, l'anno scolastico: "3B
+        // 2025-26", "3B (2025/26)", "3B a.s. 2025-2026", "3B-2026"
+        static readonly Regex AnnoInFondo = new Regex(
+            @"[\s\-_(]+(?:a\.?\s?s\.?\s*)?[0-9]{4}(?:[-/][0-9]{2,4})?\)?$", RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Vero se l'ultima parte di un'etichetta finisce con il nome di una
+        /// classe (LeMieClassi.SembraClasse: 3B, III B, 3B LSA, 5AINF, 5Ainf),
+        /// anche con l'anno dopo ("3B 2025-26") o delle parole prima ("Classe
+        /// 3B", "Inglese 3B", "Consiglio di classe 3B"). Non una classe seguita
+        /// da altre parole: "5A Praga" e "3B 2 gruppi" non lo sono, e nemmeno
+        /// "3B Inglese".
+        /// </summary>
+        static bool FinisceConUnaClasse(string parte)
+        {
+            string u = AnnoInFondo.Replace(parte ?? "", "").Trim();
+            if (u == "") return false;
+            if (LeMieClassi.SembraClasse(u)) return true;
+            for (int i = 0; i < u.Length; i++)
+                if (u[i] == ' ' && LeMieClassi.SembraClasse(u.Substring(i + 1))) return true;
+            return false;
+        }
+
         /// <summary>
         /// Vero se l'etichetta e' (o puo' essere) di una classe (Posta, passo 4,
         /// "Le mie classi..."). L'etichetta madre si scrive a mano e l'anno e'
         /// testo libero, quindi non basta il nome di partenza: vale come classe
-        /// un'etichetta che finisce con il nome di una classe (3B, III B, 3B
-        /// LSA, 5AINF: LeMieClassi.SembraClasse), una con la parola "classi" nella
-        /// madre (Classi 2026-27, Le mie classi, Classi a.s. 2026/27), quella di
-        /// una regola delle classi o una sotto la sua madre, e una sotto una
-        /// madre usata per le classi prima (Stato.MadriClassi: resta anche dopo
-        /// aver tolto le regole). Meglio una di troppo: un filtro che sembra di
-        /// una classe e ha degli indirizzi non si sceglie, e si toglie da Gmail.
+        /// un'etichetta la cui ultima parte finisce con il nome di una classe
+        /// (FinisceConUnaClasse: 3B, III B, 3B LSA, 5AINF, 5Ainf, Classe 3B,
+        /// Inglese 3B, 3B 2025-26), una con la parola "classi" nella madre
+        /// (Classi 2026-27, Le mie classi, Classi a.s. 2026/27), quella di una
+        /// regola delle classi o una sotto la sua madre, e una sotto una madre
+        /// usata per le classi prima (Stato.MadriClassi: resta anche dopo aver
+        /// tolto le regole). Meglio una di troppo: un filtro che sembra di una
+        /// classe e ha degli indirizzi non si sceglie, e si toglie da Gmail.
         /// Con il gruppo il nome e' intero, come in Gmail; spazi doppi e
         /// maiuscole non contano.
         /// </summary>
@@ -523,7 +547,7 @@ namespace Campanella
             string e = Regex.Replace(etichetta ?? "", @"\s+", " ").Trim().Trim('/').Trim();
             if (e == "") return false;
             int barra = e.LastIndexOf('/');
-            if (LeMieClassi.SembraClasse(e.Substring(barra + 1))) return true;
+            if (FinisceConUnaClasse(e.Substring(barra + 1))) return true;
             if (barra <= 0) return false;
             string madre = e.Substring(0, barra);
             if (ParolaClassi.IsMatch(madre)) return true;

@@ -320,7 +320,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   filter with addresses whose label looks like a class (it ends with 3B,
   III B or 3B LSA, with at most a code after number and section, so not "5
   per mille" or "5A Praga", or with the section attached to the number in
-  capitals, as technical schools write it, 5AINF, 3ACAT, 4BAFM, 4AINF LAB;
+  capitals, as technical schools write it, 5AINF, 3ACAT, 4BAFM, 4AINF LAB,
+  or in mixed case, 5Ainf; also with words before or the school year after,
+  as in "Classe 3B", "Inglese 3B", "3B 2025-26", but not a class followed by
+  other words, "3B Inglese", like "5A Praga";
   or it sits under a parent with the word
   "classi" in it, not "Liceo Classico", under the parent of a class rule or
   under one used for classes before, remembered even after the rules are

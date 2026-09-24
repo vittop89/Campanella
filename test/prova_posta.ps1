@@ -1612,7 +1612,8 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         Imposta $s11 'Prefisso' ''
         $tue = @('Amministrazione/5 per mille', 'Liceo Classico/Open day', 'Gite/5A Praga', 'Sindacato/1 Maggio',
                  'Classici/Letture', 'Viaggi/Parigi', 'Corsi/3 ore', 'Gite/2 giorni', 'Gite/5AINF Praga', 'Corsi/3B 2 gruppi',
-                 'Corsi/2gr')
+                 'Corsi/2gr', 'Gite/5Ainf Praga', 'Archivio/Anno 2025-26', 'Scadenze/2026-27', 'Sindacato/1Maggio',
+                 'Corsi/Ore 2025-26')
         $tipi11 = @(Esportazione $tue 'agenzia@viaggi.example' | ForEach-Object {
             $_.Etichetta + '=' + $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s11)).Tipo })
         Verifica "le etichette tue con un numero o con 'Classico' non sembrano di una classe ($($tipi11 -join ', '))" (
@@ -1620,7 +1621,10 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $delleClassi11 = @('Terze/3B', 'Terze/3 B', 'Terze/3b', 'Terze/3B LSA', 'Terze/3B-LSA', 'Terze/3B (L.S.A.)', 'Terze/III B',
                            'Terze/5AL', 'Le mie Classi/Potenziamento', 'CLASSI/Recupero', 'Classi2026/Recupero', '3B',
                            # le classi dei tecnici, con la sezione attaccata lunga
-                           '5AINF', 'Scuola/5AINF', 'Mie/5AINF', 'Terze/3ACAT', 'Scuola/4BAFM', 'Terze/3BLSA', 'Quarte/4AINF LAB')
+                           '5AINF', 'Scuola/5AINF', 'Mie/5AINF', 'Terze/3ACAT', 'Scuola/4BAFM', 'Terze/3BLSA', 'Quarte/4AINF LAB',
+                           # con le maiuscole miste, con "Classe" o altre parole prima, con l'anno dopo
+                           'Scuola/5Ainf', 'Terze/3Acat', 'Scuola/Classe 3B', 'Inglese 3B', 'Scuola/Consiglio di classe 3B LSA',
+                           'Scuola/Classe III B', '3B 2025-26', 'Terze/3B (2025-26)', 'Terze/3B a.s. 2025-2026', 'Scuola/Classe 3B 2025-26')
         $tipi11c = @(Esportazione $delleClassi11 $alunni | ForEach-Object {
             $_.Etichetta + '=' + $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s11)).Tipo })
         Verifica "e quelle delle classi si' ($(@($tipi11c | Where-Object { $_ -notlike '*=classe' }) -join ', '))" (
@@ -1680,6 +1684,20 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         Verifica "e quelli delle classi dei tecnici (5AINF, 3ACAT, Scuola/4BAFM) come quello della 3B ($tolti14 su 4)" (
             $tolti14 -eq 4 -and (@((Leggi $s14 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie' -and
             -not $conf14.Contains('studenti.scuola-esempio'))
+        # e quelli con la classe scritta in un altro modo: con "Classe" o una materia
+        # prima, con l'anno dopo, con le maiuscole miste
+        $s15 = NuovoStato
+        Imposta $s15 'Prefisso' ''
+        $prima15 = [Activator]::CreateInstance($tListaFDT)
+        $etichette15 = @('Scuola/Classe 3B', 'Inglese 3B', '3B 2025-26', 'Scuola/5Ainf')
+        foreach ($f in @(Esportazione $etichette15 $alunni)) { $prima15.Add($f.DaTogliere()) }
+        $prima15.Add($famiglie12.DaTogliere())
+        Imposta $s15 'FiltriDaTogliere' $prima15
+        $tolti15 = if ($null -ne $mTogliC) { [int]$mTogliC.Invoke($null, @($s15.PSObject.BaseObject)) } else { -1 }
+        $conf15 = Genera $s15 $false
+        Verifica "e quelli di $($etichette15 -join ', ') ($tolti15 su 4): gli studenti non restano ne' nello Stato ne' nella configurazione" (
+            $tolti15 -eq 4 -and (@((Leggi $s15 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie' -and
+            -not $conf15.Contains('studenti.scuola-esempio'))
         $guscioCs = Get-Content -Raw (Join-Path $radice 'src\Guscio.cs')
         Verifica "all'avvio Campanella li toglie subito dopo aver letto le impostazioni, e si ricorda quanti" (
             [regex]::IsMatch($guscioCs, 'Stato s = Stato\.Carica\(\);\s+s\.FiltriClassiToltiAllAvvio = FiltriGmail\.TogliQuelliDelleClassi\(s\);'))
