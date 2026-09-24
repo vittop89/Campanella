@@ -308,6 +308,8 @@ namespace Campanella
         public int CalMinutiOra = 60;            // durata di un'ora di lezione
         public string CalOreInizio = "";         // facoltativo: "08:00, 09:00, 10:10, ..." una per ora
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
+        public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo grezzo)
+        public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
 
         // ===================================================================
         //  PERCORSI
@@ -895,6 +897,8 @@ namespace Campanella
             r["calMinutiOra"] = CalMinutiOra;
             r["calOreInizio"] = CalOreInizio;
             r["calColore"] = CalColore;
+            r["calSospensioni"] = CalSospensioni;
+            r["calValidoDal"] = CalValidoDal;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
             r["anonReversibileTesto"] = AnonReversibileTesto;
@@ -1028,6 +1032,8 @@ namespace Campanella
                 s.CalMinutiOra = Int(r, "calMinutiOra", 60);
                 s.CalOreInizio = Str(r, "calOreInizio", "");
                 s.CalColore = Str(r, "calColore", "");
+                s.CalSospensioni = Str(r, "calSospensioni", "");
+                s.CalValidoDal = Str(r, "calValidoDal", "");
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");
                 s.AnonReversibileTesto = Bool(r, "anonReversibileTesto", true);

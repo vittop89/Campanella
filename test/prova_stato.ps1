@@ -88,6 +88,7 @@ static class ProvaStato
                 case "nome-calendario": NomeCalendario(); break;
                 case "nome-calendario-drive-non-pronto": NomeCalendarioDriveNonPronto(); break;
                 case "andata-e-ritorno": AndataERitorno(); break;
+                case "calendario-andata-e-ritorno": CalendarioAndataERitorno(); break;
                 case "colori-andata-e-ritorno": ColoriAndataERitorno(); break;
                 case "colori-dalla-1-5": ColoriDalla15(); break;
                 case "colori-scritti-a-mano": ColoriScrittiAMano(); break;
@@ -729,6 +730,40 @@ static class ProvaStato
             t.Drive == Finto());
     }
 
+    // I giorni senza lezione e la data del cambio d'orario (Orari, passo 4)
+    // sono impostazioni: date e nomi di feste, niente che riguardi altre
+    // persone. Stanno in campanella.json anche con i dati nel Drive, si
+    // rileggono uguali (a capo compresi) e di partenza sono vuoti.
+    static void CalendarioAndataERitorno()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"))));
+        Stato s = Carica();
+        Verifica("di partenza niente giorni senza lezione e nessun cambio d'orario",
+            Testo(s, "CalSospensioni") == "" && Testo(s, "CalValidoDal") == "");
+        string sospensioni = "01/11/2026 Tutti i Santi\r\n23/12/2026-06/01/2027 Vacanze di \"Natale\"\r\n# una nota\r\n";
+        if (!Metti(s, "CalSospensioni", sospensioni) || !Metti(s, "CalValidoDal", "2026-10-05")) return;
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("stanno in campanella.json, con le impostazioni",
+            Str(imp, "calSospensioni") == sospensioni && Str(imp, "calValidoDal") == "2026-10-05");
+        Verifica("e non nel file dei dati personali",
+            dati.ContainsKey("personale") && !dati.ContainsKey("calSospensioni") && !dati.ContainsKey("calValidoDal"));
+        Stato t = Carica();
+        Verifica("si rileggono uguali, a capo compresi",
+            Testo(t, "CalSospensioni") == sospensioni && Testo(t, "CalValidoDal") == "2026-10-05");
+        Metti(t, "CalValidoDal", "");
+        t.Salva();
+        Verifica("la spunta del cambio tolta resta tolta", Testo(Carica(), "CalValidoDal") == "");
+        string errore;
+        t.SpostaDati(false, "", out errore);
+        Verifica("con i dati accanto al programma restano dove sono",
+            Str(Json(Impostazioni()), "calSospensioni") == sospensioni && Testo(Carica(), "CalSospensioni") == sospensioni);
+    }
+
     // i colori delle etichette si salvano e si rileggono, anche "nessun colore"
     static void ColoriAndataERitorno()
     {
@@ -1230,6 +1265,14 @@ static class ProvaStato
         return (v == null) ? "" : v.ToString();
     }
 
+    static bool Metti(object o, string nome, object valore)
+    {
+        FieldInfo f = o.GetType().GetField(nome, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (f == null) { Verifica("Stato ha il campo " + nome, false); return false; }
+        f.SetValue(o, valore);
+        return true;
+    }
+
     static object Chiama(object o, string nome, object[] argomenti)
     {
         foreach (MethodInfo m in o.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance))
@@ -1267,6 +1310,7 @@ $casi = @(
     'nome-calendario'
     'nome-calendario-drive-non-pronto'
     'andata-e-ritorno'
+    'calendario-andata-e-ritorno'
     'colori-andata-e-ritorno'
     'colori-dalla-1-5'
     'colori-scritti-a-mano'
