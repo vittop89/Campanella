@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.5.3 — 23 September 2026
+## 1.5.3 — 24 September 2026
 
 Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs
 again).
