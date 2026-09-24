@@ -241,12 +241,14 @@ eseguendo lo script il [data].]*
   anche quelle c'è `ANNULLA_etichettaturaCompleta`, che toglie dai messaggi
   le etichette di tutte le regole attive, comprese quelle con lo stesso nome
   messe a mano dal docente. I messaggi archiviati restano in «Tutti i
-  messaggi». Due cose non si annullano da script: i filtri nativi di Gmail,
-  se il docente li ha creati, si tolgono a mano dalle impostazioni di Gmail
-  (oppure scegliendoli in Campanella per `EXTRA_togliFiltri`), e i messaggi
-  che una regola ha segnato come letti restano letti. Anche un filtro tolto
-  con `EXTRA_togliFiltri` non si rimette da script: si ricrea a mano dalla
-  copia che lo script ha scritto nel registro prima di toglierlo.
+  messaggi». Due cose le funzioni `ANNULLA_` non le annullano: i filtri
+  nativi di Gmail, se il docente li ha creati, si tolgono a mano dalle
+  impostazioni di Gmail oppure con `EXTRA_togliFiltri`, dopo averli scelti
+  in Campanella; i messaggi che una regola ha segnato come letti restano
+  letti. Un filtro tolto con `EXTRA_togliFiltri` non si rimette da script:
+  si ricrea a mano dalla copia che lo script ha scritto nel registro prima
+  di toglierlo, e `EXTRA_creaFiltriGmail` non ricrea i filtri scelti per
+  essere tolti.
 - Lo script usa un **blocco di esecuzione** per non far girare due copie
   contemporaneamente, e in caso di errore in una regola passa alla
   successiva senza interrompere il resto. Anche `ANNULLA_automazione`

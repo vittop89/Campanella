@@ -913,9 +913,10 @@ namespace Campanella
                 "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
                 "filtro non sa escludere chi e' gia' fra i Colleghi. I filtri che avevi gia' e che hai " +
                 "scelto al passo 4 (\"Filtri che hai gia' in Gmail...\"): esegui  EXTRA_togliFiltri, che " +
-                "prima di togliere ognuno ne scrive una copia nel registro. Se poi cambi una regola, il " +
-                "filtro vecchio va tolto: a mano in Gmail (Impostazioni -> Filtri), oppure scegliendolo " +
-                "al passo 4. Con la modalita' prova accesa queste funzioni non cambiano niente: dicono " +
+                "prima di togliere ognuno ne scrive una copia nel registro; EXTRA_creaFiltriGmail non rifa' " +
+                "quelli scelti. Se poi cambi una regola, il filtro vecchio va tolto: a mano in Gmail " +
+                "(Impostazioni -> Filtri), oppure scegliendolo al passo 4. Con la modalita' prova accesa " +
+                "queste funzioni non cambiano niente; quelle dei colori ed EXTRA_togliFiltri dicono " +
                 "che cosa farebbero.",
                 new string[] { }, new EventHandler[] { });
 
@@ -1013,7 +1014,9 @@ namespace Campanella
                   "Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
-                  "(Gmail -> Impostazioni -> Filtri). Nulla viene mai cancellato, quindi non si perde posta." },
+                  "(Gmail -> Impostazioni -> Filtri) oppure spuntandoli al passo 4 (\"Filtri che hai gia' in " +
+                  "Gmail...\") ed eseguendo EXTRA_togliFiltri. Nessun messaggio viene mai cancellato, quindi " +
+                  "non si perde posta." },
                 { "Alcuni messaggi finiscono nell'etichetta sbagliata",
                   "Prima una cosa normale: le etichette si sommano, e una circolare del dirigente " +
                   "prende sia Dirigenza sia Circolari. Se invece un collega finisce fra gli Studenti, " +

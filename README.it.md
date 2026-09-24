@@ -261,9 +261,10 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   toglie solo le etichette che lo script ha creato, e dice "NIENTE DA
   TOGLIERE" se non ne trova; `ANNULLA_etichettaturaCompleta` svuota le
   etichette di tutte le regole attive, comprese quelle con lo stesso nome
-  messe a mano. Due cose si annullano a mano: i filtri veri di Gmail, se li
-  hai creati (oppure li spunti al passo 4 e li toglie `EXTRA_togliFiltri`), e
-  i messaggi che una regola ha segnato come letti.
+  messe a mano. Due cose le funzioni `ANNULLA_` non le annullano: i filtri
+  veri di Gmail, se li hai creati, si tolgono a mano dalle impostazioni di
+  Gmail oppure con `EXTRA_togliFiltri`, dopo averli spuntati al passo 4; i
+  messaggi che una regola ha segnato come letti restano letti.
 - Lo script della posta e quello degli orari stanno nello stesso progetto
   Apps Script, e Google ne chiede i permessi tutti insieme: Gmail, l'invio a
   te stesso (`MailApp`), il tuo indirizzo (`Session`), i trigger e, appena

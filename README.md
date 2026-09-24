@@ -257,8 +257,9 @@ found, by its arrival time, in an earlier sheet.
   only the labels the script created, and says "NIENTE DA TOGLIERE" when
   there are none; `ANNULLA_etichettaturaCompleta` empties the labels of every
   active rule, same-named labels applied by hand included. Two things are
-  undone by hand: native Gmail filters, if created (or ticked in step 4 and
-  removed by `EXTRA_togliFiltri`), and messages a rule marked as read.
+  not undone by the `ANNULLA_` functions: native Gmail filters, if created,
+  are removed by hand in Gmail's settings or by `EXTRA_togliFiltri` after
+  ticking them in step 4; messages a rule marked as read stay read.
 - The mail and timetable scripts share one Apps Script project, and Google
   asks for its permissions all at once: Gmail, sending to yourself
   (`MailApp`), your own address (`Session`), triggers and, as soon as the

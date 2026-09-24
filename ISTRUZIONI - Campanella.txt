@@ -216,22 +216,26 @@ POSTA - riordinare la casella
    aprilo nella finestra con "Apri il file...". Ogni filtro compare con che
    cosa cerca, che cosa fa e un suggerimento: "uguale a una regola di
    Campanella" (mette proprio l'etichetta di una regola accesa, gruppo
-   compreso: parte spuntato), "simile a ..." (ha una parola o un sinonimo
-   in comune con una regola) oppure "tuo". Spunta quelli da togliere e premi
-   "Usa questa scelta". Il file contiene i tuoi filtri, con indirizzi e
-   parole: dopo averlo aperto puoi cancellarlo. Campanella tiene i filtri
-   spuntati insieme all'elenco del personale, e li scrive nella
-   configurazione: copiala di nuovo (passo 5). Poi, nell'editor dello
-   script, con il servizio Gmail API (l'ottavo passo dell'installazione
-   guidata), esegui EXTRA_togliFiltri. Toglie solo un filtro che ha proprio
+   compreso: parte spuntato, se non fa anche altro, come inoltrare o
+   eliminare), "creato da Campanella" (e' uno dei filtri veri che fa
+   EXTRA_creaFiltriGmail: toglilo solo se non li vuoi piu'), "simile a ..."
+   (ha una parola o un sinonimo in comune con una regola) oppure "tuo". Un
+   filtro con un criterio che Campanella non capisce resta com'e': non si
+   puo' spuntare. Spunta quelli da togliere e premi "Usa questa scelta". Il
+   file contiene i tuoi filtri, con indirizzi e parole: dopo averlo aperto
+   puoi cancellarlo. Campanella tiene i filtri spuntati insieme all'elenco
+   del personale, e li scrive nella configurazione: copiala di nuovo (passo
+   5). Poi, nell'editor dello script, con il servizio Gmail API (l'ottavo
+   passo dell'installazione guidata), esegui EXTRA_togliFiltri. Toglie solo un filtro che ha proprio
    quei criteri, nessuno in piu', e mette proprio quell'etichetta; prima di
    toglierlo ne scrive una copia completa nel registro, con cui lo rifai a
    mano se serve, e alla fine ti manda lo stesso riepilogo per email (se hai
    il riepilogo acceso). In modalita' prova dice soltanto che cosa
    toglierebbe e che cosa non trova; rieseguita non toglie niente e lo dice.
-   Gli altri filtri non li tocca. Le etichette gia' messe ai messaggi
-   restano: se non ti servono, cancellale tu da Gmail (Impostazioni ->
-   Etichette); i messaggi non si cancellano.
+   Gli altri filtri non li tocca, ed EXTRA_creaFiltriGmail non rifa' quelli
+   che hai scelto di togliere. Le etichette gia' messe ai messaggi restano:
+   se non ti servono, cancellale tu da Gmail (Impostazioni -> Etichette); i
+   messaggi non si cancellano.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
@@ -426,8 +430,9 @@ COSE CHE NON SUCCEDONO MAI
 - La prima esecuzione del riordino parte in modalita' prova: conta e basta.
 - Lo script non scrive a nessun altro: le email arrivano solo a te.
 - Lo script dei moduli non manda email a nessuno e non condivide niente.
-- Ogni script ha le sue funzioni per annullare (vedi qui sotto). Non si
-  annullano da script i filtri di Gmail e il "segna come letti".
+- Ogni script ha le sue funzioni per annullare (vedi qui sotto). Le
+  funzioni ANNULLA_ non tolgono i filtri di Gmail (si tolgono a mano o con
+  EXTRA_togliFiltri) e non annullano il "segna come letti".
 
 
 PER SPEGNERE GLI SCRIPT
@@ -445,15 +450,15 @@ Nei moduli: MODULO_ANNULLA in ogni modulo con lo script, oppure, nel foglio
 di controllo, il menu Campanella > "Annulla: togli chiusure e collegamenti"
 (PANNELLO_ANNULLA). Tolgono le chiusure programmate e scollegano i fogli
 dell'anno, che restano nel Drive.
-Due cose restano a mano: i filtri veri di Gmail (se li hai creati con
-EXTRA_creaFiltriGmail) si cancellano da Gmail > Impostazioni > Filtri e
-indirizzi bloccati (oppure li esporti, li spunti al passo 4 della Posta e li
-toglie EXTRA_togliFiltri); i messaggi che una regola ha segnato come letti
-restano letti. I filtri tolti con EXTRA_togliFiltri non si rimettono da
-script: si rifanno a mano con la copia che lo script ha scritto nel
-registro (e nel riepilogo per email). I colori dati alle etichette restano: si cambiano da Gmail. Alla
-fine, se vuoi, revoca l'accesso agli script da
-https://myaccount.google.com/permissions.
+Due cose le funzioni qui sopra non le annullano. I filtri veri di Gmail
+(se li hai creati con EXTRA_creaFiltriGmail) si cancellano a mano da Gmail >
+Impostazioni > Filtri e indirizzi bloccati, oppure li esporti, li spunti al
+passo 4 della Posta e li toglie EXTRA_togliFiltri. I messaggi che una regola
+ha segnato come letti restano letti. I filtri tolti con EXTRA_togliFiltri
+non si rimettono da script: si rifanno a mano con la copia che lo script ha
+scritto nel registro (e nel riepilogo per email). I colori dati alle
+etichette restano: si cambiano da Gmail. Alla fine, se vuoi, revoca
+l'accesso agli script da https://myaccount.google.com/permissions.
 
 
 L'AVVISO DI GOOGLE ("app non verificata")

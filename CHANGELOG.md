@@ -68,15 +68,22 @@ again).
   opens that file. Each filter is listed with what it looks for, what it
   does and a suggestion: "uguale a una regola di Campanella" when its label
   is the full label (group included, case aside) of a rule the configuration
-  writes on, or of a role sub-label, and then it starts ticked; "simile a
-  ..." when it shares a word (singular or plural alike) or a synonym
-  (famiglie/genitori, alunni/studenti, ClasseViva/registro...) with a rule,
-  or is the name of a rule that is off; otherwise "tuo". Filters chosen
-  earlier stay ticked, two identical filters tick together, a filter with no
-  label cannot be ticked. A broken or wrong file gets a plain message, and a
-  file with a DOCTYPE is not opened. The window says that the exported file
-  contains your filters and can be deleted once opened; under the button
-  step 4 says how many filters are to be removed.
+  writes on, or of a role sub-label, and then it starts ticked unless it
+  also does something the rules never do (forward, delete, star, important,
+  never spam, category), which the suggestion names; "creato da Campanella"
+  when it also has exactly the criteria EXTRA_creaFiltriGmail gives that
+  rule now, and then it does not start ticked; "simile a ..." when it shares
+  a word (singular or plural alike, "circolo" is not "circolari") or a
+  synonym (famiglie/genitori, alunni/studenti, ClasseViva/registro...) with
+  a rule, or is the name of a rule that is off; otherwise "tuo". Filters
+  chosen earlier stay ticked, also after opening a file that does not have
+  them; two identical filters tick together; a filter with no label, or with
+  a criterion Campanella cannot read (an unknown value or property, which
+  could be a criterion), cannot be ticked. Sorting a column keeps each tick
+  on its own filter. A broken or wrong file (another Atom feed included)
+  gets a plain message, and a file with a DOCTYPE is not opened. The window
+  says that the exported file contains your filters and can be deleted once
+  opened; under the button step 4 says how many filters are to be removed.
 - The chosen filters (label and exact criteria) are saved with the personal
   data, next to the staff list (campanella-dati.json in the Drive when the
   data are there), because criteria can contain addresses. An entry that
@@ -89,19 +96,23 @@ again).
   (without it, it says how to add it and changes nothing). Under the same
   lock as the sorting it removes only a filter with exactly those criteria,
   all of them and none more, that adds that label, and before removing each
-  one it writes a complete copy (criteria and actions, with label names) to
-  the log, to recreate it by hand; at the end it sends the same recap to
-  your own address when the report email is on. It never touches other
-  filters, labels or messages. In test mode it only lists what it would
-  remove and what it cannot find. It reports removed, not found and already
-  removed: run again, it removes nothing and says so (it remembers only a
-  fingerprint of each removed entry, no address or word). PASSO_1_anteprima
-  adds one line with how many filters are to be removed.
+  one it writes a complete copy (criteria and actions, with label names and
+  the wording of Gmail's "Create a filter" window) to the log, to recreate
+  it by hand; at the end it sends the same recap to your own address when
+  the report email is on. It never touches other filters, labels or
+  messages. In test mode it only lists what it would remove and what it
+  cannot find. It reports removed, not found and already removed: run
+  again, it removes nothing and says so (it remembers only a fingerprint of
+  each removed entry, no address or word). PASSO_1_anteprima adds one line
+  with how many filters are to be removed.
+- EXTRA_creaFiltriGmail does not create a filter you chose to remove, and
+  says so: the two functions no longer undo each other.
 - Labels already on messages stay: delete in Gmail the ones you no longer
   want (messages are not deleted). The check of the promises made to the
-  DPO allows removing a filter only inside EXTRA_togliFiltri; deleting a
-  label or a message stays forbidden everywhere. Guided installation step 8
-  and "Aiuto e problemi" explain it.
+  DPO allows removing a filter only inside EXTRA_togliFiltri, which no other
+  function or trigger may call; deleting a label or a message stays
+  forbidden everywhere. Guided installation step 8 and "Aiuto e problemi"
+  explain it.
 
 ## 1.5.2 — 23 September 2026
 
