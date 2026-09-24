@@ -93,6 +93,8 @@ static class ProvaStato
                 case "colori-scritti-a-mano": ColoriScrittiAMano(); break;
                 case "filtri-andata-e-ritorno": FiltriAndataERitorno(); break;
                 case "filtri-scritti-a-mano": FiltriScrittiAMano(); break;
+                case "classi-andata-e-ritorno": ClassiAndataERitorno(); break;
+                case "classi-colori": ClassiColori(); break;
                 // queste due girano nella stessa cartella, una dopo l'altra: la
                 // prima con lo Stato di adesso, la seconda con Formato = 1
                 case "scrivi-per-la-vecchia": ScriviPerLaVecchia(); break;
@@ -936,6 +938,165 @@ static class ProvaStato
         Verifica("e le riscrive cosi'", DescriviFiltri(t) == DescriviFiltri(s));
     }
 
+    // Le regole delle classi (Posta, passo 4, "Le mie classi..."): basta
+    // l'oggetto oppure gli studenti (UnoQualsiasi), la sorgente "classe" e fra
+    // i mittenti solo il segnaposto della classe: gli indirizzi degli studenti
+    // Campanella non li tiene. Si salvano e si rileggono uguali, e le altre
+    // regole restano con i criteri insieme. La 1.5.3 (formato 2) riscrivendo
+    // il file perderebbe UnoQualsiasi e la regola vorrebbe oggetto E studenti:
+    // per questo il formato e' salito.
+    static void ClassiAndataERitorno()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        Verifica("le regole di partenza non hanno UnoQualsiasi", !Uno(RegolaDi(s, "Circolari")) && !Uno(RegolaDi(s, "Colleghi")));
+        Regola r = NuovaClasse("Classi 2026-27/3B", "3B");
+        Regola copia = r.Copia();
+        Verifica("Copia tiene UnoQualsiasi e la sorgente", Uno(copia) && copia.Sorgente == "classe");
+        s.Regole.Add(r);
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Dictionary<string, object> nelFile = RegolaNelFile(dati, "Classi 2026-27/3B");
+        Verifica("nel file dei dati: unoQualsiasi vero, sorgente classe, e fra i mittenti solo il segnaposto (" +
+                 ListaNelFile(nelFile, "da") + ")",
+            Vero(nelFile, "unoQualsiasi") && Str(nelFile, "sorgente") == "classe" &&
+            ListaNelFile(nelFile, "da") == "@CLASSE:3B@" && ListaNelFile(nelFile, "oggetto") == "3B|3 B|III B");
+        Dictionary<string, object> circolari = RegolaNelFile(dati, "Circolari");
+        Verifica("le altre regole con unoQualsiasi falso, come gli altri si'/no",
+            circolari.ContainsKey("unoQualsiasi") && circolari["unoQualsiasi"] is bool && !Vero(circolari, "unoQualsiasi"));
+        Verifica("i due file hanno il formato " + Stato.Formato + ", piu' alto di quello della 1.5.3 (2)",
+            Numero(dati, "formato") == Stato.Formato && Numero(Json(Impostazioni()), "formato") == Stato.Formato &&
+            Stato.Formato >= 3);
+
+        Stato t = Carica();
+        Regola l = RegolaDi(t, "Classi 2026-27/3B");
+        Verifica("si rilegge uguale", l != null && Uno(l) && l.Sorgente == "classe" && l.Da.Count == 1 &&
+            l.Da[0] == "@CLASSE:3B@" && string.Join("|", l.Oggetto.ToArray()) == "3B|3 B|III B" &&
+            !Uno(RegolaDi(t, "Circolari")));
+        t.Salva();
+        Verifica("anche dopo un altro salvataggio", Uno(RegolaDi(Carica(), "Classi 2026-27/3B")));
+
+        // una regola scritta da una versione di prima, senza la chiave: i
+        // criteri insieme, come allora
+        Dictionary<string, object> vecchia = RegolaJson("Verbali", "", null);
+        vecchia["da"] = new object[] { "collega@scuola.example" };
+        vecchia["oggetto"] = new object[] { "verbale" };
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["regole"] = new object[] { vecchia };
+        ScriviImpostazioni(false, "", altro);
+        Stato v = Carica();
+        Verifica("una regola di prima, senza la chiave, resta con i criteri insieme", RegolaDi(v, "Verbali") != null &&
+            !Uno(RegolaDi(v, "Verbali")));
+    }
+
+    // I colori delle etichette delle classi: sfumature di una tinta sola, che
+    // nessun'altra regola usa, ognuna la sua finche' ce ne sono; un colore gia'
+    // dato (anche nessun colore, scelto a mano) resta.
+    static void ClassiColori()
+    {
+        Stato s = new Stato();                  // le regole di partenza, niente file
+        Regola a = NuovaClasse("Classi 2026-27/1A", "1A");
+        Regola b = NuovaClasse("Classi 2026-27/3B", "3B");
+        Regola c = NuovaClasse("Classi 2026-27/5C", "5C");
+        s.Regole.Add(a); s.Regole.Add(b); s.Regole.Add(c);
+        ColoriDelleClassi(s);
+        // le regole di partenza accese usano tutte le tinte intere tranne il
+        // verde acqua (Formazione e' spenta): le classi prendono quello
+        Verifica("tre sfumature del verde acqua, dalla piu' chiara (" + ColoreDi(a) + ", " + ColoreDi(b) + ", " +
+                 ColoreDi(c) + ")",
+            Sfondo(a) == "#c6f3de" && Sfondo(b) == "#a0eac9" && Sfondo(c) == "#68dfa9");
+        MettiColore(b, "");
+        Regola d = NuovaClasse("Classi 2026-27/4D", "4D");
+        s.Regole.Add(d);
+        ColoriDelleClassi(s);
+        Verifica("un colore gia' dato resta, anche nessun colore, e la classe nuova prende la prima sfumatura libera (" +
+                 ColoreDi(d) + ")",
+            Sfondo(a) == "#c6f3de" && ColoreDi(b) == "" && Sfondo(c) == "#68dfa9" && Sfondo(d) == "#a0eac9");
+        List<string> sfondi = new List<string>();
+        for (int i = 0; i < 6; i++)
+        {
+            Regola x = NuovaClasse("Classi 2026-27/" + (i + 1) + "E", (i + 1) + "E");
+            s.Regole.Add(x);
+            ColoriDelleClassi(s);
+            sfondi.Add(Sfondo(x));
+        }
+        Verifica("finche' ce ne sono ognuna la sua, saltando quella di Formazione, poi la meno usata (" + string.Join(" ", sfondi.ToArray()) + ")",
+            sfondi[0] == "#3dc789" && sfondi[1] == "#2a9c68" && sfondi[2] == "#1a764d" &&
+            sfondi[3] == "#43d692" && sfondi[4] == "#c6f3de" && sfondi[5] == "#a0eac9");
+
+        // con poche regole: la prima tinta intera che nessuna usa
+        Stato p = new Stato();
+        p.Regole.Clear();
+        Regola dirigenza = new Regola();
+        dirigenza.Etichetta = "Dirigenza";
+        dirigenza.Colore = "#cc3a21/#ffffff";
+        p.Regole.Add(dirigenza);
+        Regola e = NuovaClasse("Classi 2026-27/2A", "2A");
+        p.Regole.Add(e);
+        ColoriDelleClassi(p);
+        Verifica("con le altre regole tutte rosse, le classi prendono gli arancioni (" + ColoreDi(e) + ")",
+            Sfondo(e) == "#ffe6c7");
+        // una classe con un colore scelto a mano: le altre la seguono
+        MettiColore(e, "#c9daf8/#000000");
+        Regola f = NuovaClasse("Classi 2026-27/2B", "2B");
+        p.Regole.Add(f);
+        ColoriDelleClassi(p);
+        Verifica("una classe nuova segue la tinta delle classi che ci sono (" + ColoreDi(f) + ")", Sfondo(f) == "#a4c2f4");
+    }
+
+    static void ColoriDelleClassi(Stato s)
+    {
+        Type t = typeof(Stato).Assembly.GetType("Campanella.ColoriEtichette");
+        MethodInfo m = (t == null) ? null : t.GetMethod("DelleClassi", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) { Verifica("c'e' ColoriEtichette.DelleClassi", false); return; }
+        m.Invoke(null, new object[] { s.Regole, ColoriRuoli(s) });
+    }
+
+    static string Sfondo(Regola r)
+    {
+        string c = ColoreDi(r) ?? "";
+        return c.Split('/')[0];
+    }
+
+    static Regola NuovaClasse(string etichetta, string classe)
+    {
+        Regola r = new Regola();
+        r.Etichetta = etichetta;
+        r.Sorgente = "classe";
+        r.Da.Add("@CLASSE:" + classe + "@");
+        r.Oggetto.AddRange(new string[] { classe, classe.Substring(0, 1) + " " + classe.Substring(1), "III B" });
+        MettiUno(r, true);
+        return r;
+    }
+
+    // UnoQualsiasi si cerca per nome, come i colori: con uno Stato di prima
+    // della 1.6.0 non c'e', e i controlli falliscono invece di non compilare
+    static bool Uno(Regola r)
+    {
+        FieldInfo f = typeof(Regola).GetField("UnoQualsiasi");
+        if (f == null) { Verifica("Regola ha il campo UnoQualsiasi", false); return false; }
+        return r != null && (bool)f.GetValue(r);
+    }
+
+    static void MettiUno(Regola r, bool si)
+    {
+        FieldInfo f = typeof(Regola).GetField("UnoQualsiasi");
+        if (f == null) { Verifica("Regola ha il campo UnoQualsiasi", false); return; }
+        if (r != null) f.SetValue(r, si);
+    }
+
+    // un elenco di una regola nel file, con le voci separate da "|"
+    static string ListaNelFile(Dictionary<string, object> regola, string k)
+    {
+        object[] a = regola.ContainsKey(k) ? regola[k] as object[] : null;
+        if (a == null) return "(manca)";
+        List<string> fuori = new List<string>();
+        foreach (object o in a) fuori.Add(Convert.ToString(o));
+        return string.Join("|", fuori.ToArray());
+    }
+
     // la versione di adesso scrive i file: la prova dopo li da' a una versione
     // con il formato di prima, che non deve riscriverli
     static void ScriviPerLaVecchia()
@@ -947,12 +1108,15 @@ static class ProvaStato
         ColoriRuoli(s)["Docenti"] = "#fb4c2f/#000000";
         AggiungiFiltro(s, "Famiglie", "query", "from:(@famiglie.example)");
         s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
+        s.Regole.Add(NuovaClasse("Classi 2026-27/3B", "3B"));
         s.Salva();
         Verifica("scritti con il formato di adesso (" + Stato.Formato + "), piu' alto di quello della 1.5.2",
             s.UltimoErrore == "" && Numero(Json(Impostazioni()), "formato") == Stato.Formato &&
             Numero(Json(FileDati(c)), "formato") == Stato.Formato && Stato.Formato > 1);
         Verifica("e il file dei dati ha i filtri di Gmail da togliere, che la 1.5.2 non conosce",
             FiltriNelFile(Json(FileDati(c))) == "Famiglie{query=from:(@famiglie.example)}");
+        Verifica("e la regola della classe con unoQualsiasi, che la 1.5.3 non conosce",
+            Vero(RegolaNelFile(Json(FileDati(c)), "Classi 2026-27/3B"), "unoQualsiasi"));
     }
 
     static void VecchiaNonRiscrive()
@@ -966,7 +1130,7 @@ static class ProvaStato
         s.TemaScuro = !s.TemaScuro;
         s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
         s.Salva();
-        Verifica("e non li riscrive: i colori delle regole e dei ruoli e i filtri da togliere non si perdono",
+        Verifica("e non li riscrive: i colori delle regole e dei ruoli, i filtri da togliere e unoQualsiasi delle classi non si perdono",
             Leggi(Impostazioni()) == imp && Leggi(FileDati(c)) == dati);
         Verifica("e lo dice", (Testo(s, "DaAvvisare") ?? "").Contains("versione piu' recente"));
     }
@@ -1272,6 +1436,8 @@ $casi = @(
     'colori-scritti-a-mano'
     'filtri-andata-e-ritorno'
     'filtri-scritti-a-mano'
+    'classi-andata-e-ritorno'
+    'classi-colori'
 )
 
 $base = Join-Path $env:TEMP ('campanella-prova-stato-' + [Guid]::NewGuid().ToString('N'))
@@ -1303,37 +1469,42 @@ try {
     # -----------------------------------------------------------------------
     #  LA PROTEZIONE DELLE VERSIONI DI PRIMA
     #  La 1.5.2 ha il formato 1 e non sa niente dei colori ne' dei filtri di
-    #  Gmail da togliere: riscrivendo i file di adesso li perderebbe. Qui gira
-    #  una copia di questo stesso Stato.cs
-    #  con Formato = 1, nella cartella dove la versione di adesso ha appena
-    #  scritto i suoi file: deve lasciarli come sono.
+    #  Gmail da togliere; la 1.5.3 ha il formato 2 e non sa niente di
+    #  unoQualsiasi, che hanno le regole delle classi: riscrivendo i file di
+    #  adesso li perderebbero. Qui gira una copia di questo stesso Stato.cs
+    #  con ogni formato di prima, nella cartella dove la versione di adesso ha
+    #  appena scritto i suoi file: deve lasciarli come sono.
     # -----------------------------------------------------------------------
     Write-Host "`nPROTEZIONE-VERSIONE-VECCHIA" -ForegroundColor Cyan
     $testoStato = [System.IO.File]::ReadAllText($Stato)
-    $modello = 'public const int Formato = \d+;'
+    $modello = 'public const int Formato = (\d+);'
     if (-not [regex]::IsMatch($testoStato, $modello)) {
         Write-Host "  FALLITO in $Stato non trovo '$modello'" -ForegroundColor Red
         $fallimenti++
     } else {
-        $vecchioStato = Join-Path $base 'StatoFormato1.cs'
-        [System.IO.File]::WriteAllText($vecchioStato, [regex]::Replace($testoStato, $modello, 'public const int Formato = 1;'),
-            (New-Object System.Text.UTF8Encoding($false)))
-        $exeVecchio = Join-Path $base 'ProvaStatoVecchia.exe'
-        & $csc /nologo /target:exe /codepage:65001 "/out:$exeVecchio" /r:System.dll /r:System.Core.dll `
-            /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll $vecchioStato $sorgente
-        if ($LASTEXITCODE -ne 0) { throw "Compilazione dell'ospite con Formato = 1 fallita (codice $LASTEXITCODE)." }
-        $dove = Join-Path $base 'protezione-versione-vecchia'
-        New-Item -ItemType Directory -Path $dove | Out-Null
-        Copy-Item $exe -Destination $dove
-        Copy-Item $exeVecchio -Destination $dove
-        foreach ($passo in @(@('ProvaStato.exe', 'scrivi-per-la-vecchia'), @('ProvaStatoVecchia.exe', 'vecchia-non-riscrive'))) {
-            $uscita = & (Join-Path $dove $passo[0]) $passo[1]
-            $codice = $LASTEXITCODE
-            foreach ($riga in $uscita) {
-                if ($riga -like '  FALLITO*') { Write-Host $riga -ForegroundColor Red } else { Write-Host $riga }
+        $adesso = [int][regex]::Match($testoStato, $modello).Groups[1].Value
+        for ($vecchio = 1; $vecchio -lt $adesso; $vecchio++) {
+            Write-Host "  (con il formato $vecchio)"
+            $vecchioStato = Join-Path $base "StatoFormato$vecchio.cs"
+            [System.IO.File]::WriteAllText($vecchioStato, [regex]::Replace($testoStato, $modello, "public const int Formato = $vecchio;"),
+                (New-Object System.Text.UTF8Encoding($false)))
+            $exeVecchio = Join-Path $base "ProvaStatoVecchia$vecchio.exe"
+            & $csc /nologo /target:exe /codepage:65001 "/out:$exeVecchio" /r:System.dll /r:System.Core.dll `
+                /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll $vecchioStato $sorgente
+            if ($LASTEXITCODE -ne 0) { throw "Compilazione dell'ospite con Formato = $vecchio fallita (codice $LASTEXITCODE)." }
+            $dove = Join-Path $base "protezione-versione-vecchia-$vecchio"
+            New-Item -ItemType Directory -Path $dove | Out-Null
+            Copy-Item $exe -Destination $dove
+            Copy-Item $exeVecchio -Destination (Join-Path $dove 'ProvaStatoVecchia.exe')
+            foreach ($passo in @(@('ProvaStato.exe', 'scrivi-per-la-vecchia'), @('ProvaStatoVecchia.exe', 'vecchia-non-riscrive'))) {
+                $uscita = & (Join-Path $dove $passo[0]) $passo[1]
+                $codice = $LASTEXITCODE
+                foreach ($riga in $uscita) {
+                    if ($riga -like '  FALLITO*') { Write-Host $riga -ForegroundColor Red } else { Write-Host $riga }
+                }
+                if ($codice -gt 0 -and $codice -lt 1000) { $fallimenti += $codice }
+                elseif ($codice -ne 0) { Write-Host "  FALLITO l'ospite si e' fermato (codice $codice)" -ForegroundColor Red; $fallimenti++ }
             }
-            if ($codice -gt 0 -and $codice -lt 1000) { $fallimenti += $codice }
-            elseif ($codice -ne 0) { Write-Host "  FALLITO l'ospite si e' fermato (codice $codice)" -ForegroundColor Red; $fallimenti++ }
         }
     }
 }
