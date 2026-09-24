@@ -2180,9 +2180,10 @@ function _diQualeAnno_(etichetta) {
 
 /**
  * Quando e' stato copiato il file di una classe, per l'anteprima: " copiato
- * il 24/09/2026". Se e' di un anno scolastico passato (quello comincia a
- * settembre) lo dice: con un'etichetta madre senza anno ("Le mie classi")
- * la regola resta la stessa, ma gli studenti sono cambiati.
+ * il 24/09/2026". Se e' di un anno scolastico passato (_annoScolasticoDi_:
+ * agosto conta gia' per quello che comincia) lo dice: con un'etichetta madre
+ * senza anno ("Le mie classi") la regola resta la stessa, ma gli studenti
+ * sono cambiati.
  */
 function _quandoCopiato_(copiato) {
   var annoFile = _annoScolasticoDi_(copiato);
@@ -2193,17 +2194,22 @@ function _quandoCopiato_(copiato) {
          ', se la classe e\' cambiata copialo di nuovo da Campanella';
 }
 
-/** L'anno in cui comincia l'anno scolastico (a settembre) di un giorno "2026-09-24": 2026; null se non e' un giorno. */
+/**
+ * L'anno in cui comincia l'anno scolastico di un giorno "2026-09-24": 2026;
+ * null se non e' un giorno. Agosto conta gia' per l'anno che comincia: il
+ * file di una classe copiato a fine agosto e' per le classi di settembre
+ * (come nell'applicazione, dove l'estate prepara l'anno che arriva).
+ */
 function _annoScolasticoDi_(giorno) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(giorno || ''));
   if (!m) return null;
-  return Number(m[2]) >= 9 ? Number(m[1]) : Number(m[1]) - 1;
+  return Number(m[2]) >= 8 ? Number(m[1]) : Number(m[1]) - 1;
 }
 
-/** L'anno in cui e' cominciato l'anno scolastico di adesso. */
+/** L'anno in cui comincia l'anno scolastico di adesso, con la stessa regola: agosto e' gia' del nuovo. */
 function _annoScolasticoAdesso_() {
   var adesso = new Date();
-  return adesso.getMonth() >= 8 ? adesso.getFullYear() : adesso.getFullYear() - 1;
+  return adesso.getMonth() >= 7 ? adesso.getFullYear() : adesso.getFullYear() - 1;
 }
 
 /** Un giorno "2026-09-24" come "24/09/2026". */

@@ -224,7 +224,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   preview says which rule the file serves and how to switch off or remove
   the other, not to delete the file. The reorder summary (PASSO_3) and the
   hourly sorting's log also flag a class file from a past school year
-  that a rule still uses. A conversation found by two
+  that a rule still uses (August already counts for the school year that
+  starts: a file copied at the end of August is for September's classes).
+  A conversation found by two
   searches of the same rule counts once in the trial reorder (even when it
   resumes halfway through a rule) and in the hourly sorting, even when
   Gmail's index lags. A rejected search is skipped in the trial reorder

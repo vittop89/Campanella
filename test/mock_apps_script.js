@@ -170,6 +170,7 @@ const etichette = new Map();
 const registro = [];
 const chiamate = { search: 0, addToThreads: 0, archivia: 0 };
 let orologio = 0;                 // millisecondi finti aggiunti a Date.now()
+let oggiFinto = null;             // se c'e', new Date() senza argomenti e' questo giorno
 let sogliaInterruzione = Infinity; // dopo quante addToThreads far "scadere" il tempo
 
 // ogni etichetta ha il suo id, come in Gmail: una cancellata e rifatta con
@@ -280,7 +281,7 @@ const DateFinta = new Proxy(Date, {
     if (prop === 'now') return () => target.now() + orologio;
     return Reflect.get(target, prop);
   },
-  construct(target, args) { return new target(...args); }
+  construct(target, args) { return (args.length === 0 && oggiFinto) ? new target(oggiFinto.getTime()) : new target(...args); }
 });
 
 // ---------------------------------------------------------------------------
@@ -2229,6 +2230,31 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   const nuovo = contesto._notaClasse_(cfg, senzaAnno, '3B');
   verifica('uno di quest\'anno dice solo quando (' + nuovo + ')',
     /copiato il \d\d\/\d\d\/\d{4}$/.test(nuovo) && nuovo.indexOf('anno scolastico') < 0);
+  // agosto conta gia' per l'anno che comincia: il file copiato a fine agosto
+  // per le classi di settembre non e' dell'anno passato, ne' a settembre ne'
+  // ancora ad agosto; quello di luglio si'
+  const annoDelGiorno = ['2026-07-31', '2026-08-01', '2026-08-28', '2026-09-01', '2027-06-10']
+    .map(g => g + ' ' + contesto._annoScolasticoDi_(g)).join(', ');
+  verifica('l\'anno scolastico di un giorno: agosto e\' gia\' del nuovo (' + annoDelGiorno + ')',
+    annoDelGiorno === '2026-07-31 2025, 2026-08-01 2026, 2026-08-28 2026, 2026-09-01 2026, 2027-06-10 2026');
+  const adessoIn = [[2026, 6, 31], [2026, 7, 1], [2026, 7, 30], [2026, 8, 24], [2027, 5, 10]].map(g => {
+    oggiFinto = new Date(g[0], g[1], g[2], 12, 0, 0);
+    return contesto._annoScolasticoAdesso_();
+  }).join(', ');
+  verifica('e quello di adesso con la stessa regola (' + adessoIn + ')', adessoIn === '2025, 2026, 2026, 2026, 2026');
+  for (const oggiProva of [[2026, 8, 24], [2026, 7, 30]]) {
+    oggiFinto = new Date(oggiProva[0], oggiProva[1], oggiProva[2], 12, 0, 0);
+    contesto.CLASSI_STUDENTI = undefined;
+    vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, '2026-08-28'), contesto);
+    const diAgosto = contesto._notaClasse_(cfg, senzaAnno, '3B');
+    contesto.CLASSI_STUDENTI = undefined;
+    vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, '2026-07-15'), contesto);
+    const diLuglio = contesto._notaClasse_(cfg, senzaAnno, '3B');
+    verifica('oggi ' + oggiProva[2] + '/' + (oggiProva[1] + 1) + ': il file copiato il 28 agosto e\' di quest\'anno (' +
+             diAgosto + '), quello del 15 luglio del 2025-26',
+      /copiato il 28\/08\/2026$/.test(diAgosto) && diLuglio.indexOf('e\' dell\'anno scolastico 2025-26') > 0);
+  }
+  oggiFinto = null;
   // e lo dicono anche il riepilogo del riordino e quello dello smistamento di
   // ogni ora, che girano anche senza l'anteprima: la regola usa ancora gli
   // studenti dell'anno prima
