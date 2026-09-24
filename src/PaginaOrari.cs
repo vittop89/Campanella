@@ -941,7 +941,8 @@ namespace Campanella
                                                                 cambio > inizio ? cambio : inizio, fine, sospensioni);
                         r.Append("\nCambio d'orario dal " + Giorno(cambio) + ": " + dopo.Serie.Count +
                                  " serie nuove da quel giorno con ORARI_5_cambioOrario" +
-                                 (cambio > inizio ? "; le settimane prima restano." : ", cioe' da tutto il periodo."));
+                                 (cambio > inizio ? "; le settimane prima restano." : ", cioe' da tutto il periodo.") +
+                                 " Il periodo resta quello con cui hai messo l'orario: la data del cambio va solo qui.");
                     }
                 }
                 r.Append("\nOre: " + string.Join("  ", inizi.ToArray()) + "  (durata " + S.CalMinutiOra + " minuti).");
@@ -1025,6 +1026,8 @@ namespace Campanella
             sb.AppendLine("------------------");
             sb.AppendLine("1.  Carica il nuovo tabellone al passo 1. Qui sopra spunta \"L'orario e'");
             sb.AppendLine("    cambiato: il nuovo vale dal\" e scegli il primo giorno dell'orario nuovo.");
+            sb.AppendLine("    Il periodo (\"Dal\" e \"al\") resta quello con cui hai messo l'orario:");
+            sb.AppendLine("    la data del cambio va solo nella spunta.");
             sb.AppendLine();
             sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (voce 1 del menu) e incollali nel file");
             sb.AppendLine("    DatiOrari, al posto di quello che c'era. Salva.");
@@ -1033,15 +1036,21 @@ namespace Campanella
             sb.AppendLine("    il giorno prima: le settimane passate restano come sono. Quelle che");
             sb.AppendLine("    cominciavano dopo si tolgono, e da quel giorno c'e' l'orario nuovo.");
             sb.AppendLine("    Rieseguita con la stessa data da' lo stesso risultato, e anche lei");
-            sb.AppendLine("    riprende da sola se si ferma. Le modifiche fatte a mano su singole");
-            sb.AppendLine("    lezioni delle serie accorciate potrebbero non restare: dai un'occhiata.");
+            sb.AppendLine("    riprende da sola se si ferma. Tocca solo gli eventi con il");
+            sb.AppendLine("    contrassegno: una copia fatta a mano di una lezione la lascia e te la");
+            sb.AppendLine("    nomina. Le modifiche fatte a mano su singole lezioni delle serie");
+            sb.AppendLine("    accorciate potrebbero non restare: il messaggio finale dice in quali");
+            sb.AppendLine("    serie ne ha trovate, dai un'occhiata.");
             sb.AppendLine();
             sb.AppendLine("ORARI_ANNULLA_calendario  resta per togliere tutto: solo gli eventi messi");
-            sb.AppendLine("da qui, nel periodo indicato; il calendario e gli altri eventi non vengono");
-            sb.AppendLine("toccati (il calendario, se non ti serve piu', lo cancelli tu da Google");
-            sb.AppendLine("Calendar). Dopo, ORARI_4_calendario rimette l'orario da capo. Se riesegui");
-            sb.AppendLine("ORARI_4_calendario  sopra un orario gia' messo, si ferma e te lo dice:");
-            sb.AppendLine("non mette le lezioni due volte.");
+            sb.AppendLine("da qui (e le loro copie fatte a mano), nel periodo indicato; il calendario");
+            sb.AppendLine("e gli altri eventi non vengono toccati (il calendario, se non ti serve");
+            sb.AppendLine("piu', lo cancelli tu da Google Calendar). Se si ferma per il tempo o");
+            sb.AppendLine("perche' Google chiede di rallentare, rieseguilo. Se hai cambiato le date");
+            sb.AppendLine("del periodo dopo aver messo l'orario, rimetti quelle di prima: gli eventi");
+            sb.AppendLine("fuori dal periodo non li trova. Dopo, ORARI_4_calendario rimette l'orario");
+            sb.AppendLine("da capo. Se riesegui  ORARI_4_calendario  sopra un orario gia' messo, si");
+            sb.AppendLine("ferma e te lo dice: non mette le lezioni due volte.");
             sb.AppendLine();
             sb.AppendLine("COME VENGONO GLI EVENTI");
             sb.AppendLine("-----------------------");

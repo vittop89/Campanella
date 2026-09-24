@@ -66,7 +66,9 @@ Quattro funzioni, tutte facoltative e indipendenti:
   contrassegno. Nel cambio d'orario (`ORARI_5_cambioOrario`, eseguita dal
   docente) accorcia le serie dell'orario messe dallo script perché finiscano
   il giorno prima della data indicata e toglie quelle che cominciano da
-  quella data in poi: sempre e solo eventi con il contrassegno.
+  quella data in poi: sempre e solo eventi con il contrassegno, e mai prima
+  dell'inizio del periodo indicato (gli anni scolastici precedenti nello
+  stesso calendario restano).
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -161,21 +163,27 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   cambio d'orario, che riprende anche quando Google chiede di rallentare) e
   per lo smistamento periodico dei nuovi messaggi. Le riprese sono attivazioni
   singole, un minuto dopo, della stessa funzione. Si disattivano tutti con
-  `ANNULLA_automazione`; quelli del calendario anche con
-  `ORARI_ANNULLA_calendario`.
+  `ANNULLA_automazione`, che segna anche come fermato un lavoro a metà sul
+  calendario (una ripresa già partita non lo riprende); quelli del
+  calendario anche con `ORARI_ANNULLA_calendario`.
 - **Google Calendar** (`CalendarApp`): se nel progetto c'è anche il file
   degli orari, Google chiede questo permesso per tutto il progetto alla prima
   autorizzazione, anche se il docente usa solo le email. Lo usano soltanto
-  `ORARI_4_calendario`, che crea o usa un calendario con il nome scelto e vi
-  inserisce gli eventi del proprio orario, marcati con un contrassegno e
-  senza i giorni senza lezione indicati dal docente;
+  `ORARI_4_calendario`, che crea o usa un calendario del docente con il nome
+  scelto, scritto esattamente così (non un calendario di altri a cui è
+  iscritto), e vi inserisce gli eventi del proprio orario, marcati con un
+  contrassegno e senza i giorni senza lezione indicati dal docente;
   `ORARI_5_cambioOrario`, che quando l'orario cambia accorcia le serie già
   messe perché finiscano il giorno prima della data indicata (o le toglie,
   se cominciano da quella data in poi) e inserisce l'orario nuovo da quella
-  data; e `ORARI_ANNULLA_calendario`, che rimuove solo quelli. Crea, accorcia
-  o toglie soltanto eventi con il contrassegno (o, se Google non l'ha
-  salvato, con la descrizione che comincia con «[Campanella]»): gli altri
-  eventi del calendario non li tocca.
+  data; e `ORARI_ANNULLA_calendario`, che rimuove solo quelli, nel periodo
+  indicato. Il cambio d'orario accorcia o toglie soltanto eventi con il
+  contrassegno; l'annullamento anche quelli con la descrizione che comincia
+  con «[Campanella]» (se Google non ha salvato il contrassegno, oppure una
+  copia fatta a mano dal docente di una lezione). Gli altri eventi del
+  calendario non li tocca. `test/invarianti_script.js` controlla sul codice
+  che nessun'altra funzione possa prendere un calendario o un evento, né
+  cambiarlo o toglierlo.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
   facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
   dello script i colori scelti in Campanella e per togliere i filtri di Gmail
@@ -293,8 +301,9 @@ eseguendo lo script il [data].]*
    le etichette create dallo script; `ANNULLA_etichettaturaCompleta` per
    quelle nate con versioni precedenti o con lo stesso nome di etichette del
    docente, come spiegato al punto 5), `ORARI_ANNULLA_calendario` (toglie
-   gli eventi e dimentica un lavoro a metà sul calendario, con le sue
-   riprese).
+   gli eventi del periodo indicato nei dati degli orari e dimentica un
+   lavoro a metà sul calendario, con le sue riprese; se si ferma per il
+   tempo massimo o per i limiti di Google, lo dice e va rieseguito).
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),
    cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,
    oppure esportarli, sceglierli in Campanella (Posta, passo 4) ed eseguire
