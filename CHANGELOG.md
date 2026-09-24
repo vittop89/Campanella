@@ -1,5 +1,98 @@
 # Changelog
 
+## 1.6.0 — (data da definire)
+
+Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs again.
+
+**Orari: school holidays and timetable changes on Google Calendar**
+
+- Step 4 has "Giorni senza lezione": one line per day or period
+  (`01/11/2026 Tutti i Santi`, `23/12/2026-06/01/2027 Vacanze di Natale`,
+  `dal 23/12/2026 al 06/01/2027`, `2026-11-01`, two-digit years, and also
+  without the year, `01/11` or `23/12-06/01`: the year comes from the school
+  year of the period, September to December the first one, January on the
+  second). Empty lines and lines starting with # do not count; a line
+  Campanella does not understand (an impossible date, the end before the
+  start) is shown in the summary, in amber, and left out of DatiOrari.gs.
+  "Aggiungi le feste nazionali" adds at the end the national holidays of the
+  period that no line covers yet: All Saints, the Immaculate Conception,
+  Christmas, St Stephen, New Year's Day, Epiphany, Easter (computed, no
+  internet) and Easter Monday, 25 April, 1 May, 2 June and, from 2026 on,
+  4 October (St Francis of Assisi and St Catherine of Siena, law 151/2025).
+  No regional calendars are built in: holidays, the patron saint and bridge
+  days are copied by the teacher from the school calendar circular, as the
+  page says.
+- On those days the calendar has no lessons: each block of hours becomes one
+  weekly series per stretch of consecutive weeks without a day off, until
+  the last lesson of the stretch. The summary of step 4 says how many series
+  and how many lessons are skipped. The plan is computed in the app
+  (Calendario.cs) and in the script, and the tests check that they agree.
+- "L'orario e' cambiato: il nuovo vale dal" with its date, and the new
+  function ORARI_5_cambioOrario: the series already on the calendar that
+  started before that date now end the day before (their recurrence is
+  changed, keeping the first lesson), those starting from that date on are
+  removed, and so are the single events with the mark; then the new timetable
+  goes on from that date. The weeks before stay as they were, and running it
+  again with the same date gives the same calendar. The final message says
+  how many series were shortened, removed and created, how many lessons were
+  skipped, and that changes made by hand to single lessons of a shortened
+  series may not survive. It also serves for a day off added after the
+  timetable was put on the calendar. With the box unticked there is no change
+  date. Before, the only way was ORARI_ANNULLA_calendario and
+  ORARI_4_calendario again, which also rewrote the past weeks.
+- ORARI_4_calendario and ORARI_5_cambioOrario resume by themselves, like the
+  sending: when an execution runs out of time, or Google says there were too
+  many calendar changes in a short time ("Service invoked too many times",
+  "You have been creating or deleting too many calendars or calendar
+  events", rate limit, also in Italian), they save where they are, with a
+  fingerprint of the plan, and schedule themselves again a minute later. When
+  the day's quota is over, or Google keeps refusing after ten resumes in a
+  row, they stop and ask to be run again later; any other error keeps the
+  saved point and shows. A resume that finds a different DatiOrari.gs stops
+  and explains instead of mixing two timetables. A resume with nothing to do
+  removes its trigger and says so. There is a short pause between series;
+  the description goes in the options of createEventSeries and the mark right
+  after, and a series whose mark fails counts as done (its description still
+  identifies it), so a resume never creates it twice.
+- ORARI_4_calendario, ORARI_5_cambioOrario and ORARI_ANNULLA_calendario take
+  the same lock as the sending: with the lock busy and a job half done, the
+  first two schedule its resume, otherwise they ask to retry.
+  ORARI_ANNULLA_calendario also forgets a job half done and removes the
+  calendar resumes. ORARI_4_calendario still refuses to put a timetable over
+  one already there, and now points to ORARI_5_cambioOrario too.
+- ORARI_1_anteprima says how many days or periods without lessons there are,
+  how many series ORARI_4_calendario would create and how many lessons are
+  skipped, and, with a change date, that the change is made with
+  ORARI_5_cambioOrario and how many new series it would create.
+- DatiOrari.gs: the `calendario` block has `sospensioni` (only the lines
+  understood, with full dates) and `validoDal`. The two new settings,
+  `calSospensioni` and `calValidoDal`, are in campanella.json: dates and
+  holiday names, not personal data.
+- Posta: ANNULLA_automazione also removes and names the calendar resumes
+  (ORARI_4_calendario, ORARI_5_cambioOrario).
+
+**For developers**
+
+- mock_orari.js: the fake Calendar repeats a series every week until
+  `until`, takes the options of createEventSeries and setRecurrence, and can
+  throw Google's limits at the n-th call of an operation. New sections: days
+  without lessons (an isolated holiday, a long break, a Monday block split by
+  Easter Monday and a Wednesday one that is not), resume for time and for
+  Google's limits without duplicates, lock, changed DatiOrari.gs, timetable
+  change (shortened, removed, created, weeks before untouched, no old lesson
+  after the date, same result when run again, resumed halfway), undo of a job
+  half done.
+- invarianti_script.js: setRecurrence only inside `_orariTaglia_`, on series
+  found only by `_orariNostri_`, which must check the mark; never by a
+  computed name or taken as a value. Eight modified copies must fail.
+- prova_orario.ps1: the line formats, lines not understood, holidays of
+  several years (Easter 2027 on 28 March, 2028 on 16 April, 4 October only
+  from 2026), the plan, `sospensioni` and `validoDal` in the generated
+  DatiOrari.gs, and the same number of series and skipped lessons in the app
+  and in the script, from the start and from the change date.
+  prova_stato.ps1 saves and reloads the two settings; prova_disposizione.ps1
+  checks step 4 with the fullest summary, the tick and the holidays button.
+
 ## 1.5.3 — 24 September 2026
 
 Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs

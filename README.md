@@ -13,7 +13,7 @@ for the open-source audience.
 |------|--------------|
 | **Posta** (mail) | sorts the Gmail mailbox into labels (management, secretariat, circulars, colleagues, students…), past and future mail, in the colours you pick |
 | **Cartelle** (folders) | builds the school-year folder tree in Drive and copies the templates into it; for Google Forms, which cannot be copied from a PC, it writes the script that gives each form its response sheet for the year |
-| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar |
+| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar, with no lessons on the days you list as holidays and, when the timetable changes, the new one from a date on |
 | **Privacy** | the rules on school data and AI, tools to strip personal data before pasting into an assistant, and the documents for the principal and the DPO |
 
 The application **never touches mail, calendar or Drive on its own**: it
@@ -133,6 +133,7 @@ src/
   Xlsx.cs             minimal .xlsx reader (ZIP + XML) and CSV
   Testo.cs            text files read as UTF-8 or ANSI (Windows-1252)
   Orario.cs           timetable recognition, calendar blocks
+  Calendario.cs       days without lessons, national holidays, the plan of calendar series
   risorse/            the .gs and .js files embedded in the executable
 src-installer/        the C# installer, per-user, no UAC (local builds only)
 installer/            Inno Setup script (the published installer, it/en), terms, SignPath artifact config
@@ -169,14 +170,14 @@ on every push and pull request, and the release workflow before publishing:
 
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
-node test\mock_orari.js           # timetable emails, resume, class timetables, calendar
+node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: days without lessons, resume, timetable change
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
 node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical
 node test\mutazioni_pannello.js   # mutations of the control-sheet engine: the bench must catch each one
 node test\nomi_funzioni.js        # every script function named by the app and the documents exists
-node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions
-.\test\prova_orario.ps1           # reads a timetable, checks the grid and the generated DatiOrari.gs
+node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions, calendar series shortened only in the timetable change
+.\test\prova_orario.ps1           # reads a timetable, checks the grid, the days without lessons and the generated DatiOrari.gs, same calendar plan as the script
 .\test\prova_xlsx.ps1             # the .xlsx reader and CSV files in ANSI, UTF-8 and UTF-16
 .\test\prova_moduli.ps1           # generates both forms scripts and runs them in the benches
 .\test\prova_personale.ps1        # staff list: paste formats, roles grouped into five categories

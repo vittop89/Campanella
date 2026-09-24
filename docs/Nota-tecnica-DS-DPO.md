@@ -49,7 +49,9 @@ Quattro funzioni, tutte facoltative e indipendenti:
 3. **Orari** — legge il tabellone degli orari (file Excel) e, tramite lo
    script, invia **al docente stesso** una email per ogni docente con la
    relativa griglia (per ritrovare l'orario di un collega cercandone il
-   cognome in Gmail) e inserisce **il proprio** orario in Google Calendar.
+   cognome in Gmail) e inserisce **il proprio** orario in Google Calendar,
+   senza lezioni nei giorni senza lezione indicati dal docente e, quando
+   l'orario cambia, con l'orario nuovo da una data in poi.
 4. **Privacy** — toglie i dati personali da testi e file prima di darli a un
    assistente di intelligenza artificiale, usando rizzo-pii, un modello
    open source che gira sul computer del docente senza collegamento in rete.
@@ -61,7 +63,10 @@ Quattro funzioni, tutte facoltative e indipendenti:
   hanno messo, e solo quando il docente esegue una funzione di annullamento
   (punto 6): le etichette dai messaggi, che restano vuote nell'elenco di
   Gmail, e gli eventi dell'orario creati dallo script, riconoscibili da un
-  contrassegno.
+  contrassegno. Nel cambio d'orario (`ORARI_5_cambioOrario`, eseguita dal
+  docente) accorcia le serie dell'orario messe dallo script perché finiscano
+  il giorno prima della data indicata e toglie quelle che cominciano da
+  quella data in poi: sempre e solo eventi con il contrassegno.
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -150,15 +155,26 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
 - **Indirizzo del docente** (`Session`): per sapere a quale indirizzo, il
   proprio, mandare riepiloghi e orari.
 - **Trigger** (`ScriptApp`): per riprendere da solo il lavoro quando supera il
-  tempo massimo di esecuzione (il riordino della posta e i due invii degli
-  orari, ai docenti e alle classi) e per lo smistamento periodico dei nuovi
-  messaggi. Si disattivano tutti con `ANNULLA_automazione`.
+  tempo massimo di esecuzione (il riordino della posta, i due invii degli
+  orari, ai docenti e alle classi, e l'orario sul calendario, anche nel
+  cambio d'orario, che riprende anche quando Google chiede di rallentare) e
+  per lo smistamento periodico dei nuovi messaggi. Le riprese sono attivazioni
+  singole, un minuto dopo, della stessa funzione. Si disattivano tutti con
+  `ANNULLA_automazione`; quelli del calendario anche con
+  `ORARI_ANNULLA_calendario`.
 - **Google Calendar** (`CalendarApp`): se nel progetto c'è anche il file
   degli orari, Google chiede questo permesso per tutto il progetto alla prima
   autorizzazione, anche se il docente usa solo le email. Lo usano soltanto
   `ORARI_4_calendario`, che crea o usa un calendario con il nome scelto e vi
-  inserisce gli eventi del proprio orario, marcati con un contrassegno, e
-  `ORARI_ANNULLA_calendario`, che rimuove solo quelli.
+  inserisce gli eventi del proprio orario, marcati con un contrassegno e
+  senza i giorni senza lezione indicati dal docente;
+  `ORARI_5_cambioOrario`, che quando l'orario cambia accorcia le serie già
+  messe perché finiscano il giorno prima della data indicata (o le toglie,
+  se cominciano da quella data in poi) e inserisce l'orario nuovo da quella
+  data; e `ORARI_ANNULLA_calendario`, che rimuove solo quelli. Crea, accorcia
+  o toglie soltanto eventi con il contrassegno (o, se Google non l'ha
+  salvato, con la descrizione che comincia con «[Campanella]»): gli altri
+  eventi del calendario non li tocca.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
   facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
   dello script i colori scelti in Campanella e per togliere i filtri di Gmail
@@ -271,11 +287,13 @@ eseguendo lo script il [data].]*
 1. Nell'editor dello script della posta: eseguire `ANNULLA_automazione`
    (spegne i trigger: lo smistamento periodico, la ripresa del riordino e le
    riprese degli invii degli orari, `ORARI_2_invia` e
-   `ORARI_3_inviaOrariClassi`), `ANNULLA_etichettatura` (toglie dai messaggi
+   `ORARI_3_inviaOrariClassi`, e del calendario, `ORARI_4_calendario` e
+   `ORARI_5_cambioOrario`), `ANNULLA_etichettatura` (toglie dai messaggi
    le etichette create dallo script; `ANNULLA_etichettaturaCompleta` per
    quelle nate con versioni precedenti o con lo stesso nome di etichette del
    docente, come spiegato al punto 5), `ORARI_ANNULLA_calendario` (toglie
-   gli eventi).
+   gli eventi e dimentica un lavoro a metà sul calendario, con le sue
+   riprese).
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),
    cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,
    oppure esportarli, sceglierli in Campanella (Posta, passo 4) ed eseguire
