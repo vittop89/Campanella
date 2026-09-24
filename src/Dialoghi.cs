@@ -1574,12 +1574,18 @@ namespace Campanella
             return "Togli le regole delle classi " + di + " (" + Vecchie.Count + ")";
         }
 
-        /// <summary>Quello che Campanella non puo' togliere da solo, per le classi dell'anno prima.</summary>
+        /// <summary>
+        /// Quello che Campanella non puo' togliere da solo, per le classi
+        /// dell'anno prima. Non il file di una classe che c'e' anche quest'anno:
+        /// ha lo stesso nome (Classe_3B.gs), e cancellandolo la regola nuova
+        /// perderebbe gli studenti; lo sostituisce il file nuovo.
+        /// </summary>
         public string NotaVecchie()
         {
-            return "Nel progetto dello script cancella tu i loro file Classe_*.gs, con gli indirizzi degli studenti, e se " +
-                   "avevi creato i filtri veri di Gmail togli anche i loro (Gmail -> Impostazioni -> Filtri e indirizzi " +
-                   "bloccati): Campanella non puo' farlo.";
+            return "Nel progetto dello script cancella tu i loro file Classe_*.gs, con gli indirizzi degli studenti, ma " +
+                   "non quelli con lo stesso nome di una classe di quest'anno, che il file nuovo sostituisce: dopo \"Usa " +
+                   "queste classi\" Campanella dice quali. Se avevi creato i filtri veri di Gmail togli anche i loro " +
+                   "(Gmail -> Impostazioni -> Filtri e indirizzi bloccati): Campanella non puo' farlo.";
         }
     }
 

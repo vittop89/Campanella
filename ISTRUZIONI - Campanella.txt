@@ -295,7 +295,9 @@ POSTA - riordinare la casella
    delle classi senza spunta, ricordando di cancellare il loro file.
    Chiudendo con Annulla o la X chiede prima, se hai copiato un file o
    cambiato qualcosa. L'anno dopo propone di togliere le regole delle classi
-   dell'anno prima (di partenza no). Se le tieni, la 3B dell'anno prima e
+   dell'anno prima (di partenza no); dei loro file Classe_*.gs non
+   cancellare quelli che hanno il nome di una classe di quest'anno: li
+   sostituisce il file nuovo. Se le tieni, la 3B dell'anno prima e
    quella nuova usano lo stesso file Classe_3B.gs, che vale per una sola:
    l'anteprima dice di quale e come spegnere o togliere l'altra. Le
    etichette in Gmail non si cancellano mai. A fine anno cancella tu, nel

@@ -1239,6 +1239,11 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
             $fc3.Madre -eq 'Classi 2027-28' -and $fc3.Vecchie.Count -eq 2 -and -not $fc3.TogliVecchie -and
             $fc3.TestoVecchie() -match 'del 2026-27 \(2\)')
         Verifica "e ricorda di cancellare i file Classe_*.gs dal progetto (l'app non puo')" ($fc3.NotaVecchie() -match 'Classe_\*\.gs')
+        # la 3B dell'anno prima e quella nuova hanno lo stesso file: cancellandolo
+        # la regola nuova perderebbe gli studenti appena copiati
+        Verifica "ma non quelli con lo stesso nome di una classe di quest'anno, che il file nuovo sostituisce ('$($fc3.NotaVecchie())')" (
+            $fc3.NotaVecchie() -match "non quelli con lo stesso nome di una classe di quest'anno" -and
+            $fc3.NotaVecchie() -match 'Usa queste classi')
         [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc3.Madre, $fc3.Classi.PSObject.BaseObject, $false))
         $etichette7 = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta })
         Verifica "senza la spunta restano anche quelle del 2026-27 ($($etichette7 -join ', '))" (

@@ -20,9 +20,10 @@ copied from "Le mie classi...".
 - The classes come from the timetable (your lessons, without the "a
   disposizione" hours; a lesson for 3A/3B is two classes, a cell such as
   "3B 2 gruppi" stays one: Orari, the timetable file and your name in step
-  4) and from the classes written in Cartelle; others are added by hand. 3B, 3 B and 3^B are the same class;
-  3B LSA and 3B ITE are other classes, and when two share number and
-  section the window says so. A slash never gets into a label name.
+  4) and from the classes written in Cartelle; others are added by hand.
+  3B, 3 B and 3^B are the same class; 3B LSA and 3B ITE are other classes,
+  and when two share number and section the window says so. A slash never
+  gets into a label name.
   "Cerca nell'oggetto" starts from 3B, "3 B" and III B (Gmail searches whole
   words; 3B LSA gets the same ones). When the section is also an Italian
   word (A, E, I, O, AL...) it starts from 3A, "classe 3 A" and "classe III
@@ -65,7 +66,9 @@ copied from "Le mie classi...".
   another parent must be copied again. Closing with Annulla, Esc or the X
   asks first if a file was copied or something changed. In a new school
   year (also written 2026-2027) it offers, unticked, to remove last year's
-  class rules, and reminds you to delete their Classe_*.gs files. With a
+  class rules, and reminds you to delete their Classe_*.gs files, except
+  those named like one of this year's classes, which the new file replaces
+  (after "Usa queste classi" it says which ones). With a
   parent label without the year (such as "Le mie classi") the rules stay
   the same the next year but the students do not: the window says that in
   a new school year the addresses must be pasted and the file copied again.
