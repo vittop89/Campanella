@@ -701,10 +701,10 @@ function provaDellaProva() {
     inserisci(orari, 'function ORARI_ANNULLA_calendario() {', '\n  CalendarApp.getDefaultCalendar().deleteCalendar();'),
     'cancellazione non ammessa: deleteCalendar');
   deveFallire('Orari.gs', 'gli invitati a un evento vengono trovati',
-    inserisci(orari, 'function ORARI_4_calendario() {', '\n  var opzioni = { guests: \'collega@scuola-esempio.edu.it\' };'),
+    inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  var opzioni = { guests: \'collega@scuola-esempio.edu.it\' };'),
     'invitati');
   deveFallire('Orari.gs', 'un foglio creato nel Drive dagli orari viene trovato',
-    inserisci(orari, 'function ORARI_4_calendario() {', '\n  SpreadsheetApp.create(\'Orari\');'),
+    inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  SpreadsheetApp.create(\'Orari\');'),
     'servizio non ammesso: SpreadsheetApp');
   deveFallire('Orari.gs', 'una copia in cc negli orari, con la chiave fra virgolette, viene trovata',
     sostituisci(orari, 'to: m.a,', 'to: m.a, "cc": \'collega@scuola-esempio.edu.it\','), 'copia (cc)');

@@ -527,8 +527,19 @@ console.log(JSON.stringify({
     $s.OggettoOrari = 'Orario {docente}'
     $s.OggettoOrariClasse = 'Orario classe {classe}'
     $s.NotaOrari = 'Orario provvisorio: eventuali variazioni vengono comunicate per circolare.'
-    # il calendario per il primo docente con almeno un'ora di lezione
-    $s.CalDocente = [string]($o.Docenti() | Where-Object { $o.OreDi($_) -gt 0 } | Select-Object -First 1)
+    # il calendario per il primo docente con lezioni il lunedi' e il mercoledi':
+    # il banco vuole vedere Pasquetta spezzare un blocco del lunedi' e non uno
+    # del mercoledi'. Se non c'e', il primo con almeno un'ora di lezione
+    function HaLezioni($docente, $giorno) {
+        $colonna = $o.Colonna($giorno)
+        if ($colonna -lt 0) { return $false }
+        $g = $o.GrigliaDocente($docente)
+        for ($h = 0; $h -lt $o.OrePerGiorno; $h++) { if ($g[$h, $colonna]) { return $true } }
+        return $false
+    }
+    $conLunMer = [string]($o.Docenti() | Where-Object { (HaLezioni $_ 0) -and (HaLezioni $_ 2) } | Select-Object -First 1)
+    if ($conLunMer -eq '') { $conLunMer = [string]($o.Docenti() | Where-Object { $o.OreDi($_) -gt 0 } | Select-Object -First 1) }
+    $s.CalDocente = $conLunMer
     $s.CalNome = 'Orario di prova'
     $s.CalInizio = '2026-09-14'
     $s.CalFine = '2027-06-10'
@@ -536,23 +547,67 @@ console.log(JSON.stringify({
     $s.CalMinutiOra = 60
     $s.CalOreInizio = '08:00, 09:00, 10:00, 11:10, 12:10, 13:10'
     $s.CalColore = 'BLUE'
+    # i giorni senza lezione come li scriverebbe un docente, con una riga che
+    # non si capisce (resta fuori da DatiOrari.gs), e un cambio d'orario
+    $s.CalSospensioni = @(
+        '# giorni senza lezione di prova',
+        '01/11 Tutti i Santi',
+        '07/12/2026 Ponte',
+        '08/12/2026 Immacolata',
+        'dal 23/12/2026 al 06/01/2027 Vacanze di Natale',
+        '15/02/2027-16/02/2027 Carnevale',
+        '28/03/2027 Pasqua',
+        "29/03/2027 Lunedi' dell'Angelo",
+        '25/04/2027 Festa della Liberazione',
+        '01/05/2027 Festa del Lavoro',
+        '02/06/2027 Festa della Repubblica',
+        'questa riga non si capisce') -join "`r`n"
+    $s.CalValidoDal = '2026-10-05'
     $generato = Join-Path $tmp 'DatiOrari_generato.gs'
     [System.IO.File]::WriteAllText($generato, (GeneraDati $o $s $true), $utf8)
+    Write-Host "  (calendario di $($s.CalDocente), cambio d'orario dal $($s.CalValidoDal))"
     $uscita = & node (Join-Path $qui 'mock_orari.js') $generato
     $esitoBanco = $LASTEXITCODE
     $uscita | Where-Object { $_ -match 'FALLITO|PROVE FALLITE|Tutte le prove' } | ForEach-Object { Write-Host "          $_" }
     Verifica "mock_orari.js passa con i dati scritti dal generatore ($(@($uscita | Where-Object { $_ -match '^\s+OK ' }).Count) controlli)" ($esitoBanco -eq 0)
 
-    # la regola "D" e la fusione delle ore in blocchi sono scritte due volte,
-    # qui (per il riepilogo del passo 4) e in Orari.gs: devono dare lo stesso
-    $riga = [string]($uscita | Where-Object { $_ -match 'un evento settimanale per ogni blocco di ore \(\d+\)' } | Select-Object -First 1)
-    $nJs = -1
-    if ($riga -match '\((\d+)\)') { $nJs = [int]$Matches[1] }
+    # la regola "D", la fusione delle ore in blocchi e il piano del calendario
+    # (tratti di settimane fra i giorni senza lezione) sono scritti due volte,
+    # qui (per il riepilogo del passo 4) e in Orari.gs: devono dare lo stesso.
+    # Il banco stampa i numeri dello script: quelli di ORARI_4_calendario e
+    # quelli che l'anteprima dice per ORARI_5_cambioOrario
+    $nBlocchiJs = -1; $nSerieJs = -1; $nSaltateJs = -1; $nSerieCambioJs = -1; $nSaltateCambioJs = -1
+    $riga = [string]($uscita | Where-Object { $_ -match '^\s*PIANO: ' } | Select-Object -First 1)
+    if ($riga -match 'PIANO: (\d+) blocchi, (\d+) serie, (\d+) lezioni saltate') {
+        $nBlocchiJs = [int]$Matches[1]; $nSerieJs = [int]$Matches[2]; $nSaltateJs = [int]$Matches[3]
+    }
+    $riga = [string]($uscita | Where-Object { $_ -match '^\s*PIANO DAL CAMBIO: ' } | Select-Object -First 1)
+    if ($riga -match 'PIANO DAL CAMBIO: (\d+) serie, (\d+) lezioni saltate') {
+        $nSerieCambioJs = [int]$Matches[1]; $nSaltateCambioJs = [int]$Matches[2]
+    }
     $a = New-Object 'object[]' 2
     $a[0] = $o.GrigliaDocente($s.CalDocente)
     $a[1] = $o.PSObject.BaseObject
     $nCs = $tAn.GetMethod('Blocchi', $FS).Invoke($null, $a).Count
-    Verifica "i blocchi del calendario sono gli stessi qui e in Orari.gs ($nCs e $nJs)" ($nCs -eq $nJs)
+    Verifica "i blocchi del calendario sono gli stessi qui e in Orari.gs ($nCs e $nBlocchiJs)" ($nCs -eq $nBlocchiJs)
+    if ($null -ne $tCal) {
+        $sospCs = LeggiRighe $s.CalSospensioni $s.CalInizio
+        function PianoCs($dal) {
+            $b = New-Object 'object[]' 5
+            $b[0] = $o.PSObject.BaseObject
+            $b[1] = [string]$s.CalDocente
+            $b[2] = DataIso $dal
+            $b[3] = DataIso $s.CalFine
+            $b[4] = $sospCs.Lista
+            $tCal.GetMethod('PianoDelDocente', $FS).Invoke($null, $b)
+        }
+        $pCs = PianoCs $s.CalInizio
+        Verifica "le serie e le lezioni saltate sono le stesse qui e in Orari.gs ($($pCs.Serie.Count) e $nSerieJs serie, $($pCs.Saltate) e $nSaltateJs saltate)" (
+            $pCs.Serie.Count -eq $nSerieJs -and $pCs.Saltate -eq $nSaltateJs -and $nSaltateJs -gt 0)
+        $pCambio = PianoCs $s.CalValidoDal
+        Verifica "e anche dal cambio d'orario ($($pCambio.Serie.Count) e $nSerieCambioJs serie, $($pCambio.Saltate) e $nSaltateCambioJs saltate)" (
+            $pCambio.Serie.Count -eq $nSerieCambioJs -and $pCambio.Saltate -eq $nSaltateCambioJs)
+    }
 }
 finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }
 
