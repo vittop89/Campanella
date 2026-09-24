@@ -945,7 +945,10 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         Verifica "le classi con lo stesso numero e la stessa sezione restano diverse ($senzaDoppi)" (
             $senzaDoppi -eq '1A AFM|1A CAT|3B|3B ITE|3B LSA')
         $separa = [ordered]@{ '3A/3B' = '3A|3B'; '3A-3B' = '3A|3B'; '3A 3B' = '3A|3B'; '3A + 3B' = '3A|3B'; '2B-Ls' = '2B-Ls';
-                              '3B LSA' = '3B LSA'; '3A/B' = '3A/B'; 'A5 AF' = 'A5 AF' }
+                              '3B LSA' = '3B LSA'; '3A/B' = '3A/B'; 'A5 AF' = 'A5 AF'; '4A-4B LSA' = '4A|4B LSA'; '5 A 5 B' = '5 A|5 B'
+                              # un numero e una parola non sono una classe: la cella resta una
+                              '3B 2 gruppi' = '3B 2 gruppi'; '1A 2 ore' = '1A 2 ore'; ('4A 2' + $grado + 'gr') = ('4A 2' + $grado + 'gr')
+                              '2C 3 Ore' = '2C 3 Ore' }
         $storteS = @()
         foreach ($k in $separa.Keys) {
             $pezzi = @((MC 'Separa').Invoke($null, @([string]$k))) -join '|'
@@ -1528,6 +1531,39 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $tipi9 = @($vecchiaMadre | ForEach-Object { $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s9)).Tipo })
         Verifica "con la regola sotto un'altra madre, gli stessi filtri sono 'di una classe', non 'simili' ($($tipi9 -join ', '))" (
             ($tipi9 -join ',') -eq 'classe,classe')
+
+        # le etichette tue con un numero, o con "Classico": non sono classi. "classi"
+        # conta come parola intera, e dopo numero e sezione c'e' al massimo
+        # un'articolazione (LSA, L.S.A.), non "per mille" o "Praga"
+        function Esportazione([string[]]$etichette, [string]$da) {
+            $v = @($etichette | ForEach-Object {
+                "<entry><category term='filter'></category><title>Mail Filter</title><apps:property name='from' " +
+                "value='$da'/><apps:property name='label' value='$_'/></entry>" })
+            $x = "<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' " +
+                 "xmlns:apps='http://schemas.google.com/apps/2006'><title>Mail Filters</title>" + ($v -join '') + '</feed>'
+            return @($tFiltriG.GetMethod('Leggi', $FS, $null, [Type[]]@([string]), $null).Invoke($null, @([string]$x)))
+        }
+        $s11 = NuovoStato
+        Imposta $s11 'Prefisso' ''
+        $tue = @('Amministrazione/5 per mille', 'Liceo Classico/Open day', 'Gite/5A Praga', 'Sindacato/1 Maggio',
+                 'Classici/Letture', 'Viaggi/Parigi', 'Corsi/3 ore', 'Gite/2 giorni')
+        $tipi11 = @(Esportazione $tue 'agenzia@viaggi.example' | ForEach-Object {
+            $_.Etichetta + '=' + $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s11)).Tipo })
+        Verifica "le etichette tue con un numero o con 'Classico' non sembrano di una classe ($($tipi11 -join ', '))" (
+            @($tipi11 | Where-Object { $_ -like '*=classe' }).Count -eq 0)
+        $delleClassi11 = @('Terze/3B', 'Terze/3 B', 'Terze/3b', 'Terze/3B LSA', 'Terze/3B-LSA', 'Terze/3B (L.S.A.)', 'Terze/III B',
+                           'Terze/5AL', 'Le mie Classi/Potenziamento', 'CLASSI/Recupero', 'Classi2026/Recupero', '3B')
+        $tipi11c = @(Esportazione $delleClassi11 $alunni | ForEach-Object {
+            $_.Etichetta + '=' + $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s11)).Tipo })
+        Verifica "e quelle delle classi si' ($(@($tipi11c | Where-Object { $_ -notlike '*=classe' }) -join ', '))" (
+            @($tipi11c | Where-Object { $_ -notlike '*=classe' }).Count -eq 0)
+        # un'etichetta come Progetti/2FA sembra comunque quella di una classe: il
+        # suggerimento non dice che gli indirizzi sono di studenti
+        $dueFA = @(Esportazione @('Progetti/2FA') 'sicurezza@servizi.example')[0]
+        $x2FA = $mConfrontaC.Invoke($null, @($dueFA.PSObject.BaseObject, $s11))
+        Verifica "per un filtro che sembra di una classe il suggerimento non da' per certo che siano studenti ('$($x2FA.Testo())')" (
+            $x2FA.Tipo -eq 'classe' -and $x2FA.Testo() -match '^sembra di una classe e cerca degli indirizzi' -and
+            -not ($x2FA.Testo() -match 'indirizzi degli studenti'))
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA REGOLA DI UNA CLASSE NELLA SUA FINESTRA'

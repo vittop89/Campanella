@@ -417,8 +417,9 @@ namespace Campanella
             // alta quanto l'esito piu' lungo che Carica puo' scrivere
             lblEsito.Height = Tema.AltezzaTesto("Nel file ci sono 999 filtri: 999 uguali a una regola di Campanella " +
                 "(999 gia' spuntati, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
-                "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 delle " +
-                "classi con gli studenti (si tolgono in Gmail). In fondo, 999 scelti prima che nel file non ci sono.",
+                "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 che " +
+                "sembrano di una classe, con degli indirizzi (si tolgono in Gmail). In fondo, 999 scelti prima che " +
+                "nel file non ci sono.",
                 Tema.Normale, lblEsito.Width);
             Controls.Add(lblEsito);
             y += Math.Max(38, lblEsito.Height + 10);
@@ -638,7 +639,8 @@ namespace Campanella
             if (tuoi > 0) parti.Add(Quanti(tuoi, "tuo", "tuoi"));
             if (senza > 0) parti.Add(senza + " senza etichetta o senza criteri");
             if (nonCapiti > 0) parti.Add(nonCapiti + " con un criterio che Campanella non capisce");
-            if (classi > 0) parti.Add(classi + " delle classi con gli studenti (si tolgono in Gmail)");
+            if (classi > 0) parti.Add(classi == 1 ? "1 che sembra di una classe, con degli indirizzi (si toglie in Gmail)"
+                                                  : classi + " che sembrano di una classe, con degli indirizzi (si tolgono in Gmail)");
             lblEsito.Text = (n == 0 ? "Nel file non ci sono filtri." :
                 (n == 1 ? "Nel file c'e' 1 filtro: " : "Nel file ci sono " + n + " filtri: ") +
                 string.Join(", ", parti.ToArray()) + ".") +

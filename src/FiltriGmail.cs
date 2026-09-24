@@ -86,9 +86,12 @@ namespace Campanella
             if (Tipo == FiltriGmail.SenzaEtichetta) return "non mette etichette: resta com'e'";
             if (Tipo == FiltriGmail.SenzaCriteri) return "senza criteri: resta com'e'";
             if (Tipo == FiltriGmail.NonCapito) return "ha un criterio che Campanella non capisce: resta com'e'";
+            // l'etichetta sembra di una classe: gli indirizzi potrebbero anche non
+            // essere di studenti (Progetti/2FA), e non si dice che lo sono
             if (Tipo == FiltriGmail.DiUnaClasse)
-                return "di una classe, con gli indirizzi degli studenti: Campanella non li conserva, quindi non lo " +
-                       "toglie; se non ti serve piu', toglilo in Gmail (Impostazioni -> Filtri e indirizzi bloccati)";
+                return "sembra di una classe e cerca degli indirizzi (forse di studenti): Campanella non li conserva, " +
+                       "quindi non lo toglie; se non ti serve piu', toglilo in Gmail (Impostazioni -> Filtri e " +
+                       "indirizzi bloccati)";
             return "tuo";
         }
     }
@@ -497,12 +500,16 @@ namespace Campanella
                    f.DaTogliere() != null;
         }
 
+        // "classi" come parola intera: Classi 2026-27, Le mie classi, Classi2026;
+        // non Liceo Classico, Classici
+        static readonly Regex ParolaClassi = new Regex(@"(?<!\p{L})classi(?!\p{L})", RegexOptions.IgnoreCase);
+
         /// <summary>
         /// Vero se l'etichetta e' (o puo' essere) di una classe (Posta, passo 4,
         /// "Le mie classi..."). L'etichetta madre si scrive a mano e l'anno e'
         /// testo libero, quindi non basta il nome di partenza: vale come classe
         /// un'etichetta che finisce con il nome di una classe (3B, III B, 3B
-        /// LSA: LeMieClassi.SembraClasse), una con "classi" in un pezzo della
+        /// LSA: LeMieClassi.SembraClasse), una con la parola "classi" nella
         /// madre (Classi 2026-27, Le mie classi, Classi a.s. 2026/27), quella di
         /// una regola delle classi o una sotto la sua madre, e una sotto una
         /// madre usata per le classi prima (Stato.MadriClassi: resta anche dopo
@@ -519,8 +526,7 @@ namespace Campanella
             if (LeMieClassi.SembraClasse(e.Substring(barra + 1))) return true;
             if (barra <= 0) return false;
             string madre = e.Substring(0, barra);
-            foreach (string pezzo in madre.Split('/'))
-                if (pezzo.IndexOf("classi", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            if (ParolaClassi.IsMatch(madre)) return true;
             string pre = s.PrefissoPulito();
             string davanti = (pre == "") ? "" : pre + "/";
             List<string> madri = new List<string>();

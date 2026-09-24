@@ -667,7 +667,8 @@ namespace Campanella
         /// <summary>
         /// Le classi di una cella dell'orario o di una riga: "3A/3B", "3A-3B",
         /// "3A 3B" e "3A + 3B" sono due classi (una lezione insieme); "2B-Ls",
-        /// "3B LSA" e "3A/B" una. Si spezza solo se ogni pezzo e' numero e sezione.
+        /// "3B LSA" e "3A/B" una. Si spezza solo se ogni pezzo sembra una classe
+        /// (ClasseBenFatta): "3B 2 gruppi" e "1A 2 ore" restano una.
         /// </summary>
         public static List<string> Separa(string grezzo)
         {
@@ -677,7 +678,7 @@ namespace Campanella
             string[] pezzi = Regex.Split(s, @"\s*[/+&\-]\s*(?=[1-9])|\s+(?=[1-9])");
             bool tutte = pezzi.Length > 1;
             foreach (string p in pezzi)
-                if (!NumeroSezione.IsMatch(p.Trim())) tutte = false;
+                if (!ClasseBenFatta(p.Trim())) tutte = false;
             if (!tutte) { fuori.Add(s); return fuori; }
             foreach (string p in pezzi) fuori.Add(p.Trim());
             return fuori;
@@ -827,18 +828,45 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se un nome sembra quello di una classe: numero e una sezione di
-        /// al piu' tre lettere, poi eventualmente un separatore e il resto
-        /// ("3B", "3 B", "5AL", "3B LSA"), o il numero romano, da I a V, uno
-        /// spazio e la sezione in maiuscolo ("III B"). Serve a riconoscere le
-        /// etichette delle classi nei filtri di Gmail.
+        /// Vero se un nome sembra quello di una classe: numero, sezione e al
+        /// piu' un'articolazione (ClasseBenFatta: "3B", "3 B", "5AL", "3B LSA"),
+        /// o il numero romano, da I a V, uno spazio e la sezione in maiuscolo
+        /// ("III B", "IV A LSA"). Serve a riconoscere le etichette delle classi
+        /// nei filtri di Gmail: "5 per mille" e "5A Praga" non lo sono.
         /// </summary>
         public static bool SembraClasse(string nome)
         {
             string s = Pulito(nome);
-            Match m = NumeroSezione.Match(s);
-            if (m.Success) return m.Groups[2].Value.Length <= 3;
-            return Regex.IsMatch(s, @"^(I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9])");
+            if (ClasseBenFatta(s)) return true;
+            Match m = Regex.Match(s, @"^(?:I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9](.*)$)");
+            return m.Success && SoloArticolazione(m.Groups[1]);
+        }
+
+        // dopo numero e sezione, in una classe vera, al massimo un'articolazione:
+        // LSA, ITE, AFM, L.S.A. Non una parola ("per mille", "Praga", "gruppi")
+        static readonly Regex Articolazione = new Regex(@"^(?:[A-Z]{1,4}|[A-Z](?:\.[A-Z]){1,3}\.?)$");
+
+        /// <summary>
+        /// Vero se il nome e' numero e sezione come in una classe vera, con al
+        /// piu' un'articolazione: "3B", "3 b", "5AL", "3B LSA", "3B-LSA", "3B
+        /// (L.S.A.)". La sezione ha al piu' tre lettere, maiuscole se sono piu'
+        /// d'una ("5 per", "2 ore" no); l'articolazione e' una sigla ("3B 2
+        /// gruppi", "5A Praga" no).
+        /// </summary>
+        static bool ClasseBenFatta(string s)
+        {
+            Match m = NumeroSezione.Match(s ?? "");
+            if (!m.Success) return false;
+            string sezione = m.Groups[2].Value;
+            if (sezione.Length > 3 || (sezione.Length > 1 && sezione != sezione.ToUpperInvariant())) return false;
+            return SoloArticolazione(m.Groups[3]);
+        }
+
+        /// <summary>Vero se dopo numero e sezione non c'e' niente, o solo un'articolazione (fra parentesi anche).</summary>
+        static bool SoloArticolazione(Group resto)
+        {
+            string r = resto.Success ? Regex.Replace(resto.Value, @"^[^A-Za-z0-9]+|[^A-Za-z0-9.]+$", "") : "";
+            return r == "" || Articolazione.IsMatch(r);
         }
 
         /// <summary>Gli indirizzi della dirigenza e della segreteria (pagina "La tua scuola"), minuscoli.</summary>
