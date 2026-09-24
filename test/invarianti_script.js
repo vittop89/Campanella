@@ -79,9 +79,13 @@
  * o un indice, un evento singolo con la sola descrizione preso per
  * contrassegnato, Object.assign con JSON.parse, Object.defineProperty,
  * voce.contrassegno++, voce[k] = true, for ... of su una proprieta',
- * _ORARI_TAG_VALORE = null, String ridefinita) devono far fallire i
- * controlli. Se un giorno uno di questi non fallisse piu', il controllo
- * sarebbe diventato cieco.
+ * _ORARI_TAG_VALORE = null, String ridefinita; e dalla terza: una
+ * destrutturazione dentro un'espressione, { a: voce.contrassegno } = { a:
+ * true } dopo "=" o una virgola, la scrittura calcolata ammessa copiata in
+ * un'altra funzione o su una voce, una funzione dello script riassegnata o
+ * dichiarata due volte, una chiave calcolata in un oggetto) devono far
+ * fallire i controlli. Se un giorno uno di questi non fallisse piu', il
+ * controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -281,9 +285,13 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      toccare qualcosa;
 //    - il contrassegno di una voce si da' solo in _orariNostri_, in una forma:
 //      niente Object, constructor o prototype, proprieta' calcolate scritte
-//      solo nelle due istruzioni ammesse, niente for ... of su una proprieta',
-//      JSON.parse solo dove si legge il punto salvato; le costanti del
-//      contrassegno e i servizi non si cambiano;
+//      solo nelle due istruzioni ammesse, ognuna nella sua funzione e su un
+//      oggetto nuovo, niente chiavi calcolate negli oggetti, niente for ... of
+//      su una proprieta', niente destrutturazioni (nemmeno dentro
+//      un'espressione: nessuna graffa seguita da "=", e contrassegno, serie
+//      ed evento di una voce mai prima di , } o ]), JSON.parse solo dove si
+//      legge il punto salvato; le costanti del contrassegno, i servizi e le
+//      funzioni dello script (dichiarate una volta) non si cambiano;
 //    - i metodi che nessuna funzione deve usare non si nominano nemmeno
 //      (setTitle, getDefaultCalendar, getEventSeriesById, call, apply,
 //      bind...); niente eval, with, this, destrutturazione, proprieta' fra
@@ -345,10 +353,17 @@ const CALENDARIO_ORARI = {
   // sola, cosi', e mai cambiate (con _ORARI_TAG_VALORE = null ogni evento
   // senza contrassegno ne avrebbe uno)
   costanti: { _ORARI_TAG: 'var _ORARI_TAG = \'campanella\';', _ORARI_TAG_VALORE: 'var _ORARI_TAG_VALORE = \'orario\';' },
-  // le sole scritture su una proprieta' calcolata (x[k] = ...) in tutto il file
-  scrittureCalcolate: ['conta[f] = (conta[f] || 0) + 1;',
-                       'voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), ' +
-                         'descrizione: descrizione, lezioni: [] };'],
+  // le sole scritture su una proprieta' calcolata (x[k] = ...) in tutto il
+  // file, ognuna solo nella sua funzione
+  scrittureCalcolate: [
+    { funzione: '_orariPrimaLezione_', istruzione: 'conta[f] = (conta[f] || 0) + 1;' },
+    { funzione: '_orariNostri_', istruzione: 'voce = perSerie[id] = { serie: serie, contrassegno: false, ' +
+      'titolo: ev.getTitle(), descrizione: descrizione, lezioni: [] };' }
+  ],
+  // gli oggetti su cui si scrive con un nome calcolato: una dichiarazione
+  // sola, scritta cosi' (un oggetto nuovo, non una voce), e mai riassegnati.
+  // perSerie, in _orariNostri_, lo tengono le sue raccolte e l'impronta
+  oggettiCalcolati: { _orariPrimaLezione_: { conta: 'var conta = {};' } },
   // JSON.parse fa oggetti con le chiavi scritte in un testo: solo dove si
   // legge il punto salvato di un lavoro
   jsonParse: ['_orariInvia_', '_orariLavoroCalendario_'],
@@ -712,14 +727,82 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
   }
 
   // le proprieta' calcolate (x[k] = ...): si scrivono solo nelle istruzioni
-  // ammesse, in tutto il file. Un nome calcolato darebbe il contrassegno
-  // senza scriverlo: voce['contr' + 'assegno'] = true
+  // ammesse, ognuna nella sua funzione. Un nome calcolato darebbe il
+  // contrassegno senza scriverlo: voce['contr' + 'assegno'] = true; e
+  // l'istruzione ammessa copiata altrove su una voce lo stesso
   const calcolate = new RegExp('\\]\\s*' + ASSEGNA + '|' + PRIMA_DI + catena + '\\[', 'g');
   while ((m = calcolate.exec(nudo))) {
     const s = istruzione(codice, nudo, m.index);
-    if (k.scrittureCalcolate.indexOf(s) < 0) {
-      fuori.push('proprieta\' calcolata scritta fuori dalle istruzioni ammesse (riga ' + riga(m.index) + ': ' + s + ')');
+    const pos = m.index;
+    if (!k.scrittureCalcolate.some(x => x.istruzione === s && dentroA(corpi, [x.funzione], pos))) {
+      fuori.push('proprieta\' calcolata scritta fuori dalle istruzioni ammesse, ognuna nella sua funzione (riga ' +
+                 riga(m.index) + ': ' + s + ')');
     }
+  }
+  // e l'oggetto su cui scrivono: nuovo, dichiarato una volta, mai riassegnato
+  // (var conta = voce, o conta = voce dopo, lo farebbero la voce)
+  for (const f of Object.keys(k.oggettiCalcolati)) {
+    for (const [da, a] of (corpi[f] || [])) {
+      const corpo = nudo.slice(da, a);
+      const parametri = /\(([^)]*)\)\s*$/.exec(nudo.slice(Math.max(0, da - 300), da));
+      for (const nome of Object.keys(k.oggettiCalcolati[f])) {
+        const forma = k.oggettiCalcolati[f][nome];
+        if (parametri && new RegExp('(^|[^\\w$])' + nome + '(?![\\w$])').test(parametri[1])) {
+          fuori.push('in ' + f + ' ' + nome + ' non puo\' essere un parametro');
+        }
+        const assegnata = new RegExp('(^|[^\\w$.])' + nome + '\\s*' + ASSEGNA + '|(^|[^\\w$.])' + PRIMA_DI + nome +
+          '(?![\\w$])', 'g');
+        let volte = 0, g;
+        while ((g = assegnata.exec(corpo))) {
+          volte++;
+          const s = istruzione(codice, nudo, da + g.index + 1);
+          if (s !== forma) fuori.push('in ' + f + ' ' + nome + ' si assegna solo cosi\': ' + forma + ' (riga ' + riga(da + g.index) + ': ' + s + ')');
+        }
+        if (volte !== 1) fuori.push('in ' + f + ' ' + nome + ' va dichiarata una volta sola, cosi\': ' + forma + ' (trovata ' + volte + ' volte)');
+      }
+    }
+  }
+
+  // le chiavi calcolate negli oggetti ({ [k]: v }, { [k]() {} }): darebbero
+  // il contrassegno a un oggetto senza scriverne il nome
+  for (let i = 0; i < nudo.length; i++) {
+    if (nudo[i] !== '[') continue;
+    // dopo "{" o "," (anche con get, set, async o * davanti) puo' essere una
+    // chiave; lo e' se dopo la quadra chiusa vengono ":" o "(". Un elenco
+    // ([a, [b]]) o un argomento (f(a, [b])) no
+    if (!/[{,]\s*(?:(?:get|set|async|static)\s+|\*\s*)?$/.test(nudo.slice(Math.max(0, i - 40), i))) continue;
+    let prof = 0, j = i;
+    for (; j < nudo.length; j++) {
+      if (nudo[j] === '[') prof++;
+      else if (nudo[j] === ']' && --prof === 0) break;
+    }
+    if (/^\s*[:(]/.test(nudo.slice(j + 1))) fuori.push('chiave calcolata in un oggetto (riga ' + riga(i) + ')');
+  }
+
+  // le funzioni dello script: ognuna dichiarata una volta, e mai riassegnata
+  // ne' ridichiarata come variabile (_orariNostri_ = function () {...}
+  // prenderebbe il posto di quella vera, con la sua impronta, senza toccarla)
+  for (const nome of Object.keys(corpi)) {
+    if (corpi[nome].length !== 1 && !nomi.has(nome)) {
+      fuori.push('la funzione ' + nome + ' e\' dichiarata ' + corpi[nome].length + ' volte');
+    }
+    const riassegnata = new RegExp('(^|[^\\w$.])' + nome.replace(/\$/g, '\\$') + '\\s*' + ASSEGNA + '|' + PRIMA_DI +
+      nome.replace(/\$/g, '\\$') + '(?![\\w$])|\\b(?:var|let|const|class)\\s+' + nome.replace(/\$/g, '\\$') + '(?![\\w$])', 'g');
+    while ((m = riassegnata.exec(nudo))) {
+      fuori.push('funzione dello script riassegnata: ' + nome + ' (riga ' + riga(m.index) + ')');
+    }
+  }
+
+  // la destrutturazione dentro un'espressione, dopo "=", una virgola o
+  // "return": { a: voce.contrassegno } = { a: true }. Una graffa seguita da
+  // "=" c'e' solo li'. E, anche senza, contrassegno, serie ed evento di una
+  // voce non stanno mai prima di una virgola o di una graffa o quadra chiusa
+  const graffaAssegnata = /\}\s*=(?![=>])/g;
+  while ((m = graffaAssegnata.exec(nudo))) fuori.push('destrutturazione non ammessa (riga ' + riga(m.index) + ')');
+  const dentroUnaDestrutturazione = /\.\s*(contrassegno|serie|evento)\s*[,}\]]/g;
+  const cheCosa = { contrassegno: 'contrassegno di una voce', serie: 'la serie di una voce', evento: 'l\'evento di una voce' };
+  while ((m = dentroUnaDestrutturazione.exec(nudo))) {
+    fuori.push(cheCosa[m[1]] + ' dentro una destrutturazione, o prima di una virgola (riga ' + riga(m.index) + ')');
   }
 
   // for (x.p of ...) e for (x[k] in ...) assegnano anche loro: nella testa di
@@ -1531,6 +1614,49 @@ function provaDellaProva() {
     soloImpronta !== null && controlla('Orari.gs', soloImpronta).length === 1);
   deveFallire('Orari.gs', '  ...e l\'impronta vede anche (a)', inserisci(orari, EV, '\n    fuori.unshift(' + QUALUNQUE + ');'),
     'il testo di _orariNostri_ non e\' quello controllato');
+  // le strade trovate dalla terza revisione: (a) una destrutturazione dentro
+  // un'espressione, dopo "=" o dopo una virgola; (b) la scrittura calcolata
+  // ammessa, copiata in un'altra funzione su un altro oggetto; (c) una
+  // funzione dello script riassegnata, e le chiavi calcolate negli oggetti
+  deveFallire('Orari.gs', '(a) { a: voce.contrassegno } = { a: true } dopo un "=" nel taglio viene trovato',
+    inserisci(orari, VOCE_TAGLIO, '\n    var t = { a: voce.contrassegno } = { a: true };'), 'destrutturazione non ammessa');
+  deveFallire('Orari.gs', '  ...e in _orariPrimaLezione_',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var t = { a: voce.contrassegno } = { a: true };'), 'destrutturazione non ammessa');
+  deveFallire('Orari.gs', '  ...e come argomento, dopo una virgola',
+    inserisci(orari, VOCE_TAGLIO, '\n    Math.max(0, { a: voce.contrassegno } = { a: true });'), 'destrutturazione non ammessa');
+  deveFallire('Orari.gs', '  ...e anche senza nessuna destrutturazione, .contrassegno prima di una graffa o di una virgola',
+    inserisci(orari, VOCE_TAGLIO, '\n    var t = { a: voce.contrassegno } = { a: true };'),
+    'contrassegno di una voce dentro una destrutturazione');
+  deveFallire('Orari.gs', '  ...e prima di una parentesi quadra, [voce.contrassegno] = [true]',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var t = [voce.contrassegno] = [true];'),
+    'contrassegno di una voce dentro una destrutturazione');
+  deveFallire('Orari.gs', '  ...e una serie cambiata cosi\', { a: voce.serie } = { a: stato }',
+    inserisci(orari, VOCE_TAGLIO, '\n    var t = { a: voce.serie } = { a: stato };'), 'la serie di una voce dentro una destrutturazione');
+  deveFallire('Orari.gs', '(b) la scrittura ammessa conta[f] = (conta[f] || 0) + 1 su una voce, nel taglio, viene trovata',
+    inserisci(orari, VOCE_TAGLIO, '\n    var conta = voce, f = \'contr\' + \'assegno\'; conta[f] = (conta[f] || 0) + 1;'),
+    'proprieta\' calcolata scritta fuori');
+  deveFallire('Orari.gs', '  ...e in _orariPrimaLezione_ con conta che e\' la voce',
+    sostituisci(orari, 'var conta = {};', 'var conta = voce;'), 'in _orariPrimaLezione_ conta si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...o che lo diventa dopo',
+    inserisci(orari, 'var conta = {};', '\n  conta = voce;'), 'in _orariPrimaLezione_ conta va dichiarata una volta sola');
+  deveFallire('Orari.gs', '(c) una funzione dello script riassegnata (_orariNostri_ = ...) viene trovata',
+    orari + '\n_orariNostri_ = function (cal) { return []; };\n', 'funzione dello script riassegnata: _orariNostri_');
+  deveFallire('Orari.gs', '  ...anche dentro un\'altra funzione, e con la scrittura ammessa dentro',
+    inserisci(orari, 'function ORARI_4_calendario(e) {',
+      '\n  _orariPrimaLezione_ = function (conta) { var f = \'contr\' + \'assegno\'; conta[f] = (conta[f] || 0) + 1; };'),
+    'funzione dello script riassegnata: _orariPrimaLezione_');
+  deveFallire('Orari.gs', '  ...e la scrittura ammessa fuori dalla sua funzione',
+    inserisci(orari, 'function ORARI_4_calendario(e) {',
+      '\n  _orariPrimaLezione_ = function (conta) { var f = \'contr\' + \'assegno\'; conta[f] = (conta[f] || 0) + 1; };'),
+    'proprieta\' calcolata scritta fuori');
+  deveFallire('Orari.gs', '  ...e ridichiarata con var',
+    orari + '\nvar _orariForma_ = function () { return \'\'; };\n', 'funzione dello script riassegnata: _orariForma_');
+  deveFallire('Orari.gs', '  ...o dichiarata una seconda volta, anche se non e\' fra quelle del calendario',
+    orari + '\nfunction _orariForma_(lezione) { return \'\'; }\n', 'la funzione _orariForma_ e\' dichiarata 2 volte');
+  deveFallire('Orari.gs', '  ...e una chiave calcolata in un oggetto, { [\'contr\' + \'assegno\']: true }',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var o = { x: 1, [\'contr\' + \'assegno\']: true };'), 'chiave calcolata in un oggetto');
+  deveFallire('Orari.gs', '  ...anche come prima chiave, o come metodo',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var o = { [\'contr\' + \'assegno\']() { return true; } };'), 'chiave calcolata in un oggetto');
   const aCapo = orari.split('\r\n').join('\n').replace(/\n/g, '\r\n');
   verifica('  ...ma non gli a capo, gli spazi o i commenti', controlla('Orari.gs', aCapo).length === 0 &&
     controlla('Orari.gs', sostituisci(orari, 'var perSerie = {};', 'var   perSerie = {};   // le serie')).length === 0);

@@ -296,16 +296,22 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   concat, index or alias), the key `contrassegno` only with its value or
   false, and a fingerprint of the whole _orariNostri_, so that any change to
   it has to be read again; no Object, constructor, prototype or
-  defineProperty, no computed property written outside two statements, no
-  for ... of on a property, JSON.parse only where the saved point is read,
-  the constants of the mark and the services never redefined; no call,
+  defineProperty, no computed property written outside two statements,
+  each only in its own function and on a new object, no computed keys in
+  object literals, no for ... of on a property, JSON.parse only where the
+  saved point is read, the constants of the mark, the services and the
+  script's own functions (each declared once) never redefined; no call,
   apply, bind, eval, this, unused event methods, destructuring, quoted
   properties or functions inside the functions that change or remove. The
   seven ways around the previous rules found by the first review, the
   seven found by the second (any event put among ours with unshift, splice,
   concat or an index, a single event with only the description taken as
-  marked, Object.assign with JSON.parse, Object.defineProperty) and more
-  must fail, as the eight copies of before.
+  marked, Object.assign with JSON.parse, Object.defineProperty), those
+  found by the third (a destructuring inside an expression, as in
+  `{ a: voce.contrassegno } = { a: true }` after "=" or a comma, the
+  allowed computed write copied into another function, a script function
+  reassigned, computed keys) and more must fail, as the eight copies of
+  before.
 - Posta and Orari in the same project: invarianti_script.js checks that
   neither script uses the other's functions or variables, not even after a
   dot, and that Orari.gs never names CLASSI_STUDENTI or the functions that
