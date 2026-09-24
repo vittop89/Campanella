@@ -418,9 +418,9 @@ ORARI - le email a te e il calendario
    chiede anche il permesso per il Calendario, anche se usi solo le email:
    i permessi li calcola su tutto il progetto. Il Calendario lo usano solo
    ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_ANNULLA_calendario.
-   Le email prendono
-   l'etichetta "Orari" (o "<gruppo>/Orari", se nella Posta hai scritto un
-   nome in "Raggruppa sotto"), se quell'etichetta c'e' gia'.
+   Le email prendono l'etichetta "Orari" (o "<gruppo>/Orari", se nella
+   Posta hai scritto un nome in "Raggruppa sotto"), se quell'etichetta
+   c'e' gia'.
 4) Passo 4: Google Calendar. Scegli il tuo nome, come e' scritto nel
    tabellone, il nome del calendario, il periodo e gli orari delle ore.
    Il calendario e' uno tuo con quel nome esatto (non uno di un collega a
