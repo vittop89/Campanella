@@ -517,7 +517,8 @@ namespace Campanella
             sb.AppendLine("   " + (periodo != "" ? periodo : "periodo non indicato"));
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
-            sb.AppendLine("   tabellone. Niente indirizzi: le email arrivano tutte a te.");
+            sb.AppendLine("   tabellone, e per il calendario i giorni senza lezione, con il nome che");
+            sb.AppendLine("   hai scritto. Niente indirizzi: le email arrivano tutte a te.");
             sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
             sb.AppendLine("   dall'applicazione.");
             sb.AppendLine("   ========================================================================= */");

@@ -160,7 +160,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
 - Single events are told apart with isRecurringEvent (getEventSeries is
   never null in Google).
 - DatiOrari.gs: the `calendario` block has `sospensioni` (only the lines
-  understood, with full dates) and `validoDal`. The days without lessons
+  understood, with full dates) and `validoDal`, and the header says that
+  besides surnames, classes and hours the file holds the days without
+  lessons, with the name the teacher wrote. The days without lessons
   (`calSospensioni`) are free text, where a leave or a colleague's name
   ends up easily next to the holidays: they follow the personal data, so
   with the data in Drive they are in campanella-dati.json and

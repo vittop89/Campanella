@@ -711,6 +711,12 @@ console.log(JSON.stringify({
                                    '2027-03-29..2027-03-29 '))
         Verifica "la data del cambio d'orario" ($r.validoDal -eq '2026-10-05')
     }
+    # l'intestazione dice che cosa c'e': anche i giorni senza lezione, con il
+    # nome scritto dal docente (testo libero: un permesso, il nome di un collega)
+    $intestazione = [regex]::Replace((GeneraDati (AnalizzaFile $File) $s $false).Split(@('*/'), 2, [StringSplitOptions]::None)[0],
+                                     '\s+', ' ')
+    Verifica "l'intestazione di DatiOrari.gs nomina anche i giorni senza lezione, con il nome che hai scritto" (
+        $intestazione -match 'cognomi, classi e ore' -and $intestazione -match 'i giorni senza lezione, con il nome che hai scritto')
     $s.CalSospensioni = ''
     $s.CalValidoDal = ''
     $r = CalendarioGenerato $s
