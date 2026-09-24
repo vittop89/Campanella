@@ -368,7 +368,17 @@ console.log(JSON.stringify({
             @('01/11/2026.', '2026-11-01..2026-11-01 '),
             # un'ora scritta con il punto nel nome non e' una data
             @('01/12/2026 assemblea alle 10.30', '2026-12-01..2026-12-01 assemblea alle 10.30'),
-            @('25/04/2027 - 25 aprile', '2027-04-25..2027-04-25 25 aprile')
+            @('25/04/2027 - 25 aprile', '2027-04-25..2027-04-25 25 aprile'),
+            # un giorno a parole dentro il periodo della riga, o un numero che non e' una data, va bene
+            @('01/05/2027 Festa del Lavoro, 1 maggio', '2027-05-01..2027-05-01 Festa del Lavoro, 1 maggio'),
+            @('23/12/2026-06/01/2027 Natale (dal 23 dicembre al 6 gennaio)',
+              '2026-12-23..2027-01-06 Natale (dal 23 dicembre al 6 gennaio)'),
+            @('15/10/2026 3 ore di assemblea', '2026-10-15..2026-10-15 3 ore di assemblea'),
+            @('16/11/2026 2 settimane dopo il ponte', '2026-11-16..2026-11-16 2 settimane dopo il ponte'),
+            @('04/10/2026 San Francesco, il 4 ottobre', '2026-10-04..2026-10-04 San Francesco, il 4 ottobre'),
+            @('20/11/2026 sciopero, adesione al 50%', '2026-11-20..2026-11-20 sciopero, adesione al 50%'),
+            @("12/03/2027 prove al 2$([char]0xB0) piano", "2027-03-12..2027-03-12 prove al 2$([char]0xB0) piano"),
+            @('13/03/2027 uscita dalle 10.30, anche il 3,5 per cento', '2027-03-13..2027-03-13 uscita dalle 10.30, anche il 3,5 per cento')
         )
         foreach ($c in $capite) {
             $r = LeggiRighe $c[0] '2026-09-14'
@@ -381,7 +391,14 @@ console.log(JSON.stringify({
         $nonCapite = @('31/02/2027 Carnevale', '06/01/2027-23/12/2026 al contrario', 'Natale', '1/11/202 anno di tre cifre', '32/01/2027',
                        'dal 23/12/2026 a 06/01/2027 Natale', '23/12/2026 / 06/01/2027 Natale', '07/12/2026, 08/12/2026 ponte',
                        '07/12/2026 e 08/12/2026 ponte', '2026-11-01-03 ponte', 'dal 23/12 fino a 06/01 Natale',
-                       $cifreLarghe, $cifreArabe)
+                       $cifreLarghe, $cifreArabe,
+                       # la seconda data a parole, o solo il giorno: la fine del periodo non e' una data che capisco
+                       'dal 23/12/2026 al 6 gennaio 2027 Vacanze di Natale', '23/12/2026 - 6 gennaio 2027',
+                       "23/12/2026 $trattino 6 gen. 2027 Natale", '01/11/2026 - 03', '2026-11-01 - 03', 'dal 02/11/2026 al 3',
+                       'dal 02/11/2026 fino al 3 Ponte', "dal 02/11/2026 all'8 Ponte", '07/12/2026 e 8 dicembre ponte',
+                       '01/11/2026 Tutti i Santi e ponte fino al 2 novembre', '01/11/2026, 2 ponte',
+                       # un altro giorno nel nome, con l'articolo o la preposizione
+                       "07/12/2026 ponte, anche l'8", '07/12/2026 ponte (e il 9)', '23/12/2026 Natale, fino al 6')
         foreach ($n in $nonCapite) {
             try { $r = LeggiRighe $n '2026-09-14' }
             catch { Verifica "'$n' non si capisce, e lo dice (invece: $($_.Exception.InnerException.GetType().Name))" $false; continue }

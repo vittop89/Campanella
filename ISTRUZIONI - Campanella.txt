@@ -341,8 +341,10 @@ ORARI - le email a te e il calendario
    In "Giorni senza lezione" scrivi una riga per giorno o per periodo
    (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
    dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Una riga con
-   due date scritte in un altro modo (07/12/2026, 08/12/2026) o con un
-   anno fuori dal periodo il riepilogo la segnala in ambra: correggila.
+   due date scritte in un altro modo (07/12/2026, 08/12/2026), con la
+   seconda a parole o con il solo giorno (dal 23/12/2026 al 6 gennaio,
+   01/11/2026 - 03, ponte anche l'8) o con un anno fuori dal periodo il
+   riepilogo la segnala in ambra, e non la mette: correggila.
    Servono le chiusure della scuola; quello che scrivi segue i dati di
    altre persone (con i dati nel Drive non resta sul computer).
    "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e

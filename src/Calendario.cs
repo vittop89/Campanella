@@ -71,6 +71,29 @@ namespace Campanella
             @"(?<![0-9])(?:[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}(?:/[0-9]{2,4})?|" +
             @"[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{2,4})(?![0-9])", RegexOptions.CultureInvariant);
 
+        // un giorno scritto a parole: "6 gennaio", "6 gen. 2027", "1 maggio" (anche con
+        // il segno di grado). Non "2 settimane" o "3 marce": dopo il mese non ci sono
+        // altre lettere
+        static readonly Regex DataAParole = new Regex(
+            @"(?<![0-9])([0-9]{1,2})\s*[\u00b0\u00ba]?\s*(gen(?:naio)?|feb(?:braio)?|mar(?:zo)?|apr(?:ile)?|" +
+            @"mag(?:gio)?|giu(?:gno)?|lug(?:lio)?|ago(?:sto)?|set(?:t(?:embre)?)?|ott(?:obre)?|nov(?:embre)?|" +
+            @"dic(?:embre)?)\.?(?![a-z])(?:\s+([0-9]{4})(?![0-9]))?",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // dopo le date, un collegamento seguito da un numero: "- 03", "al 3",
+        // "all'8", "e 8 dicembre", ", 2": la fine di un periodo scritta in un altro modo
+        static readonly Regex Collegamento = new Regex(
+            @"^\s*(?:[-\u2013\u2014/,;&+]|e|a|al|all['\u2019]|fino\s+(?:a|al|all['\u2019]))\s*(?=[0-9])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // un giorno detto con l'articolo o la preposizione, nel nome: "anche l'8",
+        // "e il 9", "fino al 3", "dall'8". Non una percentuale, un piano o un'ora:
+        // "al 50%", "al 2o piano", "alle 10.30", "il 3,5", "dal 2 ore"
+        static readonly Regex GiornoNelNome = new Regex(
+            @"(?<![\w])(?:(?:il|al|dal|del|nel)\s+|(?:l|all|dall|dell|nell)['\u2019]\s*)([0-9]{1,2})(?![0-9])" +
+            @"(?![.,:][0-9])(?!\s*[%\u00b0\u00ba])(?!\s*(?:ore|ora|h|min)\b)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web
         static readonly Regex ACapo = new Regex("\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]");
 
@@ -87,10 +110,11 @@ namespace Campanella
         /// comincia, da gennaio ad agosto quello dopo). Le righe vuote e
         /// quelle che cominciano con # non contano. Le righe che non si
         /// capiscono (una data impossibile, la fine prima dell'inizio, un
-        /// periodo scritto in un altro modo, come "dal 23/12 a 06/01" o
-        /// "2026-11-01-03", due giorni sulla stessa riga) finiscono in
-        /// nonCapite, cosi' come sono state scritte: mai un giorno solo con il
-        /// resto nel nome.
+        /// periodo scritto in un altro modo, come "dal 23/12 a 06/01",
+        /// "2026-11-01-03", "dal 23/12 al 6 gennaio" o "01/11 - 03", due giorni
+        /// sulla stessa riga) finiscono in nonCapite, cosi' come sono state
+        /// scritte: mai un giorno solo con il resto nel nome. Un giorno a
+        /// parole fra le date della riga ("25/04/2027 - 25 aprile") e' un nome.
         /// </summary>
         public static List<Sospensione> Leggi(string testo, DateTime inizioPeriodo, out List<string> nonCapite)
         {
@@ -116,12 +140,29 @@ namespace Campanella
                 else if (!LeggiData(seconda.Value, annoInizio, out al)) { nonCapite.Add(riga); continue; }
                 if (al < dal) { nonCapite.Add(riga); continue; }
 
-                // dopo le date un trattino attaccato a una cifra ("2026-11-01-03"),
-                // o un'altra data nel nome: un periodo che non ho capito
+                // un periodo che non ho capito: dopo le date un collegamento con un
+                // numero che non e' un giorno a parole ("2026-11-01-03", "- 03", "al
+                // 3"), un'altra data nel nome, o un giorno a parole fuori dalle date
+                // della riga ("al 6 gennaio"). "25/04/2027 - 25 aprile" invece e' un nome
                 Group ultima = seconda.Success ? seconda : m.Groups[1];
                 string dopo = senzaPunto.Substring(ultima.Index + ultima.Length);
                 string nome = m.Groups[4].Value.Trim();
-                if (Regex.IsMatch(dopo, @"^[-–—/]\s*[0-9]|^\s*[-–—/][0-9]") || DataNelNome.IsMatch(nome))
+                bool altroPeriodo = DataNelNome.IsMatch(nome);
+                Match collegamento = Collegamento.Match(dopo);
+                if (collegamento.Success)
+                {
+                    Match aParole = DataAParole.Match(dopo, collegamento.Length);
+                    if (!aParole.Success || aParole.Index != collegamento.Length) altroPeriodo = true;
+                }
+                foreach (Match aParole in DataAParole.Matches(dopo))
+                    if (!FraLeDate(aParole, dal, al)) altroPeriodo = true;
+                // "anche l'8": un giorno senza il mese (con il mese decide la regola di sopra)
+                foreach (Match giorno in GiornoNelNome.Matches(dopo))
+                {
+                    Match aParole = DataAParole.Match(dopo, giorno.Groups[1].Index);
+                    if (!aParole.Success || aParole.Index != giorno.Groups[1].Index) altroPeriodo = true;
+                }
+                if (altroPeriodo)
                 {
                     nonCapite.Add(riga);
                     continue;
@@ -134,6 +175,27 @@ namespace Campanella
                 fuori.Add(s);
             }
             return fuori;
+        }
+
+        /// <summary>
+        /// Vero se il giorno scritto a parole (DataAParole) cade fra dal e al
+        /// compresi: con l'anno, se c'e', o con quello di dal o di al.
+        /// </summary>
+        static bool FraLeDate(Match aParole, DateTime dal, DateTime al)
+        {
+            int giorno = int.Parse(aParole.Groups[1].Value, CultureInfo.InvariantCulture);
+            string[] mesi = { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" };
+            int mese = Array.IndexOf(mesi, aParole.Groups[2].Value.Substring(0, 3).ToLowerInvariant()) + 1;
+            List<int> anni = new List<int>();
+            if (aParole.Groups[3].Success) anni.Add(int.Parse(aParole.Groups[3].Value, CultureInfo.InvariantCulture));
+            else { anni.Add(dal.Year); anni.Add(al.Year); }
+            foreach (int anno in anni)
+            {
+                if (mese < 1 || anno < 1 || anno > 9999 || giorno < 1 || giorno > DateTime.DaysInMonth(anno, mese)) continue;
+                DateTime d = new DateTime(anno, mese, giorno);
+                if (d >= dal.Date && d <= al.Date) return true;
+            }
+            return false;
         }
 
         /// <summary>

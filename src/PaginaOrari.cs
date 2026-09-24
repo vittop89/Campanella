@@ -694,7 +694,9 @@ namespace Campanella
                 "contano.\r\n\r\n" +
                 "Un periodo si scrive con il trattino o con \"dal ... al ...\" (anche \"fino al\"). " +
                 "Una riga con due date scritte in un altro modo (\"07/12, 08/12\", \"dal 23/12 a " +
-                "06/01\") non la prendo a meta': il riepilogo la segnala fra quelle non capite.\r\n\r\n" +
+                "06/01\"), con la seconda a parole o con il solo giorno (\"dal 23/12 al 6 gennaio\", " +
+                "\"01/11 - 03\", \"ponte, anche l'8\") non la prendo a meta': il riepilogo la segnala fra " +
+                "quelle non capite.\r\n\r\n" +
                 "\"Aggiungi le feste nazionali\" mette in fondo quelle del periodo che mancano, " +
                 "Pasqua e Pasquetta comprese.");
             txtSospensioni = Tema.CasellaMulti(0, y + 24, 620, 100, "01/11/2026 Tutti i Santi");

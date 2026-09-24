@@ -15,8 +15,12 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   works too. Empty lines and lines starting with # do not count; a line
   Campanella does not understand (an impossible date, the end before the
   start, two dates written another way, as in `07/12/2026, 08/12/2026` or
-  `2026-11-01-03`, digits of other scripts) is shown in the summary, in
-  amber, and left out of DatiOrari.gs: never taken as its first day only.
+  `2026-11-01-03`, the second one in words or as a day only, as in
+  `dal 23/12/2026 al 6 gennaio 2027` or `01/11/2026 - 03`, another day in
+  the name, as in `ponte, anche l'8`, digits of other scripts) is shown in
+  the summary, in amber, and left out of DatiOrari.gs: never taken as its
+  first day only. A day in words within the dates of the line, as in
+  `25/04/2027 - 25 aprile`, is just part of the name.
   Lines pasted from a PDF with Unicode line breaks are split. A line that
   does not touch the period (a wrong year) is not counted, and the summary
   says so in amber. "Aggiungi le feste nazionali" adds at the end the
@@ -165,10 +169,12 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   must fail, as the eight copies of before.
 - prova_orario.ps1: the line formats (also with a full stop, "fino al",
   other line breaks), lines not understood (two dates written another way,
-  digits of other scripts), lines outside the period, holidays of several
-  years (Easter 2027 on 28 March, 2028 on 16 April, 2038 on 25 April with the
-  Liberation Day in one line, Easter Monday 2011 too, 4 October only from
-  2026), the default end of the period, the plan, `sospensioni` and
+  the second in words or as a day only, another day in the name, digits of
+  other scripts) and names with numbers that are not days (`25 aprile` on
+  25 April, `al 50%`, `2 settimane`), lines outside the period, holidays of
+  several years (Easter 2027 on 28 March, 2028 on 16 April, 2038 on 25 April
+  with the Liberation Day in one line, Easter Monday 2011 too, 4 October only
+  from 2026), the default end of the period, the plan, `sospensioni` and
   `validoDal` in the generated DatiOrari.gs, and the same number of series
   and skipped lessons in the app and in the script, from the start and from
   the change date. prova_stato.ps1 checks that the days without lessons
