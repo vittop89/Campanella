@@ -322,6 +322,157 @@ console.log(JSON.stringify({
     $nuovo = DaJson (JsonDati (AnalizzaFile $File))
     Verifica "i dati salvati da questa versione non invitano a ricaricare niente" (@($nuovo.Avvisi).Count -eq 0)
 
+    # --- i giorni senza lezione: le righe scritte dal docente ---------------
+    Write-Host "`nI GIORNI SENZA LEZIONE: LE RIGHE" -ForegroundColor Cyan
+    $tCal = $asm.GetType('Campanella.Calendario')
+    $IC = [Globalization.CultureInfo]::InvariantCulture
+    function DataIso($s) { [DateTime]::ParseExact($s, 'yyyy-MM-dd', $IC) }
+    function Giorno($d) { $d.ToString('yyyy-MM-dd', $IC) }
+    # Calendario.Leggi(testo, inizio del periodo, out non capite): la lista vera
+    # resta nella tabella (dentro un array PowerShell la srotolerebbe)
+    function LeggiRighe($testo, $inizio) {
+        $a = New-Object 'object[]' 3
+        $a[0] = [string]$testo
+        $a[1] = DataIso $inizio
+        $a[2] = $null
+        $lista = $tCal.GetMethod('Leggi', $FS).Invoke($null, $a)
+        @{ Lista = $lista; Righe = @($lista | ForEach-Object { (Giorno $_.Dal) + '..' + (Giorno $_.Al) + ' ' + $_.Nome }); NonCapite = @($a[2]) }
+    }
+    Verifica "c'e' Calendario, con Leggi, Festivita, Pasqua, ConFeste e PianoDelDocente" (
+        $null -ne $tCal -and $null -ne $tCal.GetMethod('Leggi', $FS) -and $null -ne $tCal.GetMethod('Festivita', $FS) -and
+        $null -ne $tCal.GetMethod('Pasqua', $FS) -and $null -ne $tCal.GetMethod('ConFeste', $FS) -and
+        $null -ne $tCal.GetMethod('PianoDelDocente', $FS))
+    if ($null -ne $tCal) {
+        $trattino = [string][char]0x2013
+        $capite = @(
+            @('01/11/2026 Tutti i Santi', '2026-11-01..2026-11-01 Tutti i Santi'),
+            @('1/11/2026', '2026-11-01..2026-11-01 '),
+            @('2026-11-01', '2026-11-01..2026-11-01 '),
+            @('23/12/2026-06/01/2027 Vacanze di Natale', '2026-12-23..2027-01-06 Vacanze di Natale'),
+            @('23/12/2026 - 06/01/2027', '2026-12-23..2027-01-06 '),
+            @('dal 23/12/2026 al 06/01/2027 Vacanze', '2026-12-23..2027-01-06 Vacanze'),
+            @('Dal 2/11/2026 al 3/11/2026 Ponte', '2026-11-02..2026-11-03 Ponte'),
+            @('8/12/26 Immacolata', '2026-12-08..2026-12-08 Immacolata'),
+            @('2026-12-23 - 2027-01-06 Natale', '2026-12-23..2027-01-06 Natale'),
+            @("23/12/2026 $trattino 06/01/2027 Natale", '2026-12-23..2027-01-06 Natale'),
+            @('01/11 Tutti i Santi', '2026-11-01..2026-11-01 Tutti i Santi'),
+            @('23/12-06/01 Natale', '2026-12-23..2027-01-06 Natale'),
+            @('29/3 Pasquetta', '2027-03-29..2027-03-29 Pasquetta'),
+            @('  04/10/2026:  San Francesco  ', '2026-10-04..2026-10-04 San Francesco')
+        )
+        foreach ($c in $capite) {
+            $r = LeggiRighe $c[0] '2026-09-14'
+            Verifica "'$($c[0].Trim())' -> $($c[1])" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0)
+        }
+        $nonCapite = @('31/02/2027 Carnevale', '06/01/2027-23/12/2026 al contrario', 'Natale', '1/11/202 anno di tre cifre', '32/01/2027')
+        foreach ($n in $nonCapite) {
+            $r = LeggiRighe $n '2026-09-14'
+            Verifica "'$n' non si capisce, e lo dice" ($r.Righe.Count -eq 0 -and $r.NonCapite.Count -eq 1 -and $r.NonCapite[0] -eq $n)
+        }
+        $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') + $nonCapite) -join "`r`n"
+        $r = LeggiRighe $tutto '2026-09-14'
+        Verifica "tutte insieme: $($capite.Count) capite nell'ordine, le vuote e le note con # ignorate, $($nonCapite.Count) non capite" (
+            ($r.Righe -join '|') -eq (@($capite | ForEach-Object { $_[1] }) -join '|') -and
+            ($r.NonCapite -join '|') -eq ($nonCapite -join '|'))
+        $r = LeggiRighe "01/11 Tutti i Santi`n29/03 Pasquetta" '2027-01-10'
+        Verifica "senza anno, con il periodo che comincia a gennaio: novembre e' dell'anno prima" (
+            ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2027-03-29..2027-03-29 Pasquetta')
+        $r = LeggiRighe "01/11 Tutti i Santi`n29/03 Pasquetta" '2026-08-28'
+        Verifica "e con il periodo che comincia a fine agosto: e' l'anno che comincia a settembre" (
+            ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2027-03-29..2027-03-29 Pasquetta')
+
+        # --- le feste nazionali ---------------------------------------------
+        Write-Host "`nI GIORNI SENZA LEZIONE: LE FESTE NAZIONALI" -ForegroundColor Cyan
+        function Feste($da, $a) {
+            $b = New-Object 'object[]' 2
+            $b[0] = DataIso $da
+            $b[1] = DataIso $a
+            @($tCal.GetMethod('Festivita', $FS).Invoke($null, $b) | ForEach-Object { (Giorno $_.Dal) + ' ' + $_.Nome })
+        }
+        function Pasqua([int]$anno) { Giorno ($tCal.GetMethod('Pasqua', $FS).Invoke($null, @($anno))) }
+        $f = Feste '2026-09-01' '2027-08-31'
+        Verifica "anno 2026/27: dodici feste, nell'ordine ($(@($f | ForEach-Object { $_.Substring(0, 10) }) -join ' '))" (
+            (@($f | ForEach-Object { $_.Substring(0, 10) }) -join ' ') -eq
+            '2026-10-04 2026-11-01 2026-12-08 2026-12-25 2026-12-26 2027-01-01 2027-01-06 2027-03-28 2027-03-29 2027-04-25 2027-05-01 2027-06-02')
+        Verifica "con i loro nomi" (
+            $f -contains "2026-10-04 San Francesco d'Assisi e Santa Caterina da Siena" -and $f -contains '2026-11-01 Tutti i Santi' -and
+            $f -contains '2026-12-08 Immacolata' -and $f -contains '2027-03-28 Pasqua' -and
+            $f -contains "2027-03-29 Lunedi' dell'Angelo" -and $f -contains '2027-04-25 Festa della Liberazione' -and
+            $f -contains '2027-05-01 Festa del Lavoro' -and $f -contains '2027-06-02 Festa della Repubblica' -and
+            $f -contains '2027-01-06 Epifania' -and $f -contains '2026-12-26 Santo Stefano')
+        $f = Feste '2027-09-01' '2028-08-31'
+        Verifica "anno 2027/28: Pasqua il 16 aprile 2028 e Pasquetta il 17, e il 4 ottobre c'e'" (
+            $f -contains '2028-04-16 Pasqua' -and $f -contains "2028-04-17 Lunedi' dell'Angelo" -and
+            @($f | Where-Object { $_ -like '2027-10-04 *' }).Count -eq 1 -and $f.Count -eq 12)
+        $f = Feste '2025-09-01' '2026-08-31'
+        Verifica "anno 2025/26: Pasqua il 5 aprile 2026, e il 4 ottobre 2025 non e' festa (lo e' dal 2026)" (
+            $f -contains '2026-04-05 Pasqua' -and @($f | Where-Object { $_ -like '2025-10-04 *' }).Count -eq 0 -and $f.Count -eq 11)
+        $pasque = @{ 2019 = '2019-04-21'; 2025 = '2025-04-20'; 2026 = '2026-04-05'; 2027 = '2027-03-28'; 2028 = '2028-04-16'; 2038 = '2038-04-25'; 2285 = '2285-03-22' }
+        $sbagliate = @($pasque.Keys | Where-Object { (Pasqua $_) -ne $pasque[$_] } | ForEach-Object { "$_ -> $(Pasqua $_)" })
+        Verifica "Pasqua giusta anche negli anni limite (la piu' tardi e la piu' presto)$(if ($sbagliate.Count) { ': no ' + ($sbagliate -join ', ') })" ($sbagliate.Count -eq 0)
+        $f = Feste '2026-11-01' '2026-12-08'
+        Verifica "il primo e l'ultimo giorno del periodo sono compresi" (($f -join '|') -eq '2026-11-01 Tutti i Santi|2026-12-08 Immacolata')
+
+        # "Aggiungi le feste nazionali": in fondo, solo quelle non coperte da una riga
+        function ConFeste($testo, $da, $a) {
+            $b = New-Object 'object[]' 4
+            $b[0] = [string]$testo
+            $b[1] = DataIso $da
+            $b[2] = DataIso $a
+            $b[3] = 0
+            $nuovo = $tCal.GetMethod('ConFeste', $FS).Invoke($null, $b)
+            @{ Testo = [string]$nuovo; Aggiunte = [int]$b[3] }
+        }
+        $prima = "23/12/2026-06/01/2027 Natale`r`n01/11/2026 Tutti i Santi"
+        $cf = ConFeste $prima '2026-09-14' '2027-06-10'
+        $righeNuove = @($cf.Testo -split "`r`n")
+        Verifica "aggiunge le 7 feste del periodo non coperte da una riga ($($cf.Aggiunte))" ($cf.Aggiunte -eq 7 -and $righeNuove.Count -eq 9)
+        Verifica "in fondo, dopo le righe che c'erano" ($cf.Testo.StartsWith($prima + "`r`n") -and
+            $righeNuove[2] -eq "04/10/2026 San Francesco d'Assisi e Santa Caterina da Siena" -and
+            $righeNuove[3] -eq '08/12/2026 Immacolata' -and $righeNuove[8] -eq '02/06/2027 Festa della Repubblica')
+        $r = LeggiRighe $cf.Testo '2026-09-14'
+        Verifica "e le righe aggiunte si rileggono" ($r.Righe.Count -eq 9 -and $r.NonCapite.Count -eq 0)
+        $ancora = ConFeste $cf.Testo '2026-09-14' '2027-06-10'
+        Verifica "una seconda volta non aggiunge niente" ($ancora.Aggiunte -eq 0 -and $ancora.Testo -eq $cf.Testo)
+        $vuoto = ConFeste '' '2026-09-14' '2027-06-10'
+        Verifica "partendo da vuoto le mette tutte e dodici, senza righe vuote" ($vuoto.Aggiunte -eq 12 -and @($vuoto.Testo -split "`r`n").Count -eq 12)
+
+        # --- il piano: una serie per ogni tratto di settimane senza interruzioni
+        Write-Host "`nI GIORNI SENZA LEZIONE: IL PIANO DEL CALENDARIO" -ForegroundColor Cyan
+        $oPiano = AnalizzaFile (ScriviCsv 'piano.csv' @(
+            'Orario dal 1/3;;;;;;',
+            ';LUN;;MAR;;MER;',
+            ';1;2;1;2;1;2',
+            'ROSSI;1A;1A;;;2B;',
+            'VERDI;;;3C;;;'))
+        function Piano($docente, $da, $a, $testo) {
+            $sosp = LeggiRighe $testo $da
+            $b = New-Object 'object[]' 5
+            $b[0] = $oPiano.PSObject.BaseObject
+            $b[1] = [string]$docente
+            $b[2] = DataIso $da
+            $b[3] = DataIso $a
+            $b[4] = $sosp.Lista
+            $p = $tCal.GetMethod('PianoDelDocente', $FS).Invoke($null, $b)
+            @{ Serie = @($p.Serie | ForEach-Object { $_.Blocco.Testo + ' ' + (Giorno $_.Dal) + '..' + (Giorno $_.Al) + ' (' + $_.Lezioni + ')' });
+               Saltate = $p.Saltate; Lezioni = $p.Lezioni; Fuori = $p.BlocchiFuori }
+        }
+        $p = Piano 'ROSSI' '2027-03-01' '2027-04-14' '29/03/2027 Pasquetta'
+        Verifica "Pasquetta spezza il blocco del lunedi' in due serie e lascia intero quello del mercoledi' ($($p.Serie -join ', '))" (
+            ($p.Serie -join '|') -eq '1A 2027-03-01..2027-03-22 (4)|1A 2027-04-05..2027-04-12 (2)|2B 2027-03-03..2027-04-14 (7)')
+        Verifica "tre serie, una lezione saltata, 13 messe" ($p.Saltate -eq 1 -and $p.Lezioni -eq 13 -and $p.Fuori -eq 0)
+        $p = Piano 'ROSSI' '2027-03-01' '2027-04-14' 'dal 24/03/2027 al 06/04/2027 Vacanze di Pasqua'
+        Verifica "le vacanze lunghe tolgono due settimane al lunedi' e due al mercoledi' ($($p.Serie -join ', '))" (
+            ($p.Serie -join '|') -eq '1A 2027-03-01..2027-03-22 (4)|1A 2027-04-12..2027-04-12 (1)|2B 2027-03-03..2027-03-17 (3)|2B 2027-04-07..2027-04-14 (2)' -and
+            $p.Saltate -eq 4)
+        $p = Piano 'ROSSI' '2027-03-01' '2027-04-14' "dal 01/03/2027 al 14/04/2027 Tutto chiuso"
+        Verifica "un periodo tutto chiuso: nessuna serie, tutte le lezioni saltate" ($p.Serie.Count -eq 0 -and $p.Saltate -eq 14 -and $p.Lezioni -eq 0)
+        $p = Piano 'ROSSI' '2027-03-02' '2027-03-02' ''
+        Verifica "un periodo di un martedi' non contiene ne' il lunedi' ne' il mercoledi'" ($p.Serie.Count -eq 0 -and $p.Fuori -eq 2)
+        $p = Piano 'VERDI' '2027-03-01' '2027-03-31' '# niente'
+        Verifica "senza giorni senza lezione: una serie per blocco, fino all'ultima settimana" (($p.Serie -join '|') -eq '3C 2027-03-02..2027-03-30 (5)' -and $p.Saltate -eq 0)
+    }
+
     # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------
     # i banchi girano di solito su DatiOrari_esempio.gs, scritto a mano: qui
     # il file lo scrive GeneraDatiGs, cosi' un nome cambiato da una parte
