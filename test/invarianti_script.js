@@ -225,8 +225,10 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 
 const REGOLE = {
   'Organizzazione_Gmail.gs': {
-    // CONFIG sta in Configurazione.gs, nello stesso progetto
-    servizi: SERVIZI_POSTA.concat(JS, ['CONFIG']),
+    // CONFIG sta in Configurazione.gs, nello stesso progetto; CLASSI_STUDENTI
+    // (gli indirizzi degli studenti di una classe, solo dati) nei file
+    // Classe_*.gs, se il docente li ha incollati
+    servizi: SERVIZI_POSTA.concat(JS, ['CONFIG', 'CLASSI_STUDENTI']),
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'removeFromThreads'],
     destinatari: [/^_mioIndirizzo_?\(\)$/],
     etichetteDiSistema: ['INBOX', 'UNREAD'],
