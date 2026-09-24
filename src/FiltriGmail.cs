@@ -509,7 +509,7 @@ namespace Campanella
         /// "Le mie classi..."). L'etichetta madre si scrive a mano e l'anno e'
         /// testo libero, quindi non basta il nome di partenza: vale come classe
         /// un'etichetta che finisce con il nome di una classe (3B, III B, 3B
-        /// LSA: LeMieClassi.SembraClasse), una con la parola "classi" nella
+        /// LSA, 5AINF: LeMieClassi.SembraClasse), una con la parola "classi" nella
         /// madre (Classi 2026-27, Le mie classi, Classi a.s. 2026/27), quella di
         /// una regola delle classi o una sotto la sua madre, e una sotto una
         /// madre usata per le classi prima (Stato.MadriClassi: resta anche dopo

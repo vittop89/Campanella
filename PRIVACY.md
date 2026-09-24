@@ -105,8 +105,8 @@ salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
 quelli che spunti, con l'etichetta e i criteri. Un filtro che sembra di una
-classe (l'etichetta finisce con 3B o 3B LSA, o sta sotto una madre con la
-parola «classi» o usata per le classi) e ha degli indirizzi non si può
+classe (l'etichetta finisce con 3B, 3B LSA o 5AINF, o sta sotto una madre
+con la parola «classi» o usata per le classi) e ha degli indirizzi non si può
 spuntare: potrebbero essere quelli degli studenti, e si toglie da Gmail. Se
 l'avevi scelto prima (con la 1.5.3, o prima di creare le classi sotto
 quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa

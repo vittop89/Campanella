@@ -192,7 +192,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   Studenti, Colleghi and the rest stay.
 - The classes come from the timetable (your lessons, without the "a
   disposizione" hours; a lesson for 3A/3B or 5AINF/5BINF is two classes, a
-  cell such as "3B 2 gruppi" stays one: Orari, the timetable file and your
+  cell such as "3B 2 gruppi" or "4A 2gr" stays one (a two-letter section
+  not all in capitals, as in 3AS-3bs, only next to another two-letter
+  one): Orari, the timetable file and your
   name in step 4) and from the classes written in Cartelle; others are
   added by hand.
   3B, 3 B and 3^B are the same class; 3B LSA and 3B ITE are other classes,
@@ -294,7 +296,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
 - In "Filtri che hai gia' in Gmail..." class filters never start ticked. A
   filter with addresses whose label looks like a class (it ends with 3B,
   III B or 3B LSA, with at most a code after number and section, so not "5
-  per mille" or "5A Praga"; or it sits under a parent with the word
+  per mille" or "5A Praga", or with the section attached to the number in
+  capitals, as technical schools write it, 5AINF, 3ACAT, 4BAFM, 4AINF LAB;
+  or it sits under a parent with the word
   "classi" in it, not "Liceo Classico", under the parent of a class rule or
   under one used for classes before, remembered even after the rules are
   removed) cannot be ticked: the addresses might be students' and would

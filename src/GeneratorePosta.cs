@@ -671,8 +671,8 @@ namespace Campanella
         /// Le classi di una cella dell'orario o di una riga: "3A/3B", "3A-3B",
         /// "3A 3B", "3A + 3B" e "5AINF/5BINF" sono due classi (una lezione
         /// insieme); "2B-Ls", "3B LSA" e "3A/B" una. Si spezza solo se ogni
-        /// pezzo sembra una classe (ClasseNellaCella): "3B 2 gruppi" e "1A 2 ore"
-        /// restano una.
+        /// pezzo sembra una classe (ClasseNellaCella): "3B 2 gruppi", "1A 2 ore"
+        /// e "4A 2gr" restano una.
         /// </summary>
         public static List<string> Separa(string grezzo)
         {
@@ -680,30 +680,55 @@ namespace Campanella
             List<string> fuori = new List<string>();
             if (s == "") return fuori;
             string[] pezzi = Regex.Split(s, @"\s*[/+&\-]\s*(?=[1-9])|\s+(?=[1-9])");
+            for (int i = 0; i < pezzi.Length; i++) pezzi[i] = pezzi[i].Trim();
             bool tutte = pezzi.Length > 1;
-            foreach (string p in pezzi)
-                if (!ClasseNellaCella(p.Trim())) tutte = false;
+            for (int i = 0; i < pezzi.Length; i++)
+                if (!ClasseNellaCella(pezzi, i)) tutte = false;
             if (!tutte) { fuori.Add(s); return fuori; }
-            foreach (string p in pezzi) fuori.Add(p.Trim());
+            fuori.AddRange(pezzi);
             return fuori;
         }
 
         /// <summary>
-        /// Vero se un pezzo di una cella e' una classe, per Separa: una classe
+        /// Vero se il pezzo i di una cella e' una classe, per Separa: una classe
         /// ben fatta (ClasseBenFatta), oppure una sezione attaccata al numero
-        /// tutta maiuscola di qualunque lunghezza ("5AINF", "3ACAT", "5AAFM")
-        /// o di due lettere anche minuscole ("3bs", "3Cs"), con al piu' una
-        /// sigla dopo. Resta fuori la parola: "2 gruppi", "2 ore", "5 per",
-        /// "2ore", "2 Ore".
+        /// tutta maiuscola di qualunque lunghezza ("5AINF", "3ACAT", "5AAFM":
+        /// SezioneAttaccata), con al piu' una sigla dopo. Una sezione attaccata di
+        /// due lettere non tutte maiuscole ("3bs", "3Cs") solo se un altro pezzo
+        /// della cella ha anche lui una sezione di due lettere ("3AS-3bs"): "4A
+        /// 2gr", "3A 1gr" (i gruppi) restano una cella. Resta fuori la parola:
+        /// "2 gruppi", "2 ore", "5 per", "2ore", "2 Ore".
         /// </summary>
-        static bool ClasseNellaCella(string s)
+        static bool ClasseNellaCella(string[] pezzi, int i)
         {
-            if (ClasseBenFatta(s)) return true;
+            string s = pezzi[i];
+            if (ClasseBenFatta(s) || SezioneAttaccata(s)) return true;
+            if (!DueLettereAttaccate(s)) return false;
+            for (int k = 0; k < pezzi.Length; k++)
+                if (k != i && DueLettereAttaccate(pezzi[k])) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Vero se il nome e' il numero con la sezione attaccata tutta maiuscola,
+        /// di qualunque lunghezza, e al piu' una sigla dopo: "5AINF", "3ACAT",
+        /// "4BAFM", "3BLSA", "4AINF LAB" (le classi dei tecnici). Non "5A Praga",
+        /// "5 per mille" o "2gr".
+        /// </summary>
+        static bool SezioneAttaccata(string s)
+        {
             Match m = NumeroSezione.Match(s ?? "");
             if (!m.Success) return false;
             string sezione = m.Groups[2].Value;
-            bool attaccata = m.Groups[2].Index == m.Groups[1].Index + 1;
-            return attaccata && (sezione == sezione.ToUpperInvariant() || sezione.Length == 2) &&
+            return m.Groups[2].Index == m.Groups[1].Index + 1 && sezione == sezione.ToUpperInvariant() &&
+                   SoloArticolazione(m.Groups[3]);
+        }
+
+        /// <summary>Vero se il nome e' il numero con attaccata una sezione di due lettere, maiuscole o no, e al piu' una sigla dopo.</summary>
+        static bool DueLettereAttaccate(string s)
+        {
+            Match m = NumeroSezione.Match(s ?? "");
+            return m.Success && m.Groups[2].Index == m.Groups[1].Index + 1 && m.Groups[2].Value.Length == 2 &&
                    SoloArticolazione(m.Groups[3]);
         }
 
@@ -876,14 +901,17 @@ namespace Campanella
         /// <summary>
         /// Vero se un nome sembra quello di una classe: numero, sezione e al
         /// piu' un'articolazione (ClasseBenFatta: "3B", "3 B", "5AL", "3B LSA"),
+        /// la sezione attaccata al numero tutta maiuscola, anche lunga, dei
+        /// tecnici (SezioneAttaccata: "5AINF", "3ACAT", "4BAFM", "4AINF LAB"),
         /// o il numero romano, da I a V, uno spazio e la sezione in maiuscolo
         /// ("III B", "IV A LSA"). Serve a riconoscere le etichette delle classi
-        /// nei filtri di Gmail: "5 per mille" e "5A Praga" non lo sono.
+        /// nei filtri di Gmail: "5 per mille", "5A Praga" e "3B 2 gruppi" non lo
+        /// sono.
         /// </summary>
         public static bool SembraClasse(string nome)
         {
             string s = Pulito(nome);
-            if (ClasseBenFatta(s)) return true;
+            if (ClasseBenFatta(s) || SezioneAttaccata(s)) return true;
             Match m = Regex.Match(s, @"^(?:I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9](.*)$)");
             return m.Success && SoloArticolazione(m.Groups[1]);
         }
