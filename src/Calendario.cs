@@ -83,9 +83,10 @@ namespace Campanella
         // segna dove finiscono le date
         const string PoiNome = @"(?<fine>)(?=$|[\s:,;.)–—-])[\s:,;.)–—-]*(?<nome>.*)$";
 
-        // [dal] data [ (- | [fino] al) data ] [nome]
+        // [dal] data [ (- | [fino] al) data ] [nome]. Con "dal" la seconda data ci
+        // vuole (LeggiUna): "dal 23/12/2026 all'Epifania" non e' un giorno solo
         static readonly Regex DueDate = new Regex(
-            @"^(?:dal\s+)?(?<d1>" + Data + @")(?:(?:" + Fra + @")(?<d2>" + Data + @"))?" + PoiNome,
+            @"^(?<dal>dal\s+)?(?<d1>" + Data + @")(?:(?:" + Fra + @")(?<d2>" + Data + @"))?" + PoiNome,
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // il mese scritto una volta sola: un giorno e poi la data intera,
@@ -99,7 +100,7 @@ namespace Campanella
         // "7 e 8 dic.", "dal 7 all'8 dicembre", "1° maggio". Dopo il mese niente
         // altre lettere ("8 martedi'" non e' marzo)
         static readonly Regex GiorniAParole = new Regex(
-            @"^(?:dal\s+)?(?<g1>[0-9]{1,2})\s*[°º]?" +
+            @"^(?<dal>dal\s+)?(?<g1>[0-9]{1,2})\s*[°º]?" +
             @"(?:(?<fra>" + Fra + @"|\s+e\s+|\s+(?:fino\s+)?all['’]\s*)(?<g2>[0-9]{1,2})\s*[°º]?)?" +
             @"\s*" + Mese + @"\.?(?![a-z])(?:\s+(?<anno>[0-9]{4})(?![0-9]))?" + PoiNome,
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -135,6 +136,25 @@ namespace Campanella
             @"piano|classi|persone|euro)\b)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        // una data con il punto e senza anno nel nome: "8.12 Immacolata". Non un'ora
+        // ("alle 10.30", "ore 12.10": subito dopo alle, dalle, ore, h), un decimale
+        // di una quantita' ("3.5%") o un pezzo di un numero piu' lungo
+        static readonly Regex GiornoColPunto = new Regex(
+            @"(?<![0-9.,:/])(?<!\b(?:alle|dalle|ore|h)\s*)([0-9]{1,2})\.([0-9]{1,2})(?![0-9]|\.[0-9]|\s*[%°º])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // nel nome la fine di un periodo scritta a parole ("fino all'Epifania", "sino
+        // al lunedi'", "all'Epifania", "al giorno dopo"): in una riga di un giorno solo
+        // e' un periodo scritto come un giorno
+        static readonly Regex FineNelNome = new Regex(
+            @"\b(?:fino|sino)\b|\ball['’]\s*epifania|\bal\s+(?:giorno|luned|marted|mercoled|gioved|venerd|sabato|" +
+            @"domenica|capodanno|epifania)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // quanti giorni dura, nel nome: "di 2 giorni", "(15 giorni)", "2gg", "2 gg"
+        static readonly Regex GiorniNelNome = new Regex(@"(?<![0-9.,])([0-9]{1,3})\s*(?:giorni|gg)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web
         static readonly Regex ACapo = new Regex("\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]");
 
@@ -143,6 +163,14 @@ namespace Campanella
 
         /// <summary>L'avviso di una riga capita con un numero nel nome che potrebbe essere un giorno.</summary>
         public const string AvvisoNumero = "nel motivo c'e' un numero: controlla che il periodo sia giusto";
+
+        /// <summary>
+        /// L'avviso di una riga capita con nel nome la fine di un periodo ("fino
+        /// all'Epifania") o quanti giorni dura ("di 2 giorni"), che non tornano con
+        /// le date della riga.
+        /// </summary>
+        public const string AvvisoDurata = "nel motivo c'e' una fine o una durata che non torna con le date: " +
+                                           "per un periodo scrivi anche la fine, come 23/12/2026-06/01/2027";
 
         // ===================================================================
         //  LE RIGHE SCRITTE DAL DOCENTE
@@ -177,13 +205,17 @@ namespace Campanella
         /// ("e" vuol dire due giorni di seguito). Le righe vuote e quelle che
         /// cominciano con # non contano. Non si capisce (Motivo) una data
         /// impossibile, la fine prima dell'inizio, un'altra data nel nome
-        /// ("07/12/2026, 08/12/2026", "dal 23/12 a 06/01"), la fine scritta in
-        /// un altro modo subito dopo le date ("2026-11-01-03", "01/11 - 03",
-        /// "dal 23/12 al 6 gennaio"): mai un giorno solo con il resto nel nome.
-        /// Un giorno a parole fra le date della riga ("25/04/2027 - 25 aprile")
-        /// e' un nome. Un numero nel nome che potrebbe essere un giorno fuori dal
-        /// periodo ("07/12/2026 ponte 7-8") non ferma la riga, ma le da' un
-        /// Avviso: la pagina la mostra da controllare.
+        /// ("07/12/2026, 08/12/2026", "dal 23/12 a 06/01", e con la data della
+        /// riga con il punto anche "7.12 ponte, 8.12"), la fine scritta in un
+        /// altro modo subito dopo le date ("2026-11-01-03", "01/11 - 03",
+        /// "dal 23/12 al 6 gennaio"), "dal" con una data sola ("dal 23/12/2026
+        /// all'Epifania"): mai un giorno solo con il resto nel nome. Un giorno a
+        /// parole fra le date della riga ("25/04/2027 - 25 aprile") e' un nome.
+        /// Un numero nel nome che potrebbe essere un giorno fuori dal periodo
+        /// ("07/12/2026 ponte 7-8", "8.12") non ferma la riga, ma le da' un
+        /// Avviso: la pagina la mostra da controllare. Lo stesso, in una riga di
+        /// un giorno solo, la fine di un periodo a parole ("fino all'Epifania"),
+        /// e una durata che non torna con le date ("di 2 giorni", "2gg").
         /// </summary>
         public static List<RigaLetta> LeggiRighe(string testo, DateTime inizioPeriodo)
         {
@@ -240,7 +272,10 @@ namespace Campanella
             // "25/04/2027 - 25 aprile" invece e' un nome
             string dopo = s.Substring(m.Groups["fine"].Index);
             string nome = m.Groups["nome"].Value.Trim();
-            if (DataNelNome.IsMatch(nome))
+            // con la data della riga scritta con il punto, anche "8.12" nel nome e'
+            // un'altra data ("7.12 ponte, 8.12 Immacolata")
+            bool colPunto = m.Groups["d1"].Value.IndexOf('.') >= 0 || m.Groups["d2"].Value.IndexOf('.') >= 0;
+            if (DataNelNome.IsMatch(nome) || (colPunto && GiorniColPunto(nome, false, dal, al)))
             {
                 NonCapita(r, "dopo la data ce n'e' un'altra: un giorno o un periodo per riga, come 07/12/2026-08/12/2026");
                 return;
@@ -261,6 +296,14 @@ namespace Campanella
                 NonCapita(r, "c'e' un altro giorno a parole: scrivi il periodo con le date, come 23/12/2026-06/01/2027");
                 return;
             }
+            // "dal" e una data sola: la fine del periodo manca, o e' a parole
+            // ("dal 23/12/2026 all'Epifania"). Non un giorno solo con il resto nel nome
+            if (m.Groups["dal"].Success && !m.Groups["d2"].Success && !m.Groups["g2"].Success)
+            {
+                NonCapita(r, "comincia con \"dal\" ma manca la fine del periodo: scrivila come data, come " +
+                             "dal 23/12/2026 al 06/01/2027");
+                return;
+            }
 
             Sospensione giorni = new Sospensione();
             giorni.Dal = dal;
@@ -268,7 +311,8 @@ namespace Campanella
             giorni.Nome = nome;
             r.Giorni = giorni;
             // un numero nel nome che potrebbe essere un giorno fuori dal periodo: la
-            // riga vale, ma va guardata ("07/12/2026 ponte 7-8" e' solo il 7)
+            // riga vale, ma va guardata ("07/12/2026 ponte 7-8" e' solo il 7). Anche
+            // un giorno con il punto e senza anno ("07/12/2026 ponte, 8.12")
             foreach (Match n in NumeroNelNome.Matches(nome))
             {
                 int g = int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -276,6 +320,42 @@ namespace Campanella
                 r.Avviso = AvvisoNumero;
                 break;
             }
+            if (r.Avviso == "" && GiorniColPunto(nome, true, dal, al)) r.Avviso = AvvisoNumero;
+            // la fine di un periodo a parole in una riga di un giorno solo, o una
+            // durata che non torna con le date: "23/12/2026 Vacanze fino
+            // all'Epifania", "07/12/2026 ponte di 2 giorni", "07/12/2026 ponte 2gg"
+            if (r.Avviso == "")
+            {
+                int durata = (al.Date - dal.Date).Days + 1;
+                if (durata == 1 && FineNelNome.IsMatch(nome)) r.Avviso = AvvisoDurata;
+                foreach (Match n in GiorniNelNome.Matches(nome))
+                    if (int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture) != durata) r.Avviso = AvvisoDurata;
+            }
+        }
+
+        /// <summary>
+        /// Vero se nel nome c'e' un giorno scritto con il punto e senza anno
+        /// ("8.12"): un giorno da 1 a 31 di un mese da 1 a 12 che esiste, fuori
+        /// dalle date della riga se fuoriSoltanto (nell'anno di dal o di al).
+        /// </summary>
+        static bool GiorniColPunto(string nome, bool fuoriSoltanto, DateTime dal, DateTime al)
+        {
+            foreach (Match n in GiornoColPunto.Matches(nome ?? ""))
+            {
+                int g = int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture);
+                int mese = int.Parse(n.Groups[2].Value, CultureInfo.InvariantCulture);
+                if (g < 1 || g > 31 || mese < 1 || mese > 12) continue;
+                if (!fuoriSoltanto) return true;
+                bool dentro = false;
+                foreach (int anno in new int[] { dal.Year, al.Year })
+                {
+                    if (g > DateTime.DaysInMonth(anno, mese)) continue;
+                    DateTime d = new DateTime(anno, mese, g);
+                    if (d >= dal.Date && d <= al.Date) dentro = true;
+                }
+                if (!dentro) return true;
+            }
+            return false;
         }
 
         /// <summary>

@@ -437,12 +437,15 @@ ORARI - le email a te e il calendario
    casella Campanella mostra come ha letto ogni riga, con i giorni della
    settimana, mentre scrivi: guarda che i periodi siano quelli giusti. In
    ambra le righe da guardare. Una con due date scritte in un altro modo
-   (07/12/2026, 08/12/2026) o con la fine scritta dopo la data a parole o
-   con il solo giorno (dal 23/12/2026 al 6 gennaio, 01/11/2026 - 03) non
-   la capisce, e non la mette. Una con un anno fuori dal periodo, o con
-   un numero nel motivo che potrebbe essere un giorno (07/12/2026 ponte
-   7-8 e' solo il 7 dicembre: per due giorni scrivi 7-8/12/2026), la
-   mette come l'ha letta. Correggile; il riepilogo dice quante sono.
+   (07/12/2026, 08/12/2026, o 7.12 ponte, 8.12) o con la fine scritta dopo
+   la data a parole o con il solo giorno (dal 23/12/2026 al 6 gennaio,
+   01/11/2026 - 03), o con "dal" e senza la fine (dal 23/12/2026
+   all'Epifania), non la capisce, e non la mette. Una con un anno fuori
+   dal periodo, con un numero nel motivo che potrebbe essere un giorno
+   (07/12/2026 ponte 7-8 e' solo il 7 dicembre: per due giorni scrivi
+   7-8/12/2026), o di un giorno solo con una fine o una durata nel motivo
+   (23/12/2026 Vacanze fino all'Epifania, 07/12/2026 ponte di 2 giorni),
+   la mette come l'ha letta. Correggile; il riepilogo dice quante sono.
    Servono le chiusure della scuola; quello che scrivi segue i dati di
    altre persone (con i dati nel Drive non resta sul computer).
    "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e

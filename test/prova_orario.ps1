@@ -404,7 +404,11 @@ console.log(JSON.stringify({
             @("1$([char]0xB0) maggio Festa del Lavoro", '2027-05-01..2027-05-01 Festa del Lavoro'),
             # giuste anche con i numeri nel nome: i giorni della riga, o un numero che non e' un giorno
             @('03/10/2026-04/10/2026 Elezioni del 3 e 4 ottobre', '2026-10-03..2026-10-04 Elezioni del 3 e 4 ottobre'),
-            @('10/02/2027 Chiusura per il 2 turno elettorale', '2027-02-10..2027-02-10 Chiusura per il 2 turno elettorale')
+            @('10/02/2027 Chiusura per il 2 turno elettorale', '2027-02-10..2027-02-10 Chiusura per il 2 turno elettorale'),
+            # la data con il punto e un'ora nel nome; una durata che torna con le date; "al" che non e' una fine
+            @('07.12 uscita alle 12.10', '2026-12-07..2026-12-07 uscita alle 12.10'),
+            @('23/12/2026-06/01/2027 Natale (15 giorni)', '2026-12-23..2027-01-06 Natale (15 giorni)'),
+            @('05/05/2027 gita al museo', '2027-05-05..2027-05-05 gita al museo')
         )
         foreach ($c in $capite) {
             $r = LeggiRighe $c[0] '2026-09-14'
@@ -428,7 +432,9 @@ console.log(JSON.stringify({
             @("07/12/2026 ponte, anche martedi' 8", "2026-12-07..2026-12-07 ponte, anche martedi' 8"),
             @("07/12/2026 ponte, anche l'8", "2026-12-07..2026-12-07 ponte, anche l'8"),
             @('07/12/2026 ponte (e il 9)', '2026-12-07..2026-12-07 ponte (e il 9)'),
-            @('23/12/2026 Natale, fino al 6', '2026-12-23..2026-12-23 Natale, fino al 6')
+            @('23/12/2026 Natale, fino al 6', '2026-12-23..2026-12-23 Natale, fino al 6'),
+            # un giorno con il punto e senza anno, in una riga con la data con le barre
+            @('07/12/2026 ponte, 8.12 Immacolata', '2026-12-07..2026-12-07 ponte, 8.12 Immacolata')
         )
         Verifica "c'e' l'avviso per un numero nel nome ('$avvisoNumero')" ($avvisoNumero -match "numero" -and $avvisoNumero -match 'controlla')
         foreach ($c in $conAvviso) {
@@ -436,6 +442,26 @@ console.log(JSON.stringify({
             $l = @(Lette $c[0] '2026-09-14')
             Verifica "'$($c[0])' -> $($c[1]), da controllare" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
                 $l.Count -eq 1 -and $l[0].Avviso -eq $avvisoNumero)
+        }
+        # la fine di un periodo a parole in una riga di un giorno solo, o quanti
+        # giorni dura, che non torna con le date: capita come scritta, con l'avviso
+        $avvisoDurata = [string]$tCal.GetField('AvvisoDurata', $FS).GetValue($null)
+        $conDurata = @(
+            @("23/12/2026 Vacanze di Natale fino all'Epifania", "2026-12-23..2026-12-23 Vacanze di Natale fino all'Epifania"),
+            @("23/12/2026 Vacanze di Natale, all'Epifania", "2026-12-23..2026-12-23 Vacanze di Natale, all'Epifania"),
+            @('07/12/2026 ponte di 2 giorni', '2026-12-07..2026-12-07 ponte di 2 giorni'),
+            @('23/12/2026 vacanze di Natale (15 giorni)', '2026-12-23..2026-12-23 vacanze di Natale (15 giorni)'),
+            @('07/12/2026 ponte 2gg', '2026-12-07..2026-12-07 ponte 2gg'),
+            @("07/12/2026 ponte sino al lunedi'", "2026-12-07..2026-12-07 ponte sino al lunedi'"),
+            @('07/12/2026-08/12/2026 ponte di 3 giorni', '2026-12-07..2026-12-08 ponte di 3 giorni')
+        )
+        Verifica "c'e' l'avviso per una fine o una durata nel nome ('$avvisoDurata')" ($avvisoDurata -match 'fine' -and $avvisoDurata -match 'durata')
+        foreach ($c in $conDurata) {
+            $r = LeggiRighe $c[0] '2026-09-14'
+            $l = @(Lette $c[0] '2026-09-14')
+            Verifica "'$($c[0])' -> $($c[1]), da controllare$(if ($l.Count -eq 1 -and $l[0].Avviso -ne $avvisoDurata) { ' (invece: ' + $l[0].Avviso + $l[0].Motivo + ')' })" (
+                $r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
+                $l.Count -eq 1 -and $l[0].Avviso -eq $avvisoDurata)
         }
         # un periodo scritto in un altro modo, o due giorni sulla stessa riga: la
         # riga non si capisce, e lo dice. Mai un giorno solo con il resto nel nome
@@ -451,7 +477,12 @@ console.log(JSON.stringify({
                        'dal 02/11/2026 fino al 3 Ponte', "dal 02/11/2026 all'8 Ponte", '07/12/2026 e 8 dicembre ponte',
                        '01/11/2026 Tutti i Santi e ponte fino al 2 novembre', '01/11/2026, 2 ponte',
                        # il mese una volta sola, ma con "e" due giorni lontani, al contrario o impossibili
-                       '7 e 9/12/2026 ponte', '31-23/12/2026', '30-31/11/2026', '7 e 8/13/2026', '7-8 dicembre 2026 e 9 dicembre')
+                       '7 e 9/12/2026 ponte', '31-23/12/2026', '30-31/11/2026', '7 e 8/13/2026', '7-8 dicembre 2026 e 9 dicembre',
+                       # "dal" e una data sola: la fine manca, o e' a parole
+                       "dal 23 dicembre 2026 all'Epifania", "dal 23/12/2026 all'Epifania Vacanze di Natale",
+                       'dal 23/12/2026 fino a Epifania', 'dal 23/12/2026 Vacanze di Natale',
+                       # con la data della riga con il punto, un altro giorno con il punto nel nome
+                       '7.12 ponte, 8.12 Immacolata', '07.12 ponte - 08.12 Immacolata')
         foreach ($n in $nonCapite) {
             try { $r = LeggiRighe $n '2026-09-14'; $l = @(Lette $n '2026-09-14') }
             catch { Verifica "'$n' non si capisce, e lo dice (invece: $($_.Exception.InnerException.GetType().Name))" $false; continue }
@@ -480,15 +511,16 @@ console.log(JSON.stringify({
             Verifica ("con l'a capo U+{0:X4} fra due righe, due giorni" -f [int]$acapo) (
                 ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2026-12-08..2026-12-08 Immacolata' -and $r.NonCapite.Count -eq 0)
         }
+        $daControllare = @($conAvviso + $conDurata)
         $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') +
-                  @($conAvviso | ForEach-Object { $_[0] }) + $nonCapite) -join "`r`n"
+                  @($daControllare | ForEach-Object { $_[0] }) + $nonCapite) -join "`r`n"
         $r = LeggiRighe $tutto '2026-09-14'
         $l = @(Lette $tutto '2026-09-14')
-        Verifica "tutte insieme: $($capite.Count + $conAvviso.Count) capite nell'ordine ($($conAvviso.Count) da controllare), le vuote e le note con # ignorate, $($nonCapite.Count) non capite" (
-            ($r.Righe -join '|') -eq (@($capite + $conAvviso | ForEach-Object { $_[1] }) -join '|') -and
+        Verifica "tutte insieme: $($capite.Count + $daControllare.Count) capite nell'ordine ($($daControllare.Count) da controllare), le vuote e le note con # ignorate, $($nonCapite.Count) non capite" (
+            ($r.Righe -join '|') -eq (@($capite + $daControllare | ForEach-Object { $_[1] }) -join '|') -and
             ($r.NonCapite -join '|') -eq ($nonCapite -join '|') -and
-            @($l | Where-Object { $_.Avviso -ne '' }).Count -eq $conAvviso.Count -and
-            $l.Count -eq ($capite.Count + $conAvviso.Count + $nonCapite.Count) -and $l[0].Numero -eq 3)
+            @($l | Where-Object { $_.Avviso -ne '' }).Count -eq $daControllare.Count -and
+            $l.Count -eq ($capite.Count + $daControllare.Count + $nonCapite.Count) -and $l[0].Numero -eq 3)
         $r = LeggiRighe "01/11 Tutti i Santi`n29/03 Pasquetta" '2027-01-10'
         Verifica "senza anno, con il periodo che comincia a gennaio: novembre e' dell'anno prima" (
             ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2027-03-29..2027-03-29 Pasquetta')
