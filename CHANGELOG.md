@@ -204,7 +204,13 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   A", since "3 A" alone would match "da 1 a 10"; a code that is not number
   and section, such as A5, starts unticked and with no words. The words can
   be edited, comma separated (quoted if they contain a comma); addresses
-  pasted there are dropped, with a warning. The preview counts a rule, not
+  pasted there are dropped, with a warning. A text with an @ written in
+  "Aggiungi una classe" (the To line of Classroom pasted in the wrong box)
+  adds no class and the button says where addresses go; in the parent label
+  the whole text goes and the starting parent comes back; a class with an @
+  in Cartelle is not a class, and "Usa queste classi" never makes a rule of
+  such a name: students' names and addresses never reach a rule, the data
+  file, Configurazione.gs or a Gmail label. The preview counts a rule, not
   each word: what a word such as "3 B" matches (3^B too?) is checked by
   searching Gmail for subject:"3 B".
 - Students' addresses are pasted (or dragged) in the window, for example

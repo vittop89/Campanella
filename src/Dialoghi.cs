@@ -962,6 +962,15 @@ namespace Campanella
             Controls.Add(txtNuova);
             Controls.Add(Tema.Bottone("Aggiungi", xn + 120, y - 1, 100, delegate
             {
+                // la riga del campo A di Classroom scritta qui invece che nella casella sotto
+                string indirizzi = LeMieClassi.AvvisoIndirizziNelNome(txtNuova.Text);
+                if (indirizzi != "")
+                {
+                    txtNuova.Text = "";
+                    MessageBox.Show(this, indirizzi, "Indirizzi al posto della classe", MessageBoxButtons.OK,
+                                    MessageBoxIcon.Information);
+                    return;
+                }
                 int i = Aggiungi(txtNuova.Text);
                 if (i < 0) return;
                 txtNuova.Text = "";
@@ -1044,7 +1053,23 @@ namespace Campanella
 
             CambiaMadre();
             madreIniziale = Madre;
-            txtMadre.TextChanged += delegate { CambiaMadre(); };
+            txtMadre.TextChanged += delegate
+            {
+                // degli indirizzi incollati qui per sbaglio: via tutto il testo (ci
+                // sarebbero anche i nomi degli studenti), torna la madre di partenza
+                if (LeMieClassi.ConIndirizzi(txtMadre.Text))
+                {
+                    txtMadre.Text = LeMieClassi.MadreDiPartenza(stato);
+                    if (Visible)
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            MessageBox.Show(this, LeMieClassi.AvvisoIndirizziNellaMadre, "Indirizzi nell'etichetta madre",
+                                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        });
+                    return;
+                }
+                CambiaMadre();
+            };
             FormClosing += delegate(object o, FormClosingEventArgs e)
             {
                 // niente domande allo spegnimento del computer, che una finestra fermerebbe
@@ -1107,7 +1132,7 @@ namespace Campanella
         {
             foreach (string n in nomi)
             {
-                if (LeMieClassi.Chiave(n) == "" || Indice(n) >= 0) continue;
+                if (LeMieClassi.Chiave(n) == "" || LeMieClassi.ConIndirizzi(n) || Indice(n) >= 0) continue;
                 ClasseScelta x = new ClasseScelta();
                 x.Nome = LeMieClassi.Nome(n);
                 // un codice che non e' numero e sezione (A5, AF) non ha parole
@@ -1138,10 +1163,12 @@ namespace Campanella
 
         /// <summary>
         /// Aggiunge a mano una classe, spuntata (due, per "3A/3B"); se c'e'
-        /// gia', la sua riga. La riga della prima; -1 se il nome e' vuoto.
+        /// gia', la sua riga. La riga della prima; -1 se il nome e' vuoto, o se
+        /// ha degli indirizzi (LeMieClassi.ConIndirizzi: il bottone lo dice).
         /// </summary>
         public int Aggiungi(string nome)
         {
+            if (LeMieClassi.ConIndirizzi(nome)) return -1;
             List<string> pezzi = LeMieClassi.Separa(nome);
             if (pezzi.Count == 0 || LeMieClassi.Chiave(pezzi[0]) == "") return -1;
             bool nuove = false;

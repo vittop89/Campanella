@@ -1156,6 +1156,23 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         [void]$fc.Aggiungi('2c')
         Verifica "una classe aggiunta a mano ($(Righe $fc)), e una che c'e' gia' non si ripete" (
             (Righe $fc) -eq '1A+,2C+,3B+,4AR+,5AL+' -and $fc.Aggiungi('3^B') -eq (Indice $fc '3B') -and $fc.Classi.Count -eq 5)
+        # la riga del campo A di Classroom scritta in "Aggiungi una classe" o
+        # nell'etichetta madre: gli indirizzi (e i nomi) degli studenti non
+        # diventano una classe, una regola o un'etichetta di Gmail
+        $rigaA = "Mario Rossi <mario.rossi@$dominioStudenti>, Luca Bianchi <luca.bianchi@$dominioStudenti>"
+        $avvisoA = [string](MC 'AvvisoIndirizziNelNome').Invoke($null, @([string]$rigaA))
+        Verifica "degli indirizzi scritti come nome di una classe non la aggiungono, e il bottone lo dice ('$avvisoA')" (
+            $fc.Aggiungi($rigaA) -eq -1 -and (Righe $fc) -eq '1A+,2C+,3B+,4AR+,5AL+' -and $avvisoA -match 'casella sotto' -and
+            [string](MC 'AvvisoIndirizziNelNome').Invoke($null, @([string]'3B')) -eq '')
+        $fc.Madre = "Classi mario.rossi@$dominioStudenti"
+        Verifica "e scritti nell'etichetta madre si tolgono, tutto il testo: torna la madre di partenza ($($fc.Madre))" (
+            $fc.Madre -eq 'Classi 2026-27' -and (Righe $fc) -eq '1A+,2C+,3B+,4AR+,5AL+' -and
+            [string](MC 'Madre').Invoke($null, @([string]"Mario Rossi <mario.rossi@$dominioStudenti>")) -eq 'Classi')
+        # e se arrivano lo stesso fra le classi scelte, Applica non ne fa una regola
+        $conIndirizzi = [Activator]::CreateInstance($tScelta)
+        $conIndirizzi.Nome = $rigaA
+        $conIndirizzi.Spuntata = $true
+        $fc.Classi.Add($conIndirizzi)
         $fc.Classi[(Indice $fc '4AR')].Spuntata = $false
         $fc.Classi[(Indice $fc '2C')].Spuntata = $false
         $regolePrima = (Leggi $s7 'Regole').Count
@@ -1175,6 +1192,8 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "colori: sfumature diverse del verde acqua, che le regole accese non usano ($($sfondi -join ' '))" (
             ($sfondi -join '|') -eq '#c6f3de|#a0eac9|#68dfa9')
         Verifica "nel riepilogo niente indirizzi" (-not ($esito -match '@'))
+        Verifica "e nessuna regola con gli indirizzi scritti come nome di una classe" (
+            @($regole7 | Where-Object { ([string]$_.Etichetta).Contains('@') -or (($_.Da -join ' ') -match 'mario\.rossi') }).Count -eq 0)
 
         # gli indirizzi degli studenti non si conservano: ne' nei file salvati ne' in Configurazione.gs
         Imposta $s7 'DatiNelDrive' $true
@@ -1185,7 +1204,7 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "Salva riesce ($($s7.UltimoErrore))" ($s7.UltimoErrore -eq '')
         $salvatiTesto = @(Get-ChildItem -Path $salvati -Recurse -File | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $conf7 = Genera $s7 $false
-        $incollati = @($studenti) + @("alunno1@$dominioStudenti")
+        $incollati = @($studenti) + @("alunno1@$dominioStudenti", "mario.rossi@$dominioStudenti")
         Verifica "nei file salvati (campanella.json e i dati nel Drive) nessuno degli indirizzi incollati" (
             $salvatiTesto.Contains('@CLASSE:3B@') -and @($incollati | Where-Object { $salvatiTesto.ToLowerInvariant().Contains($_) }).Count -eq 0)
         Verifica "e nemmeno in Configurazione.gs, che ha il segnaposto e unoQualsiasi" (

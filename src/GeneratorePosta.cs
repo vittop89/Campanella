@@ -767,6 +767,29 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Vero se nel testo scritto come nome di una classe, o come etichetta
+        /// madre, c'e' una @: la riga del campo A di Classroom incollata nel posto
+        /// sbagliato. Gli indirizzi (e i nomi) degli studenti finirebbero nel
+        /// nome della regola, nello Stato, in Configurazione.gs e nell'etichetta
+        /// di Gmail, che non si cancella: un testo cosi' non si usa, tutto intero.
+        /// </summary>
+        public static bool ConIndirizzi(string testo) { return (testo ?? "").IndexOf('@') >= 0; }
+
+        /// <summary>Che cosa dire di un nome di classe con degli indirizzi (ConIndirizzi); "" se non ne ha.</summary>
+        public static string AvvisoIndirizziNelNome(string testo)
+        {
+            if (!ConIndirizzi(testo)) return "";
+            return "Come nome di una classe hai scritto degli indirizzi email: non l'ho aggiunta, e li ho tolti. Scrivi " +
+                   "il nome della classe (per esempio 3B); gli indirizzi degli studenti vanno nella casella sotto, " +
+                   "scelta la classe.";
+        }
+
+        /// <summary>Che cosa dire quando nell'etichetta madre c'erano degli indirizzi (ConIndirizzi).</summary>
+        public const string AvvisoIndirizziNellaMadre =
+            "Nell'etichetta madre c'erano degli indirizzi email: li ho tolti, e ho rimesso l'etichetta di partenza. " +
+            "Gli indirizzi degli studenti vanno nella casella sotto, scelta la classe.";
+
         /// <summary>Quanti pezzi del testo della colonna "Cerca nell'oggetto" sono indirizzi (hanno una @).</summary>
         public static int IndirizziNellOggetto(string testo)
         {
@@ -1003,10 +1026,14 @@ namespace Campanella
             return a.Success && b.Success && a.Value != b.Value;
         }
 
-        /// <summary>L'etichetta madre scritta nella finestra: senza barre in fondo e spazi doppi; vuota, "Classi".</summary>
+        /// <summary>
+        /// L'etichetta madre scritta nella finestra: senza barre in fondo e spazi
+        /// doppi; vuota, "Classi". Con degli indirizzi (ConIndirizzi) non vale:
+        /// anche lei "Classi" (la finestra rimette quella di partenza).
+        /// </summary>
         public static string Madre(string scritta)
         {
-            string m = Pulito(scritta).Trim('/').Trim();
+            string m = ConIndirizzi(scritta) ? "" : Pulito(scritta).Trim('/').Trim();
             return (m == "") ? "Classi" : m;
         }
 
@@ -1055,8 +1082,9 @@ namespace Campanella
                 int due = nome.IndexOf(':');
                 if (due >= 0) nome = nome.Substring(0, due);
                 nome = nome.Trim();
-                // "1A; 2B" su una riga: Cartelle lo rifiuta, e qui non e' una classe
-                if (nome == "" || nome.IndexOfAny(new char[] { ';', ',' }) >= 0) continue;
+                // "1A; 2B" su una riga: Cartelle lo rifiuta, e qui non e' una classe;
+                // nemmeno un indirizzo (ConIndirizzi)
+                if (nome == "" || nome.IndexOfAny(new char[] { ';', ',', '@' }) >= 0) continue;
                 trovate.AddRange(Separa(nome));
             }
             return trovate;
@@ -1110,6 +1138,8 @@ namespace Campanella
                 });
             foreach (ClasseScelta c in classi ?? new List<ClasseScelta>())
             {
+                // un nome con degli indirizzi non e' una classe: niente regola
+                if (ConIndirizzi(c.Nome)) continue;
                 Regola r = RegolaDellaClasse(s, m, Chiave(c.Nome));
                 if (!c.Spuntata)
                 {
