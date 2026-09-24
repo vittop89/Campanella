@@ -330,17 +330,53 @@ ORARI - le email a te e il calendario
    ORARI_1_anteprima e poi ORARI_2_invia. Alla prima esecuzione Google
    chiede anche il permesso per il Calendario, anche se usi solo le email:
    i permessi li calcola su tutto il progetto. Il Calendario lo usano solo
-   ORARI_4_calendario e ORARI_ANNULLA_calendario. Le email prendono
+   ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_ANNULLA_calendario.
+   Le email prendono
    l'etichetta "Orari" (o "<gruppo>/Orari", se nella Posta hai scritto un
    nome in "Raggruppa sotto"), se quell'etichetta c'e' gia'.
 4) Passo 4: Google Calendar. Scegli il tuo nome, come e' scritto nel
    tabellone, il nome del calendario, il periodo e gli orari delle ore.
-   Rigenera DatiOrari.gs, incollalo ed esegui ORARI_4_calendario. Ogni
-   blocco di ore consecutive della stessa classe diventa un evento
-   settimanale fino alla data di fine. Se l'orario cambia:
-   ORARI_ANNULLA_calendario toglie solo quegli eventi, poi rifai.
-   ORARI_4_calendario rieseguito sopra i suoi eventi non raddoppia le
-   lezioni: si ferma e ti dice di eseguire prima ORARI_ANNULLA_calendario.
+   Il calendario e' uno tuo con quel nome esatto (non uno di un collega a
+   cui sei iscritto); se non c'e', lo script lo crea.
+   In "Giorni senza lezione" scrivi una riga per giorno o per periodo
+   (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
+   dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Una riga con
+   due date scritte in un altro modo (07/12/2026, 08/12/2026), con la
+   seconda a parole o con il solo giorno (dal 23/12/2026 al 6 gennaio,
+   01/11/2026 - 03, ponte anche l'8) o con un anno fuori dal periodo il
+   riepilogo la segnala in ambra, e non la mette: correggila.
+   Servono le chiusure della scuola; quello che scrivi segue i dati di
+   altre persone (con i dati nel Drive non resta sul computer).
+   "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e
+   Pasquetta comprese; vacanze, patrono e ponti copiali dalla circolare
+   sul calendario scolastico della regione e della scuola. Rigenera
+   DatiOrari.gs, incollalo ed esegui ORARI_4_calendario.
+   Ogni blocco di ore consecutive della stessa classe diventa un evento
+   settimanale fino alla data di fine, ma non nei giorni senza lezione:
+   quindi piu' serie, una per ogni tratto di settimane senza interruzioni
+   (quante, lo dicono il riepilogo della pagina e ORARI_1_anteprima). Se
+   finisce il tempo, o se Google chiede di rallentare, riprende da solo
+   dopo un minuto da dove era arrivato.
+   Se l'orario cambia: carica il nuovo tabellone, spunta "L'orario e'
+   cambiato: il nuovo vale dal" con la data, rigenera e incolla
+   DatiOrari.gs ed esegui ORARI_5_cambioOrario. Il periodo ("Dal" e "al")
+   resta quello con cui hai messo l'orario: la data del cambio va solo
+   nella spunta. Le settimane prima restano come sono, da quella data c'e'
+   l'orario nuovo, e rieseguita con la stessa data da' lo stesso
+   risultato. Tocca solo gli eventi con il contrassegno di Campanella: una
+   copia fatta a mano di una lezione la lascia e te la nomina. Le
+   modifiche fatte a mano su singole lezioni delle serie accorciate
+   potrebbero non restare: il messaggio finale dice in quali serie ne ha
+   trovate. Serve anche per un giorno senza lezione aggiunto dopo, con lo
+   stesso orario.
+   ORARI_ANNULLA_calendario toglie invece gli eventi messi dallo script
+   nel periodo indicato in DatiOrari.gs (anche le copie fatte a mano di
+   una lezione, che ne hanno la descrizione). Se finisce il tempo o Google
+   chiede di rallentare, si ferma e ti dice di rieseguirlo. Se dopo aver
+   messo l'orario hai cambiato le date del periodo, gli eventi fuori dal
+   periodo nuovo non li trova ne' lui ne' ORARI_5_cambioOrario: rimetti
+   le date di prima. ORARI_4_calendario rieseguito sopra i suoi eventi non
+   raddoppia le lezioni: si ferma e te lo dice.
 
 Quante email al giorno: 100 con un account Gmail normale, 1500 con quello
 della scuola. Se non bastano, lo script si ferma e si ricorda dove era
@@ -348,8 +384,10 @@ arrivato: il giorno dopo rieseguilo tu (ORARI_2_invia, o
 ORARI_3_inviaOrariClassi per le classi) e riparte da li', senza mandare
 niente due volte. Se invece finisce il tempo di un'esecuzione (circa quattro
 minuti), riprende da solo dopo un minuto. ANNULLA_automazione ferma anche
-queste riprese (se un invio sta girando, prima aspetta che finisca);
-ORARI_ANNULLA_invio fa ricominciare gli invii da capo.
+queste riprese e quelle del calendario (se un invio sta girando, prima
+aspetta che finisca; un lavoro sul calendario a meta' lo segna fermato, e
+riparte solo se rieseguito a mano); ORARI_ANNULLA_invio fa ricominciare gli
+invii da capo.
 
 
 PRIVACY - le regole, la pulizia, i documenti
@@ -418,8 +456,10 @@ COSE CHE NON SUCCEDONO MAI
 - Nessuno strumento cancella posta, file, cartelle o fogli delle risposte.
   Al massimo archivia, ed e' reversibile. Toglie solo quello che ha messo
   lui, e quando glielo chiedi: le etichette dai messaggi, gli eventi del tuo
-  orario. Il foglio di controllo toglie da se' la scheda vuota "Foglio1" che
-  Google mette nei fogli nuovi e riscrive la sua scheda "Istruzioni".
+  orario (nel cambio d'orario accorcia le serie che ha messo lui, perche'
+  finiscano il giorno prima). Il foglio di controllo toglie da se' la
+  scheda vuota "Foglio1" che Google mette nei fogli nuovi e riscrive la sua
+  scheda "Istruzioni".
   Due eccezioni, che devi chiedere tu. Lo script dei moduli puo' togliere
   dal modulo le risposte degli anni scorsi, e solo dopo averle ritrovate una
   per una in un foglio vecchio: quella non si annulla. Lo script della
@@ -438,14 +478,16 @@ COSE CHE NON SUCCEDONO MAI
 PER SPEGNERE GLI SCRIPT
 Nell'editor dello script della posta (e degli orari):
   ANNULLA_automazione ........... spegne lo smistamento ogni ora e le
-                                  riprese automatiche (riordino e invii
-                                  degli orari)
+                                  riprese automatiche (riordino, invii
+                                  degli orari e calendario)
   ANNULLA_etichettatura ......... toglie dai messaggi le etichette dello
                                   script (vedi POSTA, passo 4)
   ANNULLA_etichettaturaCompleta . toglie anche quelle con lo stesso nome
                                   messe a mano o da versioni vecchie
   ORARI_ANNULLA_calendario ...... toglie dal calendario gli eventi messi
-                                  dallo script
+                                  dallo script nel periodo indicato in
+                                  DatiOrari.gs e dimentica un lavoro a
+                                  meta' (anche di ORARI_5_cambioOrario)
 Nei moduli: MODULO_ANNULLA in ogni modulo con lo script, oppure, nel foglio
 di controllo, il menu Campanella > "Annulla: togli chiusure e collegamenti"
 (PANNELLO_ANNULLA). Tolgono le chiusure programmate e scollegano i fogli

@@ -10,7 +10,7 @@ runtime da installare.
 |-----------|---------|
 | **Posta** | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura, con i colori che scegli |
 | **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico e ci copia i modelli; per i moduli Google, che dal PC non si possono copiare, scrive lo script che ogni anno dà al modulo il suo foglio delle risposte |
-| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar |
+| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar, senza lezioni nei giorni senza lezione che scrivi tu e, quando l'orario cambia, con quello nuovo da una data in poi |
 | **Privacy** | le regole su dati della scuola e IA, gli strumenti per togliere i dati personali prima di darli a un assistente, e i documenti per dirigenza e DPO |
 
 L'applicazione **non tocca mai la posta, il calendario né il Drive da sola**:
@@ -130,6 +130,7 @@ src/
   Xlsx.cs             lettore minimo .xlsx (ZIP + XML) e CSV
   Testo.cs            file di testo letti in UTF-8 o in ANSI (Windows-1252)
   Orario.cs           riconoscimento del tabellone, blocchi per il calendario
+  Calendario.cs       giorni senza lezione, feste nazionali, piano delle serie del calendario
   risorse/            i file .gs e .js incorporati nell'eseguibile
 src-installer/        l'installer in C#, per utente, senza UAC (solo compilazioni locali)
 installer/            script Inno Setup (l'installer pubblicato, it/en), condizioni, configurazione SignPath
@@ -169,14 +170,14 @@ pubblicare:
 
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
-node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario
+node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: giorni senza lezione, ripresa, cambio d'orario
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
 node test\mock_pannello.js        # il foglio di controllo per più moduli
 node test\prova_gemelli.js        # le funzioni gemelle dei due script dei moduli restano uguali
 node test\mutazioni_pannello.js   # mutazioni del motore del foglio di controllo: il banco deve accorgersene
 node test\nomi_funzioni.js        # ogni funzione degli script citata da app e documenti esiste
-node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse
-.\test\prova_orario.ps1           # legge un tabellone, controlla la griglia e il DatiOrari.gs generato
+node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse, sul calendario solo gli eventi di Campanella, serie accorciate solo nel cambio d'orario
+.\test\prova_orario.ps1           # legge un tabellone, controlla la griglia, i giorni senza lezione e il DatiOrari.gs generato, stesso piano del calendario dello script
 .\test\prova_xlsx.ps1             # il lettore .xlsx e i CSV in ANSI, UTF-8 e UTF-16
 .\test\prova_moduli.ps1           # genera i due script dei moduli e li fa girare nei banchi
 .\test\prova_personale.ps1        # elenco del personale: formati da incollare, ruoli nelle cinque categorie

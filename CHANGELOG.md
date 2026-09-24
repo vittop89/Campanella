@@ -1,5 +1,188 @@
 # Changelog
 
+## 1.6.0 — (data da definire)
+
+Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs again.
+
+**Orari: school holidays and timetable changes on Google Calendar**
+
+- Step 4 has "Giorni senza lezione": one line per day or period
+  (`01/11/2026 Tutti i Santi`, `23/12/2026-06/01/2027 Vacanze di Natale`,
+  `dal 23/12/2026 al 06/01/2027`, `2026-11-01`, two-digit years, and also
+  without the year, `01/11` or `23/12-06/01`: the year comes from the school
+  year of the period, September to December the first one, January on the
+  second). A period may end with a full stop, as in circulars, and "fino al"
+  works too. Empty lines and lines starting with # do not count; a line
+  Campanella does not understand (an impossible date, the end before the
+  start, two dates written another way, as in `07/12/2026, 08/12/2026` or
+  `2026-11-01-03`, the second one in words or as a day only, as in
+  `dal 23/12/2026 al 6 gennaio 2027` or `01/11/2026 - 03`, another day in
+  the name, as in `ponte, anche l'8`, digits of other scripts) is shown in
+  the summary, in amber, and left out of DatiOrari.gs: never taken as its
+  first day only. A day in words within the dates of the line, as in
+  `25/04/2027 - 25 aprile`, is just part of the name.
+  Lines pasted from a PDF with Unicode line breaks are split. A line that
+  does not touch the period (a wrong year) is not counted, and the summary
+  says so in amber. "Aggiungi le feste nazionali" adds at the end the
+  national holidays of the period that no line covers yet: All Saints, the
+  Immaculate Conception, Christmas, St Stephen, New Year's Day, Epiphany,
+  Easter (computed, no internet) and Easter Monday, 25 April, 1 May, 2 June
+  and, from 2026 on, 4 October (St Francis of Assisi and St Catherine of
+  Siena, law 151/2025). Two holidays on the same day (Easter on 25 April
+  2038) make one line with both names. With the end before the start the
+  button says so. No regional calendars are built in: holidays, the patron
+  saint and bridge days are copied by the teacher from the school calendar
+  circular, as the page says. The default end of the period is 10 June of
+  the school year, with July and August already counting for the year that
+  starts in September (the rule of the lines without a year), never before
+  today.
+- On those days the calendar has no lessons: each block of hours becomes one
+  weekly series per stretch of consecutive weeks without a day off, until
+  the last lesson of the stretch. The summary of step 4 says how many series
+  and how many lessons are skipped. The plan is computed in the app
+  (Calendario.cs) and in the script, and the tests check that they agree.
+- "L'orario e' cambiato: il nuovo vale dal" with its date, and the new
+  function ORARI_5_cambioOrario: the series already on the calendar that
+  started before that date now end the day before (their recurrence is
+  changed, keeping the first lesson), those starting from that date on are
+  removed, and so are the single events with the mark; then the new timetable
+  goes on from that date. The weeks before stay as they were, and running it
+  again with the same date gives the same calendar. A date before the start
+  of the period counts as the start: earlier school years in the same
+  calendar (the default name "Orario COGNOME" is the same every year) are
+  not touched, and preview and message say that the new timetable holds for
+  the whole period. The first lesson of a series, needed to shorten it, is
+  the first with its most frequent day, time and length, as many weeks
+  earlier as there are lessons moved by hand before it (counted, not
+  measured) or moved past the next week: a first lesson moved by hand, by
+  four days, to the week before or past the next lesson, neither moves the
+  whole series nor disappears nor leaves a lesson too many. With two shapes
+  equally frequent (only in very short series) the weekday written in the
+  description, where Campanella put the series, decides, then the earliest
+  lesson. Only events with the mark are shortened or removed; a series or a
+  single lesson recognised only by the description (a copy made by hand) is
+  left and named. The final message says how many series were shortened,
+  removed and created, how many single events were removed, how many lessons
+  were skipped, which shortened series had lessons moved or cancelled by
+  hand, and that such changes may not survive. It also serves for a day off
+  added after the timetable was put on the calendar.
+  The period ("Dal" and "al") stays as it was: the change date goes only in
+  the tick. With the box unticked there is no change date. Before, the only
+  way was ORARI_ANNULLA_calendario and ORARI_4_calendario again, which also
+  rewrote the past weeks.
+- The calendar is one of the teacher's own, with exactly that name
+  (getOwnedCalendarsByName and an exact match: not a colleague's calendar
+  the teacher is subscribed to, not one differing in case); with two of them
+  the functions stop without touching anything.
+- ORARI_4_calendario and ORARI_5_cambioOrario resume by themselves, like the
+  sending: when an execution runs out of time, or Google says there were too
+  many calendar changes in a short time ("Service invoked too many times",
+  "You have been creating or deleting too many calendars or calendar
+  events", rate limit, also in Italian), they save where they are, with a
+  fingerprint of the plan, and schedule themselves again a minute later. When
+  the day's quota is over, or Google keeps refusing after ten resumes in a
+  row, they stop and ask to be run again later; any other error keeps the
+  saved point and shows. A resume that finds a different DatiOrari.gs stops
+  and explains instead of mixing two timetables: for ORARI_4_calendario the
+  saved point stays, and the message says to finish with the previous
+  DatiOrari.gs and then, with a change date, to run ORARI_5_cambioOrario
+  (removing everything and starting again would give the new timetable to
+  the weeks before too). A resume with nothing to do removes its trigger
+  and says so, and one that finds its job stopped by ANNULLA_automazione
+  does not work nor reschedule itself. There is a short pause between series;
+  the description goes in the options of createEventSeries and the mark right
+  after, and a series whose mark fails counts as done (its description still
+  identifies it), so a resume never creates it twice.
+- ORARI_4_calendario, ORARI_5_cambioOrario and ORARI_ANNULLA_calendario take
+  the same lock as the sending: with the lock busy and a job half done, the
+  first two schedule its resume, otherwise they ask to retry; the messages of
+  the sending with the lock busy name the calendar too.
+  ORARI_ANNULLA_calendario also forgets a job half done and removes the
+  calendar resumes; it removes the events of the period in DatiOrari.gs (with
+  the mark, or the description, as in a copy made by hand), and when time
+  runs out or Google asks to slow down it stops, says how many it removed and
+  asks to be run again. ORARI_4_calendario still refuses to put a timetable
+  over one already there, and now points to ORARI_5_cambioOrario too.
+- ORARI_1_anteprima says how many days or periods without lessons fall in
+  the period, how many series ORARI_4_calendario would create and how many
+  lessons are skipped, and, with a change date, that the change is made with
+  ORARI_5_cambioOrario and how many new series it would create.
+- Single events are told apart with isRecurringEvent (getEventSeries is
+  never null in Google).
+- DatiOrari.gs: the `calendario` block has `sospensioni` (only the lines
+  understood, with full dates) and `validoDal`. The days without lessons
+  (`calSospensioni`) are free text, where a leave or a colleague's name
+  ends up easily next to the holidays: they follow the personal data, so
+  with the data in Drive they are in campanella-dati.json and
+  campanella.json has no trace of them. The change date (`calValidoDal`),
+  only a date, is a setting in campanella.json. The settings files move to
+  format 3, so Campanella 1.5.3 does not overwrite them (it would leave the
+  days without lessons in campanella.json) and says it needs updating.
+- Posta: ANNULLA_automazione also removes and names the calendar resumes
+  (ORARI_4_calendario, ORARI_5_cambioOrario), and marks a calendar job half
+  done as stopped, so that a resume already started, waiting for the lock,
+  does not pick it up again; run by hand, the function goes on. The other
+  calendar function, run by hand meanwhile, says that the job will not
+  resume by itself and has to be run again (as after the day's quota or too
+  many refusals from Google), instead of promising a resume.
+
+**For developers**
+
+- mock_orari.js runs in the Europe/Rome time zone, with daylight saving time,
+  also in the CI in UTC (a weekly step in milliseconds would go unnoticed
+  there). The fake Calendar repeats a series every week until `until`, takes
+  the options of createEventSeries and setRecurrence, can throw Google's
+  limits at the n-th call of an operation, has lessons moved or cancelled by
+  hand, calendars one is only subscribed to, names matched regardless of
+  case, and a non-null "series" for single events, as Google. New sections:
+  days without lessons (an isolated holiday, a long break, a Monday block
+  split by Easter Monday and a Wednesday one that is not, days outside the
+  period), which calendar is used, resume for time and for Google's limits
+  without duplicates, lock, changed DatiOrari.gs, timetable change
+  (shortened, removed, created, weeks before untouched, no old lesson after
+  the date, same result when run again, resumed halfway, a date before the
+  start with last year in the same calendar, a "Dal" moved forward, lessons
+  moved or cancelled by hand, also by four days, before the start of the
+  period, past the next week or two out of four, a series and a single
+  lesson copied by hand), undo of a job half done, undo stopped by time or
+  by Google's limits, and ANNULLA_automazione with a resume already started
+  and the other calendar function run by hand.
+- invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only
+  four members of CalendarApp; every method that reads, creates, changes or
+  removes events only in a few functions, on a receiver written exactly so,
+  which in the functions that change or remove comes from an exact
+  declaration and is never changed; the mark and "ours" assigned only in the
+  allowed forms, with the guards in the loop before the calls; the list of
+  _orariNostri_ named only in the allowed statements (no unshift, splice,
+  concat, index or alias), the key `contrassegno` only with its value or
+  false, and a fingerprint of the whole _orariNostri_, so that any change to
+  it has to be read again; no Object, constructor, prototype or
+  defineProperty, no computed property written outside two statements, no
+  for ... of on a property, JSON.parse only where the saved point is read,
+  the constants of the mark and the services never redefined; no call,
+  apply, bind, eval, this, unused event methods, destructuring, quoted
+  properties or functions inside the functions that change or remove. The
+  seven ways around the previous rules found by the first review, the
+  seven found by the second (any event put among ours with unshift, splice,
+  concat or an index, a single event with only the description taken as
+  marked, Object.assign with JSON.parse, Object.defineProperty) and more
+  must fail, as the eight copies of before.
+- prova_orario.ps1: the line formats (also with a full stop, "fino al",
+  other line breaks), lines not understood (two dates written another way,
+  the second in words or as a day only, another day in the name, digits of
+  other scripts) and names with numbers that are not days (`25 aprile` on
+  25 April, `al 50%`, `2 settimane`), lines outside the period, holidays of
+  several years (Easter 2027 on 28 March, 2028 on 16 April, 2038 on 25 April
+  with the Liberation Day in one line, Easter Monday 2011 too, 4 October only
+  from 2026), the default end of the period, the plan, `sospensioni` and
+  `validoDal` in the generated DatiOrari.gs, and the same number of series
+  and skipped lessons in the app and in the script, from the start and from
+  the change date. prova_stato.ps1 checks that the days without lessons
+  follow the personal data and the change date stays in the settings;
+  prova_disposizione.ps1 checks step 4 with the fullest summary, the tick,
+  the holidays button (also with the end before the start) and a line
+  outside the period.
+
 ## 1.5.3 — 24 September 2026
 
 Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs

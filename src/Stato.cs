@@ -308,6 +308,8 @@ namespace Campanella
         public int CalMinutiOra = 60;            // durata di un'ora di lezione
         public string CalOreInizio = "";         // facoltativo: "08:00, 09:00, 10:10, ..." una per ora
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
+        public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo libero: segue i dati personali)
+        public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
 
         // ===================================================================
         //  PERCORSI
@@ -510,8 +512,11 @@ namespace Campanella
         /// chiave nuova in cima a Dati()); la 1.5.2 riscrivendo i file li
         /// perderebbe, e i filtri li lascerebbe in campanella.json anche con i
         /// dati nel Drive.
+        /// Formato 3 (1.6.0): i giorni senza lezione degli Orari
+        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati());
+        /// la 1.5.3 li lascerebbe in campanella.json anche con i dati nel Drive.
         /// </summary>
-        public const int Formato = 2;
+        public const int Formato = 3;
 
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
@@ -895,6 +900,7 @@ namespace Campanella
             r["calMinutiOra"] = CalMinutiOra;
             r["calOreInizio"] = CalOreInizio;
             r["calColore"] = CalColore;
+            r["calValidoDal"] = CalValidoDal;    // solo una data; i giorni senza lezione stanno in Dati()
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
             r["anonReversibileTesto"] = AnonReversibileTesto;
@@ -906,7 +912,10 @@ namespace Campanella
             return r;
         }
 
-        /// <summary>I dati personali di altre persone: personale, indirizzi, orari, filtri di Gmail da togliere.</summary>
+        /// <summary>
+        /// I dati personali di altre persone: personale, indirizzi, orari, filtri
+        /// di Gmail da togliere; e i giorni senza lezione, testo libero.
+        /// </summary>
         Dictionary<string, object> Dati()
         {
             Dictionary<string, object> r = new Dictionary<string, object>();
@@ -914,6 +923,9 @@ namespace Campanella
             r["segreteria"] = Segreteria;
             r["calDocente"] = CalDocente;
             r["calNome"] = CalNome;          // "Orario " + un cognome: segue i dati personali
+            // testo libero: accanto alle feste ci si scrive facilmente un permesso
+            // o il nome di un collega, quindi segue anche lui i dati personali
+            r["calSospensioni"] = CalSospensioni;
 
             List<object> pers = new List<object>();
             foreach (Persona p in Personale)
@@ -1028,6 +1040,7 @@ namespace Campanella
                 s.CalMinutiOra = Int(r, "calMinutiOra", 60);
                 s.CalOreInizio = Str(r, "calOreInizio", "");
                 s.CalColore = Str(r, "calColore", "");
+                s.CalValidoDal = Str(r, "calValidoDal", "");
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");
                 s.AnonReversibileTesto = Bool(r, "anonReversibileTesto", true);
@@ -1200,6 +1213,7 @@ namespace Campanella
             // fino alla 1.4.6 stava in campanella.json: se nel file dei dati non
             // c'e', resta quello letto dalle impostazioni
             CalNome = Str(r, "calNome", CalNome);
+            CalSospensioni = Str(r, "calSospensioni", CalSospensioni);
 
             object[] pers = r.ContainsKey("personale") ? r["personale"] as object[] : null;
             if (pers != null)
