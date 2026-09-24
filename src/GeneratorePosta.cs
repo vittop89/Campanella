@@ -562,7 +562,7 @@ namespace Campanella
         public string Nome = "";
         /// <summary>Spuntata: ha (o avra') la sua regola. Tolta la spunta, la regola va via.</summary>
         public bool Spuntata = true;
-        /// <summary>Le parole da cercare nell'oggetto, separate da virgole.</summary>
+        /// <summary>Le parole da cercare nell'oggetto, separate da virgole; fra virgolette quelle con una virgola (LeMieClassi.TestoOggetto).</summary>
         public string Oggetto = "";
         /// <summary>Da dove viene: "orario", "Cartelle", "regola", "a mano".</summary>
         public string Provenienza = "";
@@ -708,18 +708,68 @@ namespace Campanella
             return NumeroSezione.IsMatch(Pulito(grezzo));
         }
 
-        /// <summary>Le parole dell'oggetto scritte nella finestra: separate da virgole, una volta ciascuna (maiuscole a parte).</summary>
+        /// <summary>
+        /// Le parole dell'oggetto scritte nella finestra: separate da virgole (o
+        /// punti e virgola, o a capo), una volta ciascuna (maiuscole a parte); una
+        /// parola fra virgolette puo' avere dentro una virgola ("Scrutinio 3B,
+        /// primo periodo"). Un indirizzo email non e' una parola dell'oggetto: gli
+        /// indirizzi degli studenti incollati qui per sbaglio finirebbero nello
+        /// Stato, in Configurazione.gs e nel filtro di Gmail. Si scartano
+        /// (IndirizziNellOggetto dice quanti).
+        /// </summary>
         public static List<string> ParoleOggetto(string testo)
         {
             List<string> fuori = new List<string>(), viste = new List<string>();
-            foreach (string p in (testo ?? "").Split(new char[] { ',', ';', '\r', '\n' }))
+            foreach (string p in PezziOggetto(testo))
             {
                 string t = Pulito(p);
-                if (t == "" || viste.Contains(t.ToLowerInvariant())) continue;
+                if (t == "" || t.IndexOf('@') >= 0 || viste.Contains(t.ToLowerInvariant())) continue;
                 viste.Add(t.ToLowerInvariant());
                 fuori.Add(t);
             }
             return fuori;
+        }
+
+        /// <summary>Quanti pezzi del testo della colonna "Cerca nell'oggetto" sono indirizzi (hanno una @).</summary>
+        public static int IndirizziNellOggetto(string testo)
+        {
+            int n = 0;
+            foreach (string p in PezziOggetto(testo)) if (p.IndexOf('@') >= 0) n++;
+            return n;
+        }
+
+        /// <summary>Le parole dell'oggetto come le mostra la finestra: separate da virgole, fra virgolette quelle con una virgola.</summary>
+        public static string TestoOggetto(IEnumerable<string> parole)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string p in parole ?? new List<string>())
+            {
+                string t = Pulito(p).Replace("\"", "");
+                if (t == "") continue;
+                fuori.Add(t.IndexOfAny(new char[] { ',', ';' }) >= 0 ? "\"" + t + "\"" : t);
+            }
+            return string.Join(", ", fuori.ToArray());
+        }
+
+        /// <summary>I pezzi di un testo separati da virgole, punti e virgola o a capo, fuori dalle virgolette (che vanno via).</summary>
+        static List<string> PezziOggetto(string testo)
+        {
+            List<string> pezzi = new List<string>();
+            StringBuilder b = new StringBuilder();
+            bool dentro = false;
+            foreach (char ch in testo ?? "")
+            {
+                if (ch == '"') { dentro = !dentro; continue; }
+                if (!dentro && (ch == ',' || ch == ';' || ch == '\r' || ch == '\n'))
+                {
+                    pezzi.Add(b.ToString());
+                    b.Length = 0;
+                    continue;
+                }
+                b.Append(ch);
+            }
+            pezzi.Add(b.ToString());
+            return pezzi;
         }
 
         /// <summary>

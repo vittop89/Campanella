@@ -235,6 +235,10 @@ namespace Campanella
                     return;
                 }
                 Risultato = Componi();
+                if (LeMieClassi.ClasseDi(Risultato) != null && txtOggetto.Text.IndexOf('@') >= 0)
+                    MessageBox.Show(this, "Fra le parole dell'oggetto c'erano degli indirizzi: li ho tolti. Gli " +
+                        "indirizzi degli studenti non stanno nella regola, si incollano in \"Le mie classi...\".",
+                        "Indirizzi nell'oggetto", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;
             };
             Controls.Add(ok);
@@ -299,6 +303,10 @@ namespace Campanella
             if (r.Descrizione == "") r.Descrizione = "Regola personalizzata.";
 
             r.Oggetto = Spezza(txtOggetto.Text);
+            // per una classe un indirizzo fra le parole dell'oggetto sarebbe quello
+            // di uno studente: non entra nella regola (ne' nello Stato)
+            if (LeMieClassi.ClasseDi(r) != null)
+                r.Oggetto.RemoveAll(delegate(string p) { return p.IndexOf('@') >= 0; });
             if (!MittentiFissi(originale)) r.Da = Spezza(txtDa.Text);
             return r;
         }
@@ -868,7 +876,12 @@ namespace Campanella
                 if (riempiendo || e.RowIndex < 0 || e.RowIndex >= Classi.Count) return;
                 object v = griglia.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
                 if (e.ColumnIndex == 0) Classi[e.RowIndex].Spuntata = v is bool && (bool)v;
-                else if (e.ColumnIndex == 2) Classi[e.RowIndex].Oggetto = Convert.ToString(v) ?? "";
+                else if (e.ColumnIndex == 2)
+                {
+                    string avviso = CambiaOggetto(e.RowIndex, Convert.ToString(v) ?? "");
+                    if (avviso != "")
+                        MessageBox.Show(this, avviso, "Indirizzi nell'oggetto", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             };
             griglia.CurrentCellChanged += delegate
             {
@@ -999,7 +1012,7 @@ namespace Campanella
                 ClasseScelta x = new ClasseScelta();
                 x.Nome = c;
                 x.Spuntata = true;
-                x.Oggetto = string.Join(", ", r.Oggetto.ToArray());
+                x.Oggetto = LeMieClassi.TestoOggetto(r.Oggetto);
                 x.Provenienza = "regola";
                 x.Regola = r;
                 Classi.Add(x);
@@ -1022,7 +1035,7 @@ namespace Campanella
                 // un codice che non e' numero e sezione (A5, AF) non ha parole
                 // dell'oggetto: resta senza spunta finche' il docente non le scrive
                 x.Spuntata = spuntate && LeMieClassi.NumeroESezioneDi(n);
-                x.Oggetto = string.Join(", ", LeMieClassi.Varianti(n).ToArray());
+                x.Oggetto = LeMieClassi.TestoOggetto(LeMieClassi.Varianti(n));
                 x.Provenienza = da;
                 Classi.Add(x);
             }
@@ -1059,7 +1072,7 @@ namespace Campanella
                 if (LeMieClassi.Chiave(p) == "" || Indice(p) >= 0) continue;
                 ClasseScelta x = new ClasseScelta();
                 x.Nome = LeMieClassi.Nome(p);
-                x.Oggetto = string.Join(", ", LeMieClassi.Varianti(p).ToArray());
+                x.Oggetto = LeMieClassi.TestoOggetto(LeMieClassi.Varianti(p));
                 x.Provenienza = "a mano";
                 x.Regola = LeMieClassi.RegolaDellaClasse(stato, Madre, LeMieClassi.Chiave(p));
                 Classi.Add(x);
@@ -1170,6 +1183,26 @@ namespace Campanella
             lblAvviso.Tag = (c != null && c.Indirizzi != null && c.Indirizzi.Count > LeMieClassi.TroppiStudenti)
                 ? Ruolo.Avviso : Ruolo.Tenue;
             Tema.Applica(lblAvviso);
+        }
+
+        /// <summary>
+        /// Le parole dell'oggetto scritte nella colonna per la classe i. Gli
+        /// indirizzi (la riga del campo A di Classroom incollata qui invece che
+        /// nella casella sotto) vanno via subito, anche dalla cella, e lo dice:
+        /// l'avviso da mostrare, o "".
+        /// </summary>
+        public string CambiaOggetto(int i, string testo)
+        {
+            if (i < 0 || i >= Classi.Count) return "";
+            int indirizzi = LeMieClassi.IndirizziNellOggetto(testo);
+            if (indirizzi == 0) { Classi[i].Oggetto = testo ?? ""; return ""; }
+            Classi[i].Oggetto = LeMieClassi.TestoOggetto(LeMieClassi.ParoleOggetto(testo));
+            riempiendo = true;
+            try { if (i < griglia.Rows.Count) griglia.Rows[i].Cells[2].Value = Classi[i].Oggetto; }
+            finally { riempiendo = false; }
+            return "Hai incollato " + (indirizzi == 1 ? "un indirizzo" : indirizzi + " indirizzi") + " fra le parole " +
+                   "dell'oggetto della " + Classi[i].Nome + ": li ho tolti. Gli indirizzi degli studenti vanno nella " +
+                   "casella sotto, scelta la classe.";
         }
 
         /// <summary>

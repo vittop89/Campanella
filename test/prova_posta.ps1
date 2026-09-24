@@ -1173,6 +1173,27 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
             $delleClassi.Count -eq 2 -and ($r3B.Oggetto -join '|') -eq '3B|III B|terza B' -and $r3B.Colore -eq $colore3B -and
             @($delleClassi | Where-Object { $_.Etichetta -eq 'Classi 2026-27/1A' }).Count -eq 0)
 
+        # le parole dell'oggetto: una con la virgola, scritta in "Modifica", resta intera;
+        # gli indirizzi incollati nella colonna per sbaglio non diventano parole
+        $r3B.Oggetto.Add('Scrutinio 3B, primo periodo')
+        $fcP = NuovaFC $s7
+        $kP = Indice $fcP '3B'
+        Verifica "una parola con la virgola si vede fra virgolette ($($fcP.Classi[$kP].Oggetto))" (
+            $fcP.Classi[$kP].Oggetto -eq '3B, III B, terza B, "Scrutinio 3B, primo periodo"')
+        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fcP.Madre, $fcP.Classi.PSObject.BaseObject, $false))
+        Verifica "e con ""Usa queste classi"" resta intera, senza la cella toccata ($($r3B.Oggetto -join '|'))" (
+            ($r3B.Oggetto -join '|') -eq '3B|III B|terza B|Scrutinio 3B, primo periodo')
+        $avvisoP = $fcP.CambiaOggetto($kP, $fcP.Classi[$kP].Oggetto + ", anna.rossi@studenti.scuola-esempio.edu.it; luca.verdi@studenti.scuola-esempio.edu.it")
+        Verifica "e anche toccata; gli indirizzi incollati nella colonna vanno via, e lo dice ('$avvisoP')" (
+            $fcP.Classi[$kP].Oggetto -eq '3B, III B, terza B, "Scrutinio 3B, primo periodo"' -and
+            $avvisoP -match '2 indirizzi' -and $avvisoP -match 'casella')
+        $fcP.Classi[$kP].Oggetto = $fcP.Classi[$kP].Oggetto + ', mario.bianchi@studenti.scuola-esempio.edu.it'
+        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fcP.Madre, $fcP.Classi.PSObject.BaseObject, $false))
+        $fcP.Dispose()
+        Verifica "e un indirizzo arrivato fino a ""Usa queste classi"" non entra nella regola ($($r3B.Oggetto -join '|'))" (
+            ($r3B.Oggetto -join '|') -eq '3B|III B|terza B|Scrutinio 3B, primo periodo')
+        [void]$r3B.Oggetto.Remove('Scrutinio 3B, primo periodo')
+
         # l'anno dopo: le regole dell'anno prima si tolgono solo se lo chiedi
         Imposta $s7 'Anno' '2027-28'
         $fc3 = NuovaFC $s7
@@ -1417,6 +1438,10 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
             $composta = $tFR.GetMethod('Componi', $FIn2).Invoke($fr, @())
             Verifica "tolta la spunta, la regola ha i criteri insieme; il segnaposto resta" (
                 -not $composta.UnoQualsiasi -and ($composta.Da -join '|') -eq '@CLASSE:3B@' -and $composta.Sorgente -eq 'classe')
+            $tFR.GetField('txtOggetto', $FIn2).GetValue($fr).Text = "3B`r`nanna.rossi@studenti.scuola-esempio.edu.it`r`nIII B"
+            $composta = $tFR.GetMethod('Componi', $FIn2).Invoke($fr, @())
+            Verifica "e per una classe un indirizzo scritto fra le parole dell'oggetto non entra ($($composta.Oggetto -join '|'))" (
+                ($composta.Oggetto -join '|') -eq '3B|III B')
             $fr.Dispose()
             $nuovaR = [Activator]::CreateInstance($tFR, @($null))
             $chkUnoF.GetValue($nuovaR).Checked = $true
