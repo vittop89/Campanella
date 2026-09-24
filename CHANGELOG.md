@@ -126,7 +126,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   does not pick it up again; run by hand, the function goes on. The other
   calendar function, run by hand meanwhile, says that the job will not
   resume by itself and has to be run again (as after the day's quota or too
-  many refusals from Google), instead of promising a resume.
+  many refusals from Google), instead of promising a resume. The other Posta
+  functions that find the lock busy (the label colours, EXTRA_togliFiltri,
+  ANNULLA_etichettatura, ANNULLA_progressoRiordino) no longer blame only the
+  reordering: they say it may also be a timetable sending or the calendar.
 
 **Posta: a label for each of your classes**
 

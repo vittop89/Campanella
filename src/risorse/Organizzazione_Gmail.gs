@@ -787,8 +787,9 @@ function smistaNuoviMessaggi() {
   var cfg = _config_();
   if (cfg.provaSenzaModifiche) return;      // in prova non tocca nulla
 
-  // se il riordino grosso (PASSO 3) sta ancora girando, questo giro salta:
-  // la posta nuova la prende il prossimo, fra un'ora
+  // se il riordino grosso (PASSO 3), un invio degli orari o il loro calendario
+  // sta ancora girando, questo giro salta: la posta nuova la prende il
+  // prossimo, fra un'ora (cerca negli ultimi giorni)
   var lock = LockService.getUserLock();
   if (!lock.tryLock(0)) return;
   try {
@@ -1143,8 +1144,9 @@ function _coloraEtichette_(tutte) {
   // lo stesso blocco del riordino e dello smistamento, che creano etichette
   var lock = LockService.getUserLock();
   if (!lock.tryLock(30000)) {
-    var occupato = 'Un\'altra esecuzione (il riordino della posta o lo smistamento) sta lavorando ' +
-                   'proprio adesso: riprova fra un minuto. Non ho cambiato nessun colore.';
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto. ' +
+                   'Non ho cambiato nessun colore.';
     Logger.log(occupato);
     return occupato;
   }
@@ -1249,8 +1251,9 @@ function EXTRA_togliFiltri() {
   // lo stesso blocco del riordino, dello smistamento e dei colori
   var lock = LockService.getUserLock();
   if (!lock.tryLock(30000)) {
-    var occupato = 'Un\'altra esecuzione (il riordino della posta o lo smistamento) sta lavorando ' +
-                   'proprio adesso: riprova fra un minuto. Non ho tolto nessun filtro.';
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto. ' +
+                   'Non ho tolto nessun filtro.';
     Logger.log(occupato);
     return occupato;
   }
@@ -1726,7 +1729,8 @@ function _annullaEtichettatura_(completa) {
   // farebbe ripartire da meta', saltando le regole gia' fatte.
   var lock = LockService.getUserLock();
   if (!lock.tryLock(30000)) {
-    var occupato = 'Il riordino (PASSO_3) sta lavorando proprio adesso: riprova fra un minuto.';
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto.';
     Logger.log(occupato);
     return occupato;
   }
@@ -1835,7 +1839,8 @@ function ANNULLA_progressoRiordino() {
   if (!lock.tryLock(30000)) {
     // senza il blocco non tocco niente: il riordino in corso rimetterebbe
     // segnaposto e ripresa subito dopo, e il messaggio qui sotto mentirebbe
-    var occupato = 'Il riordino (PASSO_3) sta lavorando proprio adesso: riprova fra un minuto.';
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto.';
     Logger.log(occupato);
     return occupato;
   }
