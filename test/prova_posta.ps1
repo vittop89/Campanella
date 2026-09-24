@@ -969,6 +969,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         Verifica "solo gli indirizzi (anche nella forma Nome <indirizzo>), minuscoli, senza doppioni ($($letti.Count))" (
             ($letti -join ',') -eq ("anna.rossi@$dominioStudenti,luca.verdi@$dominioStudenti,mario.bianchi@$dominioStudenti," +
                                     "sara.neri@$dominioStudenti,prof.rossi@scuola-esempio.edu.it,preside@scuola-esempio.edu.it"))
+        # l'apostrofo nel nome utente (D'Amico, Dell'Orto): Google Workspace lo ammette
+        $conApostrofo = "Sara D'Amico <d'amico.sara@$dominioStudenti>, 'o'neil@$dominioStudenti', " +
+                        "dell'orto.luca@$dominioStudenti; `"bianchi@$dominioStudenti`""
+        $lettiA = @((MC 'Indirizzi').Invoke($null, @([string]$conApostrofo))) -join ','
+        Verifica "gli indirizzi con l'apostrofo si leggono interi, senza gli apici intorno ($lettiA)" (
+            $lettiA -eq ("d'amico.sara@$dominioStudenti,o'neil@$dominioStudenti,dell'orto.luca@$dominioStudenti," +
+                         "bianchi@$dominioStudenti"))
         $sp = NuovoStato
         AggiungiPersona $sp 'ROSSI PAOLO' 'DOCENTE' 'Prof.Rossi@scuola-esempio.edu.it' $true
         $tolti = New-Object 'System.Collections.Generic.List[string]'
