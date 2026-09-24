@@ -669,9 +669,10 @@ namespace Campanella
 
         /// <summary>
         /// Le classi di una cella dell'orario o di una riga: "3A/3B", "3A-3B",
-        /// "3A 3B" e "3A + 3B" sono due classi (una lezione insieme); "2B-Ls",
-        /// "3B LSA" e "3A/B" una. Si spezza solo se ogni pezzo sembra una classe
-        /// (ClasseBenFatta): "3B 2 gruppi" e "1A 2 ore" restano una.
+        /// "3A 3B", "3A + 3B" e "5AINF/5BINF" sono due classi (una lezione
+        /// insieme); "2B-Ls", "3B LSA" e "3A/B" una. Si spezza solo se ogni
+        /// pezzo sembra una classe (ClasseNellaCella): "3B 2 gruppi" e "1A 2 ore"
+        /// restano una.
         /// </summary>
         public static List<string> Separa(string grezzo)
         {
@@ -681,10 +682,29 @@ namespace Campanella
             string[] pezzi = Regex.Split(s, @"\s*[/+&\-]\s*(?=[1-9])|\s+(?=[1-9])");
             bool tutte = pezzi.Length > 1;
             foreach (string p in pezzi)
-                if (!ClasseBenFatta(p.Trim())) tutte = false;
+                if (!ClasseNellaCella(p.Trim())) tutte = false;
             if (!tutte) { fuori.Add(s); return fuori; }
             foreach (string p in pezzi) fuori.Add(p.Trim());
             return fuori;
+        }
+
+        /// <summary>
+        /// Vero se un pezzo di una cella e' una classe, per Separa: una classe
+        /// ben fatta (ClasseBenFatta), oppure una sezione attaccata al numero
+        /// tutta maiuscola di qualunque lunghezza ("5AINF", "3ACAT", "5AAFM")
+        /// o di due lettere anche minuscole ("3bs", "3Cs"), con al piu' una
+        /// sigla dopo. Resta fuori la parola: "2 gruppi", "2 ore", "5 per",
+        /// "2ore", "2 Ore".
+        /// </summary>
+        static bool ClasseNellaCella(string s)
+        {
+            if (ClasseBenFatta(s)) return true;
+            Match m = NumeroSezione.Match(s ?? "");
+            if (!m.Success) return false;
+            string sezione = m.Groups[2].Value;
+            bool attaccata = m.Groups[2].Index == m.Groups[1].Index + 1;
+            return attaccata && (sezione == sezione.ToUpperInvariant() || sezione.Length == 2) &&
+                   SoloArticolazione(m.Groups[3]);
         }
 
         // sezioni che sono anche parole italiane: "3 A" prenderebbe "da 1 a 10",

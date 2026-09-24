@@ -948,7 +948,10 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
                               '3B LSA' = '3B LSA'; '3A/B' = '3A/B'; 'A5 AF' = 'A5 AF'; '4A-4B LSA' = '4A|4B LSA'; '5 A 5 B' = '5 A|5 B'
                               # un numero e una parola non sono una classe: la cella resta una
                               '3B 2 gruppi' = '3B 2 gruppi'; '1A 2 ore' = '1A 2 ore'; ('4A 2' + $grado + 'gr') = ('4A 2' + $grado + 'gr')
-                              '2C 3 Ore' = '2C 3 Ore' }
+                              '2C 3 Ore' = '2C 3 Ore'; '1A 2ore' = '1A 2ore'; '3B 5per' = '3B 5per'
+                              # le sezioni attaccate al numero, anche lunghe o con l'indirizzo: sono classi
+                              '5AINF/5BINF' = '5AINF|5BINF'; '3ACAT 3BCAT' = '3ACAT|3BCAT'; '5AAFM-5BAFM' = '5AAFM|5BAFM'
+                              '3AS-3bs' = '3AS|3bs'; '3BS-3Cs' = '3BS|3Cs'; '4AINF-4BINF LAB' = '4AINF|4BINF LAB' }
         $storteS = @()
         foreach ($k in $separa.Keys) {
             $pezzi = @((MC 'Separa').Invoke($null, @([string]$k))) -join '|'

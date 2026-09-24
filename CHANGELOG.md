@@ -143,9 +143,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   sender is a student of that class. Class labels add to the others:
   Studenti, Colleghi and the rest stay.
 - The classes come from the timetable (your lessons, without the "a
-  disposizione" hours; a lesson for 3A/3B is two classes, a cell such as
-  "3B 2 gruppi" stays one: Orari, the timetable file and your name in step
-  4) and from the classes written in Cartelle; others are added by hand.
+  disposizione" hours; a lesson for 3A/3B or 5AINF/5BINF is two classes, a
+  cell such as "3B 2 gruppi" stays one: Orari, the timetable file and your
+  name in step 4) and from the classes written in Cartelle; others are
+  added by hand.
   3B, 3 B and 3^B are the same class; 3B LSA and 3B ITE are other classes,
   and when two share number and section the window says so. A slash never
   gets into a label name.
