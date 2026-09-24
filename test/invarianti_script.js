@@ -54,7 +54,13 @@
  *   - gli indirizzi degli studenti delle classi (CLASSI_STUDENTI, dai file
  *     Classe_*.gs) si leggono solo in tre funzioni, e l'unica che li da'
  *     (_studentiDellaClasse_) la chiama solo _espandi_, che li mette nelle
- *     ricerche.
+ *     ricerche;
+ *   - Posta e Orari stanno nello stesso progetto e ognuno vedrebbe le
+ *     funzioni e le variabili dell'altro: nessuno dei due ne usa una
+ *     dell'altro, cosi' le regole di un file non si aggirano passando
+ *     dall'altro (gli orari non arrivano agli studenti delle classi, e i loro
+ *     nomi non li scrivono nemmeno fra virgolette; la posta non tocca il
+ *     calendario).
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
@@ -404,7 +410,10 @@ const REGOLE = {
     nomiSoloIn: {
       CLASSI_STUDENTI: ['_classiNeiFile_', '_fileDellaClasse_', '_studentiDellaClasse_'],
       _studentiDellaClasse_: ['_espandi_']
-    }
+    },
+    // Orari.gs sta nello stesso progetto: le sue funzioni qui non si usano
+    // (ORARI_ANNULLA_calendario e le altre toccano il calendario)
+    nomiDi: 'Orari.gs'
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
@@ -417,7 +426,11 @@ const REGOLE = {
     gmailApi: [],
     gmailApiSoloIn: {},
     // il calendario: crea, accorcia e toglie solo i suoi eventi (piu' su)
-    calendario: CALENDARIO_ORARI
+    calendario: CALENDARIO_ORARI,
+    // Organizzazione_Gmail.gs sta nello stesso progetto: le sue funzioni qui
+    // non si usano, e quelle che danno gli studenti delle classi (i suoi
+    // nomiSoloIn) nemmeno fra virgolette
+    nomiDi: 'Organizzazione_Gmail.gs'
   }
 };
 
@@ -970,6 +983,36 @@ function controlla(nomeFile, sorgenteIntero) {
     if (stringhe.some(s => s.indexOf(nome) >= 0)) fuori.push('il nome ' + nome + ' fra virgolette (un accesso per nome?)');
   }
 
+  // l'altro script dello stesso progetto (nomiDi): le sue funzioni e variabili
+  // in cima al file qui non si usano, nemmeno dopo un punto; i nomi che si
+  // e' riservato (i suoi nomiSoloIn: gli studenti delle classi e le funzioni
+  // che li leggono) nemmeno fra virgolette
+  if (regole.nomiDi) {
+    const altro = REGOLE[regole.nomiDi];
+    const nudoAltro = smonta(sorgenti[regole.nomiDi]).nudo;
+    const suoi = new Set([...nudoAltro.matchAll(/^(?:function\s+([A-Za-z_$][\w$]*)|var\s+([A-Za-z_$][\w$]*))/gm)]
+      .map(x => x[1] || x[2]));
+    const riservati = new Set();
+    for (const nome of Object.keys(altro.nomiSoloIn || {})) {
+      riservati.add(nome);
+      altro.nomiSoloIn[nome].forEach(f => riservati.add(f));
+    }
+    const vietati = new Set([...suoi, ...riservati]);
+    for (const nome of vietati) {
+      const uso = new RegExp('(?<![\\w$])' + nome.replace(/\$/g, '\\$') + '(?![\\w$])', 'g');
+      let u;
+      while ((u = uso.exec(nudo))) {
+        fuori.push(nome + (riservati.has(nome) ? ' e\' riservato a ' : ' e\' di ') + regole.nomiDi +
+                   ', che sta nello stesso progetto: qui non si usa (riga ' + riga(u.index) + ')');
+      }
+    }
+    for (const nome of riservati) {
+      if (stringhe.some(s => s.indexOf(nome) >= 0)) {
+        fuori.push('il nome ' + nome + ', riservato a ' + regole.nomiDi + ', fra virgolette');
+      }
+    }
+  }
+
   // le cancellazioni: solo quelle dell'elenco
   const chiamata = /\.\s*([A-Za-z_$][\w$]*)\s*\(/g;
   while ((m = chiamata.exec(nudo))) {
@@ -1230,6 +1273,28 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'e una seconda _studentiDellaClasse_, che prenderebbe il posto di quella vera',
     posta + '\nfunction _studentiDellaClasse_() {\n  return CLASSI_STUDENTI;\n}\n',
     'la funzione _studentiDellaClasse_, che puo\' usare CLASSI_STUDENTI, e\' dichiarata 2 volte');
+  // Posta e Orari nello stesso progetto: nessuno dei due passa dall'altro
+  const orariAccanto = sorgenti['Orari.gs'];
+  const ANTEPRIMA_ORARI = 'function ORARI_1_anteprima() {';
+  deveFallire('Orari.gs', 'gli orari che chiedono alla posta gli studenti di una classe vengono trovati',
+    inserisci(orariAccanto, ANTEPRIMA_ORARI, '\n  Logger.log(_studentiDellaClasse_(\'3B\', \'Classi 2026-27/3B\'));'),
+    '_studentiDellaClasse_ e\' riservato a Organizzazione_Gmail.gs');
+  deveFallire('Orari.gs', '  ...anche con _espandi_ e il segnaposto della classe',
+    inserisci(orariAccanto, ANTEPRIMA_ORARI,
+              '\n  Logger.log(_espandi_(CONFIG, [\'@CLASSE:3B@\'], { etichetta: \'Classi 2026-27/3B\' }));'),
+    '_espandi_ e\' riservato a Organizzazione_Gmail.gs');
+  deveFallire('Orari.gs', '  ...o leggendo CLASSI_STUDENTI',
+    inserisci(orariAccanto, ANTEPRIMA_ORARI, '\n  Logger.log(JSON.stringify(CLASSI_STUDENTI));'),
+    'CLASSI_STUDENTI e\' riservato a Organizzazione_Gmail.gs');
+  deveFallire('Orari.gs', '  ...o scrivendone il nome fra virgolette',
+    inserisci(orariAccanto, ANTEPRIMA_ORARI, '\n  var nome = \'_studenti\' + \'DellaClasse_\', tutto = \'CLASSI_STUDENTI\';'),
+    'il nome CLASSI_STUDENTI, riservato a Organizzazione_Gmail.gs, fra virgolette');
+  deveFallire('Orari.gs', '  ...e una funzione qualunque della posta',
+    inserisci(orariAccanto, ANTEPRIMA_ORARI, '\n  var cfg = _config_();'), '_config_ e\' di Organizzazione_Gmail.gs');
+  deveFallire('Organizzazione_Gmail.gs', 'la posta che toglie il calendario con una funzione degli orari viene trovata',
+    inserisci(posta, INIZIO, '\n  ORARI_ANNULLA_calendario();'), 'ORARI_ANNULLA_calendario e\' di Orari.gs');
+  deveFallire('Organizzazione_Gmail.gs', '  ...anche dopo un punto',
+    inserisci(posta, INIZIO, '\n  this._orariAnnullaCalendario_();'), '_orariAnnullaCalendario_ e\' di Orari.gs');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto
