@@ -24,10 +24,15 @@
  *     ricevente scritto proprio cosi' (voce.serie, cal...), che nelle
  *     funzioni che cambiano o tolgono viene da una dichiarazione esatta e non
  *     si cambia; _orariNostri_ assegna contrassegno e nostro solo nelle forme
- *     ammesse e salta gli eventi non suoi, il taglio salta quelli senza
- *     contrassegno; gli altri metodi degli eventi e dei calendari, call,
- *     apply, bind, eval, this, la destrutturazione, i nomi calcolati e le
- *     funzioni dentro quelle che cambiano o tolgono sono fuori (vedi
+ *     ammesse, salta gli eventi non suoi e nel suo elenco mette solo le voci
+ *     ammesse (e il suo testo ha un'impronta: ogni modifica va riletta), il
+ *     taglio salta quelli senza contrassegno; il contrassegno di una voce non
+ *     si da' in nessun altro modo (niente Object, constructor, prototype,
+ *     proprieta' calcolate scritte fuori dalle due ammesse, for ... of su una
+ *     proprieta', JSON.parse fuori dal punto salvato), le sue costanti e i
+ *     servizi non si cambiano; gli altri metodi degli eventi e dei calendari,
+ *     call, apply, bind, eval, this, la destrutturazione, i nomi calcolati e
+ *     le funzioni dentro quelle che cambiano o tolgono sono fuori (vedi
  *     CALENDARIO_ORARI);
  *   - i filtri di Gmail (solo Posta) etichettano, archiviano e segnano come
  *     letti, e basta;
@@ -58,9 +63,13 @@
  * revisione: s[k].call(s, ...), una funzione d'appoggio con getEvents, le
  * serie passate dal chiamante, "|| true" accanto al contrassegno, una
  * funzione che accorcia creata nel taglio, deleteEventSeries su una serie
- * qualunque, il calendario predefinito) devono far fallire i controlli. Se
- * un giorno uno di questi non fallisse piu', il controllo sarebbe diventato
- * cieco.
+ * qualunque, il calendario predefinito; e dalla seconda: ogni evento messo
+ * fra i nostri con unshift, splice, concat o un indice, un evento singolo con
+ * la sola descrizione preso per contrassegnato, Object.assign con JSON.parse,
+ * Object.defineProperty, voce.contrassegno++, voce[k] = true, for ... of su
+ * una proprieta', _ORARI_TAG_VALORE = null, String ridefinita) devono far
+ * fallire i controlli. Se un giorno uno di questi non fallisse piu', il
+ * controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -254,8 +263,15 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      vengono da una dichiarazione esatta e non si riassegnano ne' si
 //      modificano (quindi: solo le voci trovate da _orariNostri_);
 //    - in _orariNostri_ contrassegno e nostro si assegnano solo cosi', e un
-//      evento non nostro si salta prima di prenderne la serie; nel taglio una
-//      voce senza contrassegno si salta prima di toccare qualcosa;
+//      evento non nostro si salta prima di prenderne la serie; il suo elenco
+//      si nomina solo nelle istruzioni ammesse, e il testo intero ha
+//      un'impronta; nel taglio una voce senza contrassegno si salta prima di
+//      toccare qualcosa;
+//    - il contrassegno di una voce si da' solo in _orariNostri_, in una forma:
+//      niente Object, constructor o prototype, proprieta' calcolate scritte
+//      solo nelle due istruzioni ammesse, niente for ... of su una proprieta',
+//      JSON.parse solo dove si legge il punto salvato; le costanti del
+//      contrassegno e i servizi non si cambiano;
 //    - i metodi che nessuna funzione deve usare non si nominano nemmeno
 //      (setTitle, getDefaultCalendar, getEventSeriesById, call, apply,
 //      bind...); niente eval, with, this, destrutturazione, proprieta' fra
@@ -294,8 +310,40 @@ const CALENDARIO_ORARI = {
                'nostro = String(ev.getDescription() || \'\').indexOf(\'[Campanella]\') === 0;']
     }
   },
-  // la proprieta' contrassegno delle voci: solo in _orariNostri_, solo cosi'
-  contrassegno: { funzione: '_orariNostri_', forme: ['if (contrassegno) voce.contrassegno = true;'] },
+  // gli elenchi di _orariNostri_: ogni volta che si nominano, solo in queste
+  // istruzioni. In fuori entrano la voce di una serie nuova e l'evento
+  // singolo dopo la guardia, con il suo contrassegno, e nient'altro: niente
+  // unshift, splice, concat, indici, riassegnazioni o altri nomi per loro
+  raccolte: {
+    _orariNostri_: {
+      fuori: ['var fuori = [];', 'fuori.push(voce);',
+              'fuori.push({ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: lezione.inizio, ' +
+                'fine: lezione.fine, ultimo: lezione.inizio });',
+              'k < fuori.length;', 'fuori[k].serie', 'fuori[k]', 'return fuori;'],
+      perSerie: ['var perSerie = {};', 'var voce = perSerie[id];',
+                 'voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), ' +
+                   'descrizione: descrizione, lezioni: [] };']
+    }
+  },
+  // la proprieta' contrassegno delle voci: solo in _orariNostri_, solo cosi';
+  // come chiave solo li', con il valore di contrassegno o false
+  contrassegno: { funzione: '_orariNostri_', forme: ['if (contrassegno) voce.contrassegno = true;'],
+                  valori: ['contrassegno', 'false'] },
+  // il contrassegno si confronta con queste costanti: dichiarate una volta
+  // sola, cosi', e mai cambiate (con _ORARI_TAG_VALORE = null ogni evento
+  // senza contrassegno ne avrebbe uno)
+  costanti: { _ORARI_TAG: 'var _ORARI_TAG = \'campanella\';', _ORARI_TAG_VALORE: 'var _ORARI_TAG_VALORE = \'orario\';' },
+  // le sole scritture su una proprieta' calcolata (x[k] = ...) in tutto il file
+  scrittureCalcolate: ['conta[f] = (conta[f] || 0) + 1;',
+                       'voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), ' +
+                         'descrizione: descrizione, lezioni: [] };'],
+  // JSON.parse fa oggetti con le chiavi scritte in un testo: solo dove si
+  // legge il punto salvato di un lavoro
+  jsonParse: ['_orariInvia_', '_orariLavoroCalendario_'],
+  // la funzione che decide quali eventi sono nostri, per intero: ogni
+  // modifica, anche una che le regole qui non vedono, chiede di rileggerla e
+  // di aggiornare l'impronta (sha256 del testo senza commenti, spazi ridotti)
+  impronte: { _orariNostri_: '00b0d489da7b1ae3' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
     _orariNostri_: { guardia: 'if (!nostro) continue;', prima: ['getEventSeries', 'push'] },
@@ -314,7 +362,11 @@ const CALENDARIO_ORARI = {
             'getAllOwnedCalendars', 'getCalendarById', 'getOwnedCalendarById', 'getCalendarsByName',
             'getEventSeriesById', 'getEventById', 'getEventsForDay', 'createEvent', 'createAllDayEvent',
             'createAllDayEventSeries', 'createEventFromDescription', 'call', 'apply', 'bind',
-            'eval', 'globalThis', 'this']
+            'eval', 'globalThis', 'this',
+            // le strade per dare una proprieta' a un oggetto senza scriverne il nome
+            'constructor', 'prototype', '__proto__', '__defineGetter__', '__defineSetter__', 'assign',
+            'defineProperty', 'defineProperties', 'setPrototypeOf', 'getPrototypeOf', 'getOwnPropertyDescriptor',
+            'fromEntries']
 };
 
 const REGOLE = {
@@ -339,8 +391,9 @@ const REGOLE = {
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
-    // Configurazione.gs della Posta, se c'e'
-    servizi: SERVIZI_POSTA.concat(['CalendarApp'], JS, ['CONFIG', 'ORARI']),
+    // Configurazione.gs della Posta, se c'e'. Object no: Object.assign e
+    // Object.defineProperty darebbero il contrassegno a una voce qualunque
+    servizi: SERVIZI_POSTA.concat(['CalendarApp'], JS.filter(x => x !== 'Object'), ['CONFIG', 'ORARI']),
     cancellazioni: ['deleteProperty', 'deleteTrigger', 'deleteEventSeries', 'deleteEvent'],
     destinatari: [/^mio$/, /^m\.a$/, /^_mioIndirizzoOrari_?\(\)$/],
     etichetteDiSistema: [],
@@ -384,6 +437,8 @@ function nomeIntero(nome) { return new RegExp('(^|[^\\w$.])' + nome.replace(/\$/
 /**
  * L'istruzione che contiene la posizione, come testo con gli spazi ridotti:
  * dal ; { } che la precede (fuori dalle parentesi tonde) al ; che la chiude.
+ * Un oggetto scritto per esteso dopo la posizione ("x = { a: 1 };") fa parte
+ * dell'istruzione: la sua graffa non la chiude.
  */
 function istruzione(codice, nudo, pos) {
   let i = pos, tonde = 0;
@@ -400,6 +455,13 @@ function istruzione(codice, nudo, pos) {
     const c = nudo[j];
     if (c === '(') tonde++;
     else if (c === ')') { if (tonde === 0) break; tonde--; }
+    else if (tonde === 0 && c === '{' && /(?:[=(,:[?!&|]|\breturn)\s*$/.test(nudo.slice(Math.max(0, j - 20), j))) {
+      let graffe = 0;                      // un oggetto: fino alla sua graffa chiusa
+      for (; j < nudo.length; j++) {
+        if (nudo[j] === '{') graffe++;
+        else if (nudo[j] === '}' && --graffe === 0) break;
+      }
+    }
     else if (tonde === 0 && (c === ';' || c === '{' || c === '}')) { if (c === ';') j++; break; }
     j++;
   }
@@ -425,8 +487,24 @@ function formaFlessibile(testo) {
   return new RegExp(testo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*'), 'g');
 }
 
+// tutti i modi di assegnare dopo un nome (x = , x += , x **= , x ||= , x++ ...)
+// e prima (++x, --x)
+const ASSEGNA = '(?:=(?!=)|\\+\\+|--|\\*\\*=|<<=|>>>?=|[-+*/%&|^]=|\\|\\|=|&&=|\\?\\?=)';
+const PRIMA_DI = '(?:\\+\\+|--)\\s*';
+
+/** L'impronta di un testo: sha256, i primi 16 caratteri. */
+function impronta(testo) {
+  return require('crypto').createHash('sha256').update(testo, 'utf8').digest('hex').slice(0, 16);
+}
+
+/** Il testo di una funzione, dalla parola function alla graffa che la chiude, senza commenti e con gli spazi ridotti. */
+function testoDellaFunzione(codice, nudo, corpo) {
+  const da = nudo.lastIndexOf('function', corpo[0]);
+  return codice.slice(da, corpo[1] + 1).replace(/\s+/g, ' ').trim();
+}
+
 /** Le regole del calendario degli orari (CALENDARIO_ORARI): le violazioni trovate. */
-function controllaCalendario(k, codice, nudo, corpi, riga) {
+function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
   const fuori = [];
   let m;
   const dichiarata = f => {
@@ -435,10 +513,23 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
   };
   const nomi = new Set();
   Object.values(k.metodi).forEach(r => r.funzioni.forEach(f => nomi.add(f)));
-  [k.origini, k.forme, k.guardie].forEach(x => Object.keys(x).forEach(f => nomi.add(f)));
+  [k.origini, k.forme, k.guardie, k.raccolte, k.impronte].forEach(x => Object.keys(x).forEach(f => nomi.add(f)));
   k.senzaAnnidate.forEach(f => nomi.add(f));
+  k.jsonParse.forEach(f => nomi.add(f));
   nomi.add(k.contrassegno.funzione);
   nomi.forEach(dichiarata);
+
+  // la funzione che decide che cosa e' nostro: il testo e' quello controllato
+  for (const f of Object.keys(k.impronte)) {
+    for (const corpo of (corpi[f] || [])) {
+      const trovata = impronta(testoDellaFunzione(codice, nudo, corpo));
+      if (trovata !== k.impronte[f]) {
+        fuori.push('il testo di ' + f + ' non e\' quello controllato (impronta ' + trovata + ' invece di ' +
+                   (k.impronte[f] || 'nessuna') + '): e\' la funzione che decide quali eventi sono di Campanella. Se ' +
+                   'l\'hai cambiata apposta, rileggila con le regole di CALENDARIO_ORARI e aggiorna l\'impronta');
+      }
+    }
+  }
 
   // i nomi vietati: nemmeno nominati (nel testo nudo stringhe e commenti non ci sono)
   for (const nome of k.vietati) {
@@ -506,8 +597,8 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
         if (parametri && new RegExp('(^|[^\\w$])' + nome + '(?![\\w$])').test(parametri[1])) {
           fuori.push('in ' + f + ' ' + nome + ' non puo\' essere un parametro');
         }
-        const assegnata = new RegExp('(^|[^\\w$.])(?:\\+\\+|--)?' + nome +
-          '\\s*(?:=(?!=)|\\+\\+|--|[-+*/%&|^]=|\\*\\*=|<<=|>>>?=)|(^|[^\\w$.])(?:\\+\\+|--)' + nome + '(?![\\w$])', 'g');
+        const assegnata = new RegExp('(^|[^\\w$.])' + nome + '\\s*' + ASSEGNA + '|(^|[^\\w$.])' + PRIMA_DI + nome +
+          '(?![\\w$])', 'g');
         let volte = 0, g;
         while ((g = assegnata.exec(corpo))) {
           volte++;
@@ -515,7 +606,9 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
           if (s !== forma) fuori.push('in ' + f + ' ' + nome + ' si assegna solo cosi\': ' + forma + ' (riga ' + riga(da + g.index) + ': ' + s + ')');
         }
         if (volte !== 1) fuori.push('in ' + f + ' ' + nome + ' va dichiarata una volta sola, cosi\': ' + forma + ' (trovata ' + volte + ' volte)');
-        const modificata = new RegExp('(^|[^\\w$.])' + nome + '\\s*(?:\\.\\s*[\\w$]+|\\[[^\\]]*\\])\\s*(?:=(?!=)|\\+\\+|--|[-+*/%&|^]=)|' +
+        const membri = '(?:\\s*(?:\\.\\s*[\\w$]+|\\[[^\\]]*\\]))+';
+        const modificata = new RegExp('(^|[^\\w$.])' + nome + membri + '\\s*' + ASSEGNA + '|' +
+          '(^|[^\\w$.])' + PRIMA_DI + nome + membri + '|' +
           '(^|[^\\w$.])' + nome + '\\s*\\.\\s*(?:push|unshift|splice|pop|shift|reverse|sort|fill|copyWithin)\\s*\\(', 'g');
         while ((g = modificata.exec(corpo))) fuori.push('in ' + f + ' ' + nome + ' si cambia (riga ' + riga(da + g.index) + ')');
       }
@@ -528,11 +621,12 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
       const corpo = nudo.slice(da, a);
       for (const nome of Object.keys(k.forme[f])) {
         const forme = k.forme[f][nome];
-        const assegnata = new RegExp('(^|[^\\w$.])' + nome + '\\s*(?:=(?!=)|\\+\\+|--|[-+*/%&|^]=|\\|\\|=|&&=|\\?\\?=)', 'g');
+        const assegnata = new RegExp('(^|[^\\w$.])' + nome + '\\s*' + ASSEGNA + '|(^|[^\\w$.])' + PRIMA_DI + nome +
+          '(?![\\w$])', 'g');
         const viste = new Set();
         let g;
         while ((g = assegnata.exec(corpo))) {
-          const s = istruzione(codice, nudo, da + g.index + g[1].length);
+          const s = istruzione(codice, nudo, da + g.index + (g[1] !== undefined ? g[1] : g[2]).length);
           viste.add(s);
           if (forme.indexOf(s) < 0) {
             fuori.push('in ' + f + ' ' + nome + ' si assegna solo cosi\': ' + forme.join('  oppure  ') +
@@ -544,9 +638,12 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
     }
   }
 
-  // la proprieta' contrassegno: assegnata solo in _orariNostri_, solo cosi'; come chiave solo li'
+  // la proprieta' contrassegno: assegnata solo in _orariNostri_, solo cosi'
+  // (con qualunque operatore: anche ++, **=, ||=); come chiave solo li', con
+  // il valore di contrassegno o false
   const cc = k.contrassegno;
-  const proprieta = /\.\s*contrassegno\s*(?:=(?!=)|[-+*/%&|^]=|\|\|=|&&=|\?\?=)/g;
+  const catena = '[A-Za-z_$][\\w$]*(?:\\s*(?:\\.\\s*[\\w$]+|\\[[^\\]]*\\]))*?\\s*';
+  const proprieta = new RegExp('\\.\\s*contrassegno\\s*' + ASSEGNA + '|' + PRIMA_DI + catena + '\\.\\s*contrassegno(?![\\w$])', 'g');
   while ((m = proprieta.exec(nudo))) {
     const s = istruzione(codice, nudo, m.index);
     if (!dentroA(corpi, [cc.funzione], m.index) || cc.forme.indexOf(s) < 0) {
@@ -554,12 +651,103 @@ function controllaCalendario(k, codice, nudo, corpi, riga) {
                  ' (riga ' + riga(m.index) + ': ' + s + ')');
     }
   }
-  const chiave = /(^|[{,]\s*)contrassegno\s*:/g;
+  const chiave = /(^|[{,]\s*)contrassegno\s*:\s*([^,}]*)/g;
   while ((m = chiave.exec(nudo))) {
     if (!dentroA(corpi, [cc.funzione], m.index)) fuori.push('contrassegno come chiave fuori da ' + cc.funzione + ' (riga ' + riga(m.index) + ')');
+    else if (cc.valori.indexOf(m[2].trim()) < 0) {
+      fuori.push('contrassegno come chiave solo con il valore ' + cc.valori.join(' o ') + ' (riga ' + riga(m.index) + ': ' +
+                 m[2].trim() + ')');
+    }
   }
-  const scambio = /\.\s*(serie|evento)\s*(?:=(?!=)|[-+*/%&|^]=|\|\|=|&&=|\?\?=)/g;
-  while ((m = scambio.exec(nudo))) fuori.push('la ' + m[1] + ' di una voce si cambia (riga ' + riga(m.index) + ')');
+  const scambio = new RegExp('\\.\\s*(serie|evento)\\s*' + ASSEGNA + '|' + PRIMA_DI + catena + '\\.\\s*(serie|evento)(?![\\w$])', 'g');
+  while ((m = scambio.exec(nudo))) fuori.push('la ' + (m[1] || m[2]) + ' di una voce si cambia (riga ' + riga(m.index) + ')');
+
+  // gli elenchi di _orariNostri_: nominati solo nelle istruzioni ammesse
+  for (const f of Object.keys(k.raccolte)) {
+    for (const [da, a] of (corpi[f] || [])) {
+      for (const nome of Object.keys(k.raccolte[f])) {
+        const ammesse = k.raccolte[f][nome];
+        const re = nomeIntero(nome);
+        const corpo = nudo.slice(da, a);
+        let g;
+        while ((g = re.exec(corpo))) {
+          const pos = da + g.index + g[1].length;
+          const s = istruzione(codice, nudo, pos);
+          if (ammesse.indexOf(s) < 0) {
+            fuori.push('in ' + f + ' ' + nome + ' si usa solo cosi\': ' + ammesse.join('  oppure  ') + ' (riga ' + riga(pos) + ': ' + s + ')');
+          }
+        }
+      }
+    }
+  }
+
+  // le proprieta' calcolate (x[k] = ...): si scrivono solo nelle istruzioni
+  // ammesse, in tutto il file. Un nome calcolato darebbe il contrassegno
+  // senza scriverlo: voce['contr' + 'assegno'] = true
+  const calcolate = new RegExp('\\]\\s*' + ASSEGNA + '|' + PRIMA_DI + catena + '\\[', 'g');
+  while ((m = calcolate.exec(nudo))) {
+    const s = istruzione(codice, nudo, m.index);
+    if (k.scrittureCalcolate.indexOf(s) < 0) {
+      fuori.push('proprieta\' calcolata scritta fuori dalle istruzioni ammesse (riga ' + riga(m.index) + ': ' + s + ')');
+    }
+  }
+
+  // for (x.p of ...) e for (x[k] in ...) assegnano anche loro: nella testa di
+  // un for ... in / of solo una variabile nuova
+  const perOgni = /\bfor\s*\(/g;
+  while ((m = perOgni.exec(nudo))) {
+    const testa = argomenti(codice, nudo, m.index + m[0].length - 1);
+    let tonde = 0, conPuntoEVirgola = false;
+    for (const c of testa.nudo) {
+      if (c === '(' || c === '[' || c === '{') tonde++;
+      else if (c === ')' || c === ']' || c === '}') tonde--;
+      else if (c === ';' && tonde === 0) conPuntoEVirgola = true;
+    }
+    if (!conPuntoEVirgola && !/^\s*(?:var|let|const)\s+[A-Za-z_$][\w$]*\s+(?:in|of)\s/.test(testa.nudo)) {
+      fuori.push('for ... in / of che non dichiara una variabile nuova (riga ' + riga(m.index) + ')');
+    }
+  }
+
+  // le costanti del contrassegno: una dichiarazione sola, scritta cosi', e mai cambiate
+  for (const nome of Object.keys(k.costanti)) {
+    const forma = k.costanti[nome];
+    const dichiarazioni = [...nudo.matchAll(new RegExp('\\b(?:var|let|const|function|class)\\s+' + nome + '(?![\\w$])', 'g'))];
+    if (dichiarazioni.length !== 1 || istruzione(codice, nudo, dichiarazioni[0].index) !== forma) {
+      fuori.push('la costante ' + nome + ' va dichiarata una volta sola, cosi\': ' + forma + ' (' +
+                 (dichiarazioni.length === 1 ? 'invece: ' + istruzione(codice, nudo, dichiarazioni[0].index)
+                                             : 'dichiarata ' + dichiarazioni.length + ' volte') + ')');
+    }
+    const assegnata = new RegExp('(^|[^\\w$.])' + nome + '\\s*' + ASSEGNA + '|' + PRIMA_DI + nome + '(?![\\w$])', 'g');
+    while ((m = assegnata.exec(nudo))) {
+      const s = istruzione(codice, nudo, m.index + (m[1] || '').length);
+      if (s !== forma) fuori.push('la costante ' + nome + ' si cambia (riga ' + riga(m.index) + ': ' + s + ')');
+    }
+    const parametri = /\bfunction\s*[\w$]*\s*\(([^)]*)\)|\bcatch\s*\(([^)]*)\)/g;
+    while ((m = parametri.exec(nudo))) {
+      if (new RegExp('(^|[^\\w$])' + nome + '(?![\\w$])').test(m[1] || m[2] || '')) {
+        fuori.push('la costante ' + nome + ' usata come parametro (riga ' + riga(m.index) + ')');
+      }
+    }
+  }
+
+  // JSON: solo JSON.stringify(...) e JSON.parse(...), e JSON.parse solo dove si legge il punto salvato
+  const json = /(^|[^\w$.])JSON(?![\w$])/g;
+  while ((m = json.exec(nudo))) {
+    const pos = m.index + m[1].length;
+    const uso = /^JSON\s*\.\s*(stringify|parse)\s*\(/.exec(nudo.slice(pos));
+    if (!uso) fuori.push('JSON usato come valore, o per un altro metodo (riga ' + riga(pos) + ')');
+    else if (uso[1] === 'parse' && !dentroA(corpi, k.jsonParse, pos)) {
+      fuori.push('JSON.parse fuori da ' + k.jsonParse.join(' e ') + ' (riga ' + riga(pos) + ')');
+    }
+  }
+
+  // i servizi e gli oggetti di JavaScript non si ridefiniscono ne' si cambiano:
+  // String = function () { return '[Campanella]'; } farebbe nostro ogni evento
+  for (const nome of servizi) {
+    const cambiato = new RegExp('(^|[^\\w$.])' + nome + '(?:\\s*(?:\\.\\s*[\\w$]+|\\[[^\\]]*\\]))*\\s*' + ASSEGNA + '|' +
+      PRIMA_DI + nome + '(?![\\w$])|\\b(?:var|let|const|function|class)\\s+' + nome + '(?![\\w$])', 'g');
+    while ((m = cambiato.exec(nudo))) fuori.push('il servizio ' + nome + ' si ridefinisce o si cambia (riga ' + riga(m.index) + ')');
+  }
 
   // le guardie: nel ciclo (profondita' 2 nella funzione), prima delle chiamate indicate
   for (const f of Object.keys(k.guardie)) {
@@ -741,7 +929,7 @@ function controlla(nomeFile, sorgenteIntero) {
   }
 
   // il calendario degli orari (CALENDARIO_ORARI)
-  if (regole.calendario) fuori.push(...controllaCalendario(regole.calendario, codice, nudo, corpi, riga));
+  if (regole.calendario) fuori.push(...controllaCalendario(regole.calendario, codice, nudo, corpi, riga, regole.servizi));
 
   // le cancellazioni: solo quelle dell'elenco
   const chiamata = /\.\s*([A-Za-z_$][\w$]*)\s*\(/g;
@@ -1143,6 +1331,88 @@ function provaDellaProva() {
   deveFallire('Orari.gs', 'il calendario cercato anche fra quelli a cui si e\' iscritti viene trovato',
     sostituisci(orari, 'CalendarApp.getOwnedCalendarsByName(nome)', 'CalendarApp.getCalendarsByName(nome)'),
     'nome non ammesso negli orari: getCalendarsByName');
+
+  // le strade trovate dalla seconda revisione: un evento qualunque messo fra
+  // i nostri, o un contrassegno dato senza scriverlo nelle forme ammesse.
+  // Ognuna deve cadere in una regola, e quelle dentro _orariNostri_ anche
+  // nell'impronta
+  const EV = 'var ev = eventi[i];';
+  const QUALUNQUE = '{ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: ev.getStartTime(), ' +
+    'fine: ev.getEndTime(), ultimo: ev.getStartTime() }';
+  const SINGOLO = 'fuori.push({ evento: ev, contrassegno: contrassegno,';
+  const PRIMA_LEZIONE = 'function _orariPrimaLezione_(voce) {';
+  const VOCE_TAGLIO = 'var voce = nostri[i];';
+  const RACCOLTA = 'in _orariNostri_ fuori si usa solo cosi\'';
+  deveFallire('Orari.gs', '(a) ogni evento messo fra i nostri con fuori.unshift, prima della guardia, viene trovato',
+    inserisci(orari, EV, '\n    fuori.unshift(' + QUALUNQUE + ');'), RACCOLTA);
+  deveFallire('Orari.gs', '  ...e con fuori.splice', inserisci(orari, EV, '\n    fuori.splice(0, 0, ' + QUALUNQUE + ');'), RACCOLTA);
+  deveFallire('Orari.gs', '  ...e con fuori[fuori.length] = ...',
+    inserisci(orari, EV, '\n    fuori[fuori.length] = ' + QUALUNQUE + ';'), RACCOLTA);
+  deveFallire('Orari.gs', '  ...e con fuori = fuori.concat(...)',
+    inserisci(orari, EV, '\n    fuori = fuori.concat([' + QUALUNQUE + ']);'), RACCOLTA);
+  deveFallire('Orari.gs', '  ...e con un altro nome per fuori',
+    inserisci(orari, EV, '\n    var altri = fuori; altri.unshift(' + QUALUNQUE + ');'), RACCOLTA);
+  deveFallire('Orari.gs', '  ...e in perSerie, per un id inventato',
+    inserisci(orari, EV, '\n    perSerie[ev.getTitle()] = ' + QUALUNQUE + ';'), 'in _orariNostri_ perSerie si usa solo cosi\'');
+  deveFallire('Orari.gs', '(b) un evento singolo con la sola descrizione preso come se avesse il contrassegno viene trovato',
+    sostituisci(orari, SINGOLO, 'fuori.push({ evento: ev, contrassegno: nostro,'),
+    'contrassegno come chiave solo con il valore contrassegno o false');
+  deveFallire('Orari.gs', '  ...anche con contrassegno: true', sostituisci(orari, SINGOLO, 'fuori.push({ evento: ev, contrassegno: true,'),
+    'contrassegno come chiave solo con il valore contrassegno o false');
+  deveFallire('Orari.gs', '(c) Object.assign(voce, JSON.parse(...)) nel taglio, prima della guardia, viene trovato',
+    inserisci(orari, VOCE_TAGLIO, '\n    Object.assign(voce, JSON.parse(\'{"contrassegno": true}\'));'), 'servizio non ammesso: Object');
+  deveFallire('Orari.gs', '  ...e il suo JSON.parse, fuori da dove si legge il punto salvato',
+    inserisci(orari, VOCE_TAGLIO, '\n    Object.assign(voce, JSON.parse(\'{"contrassegno": true}\'));'), 'JSON.parse fuori da');
+  deveFallire('Orari.gs', '  ...e Object.defineProperty in _orariNostri_, con il nome scritto a pezzi',
+    inserisci(orari, 'voce.lezioni.push(lezione);',
+      '\n    Object.defineProperty(voce, String.fromCharCode(99) + \'ontrassegno\', { value: true });'), 'servizio non ammesso: Object');
+  deveFallire('Orari.gs', '  ...e Object preso da una voce, voce.constructor.assign(...)',
+    inserisci(orari, PRIMA_LEZIONE, '\n  voce.constructor.assign(voce, { x: 1 });'), 'nome non ammesso negli orari: constructor');
+  deveFallire('Orari.gs', 'un contrassegno dato con voce.contrassegno++ viene trovato',
+    inserisci(orari, PRIMA_LEZIONE, '\n  voce.contrassegno++;'), 'contrassegno di una voce assegnato fuori da _orariNostri_');
+  deveFallire('Orari.gs', '  ...e con ++voce.contrassegno', inserisci(orari, PRIMA_LEZIONE, '\n  ++voce.contrassegno;'),
+    'contrassegno di una voce assegnato fuori da _orariNostri_');
+  deveFallire('Orari.gs', '  ...e con voce.contrassegno **= 0', inserisci(orari, PRIMA_LEZIONE, '\n  voce.contrassegno **= 0;'),
+    'contrassegno di una voce assegnato fuori da _orariNostri_');
+  deveFallire('Orari.gs', '  ...e con un nome calcolato, voce[k] = true',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var k = \'contr\' + \'assegno\'; voce[k] = true;'), 'proprieta\' calcolata scritta fuori');
+  deveFallire('Orari.gs', '  ...e con ++voce[k]', inserisci(orari, PRIMA_LEZIONE, '\n  var k = \'contr\' + \'assegno\'; ++voce[k];'),
+    'proprieta\' calcolata scritta fuori');
+  deveFallire('Orari.gs', '  ...e con for (voce.contrassegno of [true]) nel taglio',
+    inserisci(orari, VOCE_TAGLIO, '\n    for (voce.contrassegno of [true]) { }'), 'for ... in / of che non dichiara');
+  deveFallire('Orari.gs', '  ...e con for (voce[k] in ...)',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var k = \'contr\' + \'assegno\'; for (voce[k] in { x: 1 }) { }'), 'for ... in / of che non dichiara');
+  deveFallire('Orari.gs', '  ...e con voce.contrassegno ||= 1 nel taglio',
+    inserisci(orari, VOCE_TAGLIO, '\n    voce.contrassegno ||= 1;'), 'in _orariTaglia_ voce si cambia');
+  deveFallire('Orari.gs', 'una serie cambiata dentro una voce con for (voce.serie of ...) viene trovata',
+    inserisci(orari, VOCE_TAGLIO, '\n    for (voce.serie of [stato]) { }'), 'for ... in / of che non dichiara');
+  deveFallire('Orari.gs', 'il valore del contrassegno cambiato (_ORARI_TAG_VALORE = null: ogni evento ne avrebbe uno) viene trovato',
+    sostituisci(orari, 'var _ORARI_TAG_VALORE    = \'orario\';', 'var _ORARI_TAG_VALORE    = null;'),
+    'la costante _ORARI_TAG_VALORE va dichiarata una volta sola');
+  deveFallire('Orari.gs', '  ...e anche riassegnato in una funzione',
+    inserisci(orari, PRIMA_LEZIONE, '\n  _ORARI_TAG_VALORE = null;'), 'la costante _ORARI_TAG_VALORE si cambia');
+  deveFallire('Orari.gs', 'String ridefinita (ogni descrizione comincerebbe con [Campanella]) viene trovata',
+    orari + '\nString = function () { return \'[Campanella]\'; };\n', 'il servizio String si ridefinisce');
+  deveFallire('Orari.gs', '  ...anche come funzione dello script',
+    orari + '\nfunction String() { return \'[Campanella]\'; }\n', 'il servizio String si ridefinisce');
+  deveFallire('Orari.gs', 'JSON preso come valore viene trovato',
+    inserisci(orari, PRIMA_LEZIONE, '\n  var J = JSON; var o = J.parse(\'{}\');'), 'JSON usato come valore');
+  deveFallire('Orari.gs', 'un getter messo con __defineGetter__ viene trovato',
+    inserisci(orari, PRIMA_LEZIONE, '\n  voce.__defineGetter__(\'x\', function () { return 1; });'),
+    'nome non ammesso negli orari: __defineGetter__');
+  // l'impronta: anche un cambio che nessuna regola vede, in _orariNostri_, si nota
+  deveFallire('Orari.gs', 'un cambio qualunque in _orariNostri_, anche innocuo, chiede di aggiornare l\'impronta',
+    sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime() };',
+                'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime() };'), 'il testo di _orariNostri_ non e\' quello controllato');
+  const soloImpronta = sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime() };',
+                                   'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime() };');
+  verifica('  ...e lo vede solo l\'impronta (le altre regole lo lasciano passare)',
+    soloImpronta !== null && controlla('Orari.gs', soloImpronta).length === 1);
+  deveFallire('Orari.gs', '  ...e l\'impronta vede anche (a)', inserisci(orari, EV, '\n    fuori.unshift(' + QUALUNQUE + ');'),
+    'il testo di _orariNostri_ non e\' quello controllato');
+  const aCapo = orari.split('\r\n').join('\n').replace(/\n/g, '\r\n');
+  verifica('  ...ma non gli a capo, gli spazi o i commenti', controlla('Orari.gs', aCapo).length === 0 &&
+    controlla('Orari.gs', sostituisci(orari, 'var perSerie = {};', 'var   perSerie = {};   // le serie')).length === 0);
 }
 
 // ---------------------------------------------------------------------------

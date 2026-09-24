@@ -681,7 +681,8 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     (irregolari ? '\nSerie accorciate con lezioni spostate o cancellate a mano (controlla che siano rimaste come ' +
                   'le volevi): ' + irregolari + ' - ' + stato.irregolari.join('; ') +
                   (irregolari > stato.irregolari.length ? '; ...' : '') + '\n' : '') +
-    (senzaContrassegno ? '\nSerie con la descrizione di Campanella ma senza contrassegno, forse copiate a mano: ' +
+    (senzaContrassegno ? '\nSerie o lezioni singole con la descrizione di Campanella ma senza contrassegno, forse ' +
+                         'copiate a mano: ' +
                          'non le ho toccate, controllale tu (' + senzaContrassegno + '): ' +
                          stato.senzaContrassegno.join('; ') +
                          (senzaContrassegno > stato.senzaContrassegno.length ? '; ...' : '') + '\n' : '') +

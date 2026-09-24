@@ -55,13 +55,13 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   whole series nor disappears nor leaves a lesson too many. With two shapes
   equally frequent (only in very short series) the weekday written in the
   description, where Campanella put the series, decides, then the earliest
-  lesson. Only events with the mark
-  are shortened or removed; a series recognised only by the description (a
-  copy made by hand) is left and named. The final message says how many
-  series were shortened, removed and created, how many single events were
-  removed, how many lessons were skipped, which shortened series had lessons
-  moved or cancelled by hand, and that such changes may not survive. It also
-  serves for a day off added after the timetable was put on the calendar.
+  lesson. Only events with the mark are shortened or removed; a series or a
+  single lesson recognised only by the description (a copy made by hand) is
+  left and named. The final message says how many series were shortened,
+  removed and created, how many single events were removed, how many lessons
+  were skipped, which shortened series had lessons moved or cancelled by
+  hand, and that such changes may not survive. It also serves for a day off
+  added after the timetable was put on the calendar.
   The period ("Dal" and "al") stays as it was: the change date goes only in
   the tick. With the box unticked there is no change date. Before, the only
   way was ORARI_ANNULLA_calendario and ORARI_4_calendario again, which also
@@ -139,20 +139,30 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   the date, same result when run again, resumed halfway, a date before the
   start with last year in the same calendar, a "Dal" moved forward, lessons
   moved or cancelled by hand, also by four days, before the start of the
-  period, past the next week or two out of four, a copy made by hand), undo
-  of a job half done,
-  undo stopped by time or by Google's limits, and ANNULLA_automazione with a
-  resume already started and the other calendar function run by hand.
+  period, past the next week or two out of four, a series and a single
+  lesson copied by hand), undo of a job half done, undo stopped by time or
+  by Google's limits, and ANNULLA_automazione with a resume already started
+  and the other calendar function run by hand.
 - invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only
   four members of CalendarApp; every method that reads, creates, changes or
   removes events only in a few functions, on a receiver written exactly so,
   which in the functions that change or remove comes from an exact
   declaration and is never changed; the mark and "ours" assigned only in the
-  allowed forms, with the guards in the loop before the calls; no call,
+  allowed forms, with the guards in the loop before the calls; the list of
+  _orariNostri_ named only in the allowed statements (no unshift, splice,
+  concat, index or alias), the key `contrassegno` only with its value or
+  false, and a fingerprint of the whole _orariNostri_, so that any change to
+  it has to be read again; no Object, constructor, prototype or
+  defineProperty, no computed property written outside two statements, no
+  for ... of on a property, JSON.parse only where the saved point is read,
+  the constants of the mark and the services never redefined; no call,
   apply, bind, eval, this, unused event methods, destructuring, quoted
   properties or functions inside the functions that change or remove. The
-  seven ways around the previous rules found by the review, and seventeen
-  more, must fail, as the eight copies of before.
+  seven ways around the previous rules found by the first review, the
+  seven found by the second (any event put among ours with unshift, splice,
+  concat or an index, a single event with only the description taken as
+  marked, Object.assign with JSON.parse, Object.defineProperty) and more
+  must fail, as the eight copies of before.
 - prova_orario.ps1: the line formats (also with a full stop, "fino al",
   other line breaks), lines not understood (two dates written another way,
   digits of other scripts), lines outside the period, holidays of several

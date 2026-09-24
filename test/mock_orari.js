@@ -1140,13 +1140,20 @@ if (conCalendario) {
       new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() - 7, 18, 0), new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() - 7, 19, 0),
       CalendarApp.newRecurrence().addWeeklyRule().until(new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() + 21, 23, 59, 59)),
       { description: '[Campanella] Orario di ' + c.docente + ', copiata a mano' });
+    // e una lezione singola copiata a mano dopo il cambio: la sola descrizione
+    const copiaSingola = calC.createEvent('Recupero a mano',
+      new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() + 2, 18, 0), new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() + 2, 19, 0));
+    copiaSingola.descrizione = '[Campanella] Orario di ' + c.docente + ', copiata a mano';
     tagliate.length = 0;
     const esitoCopia = contesto.ORARI_5_cambioOrario();
     verifica('una serie con la descrizione di Campanella ma senza contrassegno (una copia a mano) il cambio non la ' +
       'tocca, e la nomina', !copia.cancellata && tagliate.indexOf(copia) < 0 && copia.inizi().length === 5 &&
       /senza contrassegno/.test(esitoCopia) && esitoCopia.indexOf('Copia a mano') >= 0);
+    verifica('  ...e nemmeno una lezione singola copiata a mano dopo il cambio: la lascia e la nomina (2 in tutto)',
+      !copiaSingola.cancellato && esitoCopia.indexOf('Recupero a mano') >= 0 &&
+      numero(/senza contrassegno[^(]*\((\d+)\)/, esitoCopia) === 2);
     contesto.ORARI_ANNULLA_calendario();
-    verifica('ORARI_ANNULLA_calendario invece la toglie, come dicono i documenti', copia.cancellata);
+    verifica('ORARI_ANNULLA_calendario invece la toglie, come dicono i documenti', copia.cancellata && copiaSingola.cancellato);
     docOriginale.celle = celleOriginali.slice();
   }
 
