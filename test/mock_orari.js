@@ -20,6 +20,11 @@
  */
 
 'use strict';
+// Il fuso degli script della scuola: con l'ora legale. Nella CI (e su molti
+// computer) il fuso sarebbe UTC, senza ora legale, e un passo settimanale in
+// millisecondi invece che in giorni del calendario passerebbe inosservato.
+// Va fissato prima di qualunque data.
+process.env.TZ = 'Europe/Rome';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -289,6 +294,11 @@ const SEZIONI = [
 const PROGRESSO_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';
 const PROGRESSO = 'CAMPANELLA_ORARI_PROGRESSO';
 const PROGRESSO_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
+
+// il fuso fissato in cima deve avere davvero l'ora legale (se Node non lo
+// cambiasse, le prove del calendario non vedrebbero piu' i salti di un'ora)
+verifica('le prove girano nel fuso di Roma, con l\'ora legale (' + Intl.DateTimeFormat().resolvedOptions().timeZone + ')',
+  new Date(2027, 0, 15).getTimezoneOffset() === -60 && new Date(2027, 6, 15).getTimezoneOffset() === -120);
 
 const D = contesto.ORARI;
 const conOre = D.docenti.filter(d => d.celle.some(c => c)).length;
