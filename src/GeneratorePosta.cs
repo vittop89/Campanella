@@ -1051,20 +1051,26 @@ namespace Campanella
         /// L'etichetta madre di partenza: quella delle regole delle classi che ci
         /// sono, se fra quelle che non sono di un altro anno ce n'e' una sola (il
         /// docente l'aveva scelta, o cambiata, lui: "Le mie classi"); altrimenti
-        /// "Classi " e l'anno scolastico (quello di Cartelle, o quello delle
-        /// classi di oggi: AnnoDelleClassi). Cosi' riaprendo la finestra le regole
-        /// si ritrovano, e l'anno dopo la madre dell'anno prima non si riusa.
+        /// "Classi " e l'anno scolastico (quello delle classi di oggi,
+        /// AnnoDelleClassi, o quello di Cartelle se non e' indietro:
+        /// AnnoDellaMadre). Cosi' riaprendo la finestra le regole si ritrovano,
+        /// e l'anno dopo la madre dell'anno prima non si riusa.
         /// </summary>
         public static string MadreDiPartenza(Stato s)
         {
-            return MadreDiPartenzaAl(s, DateTime.Now);
+            return MadreDiPartenzaAl(s, OggiDiProva != DateTime.MinValue ? OggiDiProva : DateTime.Now);
         }
+
+        /// <summary>
+        /// Solo per le prove: il giorno che la finestra delle classi prende per
+        /// oggi (MadreDiPartenza). DateTime.MinValue: quello vero.
+        /// </summary>
+        public static DateTime OggiDiProva = DateTime.MinValue;
 
         /// <summary>Lo stesso, se oggi fosse il giorno dato (per le prove: il 28 agosto, il 24 settembre).</summary>
         public static string MadreDiPartenzaAl(Stato s, DateTime oggi)
         {
-            string anno = (s.Anno ?? "").Trim();
-            if (anno == "") anno = AnnoDelleClassi(oggi);
+            string anno = AnnoDellaMadre(s.Anno, oggi);
             List<string> madri = new List<string>();
             foreach (Regola r in s.Regole)
             {
@@ -1092,6 +1098,26 @@ namespace Campanella
         {
             int inizio = (quando.Month >= 8) ? quando.Year : quando.Year - 1;
             return inizio + "-" + ((inizio + 1) % 100).ToString("00");
+        }
+
+        /// <summary>
+        /// L'anno della madre di partenza: quello di Cartelle (Stato.Anno), se
+        /// c'e' e il suo primo anno non viene prima di quello delle classi di
+        /// oggi; altrimenti AnnoDelleClassi. Un anno scritto a mano in Cartelle
+        /// ad agosto ("2026-27") e rimasto li' l'anno dopo non fa ripartire la
+        /// finestra dalla madre dell'anno passato, con le sue regole come
+        /// attuali. Un anno senza le quattro cifre resta com'e'.
+        /// </summary>
+        static string AnnoDellaMadre(string annoCartelle, DateTime oggi)
+        {
+            string anno = (annoCartelle ?? "").Trim();
+            string diOggi = AnnoDelleClassi(oggi);
+            if (anno == "") return diOggi;
+            Match primo = Regex.Match(anno, @"[0-9]{4}");
+            if (primo.Success &&
+                int.Parse(primo.Value, System.Globalization.CultureInfo.InvariantCulture) <
+                int.Parse(diOggi.Substring(0, 4), System.Globalization.CultureInfo.InvariantCulture)) return diOggi;
+            return anno;
         }
 
         /// <summary>Vero se nel nome c'e' un anno (il primo numero di quattro cifre) diverso da quello dell'anno scolastico.</summary>

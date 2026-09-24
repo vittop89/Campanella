@@ -307,7 +307,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   from August on it starts from the parent of the school year that starts
   (Classi 2026-27 on 28 August), so the rules and files prepared at the end
   of August are found again in September instead of looking like last
-  year's.
+  year's. A year of Cartelle left behind (written by hand in August, say
+  2026-27, and still there a year later) does not count: the window starts
+  from the parent of this year and offers to remove last year's rules.
   A conversation found by two
   searches of the same rule counts once in the trial reorder (even when it
   resumes halfway through a rule) and in the hourly sorting, even when

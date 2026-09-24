@@ -916,6 +916,11 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $tFC = $asm.GetType('Campanella.FormClassi')
     Verifica "ci sono LeMieClassi, ClasseScelta e la finestra FormClassi" ($null -ne $tClassi -and $null -ne $tScelta -and $null -ne $tFC)
     if ($null -ne $tClassi -and $null -ne $tScelta -and $null -ne $tFC) {
+        # la finestra delle classi prende per oggi il 24 settembre 2026: con
+        # l'anno di Cartelle scritto nelle prove, la madre di partenza non
+        # cambia con il giorno in cui girano
+        $campoOggi = $tClassi.GetField('OggiDiProva', $FS)
+        if ($null -ne $campoOggi) { $campoOggi.SetValue($null, [datetime]'2026-09-24') }
         function MC($nome) { return $tClassi.GetMethod($nome, $FS) }
         function Varianti($c) { return (@((MC 'Varianti').Invoke($null, @([string]$c))) -join '|') }
         function ChiaveClasse($c) { return [string](MC 'Chiave').Invoke($null, @([string]$c)) }
@@ -1549,6 +1554,33 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         Verifica "senza l'anno di Cartelle, il 28 agosto la madre e' gia' dell'anno che comincia ($madre28), il 24 settembre la stessa ($madre24): le regole di agosto si ritrovano ($regoleAgo)" (
             $madre28 -eq 'Classi 2026-27' -and $madre24 -eq 'Classi 2026-27' -and $madre31 -eq 'Classi 2025-26' -and
             $regoleAgo -eq 'Classi 2026-27/4A' -and [string](MC 'AnnoDelleClassi').Invoke($null, @([datetime]'2026-08-01')) -eq '2026-27')
+        # l'anno di Cartelle rimasto indietro (scritto a mano ad agosto e ancora
+        # li' un anno dopo): conta quello delle classi di oggi, e le regole
+        # dell'anno passato sono le vecchie. Uno avanti, o dello stesso anno, resta
+        $sInd = NuovoStato
+        Imposta $sInd 'Prefisso' ''
+        Imposta $sInd 'Anno' '2025-26'
+        [void](MC 'Applica').Invoke($null, @($sInd.PSObject.BaseObject, 'Classi 2025-26', (Classi8 @('3B')).PSObject.BaseObject, $false))
+        $madreInd = MadreIl $sInd '2026-09-24'
+        Imposta $sInd 'Anno' '2026-27'
+        $madreInd2 = MadreIl $sInd '2027-09-20'
+        Imposta $sInd 'Anno' '2027-28'
+        $madreAvanti = MadreIl $sInd '2026-09-24'
+        Imposta $sInd 'Anno' '2026-2027'
+        $madreStesso = MadreIl $sInd '2026-09-24'
+        $sTesto = NuovoStato
+        Imposta $sTesto 'Anno' 'quest''anno'
+        $madreTesto = MadreIl $sTesto '2026-09-24'
+        Verifica "con l'anno di Cartelle rimasto indietro la madre e' quella delle classi di oggi (2025-26 il 24/09/2026: $madreInd; 2026-27 il 20/09/2027: $madreInd2), uno avanti o dello stesso anno resta ($madreAvanti, $madreStesso), e uno senza anno pure ($madreTesto)" (
+            $madreInd -eq 'Classi 2026-27' -and $madreInd2 -eq 'Classi 2027-28' -and $madreAvanti -eq 'Classi 2027-28' -and
+            $madreStesso -eq 'Classi 2026-2027' -and $madreTesto -eq "Classi quest'anno")
+        # e la finestra, aperta il 24 settembre 2026, propone di togliere le regole del 2025-26
+        Imposta $sInd 'Anno' '2025-26'
+        $fcInd = [Activator]::CreateInstance($tFC, @($sInd.PSObject.BaseObject))
+        Verifica "e la finestra riparte dalla madre di quest'anno ($($fcInd.Madre)), con le regole del 2025-26 da togliere ('$($fcInd.TestoVecchie())')" (
+            $null -ne $campoOggi -and $fcInd.Madre -eq 'Classi 2026-27' -and $fcInd.Vecchie.Count -eq 1 -and
+            $fcInd.TestoVecchie() -eq 'Togli le regole delle classi del 2025-26 (1)')
+        $fcInd.Dispose()
         $madrePartenza = [string](MC 'MadreDiPartenza').Invoke($null, @($s8.PSObject.BaseObject))
         foreach ($m in @($madrePartenza, 'Le mie classi', 'Corsi')) {
             $nomi = if ($m -eq 'Corsi') { @('Potenziamento') } else { @('3B') }
