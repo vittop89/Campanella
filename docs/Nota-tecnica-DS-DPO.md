@@ -183,7 +183,8 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   copia fatta a mano dal docente di una lezione). Gli altri eventi del
   calendario non li tocca. `test/invarianti_script.js` controlla sul codice
   che nessun'altra funzione possa prendere un calendario o un evento, né
-  cambiarlo o toglierlo.
+  cambiarlo o toglierlo, e che fra gli eventi da accorciare o togliere
+  finiscano solo quelli riconosciuti così.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
   facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
   dello script i colori scelti in Campanella e per togliere i filtri di Gmail
