@@ -94,9 +94,9 @@ consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
 non ne resta traccia, nemmeno il nome del calendario degli orari o i giorni
 senza lezione che hai scritto (un testo libero, dove accanto alle feste può
-finire un permesso o il nome di un collega). Se poi
-sposti i dati in un'altra cartella del Drive o di nuovo accanto al
-programma, Campanella, dopo averlo chiesto, cancella il file che lasciano;
+finire un permesso o il nome di un collega). Se poi sposti i dati in
+un'altra cartella del Drive o di nuovo accanto al programma, Campanella,
+dopo averlo chiesto, cancella il file che lasciano;
 se quel file non l'ha letto, o nel frattempo l'ha cambiato un altro
 computer, lo lascia e lo dice. Quando non ti servono più, svuota l'elenco.
 Le righe senza spunta (per esempio gli indirizzi di studenti trovati nella
@@ -113,10 +113,10 @@ quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa
 queste classi», e non lo scrive nella configurazione. Il file che Gmail
 esporta (di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo
 averlo aperto in Campanella puoi cancellarlo. Quando Campanella copia
-negli appunti la configurazione degli script, i dati degli orari, gli
-indirizzi di un gruppo o i testi della Privacy, chiede a Windows di non
-tenerli nella cronologia degli appunti e di non sincronizzarli con altri
-dispositivi.
+negli appunti la configurazione degli script, i dati degli orari, il file
+di una classe, gli indirizzi di un gruppo o i testi della Privacy, chiede a
+Windows di non tenerli nella cronologia degli appunti e di non
+sincronizzarli con altri dispositivi.
 
 **Il registro delle esecuzioni.** Gli indirizzi che lo script della posta
 ricava dalla tua casella (`EXTRA_elencaIndirizziScuola`: nomi e indirizzi
