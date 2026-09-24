@@ -104,10 +104,18 @@ const ScriptApp = {
 // Le serie ripetono l'evento ogni settimana alla stessa ora (anche a cavallo
 // dell'ora legale, come Google) fino a "until" compreso. setRecurrence cambia
 // la regola e l'inizio; le opzioni di createEventSeries portano la
-// descrizione. I limiti di Google si simulano con guasti(): alla n-esima
-// chiamata di un'operazione parte l'errore scelto. Il tempo che passa si
-// simula con sogliaCalendario: ogni tante scritture l'orologio va avanti di
-// dieci minuti, oltre il tempo massimo di un'esecuzione.
+// descrizione. Una lezione di una serie si puo' spostare o cancellare a mano
+// (sposta, cancella), come dall'interfaccia di Google: getEvents la da'
+// all'ora nuova, o non la da'; setRecurrence tiene le lezioni cambiate a mano
+// che ci sono ancora nella serie nuova (stesso inizio originale). Come in
+// Google, getEventSeries di un evento singolo non e' null: la "serie" di
+// quell'evento. I calendari sono tuoi o condivisi con te (iscritto):
+// getCalendarsByName li da' tutti, getOwnedCalendarsByName solo i tuoi, e
+// tutti e due senza badare alle maiuscole. I limiti di Google si simulano con
+// guasti(): alla n-esima chiamata di un'operazione parte l'errore scelto. Il
+// tempo che passa si simula con sogliaCalendario: ogni tante scritture
+// l'orologio va avanti di dieci minuti, oltre il tempo massimo di
+// un'esecuzione.
 const calendari = [];
 let prossimoId = 1;
 let sogliaCalendario = Infinity;
@@ -143,6 +151,7 @@ class Serie {
     this.ricorrenza = ricorrenza; this.opzioni = opzioni || {};
     this.tag = {}; this.descrizione = (opzioni && opzioni.description) || ''; this.cancellata = false;
     this.inizioOriginale = new Date(inizio.getTime());
+    this.eccezioni = new Map();      // inizio originale (ms) -> { inizio, fine } spostata, o null cancellata
   }
   getId() { return this.id; }
   setTag(k, v) { operazione('setTag'); this.tag[k] = v; return this; }
@@ -159,10 +168,13 @@ class Serie {
     this.ricorrenza = ricorrenza;
     this.inizio = new Date(inizio.getTime());
     this.fine = new Date(fine.getTime());
+    // le lezioni cambiate a mano restano se la loro lezione c'e' ancora
+    const ancora = new Set(this.inizi().map(t => t.getTime()));
+    for (const k of [...this.eccezioni.keys()]) if (!ancora.has(k)) this.eccezioni.delete(k);
     tagliate.push(this);
     return this;
   }
-  /** gli inizi delle lezioni, dalla prima all'ultima (fino a "until" o al limite dato) */
+  /** gli inizi delle lezioni della regola, dalla prima all'ultima (fino a "until" o al limite dato) */
   inizi(limite) {
     const fuori = [];
     const fino = (this.ricorrenza && this.ricorrenza.until) ? this.ricorrenza.until : limite;
@@ -173,17 +185,43 @@ class Serie {
     }
     return fuori;
   }
+  /** a mano, dall'interfaccia di Google: la lezione n (0 = la prima) spostata, o cancellata */
+  sposta(n, inizio, fine) { this.eccezioni.set(settimaneDopo(this.inizio, n).getTime(), { inizio, fine }); }
+  cancella(n) { this.eccezioni.set(settimaneDopo(this.inizio, n).getTime(), null); }
+  /** le lezioni come le vede chi guarda il calendario: con quelle spostate, senza quelle cancellate */
+  lezioni(limite) {
+    const durata = this.fine - this.inizio;
+    const fuori = [];
+    for (const t of this.inizi(limite)) {
+      if (!this.eccezioni.has(t.getTime())) { fuori.push({ inizio: t, fine: new Date(t.getTime() + durata) }); continue; }
+      const x = this.eccezioni.get(t.getTime());
+      if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()) });
+    }
+    return fuori;
+  }
 }
 
 class Evento {                                   // un evento singolo: di partenza non nostro
   constructor(cal, titolo, inizio, fine) {
+    this.id = 'evento' + (prossimoId++);
     this.cal = cal; this.titolo = titolo; this.inizio = inizio; this.fine = fine;
     this.tag = {}; this.cancellato = false; this.descrizione = 'riunione';
   }
   getTag(k) { return this.tag[k] || null; }
   setTag(k, v) { this.tag[k] = v; return this; }
   getDescription() { return this.descrizione; }
-  getEventSeries() { return null; }
+  /** come in Google: anche un evento singolo ha la sua "serie", che non e' mai null */
+  getEventSeries() {
+    const ev = this;
+    return {
+      getId: () => ev.id,
+      getTag: k => ev.getTag(k),
+      getDescription: () => ev.getDescription(),
+      isRecurringEvent: () => false,
+      deleteEventSeries: () => { operazione('deleteEventSeries'); ev.cancellato = true; },
+      setRecurrence: () => { throw new Error('nel finto, un evento singolo non diventa una serie'); }
+    };
+  }
   isRecurringEvent() { return false; }
   getStartTime() { return new Date(this.inizio.getTime()); }
   getEndTime() { return new Date(this.fine.getTime()); }
@@ -192,7 +230,10 @@ class Evento {                                   // un evento singolo: di parten
 }
 
 class Calendario {
-  constructor(nome, opzioni) { this.nome = nome; this.opzioni = opzioni || {}; this.serie = []; this.eventi = []; this.colore = ''; }
+  constructor(nome, opzioni) {
+    this.nome = nome; this.opzioni = opzioni || {}; this.serie = []; this.eventi = []; this.colore = '';
+    this.proprio = true;             // false: un calendario di altri a cui sei iscritto
+  }
   getName() { return this.nome; }
   setColor(c) { this.colore = c; return this; }
   createEventSeries(titolo, inizio, fine, ricorrenza, opzioni) {
@@ -206,15 +247,16 @@ class Calendario {
     this.eventi.push(e);
     return e;
   }
-  /** le lezioni che cominciano nel periodo, una per settimana, come le da' Google */
+  /** le lezioni che cominciano nel periodo, come le da' Google: anche quelle spostate a mano, all'ora nuova */
   getEvents(da, a) {
     const fuori = [];
+    // una lezione di dopo il periodo spostata a mano dentro il periodo c'e' anche lei
+    const limite = new Date(a.getTime() + 60 * 24 * 3600 * 1000);
     for (const s of this.serie) {
       if (s.cancellata) continue;
-      const durata = s.fine - s.inizio;
-      for (const t of s.inizi(a)) {
-        if (t < da) continue;
-        const inizio = new Date(t.getTime());
+      for (const l of s.lezioni(limite)) {
+        if (l.inizio < da || l.inizio > a) continue;
+        const inizio = new Date(l.inizio.getTime()), fine = new Date(l.fine.getTime());
         fuori.push({
           getTag: k => s.getTag(k),
           getDescription: () => s.getDescription(),
@@ -222,7 +264,7 @@ class Calendario {
           isRecurringEvent: () => true,
           deleteEvent: () => { occorrenzeTolte.push({ serie: s, inizio }); },
           getStartTime: () => new Date(inizio.getTime()),
-          getEndTime: () => new Date(inizio.getTime() + durata),
+          getEndTime: () => new Date(fine.getTime()),
           getTitle: () => s.titolo
         });
       }
@@ -232,9 +274,12 @@ class Calendario {
   }
 }
 
+const stessoNome = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 const CalendarApp = {
   Color: { BLUE: '#4285f4', GREEN: '#0f9d58', RED: '#db4437' },
-  getCalendarsByName: nome => calendari.filter(c => c.nome === nome),
+  // come Google: senza badare alle maiuscole, e anche i calendari a cui sei iscritto
+  getCalendarsByName: nome => calendari.filter(c => stessoNome(c.nome, nome)),
+  getOwnedCalendarsByName: nome => calendari.filter(c => c.proprio && stessoNome(c.nome, nome)),
   createCalendar: (nome, opzioni) => { const c = new Calendario(nome, opzioni); calendari.push(c); return c; },
   newRecurrence: () => ({
     addWeeklyRule: () => ({ until: d => ({ weekly: true, until: new Date(d.getTime()) }) })
@@ -285,12 +330,18 @@ const SEZIONI = [
   'ANTEPRIMA', 'INVIO: tutto a me stesso', 'ETICHETTA DEGLI ORARI E PREFISSO DELLA POSTA',
   'QUOTA GIORNALIERA', 'TEMPO MASSIMO DI ESECUZIONE', 'BLOCCO DI ESECUZIONE', 'ANNULLA INVIO',
   'ORARI DELLE CLASSI', 'CLASSI: QUOTA E RIPRESA', 'INDIRIZZO: RIPIEGO SULL\'UTENTE EFFETTIVO',
-  'GOOGLE CALENDAR', 'CALENDARIO: dati mancanti o sbagliati', 'GIORNI SENZA LEZIONE',
+  'GOOGLE CALENDAR', 'CALENDARIO: dati mancanti o sbagliati', 'CALENDARIO: SOLO I TUOI, CON IL NOME ESATTO',
+  'GIORNI SENZA LEZIONE',
   'CALENDARIO: RIPRESA PER IL TEMPO MASSIMO', 'CALENDARIO: RIPRESA PER I LIMITI DI GOOGLE',
   'CALENDARIO: BLOCCO DI ESECUZIONE', 'CALENDARIO: DATIORARI.GS CAMBIATO A META\'',
-  'CAMBIO D\'ORARIO', 'CAMBIO D\'ORARIO: RIPRESA E CASI LIMITE', 'ANNULLA CALENDARIO DOPO UN LAVORO A META\'',
-  'CONVIVENZA CON LA POSTA'
+  'CAMBIO D\'ORARIO', 'CAMBIO D\'ORARIO: RIPRESA E CASI LIMITE',
+  'CAMBIO D\'ORARIO: DATA PRIMA DELL\'INIZIO, ANNO PRIMA NELLO STESSO CALENDARIO',
+  'CAMBIO D\'ORARIO: LEZIONI SPOSTATE O CANCELLATE A MANO',
+  'ANNULLA CALENDARIO DOPO UN LAVORO A META\'', 'ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE',
+  'CONVIVENZA CON LA POSTA', 'ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA'
 ];
+// gli attrezzi del calendario, per le prove che stanno dopo la Posta
+let attrezziCalendario = null;
 const PROGRESSO_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';
 const PROGRESSO = 'CAMPANELLA_ORARI_PROGRESSO';
 const PROGRESSO_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
@@ -317,8 +368,10 @@ verifica('dice la versione dello script', /Orari\.gs versione \d+\.\d+\.\d+/.tes
 verifica('senza la Posta nel progetto l\'etichetta e\' "Orari"', anteprima.indexOf('"Orari"') > 0);
 verifica('parla del calendario', !!D.calendario && anteprima.indexOf(D.calendario.nome) > 0);
 {
-  const quanteSosp = ((D.calendario && D.calendario.sospensioni) || []).length;
-  verifica('dice quanti giorni o periodi senza lezione ci sono (' + quanteSosp + ')',
+  // solo quelli che toccano il periodo
+  const quanteSosp = ((D.calendario && D.calendario.sospensioni) || [])
+    .filter(s => (s.al || s.dal) >= D.calendario.inizio && s.dal <= D.calendario.fine).length;
+  verifica('dice quanti giorni o periodi senza lezione ci sono nel periodo (' + quanteSosp + ')',
     new RegExp('Giorni senza lezione: ' + quanteSosp + ' ').test(anteprima));
   verifica('dice quante serie mettera\' ORARI_4_calendario e quante lezioni salta',
     /Serie settimanali da creare con ORARI_4_calendario: \d+/.test(anteprima) &&
@@ -422,7 +475,8 @@ trigger.length = 0;
 lockOccupato = true;
 const occupato = contesto.ORARI_2_invia();
 verifica('se un\'altra esecuzione e\' in corso non manda niente', mandate.length === 0);
-verifica('e lo dice', /in corso/i.test(occupato));
+verifica('e lo dice, nominando anche il calendario fra chi puo\' tenere il blocco',
+  /in corso/i.test(occupato) && /calendario/.test(occupato));
 verifica('senza un invio a meta\' non programma riprese', trigger.length === 0);
 // una ripresa che trova il lock preso (per esempio dal riordino della posta)
 proprieta.set(PROGRESSO, '{"i":2,"mandati":2}');
@@ -432,8 +486,8 @@ verifica('una ripresa con il lock occupato si riprogramma invece di fermarsi',
 verifica('e lo dice', /fra un minuto/.test(rinviata));
 verifica('il punto a cui era arrivato resta', proprieta.get(PROGRESSO) === '{"i":2,"mandati":2}');
 const annullaOccupato = contesto.ORARI_ANNULLA_invio();
-verifica('con il lock occupato ORARI_ANNULLA_invio non dimentica niente, e lo dice',
-  proprieta.has(PROGRESSO) && /in corso/.test(annullaOccupato));
+verifica('con il lock occupato ORARI_ANNULLA_invio non dimentica niente, e lo dice (anche del calendario)',
+  proprieta.has(PROGRESSO) && /in corso/.test(annullaOccupato) && /calendario/.test(annullaOccupato));
 lockOccupato = false;
 contesto.ORARI_2_invia({ triggerUid: 'ripresa' });
 verifica('liberato il lock, la ripresa finisce da dove era arrivata (' + mandate.length + ' email)',
@@ -725,6 +779,30 @@ if (conCalendario) {
     /giorno senza lezione/.test(sbaglio) && /rigenera/i.test(sbaglio) && calendari.length === 0);
   contesto.ORARI.calendario = salva;
 
+  // --- quale calendario: solo uno tuo, con il nome scritto proprio cosi' ------
+  intestazione('CALENDARIO: SOLO I TUOI, CON IL NOME ESATTO');
+  azzeraCalendario();
+  // un calendario di un collega a cui sei iscritto, con lo stesso nome, e uno
+  // tuo con il nome in minuscolo: Google li darebbe tutti e due a getCalendarsByName
+  const iscritto = CalendarApp.createCalendar(c.nome);
+  iscritto.proprio = false;
+  const minuscolo = CalendarApp.createCalendar(c.nome.toLowerCase());
+  contesto.ORARI_4_calendario();
+  const tuo = calendari.find(x => x.proprio && x.nome === c.nome);
+  verifica('non usa un calendario a cui sei solo iscritto, ne\' uno tuo con le maiuscole diverse: crea il suo',
+    !!tuo && tuo !== iscritto && tuo !== minuscolo && iscritto.serie.length === 0 && minuscolo.serie.length === 0 &&
+    vive(tuo).length === piano.tratti.length);
+  // due calendari tuoi con lo stesso nome esatto: non ne sceglie uno a caso
+  const gemello = CalendarApp.createCalendar(c.nome);
+  for (const [fn, come] of [['ORARI_ANNULLA_calendario', 'toglie'], ['ORARI_5_cambioOrario', 'cambia'],
+                            ['ORARI_4_calendario', 'mette']]) {
+    tagliate.length = 0;
+    const due = errore(() => contesto[fn]());
+    verifica('con due tuoi calendari chiamati "' + c.nome + '" ' + fn + ' si ferma, lo dice e non ' + come + ' niente',
+      /2 calendari/.test(due) && vive(tuo).length === piano.tratti.length && gemello.serie.length === 0 &&
+      tagliate.length === 0 && !proprieta.has(PROGRESSO_CALENDARIO));
+  }
+
   // --- i giorni senza lezione, uno per uno -------------------------------------
   intestazione('GIORNI SENZA LEZIONE');
   azzeraCalendario();
@@ -811,6 +889,19 @@ if (conCalendario) {
     console.log('  PIANO DAL CAMBIO: ' + serieCambio + ' serie, ' + saltateCambio + ' lezioni saltate');
     verifica('e quante serie creerebbe dal ' + c.validoDal + ' (' + dalCambio.tratti.length + ')',
       serieCambio === dalCambio.tratti.length && saltateCambio === dalCambio.saltate);
+  }
+  // un giorno senza lezione fuori dal periodo (un anno sbagliato) non si conta
+  {
+    const nelPeriodo = sospensioni.filter(s => s.al >= c.inizio && s.dal <= c.fine).length;
+    const salvaSosp = contesto.ORARI.calendario;
+    contesto.ORARI.calendario = Object.assign({}, salvaSosp, { sospensioni: (salvaSosp.sospensioni || []).concat([
+      { dal: '2025-11-01', al: '2025-11-01', nome: 'anno sbagliato' }, { dal: '2027-06-20', al: '2027-06-30', nome: 'dopo la fine' }]) });
+    const conti = new RegExp('Giorni senza lezione: ' + nelPeriodo + ' ');
+    verifica('l\'anteprima non conta i giorni senza lezione fuori dal periodo (' + nelPeriodo + ')',
+      conti.test(contesto.ORARI_1_anteprima()));
+    azzeraCalendario();
+    verifica('e neanche il messaggio finale di ORARI_4_calendario', conti.test(contesto.ORARI_4_calendario()));
+    contesto.ORARI.calendario = salvaSosp;
   }
 
   // --- la ripresa --------------------------------------------------------------
@@ -939,17 +1030,35 @@ if (conCalendario) {
   contesto.ORARI_4_calendario();
   sogliaCalendario = Infinity;
   const calI = calendari[0];
-  docOriginale.celle = ruotata(celleOriginali);            // incollato un DatiOrari.gs con un altro orario
+  // incollato un DatiOrari.gs con un altro orario e la data da cui vale: le
+  // settimane prima devono avere l'orario di prima, quindi si finisce con i
+  // dati di prima e poi si fa il cambio (annullare e rimettere darebbe
+  // l'orario nuovo anche alle settimane prima)
+  const salvaI = contesto.ORARI.calendario;
+  contesto.ORARI.calendario = Object.assign({}, salvaI, { validoDal: c.validoDal || '2026-10-05' });
+  docOriginale.celle = ruotata(celleOriginali);
   const cambiato = errore(() => contesto.ORARI_4_calendario({ triggerUid: 'ripresa' }));
   verifica('la ripresa si accorge che DatiOrari.gs e\' cambiato, si ferma e spiega cosa fare',
-    /DatiOrari\.gs/.test(cambiato) && /cambiato/.test(cambiato) && /ORARI_ANNULLA_calendario/.test(cambiato));
+    /DatiOrari\.gs/.test(cambiato) && /cambiato/.test(cambiato));
+  verifica('con la data del cambio: prima finire con il DatiOrari.gs di prima, poi ORARI_5_cambioOrario (annullare e ' +
+    'rimettere solo come alternativa)', /di prima/.test(cambiato) && /ORARI_5_cambioOrario/.test(cambiato) &&
+    cambiato.indexOf('ORARI_5_cambioOrario') < cambiato.indexOf('ORARI_ANNULLA_calendario'));
   verifica('senza creare altre serie', vive(calI).length === 5);
-  verifica('dimentica il lavoro a meta\' e toglie la ripresa',
-    !proprieta.has(PROGRESSO_CALENDARIO) && ripresaDi('ORARI_4_calendario').length === 0);
-  const dopoCambiato = errore(() => contesto.ORARI_4_calendario());
-  verifica('rieseguito, trova le 5 serie gia\' messe e non le raddoppia',
-    /gia' 5 serie/.test(dopoCambiato) && vive(calI).length === 5);
+  verifica('toglie la ripresa, ma si ricorda a che punto era: serve per finire con i dati di prima',
+    !!salvato() && salvato().fatti === 5 && ripresaDi('ORARI_4_calendario').length === 0);
+  const ancoraCambiato = errore(() => contesto.ORARI_4_calendario());
+  verifica('rieseguito con i dati nuovi si ferma di nuovo, senza raddoppiare niente',
+    /cambiato/.test(ancoraCambiato) && vive(calI).length === 5 && !!salvato());
+  contesto.ORARI.calendario = Object.assign({}, salvaI, { validoDal: '' });
+  const senzaData = errore(() => contesto.ORARI_4_calendario());
+  verifica('senza la data del cambio: rimettere i dati di prima per finire, oppure annullare e rimettere tutto',
+    /di prima/.test(senzaData) && /ORARI_ANNULLA_calendario/.test(senzaData) && !/ORARI_5_cambioOrario/.test(senzaData));
+  contesto.ORARI.calendario = salvaI;
   docOriginale.celle = celleOriginali.slice();
+  const finito = errore(() => contesto.ORARI_4_calendario());
+  verifica('rimessi i dati di prima, ORARI_4_calendario finisce da dove era arrivato, senza doppioni' +
+    (finito ? ' (invece: ' + finito.split('\n')[0].slice(0, 80) + ')' : ''),
+    finito === '' && vive(calI).length === piano.tratti.length && senzaDoppioni(calI) && !proprieta.has(PROGRESSO_CALENDARIO));
 
   // --- il cambio d'orario --------------------------------------------------------
   intestazione('CAMBIO D\'ORARIO');
@@ -988,6 +1097,8 @@ if (conCalendario) {
     verifica('dice quante serie ha accorciato (' + daAccorciare + ')',
       numero(/accorciate[^:]*: (\d+)/, esitoCambio) === daAccorciare);
     verifica('quante ne ha tolte (' + daTogliere + ')', numero(/tolte[^:]*: (\d+)/, esitoCambio) === daTogliere);
+    verifica('e quanti eventi singoli, a parte dalle serie (1)',
+      numero(/Eventi singoli tolti[^:]*: (\d+)/, esitoCambio) === 1);
     verifica('quante ne ha create (' + nuovoPiano.tratti.length + ') e quante lezioni ha saltato (' + nuovoPiano.saltate + ')',
       numero(/create: (\d+)/, esitoCambio) === nuovoPiano.tratti.length &&
       numero(/Lezioni saltate nei giorni senza lezione: (\d+)/, esitoCambio) === nuovoPiano.saltate);
@@ -1022,6 +1133,20 @@ if (conCalendario) {
       tagliate.length === 0);
     verifica('il calendario dopo il cambio e\' quello atteso: prima l\'orario vecchio, poi il nuovo',
       uguali(lezioniSul(calC, primoGiorno, ultimoGiorno).filter(l => !/ Recupero$/.test(l)), attesoDopoCambio));
+    // una copia fatta a mano di una lezione: ha la descrizione di Campanella ma
+    // non il contrassegno. Il cambio non la tocca e la nomina; l'annullamento,
+    // che il docente chiede per togliere tutto, la toglie (lo dicono i documenti)
+    const copia = calC.createEventSeries('Copia a mano',
+      new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() - 7, 18, 0), new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() - 7, 19, 0),
+      CalendarApp.newRecurrence().addWeeklyRule().until(new Date(vd.getFullYear(), vd.getMonth(), vd.getDate() + 21, 23, 59, 59)),
+      { description: '[Campanella] Orario di ' + c.docente + ', copiata a mano' });
+    tagliate.length = 0;
+    const esitoCopia = contesto.ORARI_5_cambioOrario();
+    verifica('una serie con la descrizione di Campanella ma senza contrassegno (una copia a mano) il cambio non la ' +
+      'tocca, e la nomina', !copia.cancellata && tagliate.indexOf(copia) < 0 && copia.inizi().length === 5 &&
+      /senza contrassegno/.test(esitoCopia) && esitoCopia.indexOf('Copia a mano') >= 0);
+    contesto.ORARI_ANNULLA_calendario();
+    verifica('ORARI_ANNULLA_calendario invece la toglie, come dicono i documenti', copia.cancellata);
     docOriginale.celle = celleOriginali.slice();
   }
 
@@ -1111,6 +1236,84 @@ if (conCalendario) {
       /ORARI_4_calendario/.test(senzaCal) && calendari.length === 0);
   }
 
+  intestazione('CAMBIO D\'ORARIO: DATA PRIMA DELL\'INIZIO, ANNO PRIMA NELLO STESSO CALENDARIO');
+  if (validoDal) {
+    // il nome di partenza, "Orario COGNOME", si ripete ogni anno: l'anno prima
+    // sta nello stesso calendario. Una data del cambio scritta per sbaglio
+    // prima dell'inizio non deve toccarlo
+    azzeraCalendario();
+    const salvaP = contesto.ORARI.calendario;
+    const inizioPrima = dataDa('2025-09-15'), finePrima = dataDa('2026-06-10');
+    contesto.ORARI.calendario = Object.assign({}, salvaP, { inizio: '2025-09-15', fine: '2026-06-10', sospensioni: [], validoDal: '' });
+    contesto.ORARI_4_calendario();
+    const calP = calendari[0];
+    const annoPrima = lezioniSul(calP, inizioPrima, finePrima);
+    const serieAnnoPrima = vive(calP).slice();
+    contesto.ORARI.calendario = Object.assign({}, salvaP, { validoDal: '2025-10-05' });
+    contesto.ORARI_4_calendario();
+    const antP = contesto.ORARI_1_anteprima();
+    verifica('l\'anteprima dice che il nuovo orario vale da tutto il periodo, non che le settimane prima restano',
+      /da tutto il periodo/.test(antP) && !/le settimane prima restano/.test(antP));
+    docOriginale.celle = ruotata(celleOriginali);
+    tagliate.length = 0;
+    const esitoP = contesto.ORARI_5_cambioOrario();
+    console.log(esitoP);
+    verifica('le serie dell\'anno prima restano intatte (' + serieAnnoPrima.length + ' serie, ' + annoPrima.length + ' lezioni)',
+      annoPrima.length > 0 && uguali(lezioniSul(calP, inizioPrima, finePrima), annoPrima) &&
+      serieAnnoPrima.every(s => !s.cancellata && tagliate.indexOf(s) < 0));
+    verifica('e quest\'anno c\'e\' l\'orario nuovo da tutto il periodo',
+      uguali(lezioniSul(calP, primoGiorno, ultimoGiorno), pianoAtteso(ruotata(celleOriginali), primoGiorno).lezioni));
+    verifica('il messaggio dice che la data viene prima dell\'inizio e che il cambio vale da tutto il periodo',
+      /prima dell'inizio/.test(esitoP) && /da tutto il periodo/.test(esitoP) && esitoP.indexOf('dal ' + c.inizio) >= 0);
+    // il "Dal" del periodo spostato alla data del cambio: le serie messe prima
+    // cominciano prima dell'inizio nuovo, e vanno accorciate lo stesso
+    azzeraCalendario();
+    contesto.ORARI.calendario = salvaP;
+    contesto.ORARI_4_calendario();
+    contesto.ORARI.calendario = Object.assign({}, salvaP, { inizio: validoDal });
+    docOriginale.celle = ruotata(celleOriginali);
+    contesto.ORARI_5_cambioOrario();
+    verifica('con il "Dal" spostato alla data del cambio le serie di prima si accorciano lo stesso, senza doppioni',
+      uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio));
+    contesto.ORARI.calendario = salvaP;
+    docOriginale.celle = celleOriginali.slice();
+  }
+
+  intestazione('CAMBIO D\'ORARIO: LEZIONI SPOSTATE O CANCELLATE A MANO');
+  if (validoDal) {
+    // setRecurrence vuole l'inizio della prima lezione della serie, e getEvents
+    // da' le lezioni spostate a mano all'ora nuova: una prima lezione spostata
+    // non deve spostare tutta la serie
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    const calM = calendari[0];
+    const accorciabili = vive(calM).filter(s => chiave(s.inizio) < validoDal && chiave(s.ricorrenza.until) >= validoDal &&
+      s.inizi(giornoPrima).length >= 3);
+    verifica('ci sono almeno tre serie da accorciare con tre lezioni prima del cambio (' + accorciabili.length + ')',
+      accorciabili.length >= 3);
+    if (accorciabili.length >= 3) {
+      const [spostata, conBuco, senzaPrima] = accorciabili;
+      const p0 = spostata.inizio;
+      spostata.sposta(0, new Date(p0.getFullYear(), p0.getMonth(), p0.getDate() + 2, 15, 0),
+                         new Date(p0.getFullYear(), p0.getMonth(), p0.getDate() + 2, 16, 0));
+      conBuco.cancella(1);
+      senzaPrima.cancella(0);
+      const primaM = lezioniSul(calM, primoGiorno, giornoPrima);
+      docOriginale.celle = ruotata(celleOriginali);
+      const esitoM = contesto.ORARI_5_cambioOrario();
+      console.log(esitoM);
+      verifica('le lezioni prima del cambio restano come erano, con quelle spostate o cancellate a mano (' +
+        primaM.length + ')', uguali(lezioniSul(calM, primoGiorno, giornoPrima), primaM));
+      verifica('la serie con la prima lezione spostata tiene il suo giorno e la sua ora: non si sposta tutta',
+        spostata.inizio.getTime() === spostata.inizioOriginale.getTime() && chiave(spostata.ricorrenza.until) === chiave(giornoPrima));
+      verifica('il messaggio nomina le serie accorciate con lezioni spostate o cancellate a mano (2)',
+        numero(/spostate o cancellate a mano[^:]*: (\d+)/, esitoM) === 2 && esitoM.indexOf(spostata.titolo) >= 0 &&
+        esitoM.indexOf(conBuco.titolo) >= 0);
+      verifica('e dal cambio c\'e\' l\'orario nuovo', uguali(lezioniSul(calM, vd, ultimoGiorno), nuovoPiano.lezioni));
+      docOriginale.celle = celleOriginali.slice();
+    }
+  }
+
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');
   azzeraCalendario();
   sogliaCalendario = 5;
@@ -1135,7 +1338,49 @@ if (conCalendario) {
   const senzaCalendario = contesto.ORARI_ANNULLA_calendario();
   verifica('anche senza il calendario dimentica il lavoro a meta\' e toglie la ripresa',
     !proprieta.has(PROGRESSO_CALENDARIO) && trigger.length === 0 && /nessun calendario/.test(senzaCalendario));
+
+  // con i tratti le serie sono tante: anche l'annullamento incontra i limiti
+  // di Google e il tempo massimo. Si ferma dicendo quante ne ha tolte e di
+  // rieseguirlo (rieseguito, ritrova solo quelle che restano)
+  intestazione('ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE');
   azzeraCalendario();
+  contesto.ORARI_4_calendario();
+  const calZ = calendari[0];
+  const tutteZ = vive(calZ).length;
+  guasti([{ op: 'deleteEventSeries', alla: 4,
+            messaggio: 'You have been creating or deleting too many calendars or calendar events in a short time. Please try again later.' }]);
+  let esitoZ = '';
+  const erroreZ = errore(() => { esitoZ = contesto.ORARI_ANNULLA_calendario(); });
+  console.log(esitoZ || erroreZ);
+  verifica('un limite di Google mentre toglie: si ferma senza l\'errore grezzo, dice quante ne ha tolte e di rieseguirlo',
+    erroreZ === '' && vive(calZ).length === tutteZ - 3 && /Google/.test(esitoZ) && /3 /.test(esitoZ) &&
+    /riesegui/i.test(esitoZ) && /ORARI_ANNULLA_calendario/.test(esitoZ));
+  guasti([]);
+  contesto.ORARI_ANNULLA_calendario();
+  verifica('  ...e rieseguito toglie quelle che restano', vive(calZ).length === 0);
+  guasti([{ op: 'deleteEventSeries', alla: 2, messaggio: 'Service invoked too many times for one day: calendar.' }]);
+  contesto.ORARI_4_calendario();
+  guasti([{ op: 'deleteEventSeries', alla: 2, messaggio: 'Service invoked too many times for one day: calendar.' }]);
+  const giornoZ = errore(() => { esitoZ = contesto.ORARI_ANNULLA_calendario(); });
+  verifica('finite le modifiche della giornata dice di rieseguirlo domani',
+    giornoZ === '' && /domani/.test(esitoZ) && vive(calZ).length === tutteZ - 1);
+  guasti([]);
+  contesto.ORARI_ANNULLA_calendario();
+  contesto.ORARI_4_calendario();
+  scrittureDallUltimoSalto = 0;
+  sogliaCalendario = 3;
+  const tempoZ = contesto.ORARI_ANNULLA_calendario();
+  sogliaCalendario = Infinity;
+  verifica('al tempo massimo si ferma, dice quante ne ha tolte e di rieseguirlo',
+    vive(calZ).length > 0 && vive(calZ).length < tutteZ && /Tempo massimo/.test(tempoZ) && /ORARI_ANNULLA_calendario/.test(tempoZ));
+  orologio = 0;
+  contesto.ORARI_ANNULLA_calendario();
+  verifica('  ...e rieseguito finisce', vive(calZ).length === 0);
+  guasti([{ op: 'deleteEventSeries', alla: 2, messaggio: 'Errore interno di prova' }]);
+  contesto.ORARI_4_calendario();
+  verifica('un altro errore si vede cosi\' com\'e\'', errore(() => contesto.ORARI_ANNULLA_calendario()) === 'Errore interno di prova');
+  azzeraCalendario();
+  attrezziCalendario = { azzeraCalendario, vive, salvato, ripresaDi, piano };
 }
 
 intestazione('CONVIVENZA CON LA POSTA');
@@ -1207,6 +1452,38 @@ verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
   verifica('con un invio che non finisce, ANNULLA_automazione non toglie niente e dice di riprovare',
     trigger.length === 1 && /riprova fra un minuto/.test(occupata) && !/spenta|Fermata/.test(occupata));
   trigger.length = 0;
+}
+
+// Una ripresa del calendario scattata un attimo prima di ANNULLA_automazione
+// aspetta il blocco: quando lo prende, il suo trigger e' gia' stato tolto, ma
+// il punto salvato c'e' ancora. Non deve lavorare e riprogrammarsi: il punto
+// dice che il lavoro e' stato fermato. Rieseguito a mano, riparte.
+intestazione('ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA');
+if (attrezziCalendario) {
+  const { azzeraCalendario, vive, salvato, ripresaDi, piano } = attrezziCalendario;
+  azzeraCalendario();
+  sogliaCalendario = 5;
+  contesto.ORARI_4_calendario();
+  sogliaCalendario = Infinity;
+  const calF = calendari[0];
+  const spenta = contesto.ANNULLA_automazione();
+  verifica('ANNULLA_automazione toglie la ripresa del calendario e segna fermato il lavoro a meta\'',
+    ripresaDi('ORARI_4_calendario').length === 0 && !!salvato() && salvato().fermato === true &&
+    /calendario/.test(spenta));
+  const partita = contesto.ORARI_4_calendario({ triggerUid: 'gia partita' });
+  verifica('la ripresa gia\' partita, preso il blocco, non lavora e non si riprogramma',
+    vive(calF).length === 5 && ripresaDi('ORARI_4_calendario').length === 0 && /ANNULLA_automazione/.test(partita));
+  lockOccupato = true;
+  contesto.ORARI_4_calendario({ triggerUid: 'gia partita, blocco preso' });
+  lockOccupato = false;
+  verifica('e se trova il blocco preso non si riprogramma lo stesso', ripresaDi('ORARI_4_calendario').length === 0);
+  verifica('il punto resta, per chi vuole finire', !!salvato() && salvato().fatti === 5);
+  contesto.ORARI_4_calendario();
+  verifica('rieseguito a mano, finisce il lavoro da dove era arrivato',
+    vive(calF).length === piano.tratti.length && !salvato() && ripresaDi('ORARI_4_calendario').length === 0);
+  azzeraCalendario();
+} else {
+  verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);
 }
 
 intestazione('RISULTATO');

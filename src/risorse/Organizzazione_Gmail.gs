@@ -107,6 +107,9 @@ var _TRIGGER_ORARI          = 'ORARI_2_invia';  // le riprese di Orari.gs, nello
 var _TRIGGER_ORARI_CLASSI   = 'ORARI_3_inviaOrariClassi';  // i due invii
 var _TRIGGER_ORARI_CALENDARIO = 'ORARI_4_calendario';     // e il calendario, anche nel cambio d'orario
 var _TRIGGER_ORARI_CAMBIO   = 'ORARI_5_cambioOrario';
+// dove Orari.gs si ricorda il lavoro a meta' sul calendario: ANNULLA_automazione
+// lo segna fermato, cosi' una ripresa gia' partita non lo riprende
+var _CHIAVE_ORARI_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';
 // i colori che Gmail accetta per le etichette, per lo sfondo e per il testo
 // (Gmail API, Label.color): con un altro valore la chiamata fallisce
 var _COLORI_GMAIL = [
@@ -1554,7 +1557,8 @@ function ANNULLA_automazione() {
     // docenti, orari delle classi, calendario e cambio d'orario) sono
     // attivita' programmate: spegnere l'automazione vuol dire spegnere tutto
     orari = _rimuoviTrigger_(_TRIGGER_ORARI) + _rimuoviTrigger_(_TRIGGER_ORARI_CLASSI);
-    calendario = _rimuoviTrigger_(_TRIGGER_ORARI_CALENDARIO) + _rimuoviTrigger_(_TRIGGER_ORARI_CAMBIO);
+    calendario = _rimuoviTrigger_(_TRIGGER_ORARI_CALENDARIO) + _rimuoviTrigger_(_TRIGGER_ORARI_CAMBIO) +
+                 _fermaCalendarioOrari_();
   } finally {
     lock.releaseLock();
   }
@@ -1567,6 +1571,28 @@ function ANNULLA_automazione() {
                             'riparte da dove era arrivato; ORARI_ANNULLA_calendario invece toglie tutto.' : '');
   Logger.log(testo);
   return testo;
+}
+
+/**
+ * Segna "fermato" il lavoro a meta' sul calendario di Orari.gs, se c'e'. Una
+ * sua ripresa scattata un attimo prima, che aspettava il blocco mentre qui si
+ * toglievano i trigger, quando lo prende trova il segno e non riprende il
+ * lavoro (ne' si riprogramma); rieseguito a mano, riparte. Dice 1 se l'ha
+ * segnato, 0 se non c'era niente da fermare.
+ */
+function _fermaCalendarioOrari_() {
+  var prop = PropertiesService.getUserProperties();
+  var testo = prop.getProperty(_CHIAVE_ORARI_CALENDARIO);
+  if (!testo) return 0;
+  try {
+    var lavoro = JSON.parse(testo);
+    if (!lavoro || typeof lavoro !== 'object' || lavoro.fermato) return 0;
+    lavoro.fermato = true;
+    prop.setProperty(_CHIAVE_ORARI_CALENDARIO, JSON.stringify(lavoro));
+    return 1;
+  } catch (e) {
+    return 0;                       // un punto illeggibile: Orari.gs lo tratta come nessun punto
+  }
 }
 
 /**
