@@ -574,6 +574,12 @@ namespace Campanella
         public List<string> Tolti = new List<string>();
         /// <summary>Il file Classe_*.gs e' stato copiato dopo l'ultimo incolla.</summary>
         public bool Copiato = false;
+        /// <summary>L'etichetta per cui e' stato copiato: con un'altra madre il file va copiato di nuovo.</summary>
+        public string CopiatoPer = "";
+        /// <summary>Il docente ha cambiato la spunta: resta anche cambiando l'etichetta madre.</summary>
+        public bool SpuntaCambiata = false;
+        /// <summary>Il docente ha cambiato le parole dell'oggetto: restano anche cambiando l'etichetta madre.</summary>
+        public bool OggettoCambiato = false;
     }
 
     /// <summary>
@@ -907,11 +913,38 @@ namespace Campanella
             return sb.ToString();
         }
 
-        /// <summary>L'etichetta madre di partenza: "Classi " e l'anno scolastico (quello di Cartelle, o quello di adesso).</summary>
+        /// <summary>
+        /// L'etichetta madre di partenza: quella delle regole delle classi che ci
+        /// sono, se fra quelle che non sono di un altro anno ce n'e' una sola (il
+        /// docente l'aveva scelta, o cambiata, lui: "Le mie classi"); altrimenti
+        /// "Classi " e l'anno scolastico (quello di Cartelle, o quello di adesso).
+        /// Cosi' riaprendo la finestra le regole si ritrovano, e l'anno dopo la
+        /// madre dell'anno prima non si riusa.
+        /// </summary>
         public static string MadreDiPartenza(Stato s)
         {
             string anno = (s.Anno ?? "").Trim();
-            return "Classi " + (anno != "" ? anno : Stato.AnnoScolastico(DateTime.Now));
+            if (anno == "") anno = Stato.AnnoScolastico(DateTime.Now);
+            List<string> madri = new List<string>();
+            foreach (Regola r in s.Regole)
+            {
+                string e = r.Etichetta ?? "";
+                int b = e.LastIndexOf('/');
+                if (ClasseDi(r) == null || b <= 0) continue;
+                string m = Madre(e.Substring(0, b));
+                if (DiUnAltroAnno(m, anno)) continue;
+                bool gia = false;
+                foreach (string x in madri) if (string.Equals(x, m, StringComparison.OrdinalIgnoreCase)) gia = true;
+                if (!gia) madri.Add(m);
+            }
+            return (madri.Count == 1) ? madri[0] : "Classi " + anno;
+        }
+
+        /// <summary>Vero se nel nome c'e' un anno (il primo numero di quattro cifre) diverso da quello dell'anno scolastico.</summary>
+        static bool DiUnAltroAnno(string nome, string anno)
+        {
+            Match a = Regex.Match(nome ?? "", @"\d{4}"), b = Regex.Match(anno ?? "", @"\d{4}");
+            return a.Success && b.Success && a.Value != b.Value;
         }
 
         /// <summary>L'etichetta madre scritta nella finestra: senza barre in fondo e spazi doppi; vuota, "Classi".</summary>
@@ -1009,14 +1042,21 @@ namespace Campanella
         {
             string m = Madre(madre);
             int nuove = 0, aggiornate = 0, tolte = 0, vecchie = 0;
+            // le classi che perdono la regola: il loro file resta nel progetto
+            List<string> senzaRegola = new List<string>();
             if (togliVecchie)
-                vecchie = s.Regole.RemoveAll(delegate(Regola r) { return ClasseDi(r) != null && !SottoMadre(r, m); });
+                vecchie = s.Regole.RemoveAll(delegate(Regola r)
+                {
+                    bool via = ClasseDi(r) != null && !SottoMadre(r, m);
+                    if (via) senzaRegola.Add(ClasseDi(r));
+                    return via;
+                });
             foreach (ClasseScelta c in classi ?? new List<ClasseScelta>())
             {
                 Regola r = RegolaDellaClasse(s, m, Chiave(c.Nome));
                 if (!c.Spuntata)
                 {
-                    if (r != null) { s.Regole.Remove(r); tolte++; }
+                    if (r != null) { s.Regole.Remove(r); tolte++; senzaRegola.Add(ClasseDi(r)); }
                     continue;
                 }
                 // il nome della regola che c'e' gia': il file Classe_*.gs incollato ha quello
@@ -1043,7 +1083,20 @@ namespace Campanella
             if (aggiornate > 0) parti.Add(aggiornate + (aggiornate == 1 ? " aggiornata" : " aggiornate"));
             if (tolte > 0) parti.Add(tolte + (tolte == 1 ? " tolta" : " tolte"));
             if (vecchie > 0) parti.Add(vecchie + (vecchie == 1 ? " dell'anno prima tolta" : " degli anni prima tolte"));
-            return "Classi: " + (parti.Count == 0 ? "niente da cambiare" : string.Join(", ", parti.ToArray())) + ".";
+            // il file di una classe tolta ha ancora gli indirizzi dei suoi studenti;
+            // se un'altra regola usa un file con lo stesso nome, quello nuovo lo sostituisce
+            List<string> daCancellare = new List<string>();
+            foreach (string c in senzaRegola)
+            {
+                string file = NomeFile(c);
+                bool usato = false;
+                foreach (Regola r in s.Regole)
+                    if (ClasseDi(r) != null && NomeFile(ClasseDi(r)) == file) usato = true;
+                if (!usato && !daCancellare.Contains(file)) daCancellare.Add(file);
+            }
+            return "Classi: " + (parti.Count == 0 ? "niente da cambiare" : string.Join(", ", parti.ToArray())) + "." +
+                   (daCancellare.Count == 0 ? "" : " Nel progetto dello script cancella " +
+                    string.Join(", ", daCancellare.ToArray()) + ": ha gli indirizzi degli studenti.");
         }
 
         /// <summary>La regola di una classe (per chiave) sotto l'etichetta madre, o null.</summary>

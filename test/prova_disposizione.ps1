@@ -736,8 +736,13 @@ ControllaPannello $pannello4 'Posta / 4 con il bottone delle classi'
 $tFC = $asm.GetType('Campanella.FormClassi')
 Verifica "c'e' la finestra delle classi" ($null -ne $tFC)
 if ($null -ne $tFC) {
+    # chiudendo, la finestra chiede se perdere quello che c'e' (gli indirizzi
+    # incollati) e se svuotare gli appunti: qui si risponde "si'" senza finestre
+    $sempreSi = [Func[string, string, bool]]{ param($testo, $titolo) $script:domandeFC += $titolo; return $true }
+    $script:domandeFC = @()
     function MostraFC() {
         $f = [Activator]::CreateInstance($tFC, @($stato.PSObject.BaseObject))
+        $f.Chiedi = $sempreSi
         $f.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
         $f.Location = New-Object System.Drawing.Point(-4000, -4000)
         $f.Show()
@@ -775,6 +780,8 @@ if ($null -ne $tFC) {
     ControllaPannello $fc 'Le mie classi, con classi e indirizzi'
     ControllaAiuti $fc 'Le mie classi'
     $fc.Close(); $fc.Dispose()
+    Verifica "chiusa con gli indirizzi incollati e non copiati, ha chiesto prima di chiudere ($($script:domandeFC -join ', '))" (
+        ($script:domandeFC -join '|') -eq 'Chiudere senza usare le classi?')
     [void]$regoleD.Remove($vecchia)
     $tStato.GetField('Classi', $FI).SetValue($stato, $classiPrima)
 }

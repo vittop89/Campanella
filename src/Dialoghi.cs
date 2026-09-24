@@ -778,6 +778,34 @@ namespace Campanella
         /// <summary>Le regole delle classi sotto un'altra etichetta madre (l'anno prima).</summary>
         public List<Regola> Vecchie = new List<Regola>();
 
+        /// <summary>
+        /// Chiede si' o no (testo, titolo). Di partenza una finestra di Windows;
+        /// le prove la sostituiscono, per chiudere la finestra senza domande.
+        /// </summary>
+        public Func<string, string, bool> Chiedi;
+
+        /// <summary>Dove prendere gli indirizzi degli studenti: il "?" accanto alla casella.</summary>
+        public const string AiutoIndirizzi =
+            "Per esempio da Google Classroom: apri il corso, scheda Persone, spunta la casella sopra l'elenco degli " +
+            "studenti e scegli Azioni -> Invia email. Gmail apre un messaggio con tutti gli indirizzi nel campo A: " +
+            "selezionali, copiali (Ctrl+C) e incollali qui. Poi elimina quel messaggio con l'icona del cestino in " +
+            "basso: chiuso e basta, Gmail lo terrebbe fra le bozze, con tutti gli indirizzi. I nomi dei menu di " +
+            "Classroom possono cambiare.\r\n\r\n" +
+            "Il Ctrl+C del browser finisce nella cronologia degli appunti di Windows, se e' attiva (e con la " +
+            "sincronizzazione anche sugli altri tuoi dispositivi): dopo, premi Win+V e togli quella voce (i tre " +
+            "puntini -> Elimina). Oppure trascina il testo selezionato dentro la casella: cosi' non passa dagli " +
+            "appunti.\r\n\r\n" +
+            "Oppure, se la scuola ha un gruppo Google per la classe, dall'elenco dei membri del gruppo.\r\n\r\n" +
+            "Va bene qualunque testo: Campanella prende solo gli indirizzi email, anche nella forma Nome Cognome " +
+            "<indirizzo>, in minuscolo e una volta sola. Quelli del personale (chi ha la spunta nell'elenco del passo " +
+            "3, la dirigenza e la segreteria) li toglie: un collega fra gli studenti avrebbe l'etichetta della classe " +
+            "su tutta la sua posta.\r\n\r\n" +
+            "Poi premi \"Copia\" e nel progetto dello script crea un file nuovo (+ accanto a File -> Script) con il " +
+            "nome che vedi, per esempio Classe_3B, e incollaci il testo. Quello che copia Campanella non entra nella " +
+            "cronologia degli appunti, ma resta negli appunti finche' non copi altro: chiudendo la finestra ti chiede " +
+            "se svuotarli. Campanella non conserva gli indirizzi: per cambiarli incollali di nuovo qui e sostituisci " +
+            "il file.";
+
         readonly Stato stato;
         readonly TextBox txtMadre, txtNuova, txtIncolla;
         readonly Label lblMadre, lblDaDove, lblTitoloIncolla, lblAvviso, lblNotaVecchie, aiutoIncolla;
@@ -786,11 +814,18 @@ namespace Campanella
         readonly CheckBox chkVecchie;
         int scelta = -1;
         bool riempiendo = false;
+        // la madre all'apertura, e l'ultimo file copiato negli appunti (il testo e il nome)
+        string madreIniziale = "";
+        string ultimoCopiato = null, ultimoFile = "";
         const int Larga = 860;
 
         public FormClassi(Stato s)
         {
             stato = s;
+            Chiedi = delegate(string testo, string titolo)
+            {
+                return MessageBox.Show(this, testo, titolo, MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            };
             Text = "Le mie classi";
             StartPosition = FormStartPosition.CenterParent;
             Font = Tema.Normale;
@@ -810,7 +845,8 @@ namespace Campanella
             Label privato = Tema.Testo1(
                 "Gli indirizzi degli studenti sono dati di minori: Campanella non li conserva. Li incolli qui e copi il " +
                 "file della classe (per esempio Classe_3B.gs) nel progetto dello script, nell'account della scuola; " +
-                "chiusa la finestra, spariscono. A fine anno togli le classi e cancella quei file.",
+                "chiusa la finestra Campanella li dimentica, e chiede se svuotare gli appunti. A fine anno togli le " +
+                "classi e cancella quei file.",
                 16, y, Larga, Tema.Normale, Ruolo.Avviso);
             Controls.Add(privato);
             y += privato.Height + 8;
@@ -875,7 +911,11 @@ namespace Campanella
             {
                 if (riempiendo || e.RowIndex < 0 || e.RowIndex >= Classi.Count) return;
                 object v = griglia.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
-                if (e.ColumnIndex == 0) Classi[e.RowIndex].Spuntata = v is bool && (bool)v;
+                if (e.ColumnIndex == 0)
+                {
+                    Classi[e.RowIndex].Spuntata = v is bool && (bool)v;
+                    Classi[e.RowIndex].SpuntaCambiata = true;
+                }
                 else if (e.ColumnIndex == 2)
                 {
                     string avviso = CambiaOggetto(e.RowIndex, Convert.ToString(v) ?? "");
@@ -911,28 +951,29 @@ namespace Campanella
             lblTitoloIncolla.Width = 560;
             lblTitoloIncolla.Height = Tema.AltezzaTesto("Gli indirizzi degli studenti della 3B LSA", Tema.Grassetto, 560);
             Controls.Add(lblTitoloIncolla);
-            aiutoIncolla = Tema.Aiuto(16 + 566, y + 2, "Dove prendere gli indirizzi degli studenti",
-                "Per esempio da Google Classroom: apri il corso, scheda Persone, spunta la casella sopra l'elenco " +
-                "degli studenti e scegli Azioni -> Invia email. Gmail apre un messaggio con tutti gli indirizzi nel " +
-                "campo A: selezionali, copiali (Ctrl+C) e incollali qui, poi chiudi il messaggio senza mandarlo. " +
-                "I nomi dei menu di Classroom possono cambiare.\r\n\r\n" +
-                "Oppure, se la scuola ha un gruppo Google per la classe, dall'elenco dei membri del gruppo.\r\n\r\n" +
-                "Va bene qualunque testo: Campanella prende solo gli indirizzi email, anche nella forma Nome " +
-                "Cognome <indirizzo>, in minuscolo e una volta sola. Quelli del personale (l'elenco del passo 3, la " +
-                "dirigenza e la segreteria) li toglie: un collega fra gli studenti avrebbe l'etichetta della classe " +
-                "su tutta la sua posta.\r\n\r\n" +
-                "Poi premi \"Copia\" e nel progetto dello script crea un file nuovo (+ accanto a File -> Script) con " +
-                "il nome che vedi, per esempio Classe_3B, e incollaci il testo. Campanella non conserva gli " +
-                "indirizzi: per cambiarli incollali di nuovo qui e sostituisci il file.");
+            aiutoIncolla = Tema.Aiuto(16 + 566, y + 2, "Dove prendere gli indirizzi degli studenti", AiutoIndirizzi);
             Controls.Add(aiutoIncolla);
             y += lblTitoloIncolla.Height + 2;
 
-            txtIncolla = Tema.CasellaMulti(16, y, Larga, 64, "incolla qui gli indirizzi (Ctrl+V)");
+            txtIncolla = Tema.CasellaMulti(16, y, Larga, 64, "incolla qui gli indirizzi (Ctrl+V), o trascinali qui");
             txtIncolla.ScrollBars = ScrollBars.Vertical;
             txtIncolla.TextChanged += delegate
             {
                 if (riempiendo || scelta < 0) return;
                 Incolla(scelta, txtIncolla.Text);
+            };
+            // il testo trascinato dal browser non passa dagli appunti (ne' dalla loro cronologia)
+            txtIncolla.AllowDrop = true;
+            txtIncolla.DragEnter += delegate(object o, DragEventArgs e)
+            {
+                e.Effect = (scelta >= 0 && (e.Data.GetDataPresent(DataFormats.UnicodeText) ||
+                                            e.Data.GetDataPresent(DataFormats.Text)))
+                    ? DragDropEffects.Copy : DragDropEffects.None;
+            };
+            txtIncolla.DragDrop += delegate(object o, DragEventArgs e)
+            {
+                string t = (e.Data.GetData(DataFormats.UnicodeText) as string) ?? (e.Data.GetData(DataFormats.Text) as string);
+                Trascina(t);
             };
             Controls.Add(txtIncolla);
             y += txtIncolla.Height + 6;
@@ -977,9 +1018,23 @@ namespace Campanella
             CancelButton = ann;
             ClientSize = new Size(16 + Larga + 16, y + 34 + 14);
 
-            Riempi(s);
-            txtMadre.TextChanged += delegate { CambiaMadre(); };
             CambiaMadre();
+            madreIniziale = Madre;
+            txtMadre.TextChanged += delegate { CambiaMadre(); };
+            FormClosing += delegate(object o, FormClosingEventArgs e)
+            {
+                // niente domande allo spegnimento del computer, che una finestra fermerebbe
+                if (e.CloseReason == CloseReason.WindowsShutDown || e.CloseReason == CloseReason.TaskManagerClosing) return;
+                if (DialogResult != DialogResult.OK)
+                {
+                    string perdo = DaPerdere();
+                    if (perdo != "" && !Chiedi(perdo, "Chiudere senza usare le classi?")) { e.Cancel = true; return; }
+                }
+                if (AppuntiDaSvuotare() && Chiedi("Negli appunti c'e' ancora " + ultimoFile + ", con gli indirizzi " +
+                        "degli studenti: ci resta finche' non copi altro, anche chiusa Campanella.\n\nSe l'hai gia' " +
+                        "incollato nel progetto dello script, svuoto gli appunti?", "Svuotare gli appunti?"))
+                    SvuotaAppunti();
+            };
             Tema.Applica(this);
         }
 
@@ -998,12 +1053,14 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Le classi di partenza: quelle che hanno gia' la regola sotto l'etichetta
-        /// madre (spuntate), poi quelle dell'orario e di Cartelle, spuntate solo
-        /// se di classi non ce n'e' ancora nessuna (la prima volta, o l'anno nuovo).
+        /// Le righe per l'etichetta madre di adesso: le classi che hanno gia' la
+        /// regola sotto questa madre (spuntate, con le loro parole), poi quelle
+        /// dell'orario e di Cartelle, spuntate solo se di regole non ce n'e'
+        /// nessuna (la prima volta, o l'anno nuovo). Non sceglie la riga.
         /// </summary>
         void Riempi(Stato s)
         {
+            Classi.Clear();
             string madre = Madre;
             foreach (Regola r in s.Regole)
             {
@@ -1020,9 +1077,6 @@ namespace Campanella
             bool primaVolta = Classi.Count == 0;
             Metti(LeMieClassi.DalleLezioni(s), "orario", primaVolta);
             Metti(LeMieClassi.DaCartelle(s), "Cartelle", primaVolta);
-            Ordina();
-            AggiornaGriglia();
-            if (Classi.Count > 0) Scegli(0); else Scegli(-1);
         }
 
         void Metti(List<string> nomi, string da, bool spuntate)
@@ -1144,11 +1198,29 @@ namespace Campanella
         }
 
         /// <summary>La colonna "Studenti": quanti indirizzi incollati, o che non si conservano.</summary>
-        static string Studenti(ClasseScelta c)
+        string Studenti(ClasseScelta c)
         {
             if (c.Indirizzi != null && c.Indirizzi.Count > 0)
-                return c.Indirizzi.Count + " incollati" + (c.Copiato ? ", file copiato" : ", da copiare");
+                return c.Indirizzi.Count + " incollati" + (CopiatoAdesso(c) ? ", file copiato" : ", da copiare");
             return (c.Regola != null) ? "non conservati" : "nessuno";
+        }
+
+        /// <summary>L'etichetta che avra' la regola della classe (quella per cui si copia il suo file).</summary>
+        string EtichettaDi(ClasseScelta c)
+        {
+            string nome = (c.Regola != null && LeMieClassi.ClasseDi(c.Regola) != null) ? LeMieClassi.ClasseDi(c.Regola) : c.Nome;
+            return Madre + "/" + nome;
+        }
+
+        /// <summary>Vero se il file della classe i e' stato copiato per l'etichetta di adesso.</summary>
+        public bool CopiatoAdesso(int i)
+        {
+            return i >= 0 && i < Classi.Count && CopiatoAdesso(Classi[i]);
+        }
+
+        bool CopiatoAdesso(ClasseScelta c)
+        {
+            return c.Copiato && string.Equals(c.CopiatoPer, EtichettaDi(c), StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>Sceglie la classe i: la casella degli indirizzi e il bottone del file sono i suoi.</summary>
@@ -1195,6 +1267,7 @@ namespace Campanella
         {
             if (i < 0 || i >= Classi.Count) return "";
             int indirizzi = LeMieClassi.IndirizziNellOggetto(testo);
+            Classi[i].OggettoCambiato = true;
             if (indirizzi == 0) { Classi[i].Oggetto = testo ?? ""; return ""; }
             Classi[i].Oggetto = LeMieClassi.TestoOggetto(LeMieClassi.ParoleOggetto(testo));
             riempiendo = true;
@@ -1296,7 +1369,14 @@ namespace Campanella
             ClasseScelta c = Classi[i];
             if (c.Indirizzi == null || c.Indirizzi.Count == 0) return "";
             string nome = (c.Regola != null && LeMieClassi.ClasseDi(c.Regola) != null) ? LeMieClassi.ClasseDi(c.Regola) : c.Nome;
-            return LeMieClassi.FileClasse(nome, Madre + "/" + nome, c.Indirizzi, DateTime.Now);
+            return LeMieClassi.FileClasse(nome, EtichettaDi(c), c.Indirizzi, DateTime.Now);
+        }
+
+        /// <summary>Il testo trascinato nella casella degli indirizzi: vale come incollato, senza passare dagli appunti.</summary>
+        public void Trascina(string testo)
+        {
+            if (scelta < 0 || string.IsNullOrEmpty(testo)) return;
+            txtIncolla.Text = (txtIncolla.Text.Trim() == "") ? testo : txtIncolla.Text + "\r\n" + testo;
         }
 
         /// <summary>Copia il file della classe negli appunti, fuori dalla cronologia di Windows. Niente file su disco.</summary>
@@ -1310,6 +1390,9 @@ namespace Campanella
                 {
                     Guscio.MettiNegliAppunti(testo);
                     Classi[i].Copiato = true;
+                    Classi[i].CopiatoPer = EtichettaDi(Classi[i]);
+                    ultimoCopiato = testo;
+                    ultimoFile = LeMieClassi.NomeFile(Classi[i].Nome);
                     riempiendo = true;
                     try { if (i < griglia.Rows.Count) griglia.Rows[i].Cells[3].Value = Studenti(Classi[i]); }
                     finally { riempiendo = false; }
@@ -1330,37 +1413,101 @@ namespace Campanella
         {
             List<string> nonCopiati = new List<string>();
             foreach (ClasseScelta c in Classi)
-                if (c.Spuntata && c.Indirizzi != null && c.Indirizzi.Count > 0 && !c.Copiato)
+                if (c.Spuntata && c.Indirizzi != null && c.Indirizzi.Count > 0 && !CopiatoAdesso(c))
                     nonCopiati.Add(LeMieClassi.NomeFile(c.Nome));
             if (nonCopiati.Count == 0) return true;
-            return MessageBox.Show(this, "Non hai copiato " + string.Join(", ", nonCopiati.ToArray()) + ". Campanella non " +
-                "conserva gli indirizzi degli studenti: chiusa la finestra spariscono, e per quei file andranno " +
-                "incollati di nuovo.\n\nChiudere lo stesso?", "File delle classi non copiati",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+            return Chiedi("Non hai copiato " + string.Join(", ", nonCopiati.ToArray()) + " (o l'hai copiato per un'altra " +
+                "etichetta madre). Campanella non conserva gli indirizzi degli studenti: chiusa la finestra spariscono, " +
+                "e per quei file andranno incollati di nuovo.\n\nChiudere lo stesso?", "File delle classi non copiati");
         }
 
         /// <summary>
-        /// L'etichetta madre e' cambiata: le regole delle classi sotto un'altra
-        /// madre sono quelle dell'anno prima, e ogni classe ritrova la sua regola
-        /// sotto quella di adesso.
+        /// Che cosa si perde chiudendo senza "Usa queste classi" (Annulla, Esc,
+        /// la X): un file copiato resterebbe nel progetto senza la sua regola,
+        /// gli indirizzi incollati spariscono, le scelte fatte qui si perdono.
+        /// "" se non c'e' niente da perdere.
+        /// </summary>
+        public string DaPerdere()
+        {
+            List<string> copiati = new List<string>(), incollati = new List<string>();
+            bool cambiate = !string.Equals(Madre, madreIniziale, StringComparison.OrdinalIgnoreCase);
+            foreach (ClasseScelta c in Classi)
+            {
+                if (c.Copiato) copiati.Add(LeMieClassi.NomeFile(c.Nome));
+                else if (c.Indirizzi != null && c.Indirizzi.Count > 0) incollati.Add(LeMieClassi.NomeFile(c.Nome));
+                if (c.SpuntaCambiata || c.OggettoCambiato || c.Provenienza == "a mano") cambiate = true;
+            }
+            List<string> frasi = new List<string>();
+            if (copiati.Count > 0)
+                frasi.Add("Hai copiato " + string.Join(", ", copiati.ToArray()) + ": se l'hai gia' incollato nel " +
+                          "progetto dello script, senza \"Usa queste classi\" la sua regola non c'e' (o resta com'era).");
+            if (incollati.Count > 0)
+                frasi.Add("Gli indirizzi incollati per " + string.Join(", ", incollati.ToArray()) + " spariscono.");
+            if (cambiate) frasi.Add("Le scelte fatte qui si perdono.");
+            if (frasi.Count == 0) return "";
+            return string.Join(" ", frasi.ToArray()) + "\n\nChiudere senza \"Usa queste classi\"?";
+        }
+
+        /// <summary>
+        /// Vero se negli appunti c'e' ancora l'ultimo file copiato da questa
+        /// finestra (con gli indirizzi degli studenti). Senza un file copiato
+        /// gli appunti non si guardano nemmeno.
+        /// </summary>
+        public bool AppuntiDaSvuotare()
+        {
+            if (ultimoCopiato == null) return false;
+            try { return Clipboard.ContainsText() && Clipboard.GetText() == ultimoCopiato; }
+            catch (System.Runtime.InteropServices.ExternalException) { return false; }
+        }
+
+        void SvuotaAppunti()
+        {
+            try { Clipboard.Clear(); }
+            catch (System.Runtime.InteropServices.ExternalException) { }
+            ultimoCopiato = null;
+        }
+
+        /// <summary>
+        /// L'etichetta madre e' cambiata (o la finestra si apre): le righe sono
+        /// quelle di questa madre, con le regole che ha, le loro parole e i loro
+        /// nomi (Riempi). Quello che il docente ha fatto qui resta: gli indirizzi
+        /// incollati, le spunte e le parole cambiate, le classi aggiunte a mano.
+        /// Le regole delle classi sotto un'altra madre sono quelle dell'anno prima.
         /// </summary>
         void CambiaMadre()
         {
             string madre = Madre;
+            List<ClasseScelta> prima = new List<ClasseScelta>(Classi);
+            string sceltaPrima = (scelta >= 0 && scelta < prima.Count) ? prima[scelta].Nome : null;
+            Riempi(stato);
+            foreach (ClasseScelta p in prima)
+            {
+                bool sua = p.Indirizzi != null || p.SpuntaCambiata || p.OggettoCambiato || p.Provenienza == "a mano";
+                if (!sua) continue;
+                int i = Indice(p.Nome);
+                if (i < 0)
+                {
+                    p.Regola = null;
+                    Classi.Add(p);
+                    continue;
+                }
+                ClasseScelta x = Classi[i];
+                x.Indirizzi = p.Indirizzi;
+                x.Tolti = p.Tolti;
+                x.Copiato = p.Copiato;
+                x.CopiatoPer = p.CopiatoPer;
+                if (p.SpuntaCambiata) { x.Spuntata = p.Spuntata; x.SpuntaCambiata = true; }
+                if (p.OggettoCambiato) { x.Oggetto = p.Oggetto; x.OggettoCambiato = true; }
+            }
+            Ordina();
+            AggiornaGriglia();
+            int s = (sceltaPrima != null) ? Indice(sceltaPrima) : -1;
+            Scegli(s >= 0 ? s : (Classi.Count > 0 ? 0 : -1));
+
             lblMadre.Text = "In Gmail: " + madre + "/" + (Classi.Count > 0 ? Classi[0].Nome : "3B") + ", " + madre + "/...";
             Vecchie = new List<Regola>();
             foreach (Regola r in stato.Regole)
                 if (LeMieClassi.ClasseDi(r) != null && !LeMieClassi.SottoMadre(r, madre)) Vecchie.Add(r);
-            riempiendo = true;
-            try
-            {
-                for (int i = 0; i < Classi.Count; i++)
-                {
-                    Classi[i].Regola = LeMieClassi.RegolaDellaClasse(stato, madre, LeMieClassi.Chiave(Classi[i].Nome));
-                    if (i < griglia.Rows.Count) griglia.Rows[i].Cells[3].Value = Studenti(Classi[i]);
-                }
-            }
-            finally { riempiendo = false; }
             chkVecchie.Text = TestoVecchie();
             chkVecchie.Visible = Vecchie.Count > 0;
             lblNotaVecchie.Text = NotaVecchie();
@@ -1381,7 +1528,8 @@ namespace Campanella
             string di;
             if (madri.Count == 1)
             {
-                Match anno = Regex.Match(madri[0], @"\d{4}-\d{2}");
+                // 2026-27, 2026-2027, 2026/27
+                Match anno = Regex.Match(madri[0], @"\d{4}[-/]\d{2}(\d{2})?");
                 di = anno.Success ? "del " + anno.Value : "di \"" + madri[0] + "\"";
             }
             else di = "di \"" + string.Join("\", \"", madri.ToArray()) + "\"";

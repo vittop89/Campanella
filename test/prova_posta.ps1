@@ -1187,7 +1187,9 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         $colore3B = $r3B.Colore
         $fc2.Classi[$j3B].Oggetto = '3B, III B, terza B'
         $fc2.Classi[(Indice $fc2 '1A')].Spuntata = $false
-        [void](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc2.Madre, $fc2.Classi.PSObject.BaseObject, [bool]$fc2.TogliVecchie))
+        $esito2 = [string](MC 'Applica').Invoke($null, @($s7.PSObject.BaseObject, [string]$fc2.Madre, $fc2.Classi.PSObject.BaseObject, [bool]$fc2.TogliVecchie))
+        Verifica "togliendo una classe l'esito ricorda di cancellare il suo file dal progetto ('$esito2')" (
+            $esito2 -match '1 tolta' -and $esito2 -match 'cancella Classe_1A\.gs')
         $fc2.Dispose()
         $delleClassi = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' })
         $r3B = @($delleClassi | Where-Object { $_.Etichetta -eq 'Classi 2026-27/3B' })[0]
@@ -1234,6 +1236,79 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         $etichette7 = @((Leggi $s7 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta })
         Verifica "con la spunta si tolgono ($($etichette7 -join ', '))" (
             @($etichette7 | Where-Object { $_ -like 'Classi 2026-27/*' }).Count -eq 0 -and $etichette7.Count -eq 4)
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: L''ETICHETTA MADRE SCELTA A MANO'
+        # La madre si puo' cambiare: riaprendo la finestra deve tornare quella
+        # delle regole che ci sono, con le loro parole, e cambiandola nella
+        # finestra le righe devono seguire le regole di quella madre
+        $s10 = NuovoStato
+        Imposta $s10 'Prefisso' ''
+        Imposta $s10 'Anno' '2026-27'
+        Imposta $s10 'Classi' "3B`r`n"
+        $fcM = NuovaFC $s10
+        $fcM.Madre = 'Le mie classi'
+        $iM = Indice $fcM '3B'
+        [void]$fcM.CambiaOggetto($iM, '3B, terza B')
+        [void]$fcM.Aggiungi('2C')
+        [void](MC 'Applica').Invoke($null, @($s10.PSObject.BaseObject, [string]$fcM.Madre, $fcM.Classi.PSObject.BaseObject, $false))
+        $fcM.Dispose()
+        $fcM = NuovaFC $s10
+        $iM = Indice $fcM '3B'
+        Verifica "riaperta, la madre e' quella delle regole ($($fcM.Madre)), con le loro parole, e niente 'anno prima'" (
+            $fcM.Madre -eq 'Le mie classi' -and $fcM.Classi[$iM].Oggetto -eq '3B, terza B' -and $fcM.Vecchie.Count -eq 0 -and
+            (Righe $fcM) -eq '2C+,3B+')
+        [void](MC 'Applica').Invoke($null, @($s10.PSObject.BaseObject, [string]$fcM.Madre, $fcM.Classi.PSObject.BaseObject, $false))
+        $regole10 = @((Leggi $s10 'Regole') | Where-Object { $_.Sorgente -eq 'classe' })
+        Verifica "e ""Usa queste classi"" non fa doppioni ne' perde le parole ($(@($regole10 | ForEach-Object { $_.Etichetta + '=' + ($_.Oggetto -join '|') }) -join ', '))" (
+            $regole10.Count -eq 2 -and @($regole10 | Where-Object { $_.Etichetta -eq 'Le mie classi/3B' -and ($_.Oggetto -join '|') -eq '3B|terza B' }).Count -eq 1)
+        # nella finestra: un'altra madre, poi di nuovo quella; gli indirizzi incollati restano
+        $fcM.Incolla($iM, 'uno@studenti.scuola-esempio.edu.it, due@studenti.scuola-esempio.edu.it')
+        $fcM.Madre = 'Classi 2026-27'
+        $righeAltra = Righe $fcM
+        $fcM.Madre = 'Le mie classi'
+        $iM = Indice $fcM '3B'
+        Verifica "cambiando madre le righe seguono le sue regole ($righeAltra, poi $(Righe $fcM)), e gli indirizzi incollati restano" (
+            $righeAltra -eq '3B+' -and (Righe $fcM) -eq '2C+,3B+' -and $fcM.Classi[$iM].Oggetto -eq '3B, terza B' -and
+            $fcM.Classi[$iM].Indirizzi.Count -eq 2)
+        # un file copiato vale per l'etichetta di allora
+        $fcM.Classi[$iM].Copiato = $true
+        $fcM.Classi[$iM].CopiatoPer = 'Le mie classi/3B'
+        $copiatoPrima = $fcM.CopiatoAdesso($iM)
+        $fcM.Madre = 'Classi 2026-27'
+        $iM2 = Indice $fcM '3B'
+        Verifica "un file copiato per un'altra madre e' da copiare di nuovo" ($copiatoPrima -and -not $fcM.CopiatoAdesso($iM2))
+        Verifica "e chiudendo senza ""Usa queste classi"" la finestra dice che cosa si perde ('$($fcM.DaPerdere())')" (
+            $fcM.DaPerdere() -match 'Classe_3B\.gs' -and $fcM.DaPerdere() -match 'Usa queste classi')
+        $fcM.Dispose()
+        $fcN = NuovaFC $s10
+        Verifica "appena aperta invece non c'e' niente da perdere" ($fcN.DaPerdere() -eq '')
+        $fcN.Dispose()
+        # l'anno con quattro cifre: la madre di un altro anno non e' quella di partenza
+        $scelte4A = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tScelta))
+        $c4A = [Activator]::CreateInstance($tScelta)
+        $c4A.Nome = '4A'
+        $c4A.Oggetto = '4A'
+        $scelte4A.Add($c4A)
+        [void](MC 'Applica').Invoke($null, @($s10.PSObject.BaseObject, 'Classi 2026-2027', $scelte4A.PSObject.BaseObject, $true))
+        Imposta $s10 'Anno' '2027-2028'
+        $fcY = NuovaFC $s10
+        Verifica "l'anno dopo, con l'anno scritto con quattro cifre: madre nuova e 'Togli le regole delle classi del 2026-2027' ($($fcY.TestoVecchie()))" (
+            $fcY.Madre -eq 'Classi 2027-2028' -and $fcY.TestoVecchie() -eq 'Togli le regole delle classi del 2026-2027 (1)')
+        $fcY.Dispose()
+
+        # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: GLI APPUNTI E LA BOZZA'
+        $fcG = NuovaFC $s7
+        $txtI = $tFC.GetField('txtIncolla', $FI).GetValue($fcG)
+        $aiutoI = [string]$tFC.GetField('AiutoIndirizzi', $FS).GetValue($null)
+        Verifica "l'aiuto dice di eliminare il messaggio di Classroom (se no resta una bozza) e della cronologia degli appunti" (
+            $aiutoI -match 'cestino' -and $aiutoI -match 'bozze' -and $aiutoI -match 'Win\+V' -and $aiutoI -match 'trascin')
+        Verifica "la casella degli indirizzi accetta il testo trascinato, che non passa dagli appunti" ($txtI.AllowDrop)
+        $fcG.Trascina('tre@studenti.scuola-esempio.edu.it')
+        Verifica "e il testo trascinato vale come incollato" ($fcG.Classi[0].Indirizzi.Count -eq 1)
+        Verifica "senza un file copiato, chiudendo non tocca gli appunti" (-not $fcG.AppuntiDaSvuotare())
+        $fcG.Dispose()
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA CONFIGURAZIONE E L''IMPRONTA'
