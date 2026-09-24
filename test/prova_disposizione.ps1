@@ -715,6 +715,98 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
 $personale.GetType().GetMethod('Clear').Invoke($personale, @()) | Out-Null
 $tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $false)
 
+# --- Orari, passo 4: i giorni senza lezione e il cambio d'orario ---------------
+# Con un orario vero (il tabellone d'esempio), il tuo nome, giorni senza
+# lezione che contengono anche righe lunghe che non si capiscono, e il cambio
+# d'orario acceso: il riepilogo e' al suo massimo, e la pagina deve stare in
+# piedi lo stesso. Poi la spunta accende e spegne la data, e il bottone delle
+# feste le aggiunge una volta sola.
+Write-Host "`nORARI, PASSO 4: GIORNI SENZA LEZIONE E CAMBIO D'ORARIO" -ForegroundColor Cyan
+$iOrari = -1
+for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Orari') { $iOrari = $k } }
+$orari = $pagine[$iOrari]
+$tPO = $orari.GetType()
+$campiNuovi = @('txtSospensioni', 'chkValidoDal', 'dtValidoDal', 'lblCalRiepilogo')
+$mancanti = @($campiNuovi | Where-Object { $null -eq $tPO.GetField($_, $FIp) })
+Verifica "il passo 4 ha la casella dei giorni senza lezione, la spunta e la data del cambio d'orario$(if ($mancanti.Count) { ' (mancano: ' + ($mancanti -join ', ') + ')' })" (
+    $mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI))
+if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)) {
+    $tX = $asm.GetType('Campanella.Xlsx')
+    $tA = $asm.GetType('Campanella.AnalisiOrario')
+    $fogliProva = $tX.GetMethod('Leggi', $FS).Invoke($null, @([string](Join-Path $radice 'test\tabellone_esempio.csv')))
+    $tPO.GetField('orario', $FIp).SetValue($orari, $tA.GetMethod('Analizza', $FS).Invoke($null, @($fogliProva[0])))
+    $sospProva = @(
+        '# le date della circolare',
+        '01/11 Tutti i Santi',
+        'dal 23/12/2026 al 06/01/2027 Vacanze di Natale',
+        "29/03/2027 Lunedi' dell'Angelo",
+        'una riga lunga che non e'' una data e che il riepilogo deve mostrare senza uscire dal suo spazio, anche se e'' molto lunga',
+        '31/02/2027 Carnevale inventato, con un giorno che non esiste e un nome lungo lungo lungo',
+        'e un''altra ancora') -join "`r`n"
+    foreach ($c in @(@('CalDocente', 'ROSSI'), @('CalNome', 'Orario ROSSI'), @('CalInizio', '2026-09-14'),
+                     @('CalFine', '2027-06-10'), @('CalSospensioni', $sospProva), @('CalValidoDal', '2026-10-05'))) {
+        $tStato.GetField($c[0], $FI).SetValue($stato, [string]$c[1])
+    }
+    $tPO.GetMethod('MostraCalendario', $FIp).Invoke($orari, @()) | Out-Null
+    $metodoVaiA.Invoke($guscio, @([int]$iOrari, [int]3)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $txtSosp = $tPO.GetField('txtSospensioni', $FIp).GetValue($orari)
+    $chkCambio = $tPO.GetField('chkValidoDal', $FIp).GetValue($orari)
+    $dtCambio = $tPO.GetField('dtValidoDal', $FIp).GetValue($orari)
+    $lblRiep = $tPO.GetField('lblCalRiepilogo', $FIp).GetValue($orari)
+    Verifica "la casella va a capo e ha la barra per scorrere, e mostra i giorni salvati" (
+        $txtSosp.Multiline -and $txtSosp.ScrollBars -eq [System.Windows.Forms.ScrollBars]::Vertical -and
+        $txtSosp.Text -eq $sospProva)
+    Verifica "il cambio d'orario salvato: spunta accesa e data del 5 ottobre" (
+        $chkCambio.Checked -and $dtCambio.Enabled -and $dtCambio.Value.ToString('yyyy-MM-dd') -eq '2026-10-05')
+    $testoRiep = ($lblRiep.Text -replace '\s+', ' ')
+    Write-Host "          riepilogo: $testoRiep"
+    Verifica "il riepilogo dice quante serie e quante lezioni saltate" ($lblRiep.Text -match '\d+ serie' -and $lblRiep.Text -match '\d+ lezioni saltate')
+    Verifica "e le righe che non capisce, come avviso" ($lblRiep.Text -match 'non capit' -and [string]$lblRiep.Tag -eq 'avviso')
+    Verifica "e il cambio d'orario con ORARI_5_cambioOrario" ($lblRiep.Text -match 'ORARI_5_cambioOrario')
+    $pannelloOrari = $null
+    foreach ($c in $orari.Controls) {
+        if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannelloOrari = $c }
+    }
+    ControllaPannello $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
+    ControllaAiuti $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
+    if ($Immagini) {
+        $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
+        $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
+        $bmp.Save((Join-Path $cartella '34-Orari-4-giorni-senza-lezione-e-cambio.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
+    }
+    $chkCambio.Checked = $false
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "tolta la spunta, la data si spegne e il cambio non c'e' piu'" (
+        -not $dtCambio.Enabled -and [string]$tStato.GetField('CalValidoDal', $FI).GetValue($stato) -eq '' -and
+        $lblRiep.Text -notmatch 'ORARI_5_cambioOrario')
+    $chkCambio.Checked = $true
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "rimessa, la data si riaccende e torna nelle impostazioni" (
+        $dtCambio.Enabled -and [string]$tStato.GetField('CalValidoDal', $FI).GetValue($stato) -eq '2026-10-05')
+    $btnFeste = $null
+    foreach ($c in $pannelloOrari.Controls) { if ($c -is [System.Windows.Forms.Button] -and $c.Text -eq 'Aggiungi le feste nazionali') { $btnFeste = $c } }
+    Verifica "c'e' il bottone 'Aggiungi le feste nazionali'" ($null -ne $btnFeste)
+    if ($null -ne $btnFeste) {
+        $onClick.Invoke($btnFeste, @([System.EventArgs]::Empty)) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        $dopoFeste = $txtSosp.Text
+        Verifica "il bottone aggiunge in fondo le feste che mancano, e lascia le righe scritte" (
+            $dopoFeste.StartsWith($sospProva) -and $dopoFeste -match '08/12/2026 Immacolata' -and
+            $dopoFeste -match '02/06/2027 Festa della Repubblica' -and
+            ([regex]::Matches($dopoFeste, 'Tutti i Santi')).Count -eq 1 -and
+            [string]$tStato.GetField('CalSospensioni', $FI).GetValue($stato) -eq $dopoFeste)
+        $onClick.Invoke($btnFeste, @([System.EventArgs]::Empty)) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "premuto di nuovo non aggiunge niente" ($txtSosp.Text -eq $dopoFeste)
+        ControllaPannello $pannelloOrari 'Orari / 4 dopo le feste nazionali'
+    }
+    # tutto come prima
+    foreach ($c in @('CalDocente', 'CalNome', 'CalSospensioni', 'CalValidoDal')) { $tStato.GetField($c, $FI).SetValue($stato, '') }
+    $tPO.GetMethod('MostraCalendario', $FIp).Invoke($orari, @()) | Out-Null
+}
+
 if ($Immagini) { Write-Host "`nImmagini in: $cartella" -ForegroundColor Cyan }
 # Dispose senza Close: Close salverebbe le impostazioni, e qui dentro
 # PowerShell "accanto al programma" vuol dire accanto a powershell.exe

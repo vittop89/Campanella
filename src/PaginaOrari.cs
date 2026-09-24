@@ -66,10 +66,15 @@ namespace Campanella
 
         // passo 4
         ComboBox cmbDocente, cmbColore, cmbCosaVedere4;
-        TextBox txtCalNome, txtPrimaOra, txtOreInizio, txtAnteprima4;
-        DateTimePicker dtInizio, dtFine;
+        TextBox txtCalNome, txtPrimaOra, txtOreInizio, txtAnteprima4, txtSospensioni;
+        DateTimePicker dtInizio, dtFine, dtValidoDal;
+        CheckBox chkValidoDal;
         NumericUpDown numMinuti;
         Label lblCalRiepilogo;
+        // quello che sta sotto il riepilogo, che cambia altezza: si sposta con
+        // lui, alla stessa distanza dal suo fondo
+        List<Control> sottoRiepilogo = new List<Control>();
+        List<int> distanzeRiepilogo = new List<int>();
         bool zitto4 = false;
 
         public PaginaOrari(Guscio g) : base(g)
@@ -502,8 +507,8 @@ namespace Campanella
             sb.AppendLine("    Leggi il registro: dice quante email manderebbe e ti mostra la prima.");
             sb.AppendLine("    Google chiede le autorizzazioni per tutto il progetto: con il file");
             sb.AppendLine("    Orari dentro, anche per il Calendario, pure se usi solo le email.");
-            sb.AppendLine("    Il calendario lo toccano soltanto ORARI_4_calendario e");
-            sb.AppendLine("    ORARI_ANNULLA_calendario, e solo se li esegui tu.");
+            sb.AppendLine("    Il calendario lo toccano soltanto ORARI_4_calendario,");
+            sb.AppendLine("    ORARI_5_cambioOrario e ORARI_ANNULLA_calendario, e solo se li esegui tu.");
             sb.AppendLine();
             sb.AppendLine("5.  Scegli  ORARI_2_invia  ed Esegui.");
             sb.AppendLine("    Le email arrivano tutte a te: una per docente.");
@@ -587,10 +592,12 @@ namespace Campanella
                 "Scegli il tuo nome, il nome del calendario e il periodo.",
                 0, y, Tema.Normale, Ruolo.Tenue, "Cosa fa lo script sul calendario",
                 "Mette il tuo orario sul tuo calendario: ogni ora di lezione diventa un evento " +
-                "settimanale, dal primo giorno utile fino alla data di fine.\r\n\r\n" +
+                "settimanale, dal primo giorno utile fino alla data di fine, tranne i giorni " +
+                "senza lezione.\r\n\r\n" +
                 "Se un calendario con quel nome esiste gia' lo usa, altrimenti lo crea.\r\n\r\n" +
                 "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
-                "ORARI_ANNULLA_calendario, senza toccare il resto del calendario.");
+                "ORARI_ANNULLA_calendario, senza toccare il resto del calendario, e " +
+                "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.");
             y += 40;
 
             p.Controls.Add(Tema.Testo1("Il tuo nome, come nel tabellone", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
@@ -671,6 +678,53 @@ namespace Campanella
             p.Controls.Add(cmbColore);
             y += 78;
 
+            // --- i giorni senza lezione -----------------------------------------
+            Tema.RigaAiuto(p, "Giorni senza lezione", 0, y, Tema.Grassetto, Ruolo.Normale,
+                "Giorni senza lezione",
+                "In questi giorni sul calendario non c'e' nessuna lezione: ogni ora di lezione " +
+                "diventa piu' eventi settimanali, uno per ogni tratto di settimane senza " +
+                "interruzioni.\r\n\r\n" +
+                "Una riga per giorno o per periodo, con la data e, se vuoi, il nome:\r\n" +
+                "     01/11/2026 Tutti i Santi\r\n" +
+                "     23/12/2026-06/01/2027 Vacanze di Natale\r\n" +
+                "     dal 23/12/2026 al 06/01/2027 Vacanze\r\n\r\n" +
+                "Vanno bene anche 1/11/26 e 2026-11-01. L'anno si puo' non scrivere (01/11, " +
+                "23/12-06/01): lo prendo dal periodo, da settembre a dicembre il primo anno, da " +
+                "gennaio in poi il secondo. Le righe che cominciano con # sono note e non " +
+                "contano.\r\n\r\n" +
+                "\"Aggiungi le feste nazionali\" mette in fondo quelle del periodo che mancano, " +
+                "Pasqua e Pasquetta comprese.");
+            txtSospensioni = Tema.CasellaMulti(0, y + 24, 620, 100, "01/11/2026 Tutti i Santi");
+            txtSospensioni.TextChanged += delegate { if (!zitto4) AggiornaCalendario(); };
+            p.Controls.Add(txtSospensioni);
+            p.Controls.Add(Tema.Bottone("Aggiungi le feste nazionali", 640, y + 24, 240,
+                delegate { AggiungiFeste(); }));
+            p.Controls.Add(Tema.Testo1(
+                "Vacanze, patrono e ponti: copiali dalla circolare sul calendario scolastico della " +
+                "regione e della scuola.", 640, y + 62, 240, Tema.Piccolo, Ruolo.Tenue));
+            y += 24 + 100 + 14;
+
+            // --- il cambio d'orario --------------------------------------------
+            chkValidoDal = Tema.Spunta("L'orario e' cambiato: il nuovo vale dal", 0, y + 3, Ruolo.Normale);
+            chkValidoDal.CheckedChanged += delegate
+            {
+                dtValidoDal.Enabled = chkValidoDal.Checked;
+                if (!zitto4) AggiornaCalendario();
+            };
+            p.Controls.Add(chkValidoDal);
+            int xCambio = chkValidoDal.PreferredSize.Width + 8;
+            dtValidoDal = new DateTimePicker();
+            dtValidoDal.Location = new Point(xCambio, y);
+            dtValidoDal.Width = 150;
+            dtValidoDal.Format = DateTimePickerFormat.Short;
+            dtValidoDal.Font = Tema.Normale;
+            dtValidoDal.Enabled = false;
+            dtValidoDal.ValueChanged += delegate { if (!zitto4) AggiornaCalendario(); };
+            p.Controls.Add(dtValidoDal);
+            p.Controls.Add(Tema.Testo1("Le settimane prima restano come sono. Poi esegui ORARI_5_cambioOrario.",
+                                       xCambio + 162, y + 4, 880 - xCambio - 162, Tema.Piccolo, Ruolo.Tenue));
+            y += 44;
+
             lblCalRiepilogo = Tema.Testo1("", 0, y, 880, Tema.Grassetto, Ruolo.Normale);
             lblCalRiepilogo.Height = 44;
             p.Controls.Add(lblCalRiepilogo);
@@ -690,22 +744,56 @@ namespace Campanella
             cmbCosaVedere4.SelectedIndexChanged += delegate { AggiornaCalendario(); };
             p.Controls.Add(cmbCosaVedere4);
 
-            p.Controls.Add(Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
+            Button copia4 = Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
             {
                 Guscio.Copia(cmbCosaVedere4.SelectedIndex == 0 ? DatiOrari() : IstruzioniCalendario(), "Copiato.");
-            }));
-            p.Controls.Add(Tema.Bottone("Salva su file...", 542, y, 130,
-                delegate { SalvaSuFile(cmbCosaVedere4.SelectedIndex == 0 ? 1 : 3); }));
-            p.Controls.Add(Tema.Bottone("Apri Google Calendar", 682, y, 198,
-                delegate { Guscio.Apri("https://calendar.google.com/"); }));
+            });
+            p.Controls.Add(copia4);
+            Button salva4 = Tema.Bottone("Salva su file...", 542, y, 130,
+                delegate { SalvaSuFile(cmbCosaVedere4.SelectedIndex == 0 ? 1 : 3); });
+            p.Controls.Add(salva4);
+            Button apri4 = Tema.Bottone("Apri Google Calendar", 682, y, 198,
+                delegate { Guscio.Apri("https://calendar.google.com/"); });
+            p.Controls.Add(apri4);
             y += 40;
 
             txtAnteprima4 = Tema.Registro(0, y, 880, 260, false);
             txtAnteprima4.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             p.Controls.Add(txtAnteprima4);
 
+            foreach (Control c in new Control[] { cmbCosaVedere4, copia4, salva4, apri4, txtAnteprima4 })
+            {
+                sottoRiepilogo.Add(c);
+                distanzeRiepilogo.Add(c.Top - lblCalRiepilogo.Bottom);
+            }
+
             MostraCalendario();
             return p;
+        }
+
+        /// <summary>Il riepilogo alto quanto il suo testo, e quello che sta sotto alla stessa distanza.</summary>
+        void DisponiRiepilogo()
+        {
+            lblCalRiepilogo.Height = Math.Max(44, Tema.AltezzaTesto(lblCalRiepilogo.Text, lblCalRiepilogo.Font,
+                                                                   lblCalRiepilogo.Width));
+            for (int i = 0; i < sottoRiepilogo.Count; i++)
+                sottoRiepilogo[i].Top = lblCalRiepilogo.Bottom + distanzeRiepilogo[i];
+        }
+
+        /// <summary>"Aggiungi le feste nazionali": in fondo, quelle del periodo che nessuna riga copre.</summary>
+        void AggiungiFeste()
+        {
+            int aggiunte;
+            string testo = Calendario.ConFeste(txtSospensioni.Text, dtInizio.Value.Date, dtFine.Value.Date, out aggiunte);
+            if (aggiunte == 0)
+            {
+                Guscio.Stato1("Le feste nazionali del periodo ci sono gia' tutte.");
+                return;
+            }
+            txtSospensioni.Text = testo;
+            txtSospensioni.SelectionStart = txtSospensioni.TextLength;
+            txtSospensioni.ScrollToCaret();
+            Guscio.Stato1(aggiunte == 1 ? "Aggiunta una festa nazionale." : "Aggiunte " + aggiunte + " feste nazionali.");
         }
 
         void MostraCalendario()
@@ -723,6 +811,12 @@ namespace Campanella
             cmbColore.SelectedIndex = 0;
             for (int i = 0; i < Colori.GetLength(0); i++)
                 if (Colori[i, 1] == S.CalColore) { cmbColore.SelectedIndex = i; break; }
+            txtSospensioni.Text = S.CalSospensioni;
+            DateTime cambio;
+            bool conCambio = LeggiData(S.CalValidoDal, out cambio);
+            chkValidoDal.Checked = conCambio;
+            dtValidoDal.Value = conCambio ? cambio : DateTime.Today;
+            dtValidoDal.Enabled = conCambio;
             zitto4 = false;
         }
 
@@ -738,7 +832,13 @@ namespace Campanella
             S.CalOreInizio = txtOreInizio.Text.Trim();
             int c = cmbColore.SelectedIndex;
             S.CalColore = (c >= 0 && c < Colori.GetLength(0)) ? Colori[c, 1] : "";
+            S.CalSospensioni = txtSospensioni.Text;
+            // spunta tolta = nessun cambio d'orario
+            S.CalValidoDal = chkValidoDal.Checked
+                ? dtValidoDal.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
         }
+
+        static string Giorno(DateTime d) { return d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture); }
 
         static bool LeggiData(string s, out DateTime d)
         {
@@ -791,18 +891,53 @@ namespace Campanella
             }
             else
             {
+                DateTime inizio = dtInizio.Value.Date, fine = dtFine.Value.Date;
                 List<BloccoOrario> blocchi = AnalisiOrario.Blocchi(orario.GrigliaDocente(docente), orario);
                 List<string> inizi = AnalisiOrario.InizioOre(S.CalOreInizio, S.CalPrimaOra, S.CalMinutiOra,
                                                              orario.OrePerGiorno);
-                int settimane = (int)Math.Floor((dtFine.Value.Date - dtInizio.Value.Date).TotalDays / 7) + 1;
-                lblCalRiepilogo.Text =
-                    docente + ": " + orario.OreDi(docente) + " ore la settimana in " + blocchi.Count +
-                    " blocchi, quindi " + blocchi.Count + " eventi settimanali nel calendario \"" +
-                    (S.CalNome != "" ? S.CalNome : "Orario " + docente) + "\" per circa " + settimane +
-                    " settimane.\nOre: " + string.Join("  ", inizi.ToArray()) + "  (durata " +
-                    S.CalMinutiOra + " minuti).";
-                lblCalRiepilogo.Tag = Ruolo.Buono;
+                List<string> nonCapite;
+                List<Sospensione> sospensioni = Calendario.Leggi(S.CalSospensioni, inizio, out nonCapite);
+                PianoCalendario piano = Calendario.Piano(blocchi, orario.IndiciGiorni, inizio, fine, sospensioni);
+                string ruolo = Ruolo.Buono;
+
+                StringBuilder r = new StringBuilder();
+                r.Append(docente + ": " + orario.OreDi(docente) + " ore la settimana in " + blocchi.Count +
+                         " blocchi, quindi " + piano.Serie.Count + " serie settimanali nel calendario \"" +
+                         (S.CalNome != "" ? S.CalNome : "Orario " + docente) + "\".");
+                r.Append("\nDal " + Giorno(inizio) + " al " + Giorno(fine) + ": " + piano.Lezioni + " lezioni");
+                if (sospensioni.Count == 0) r.Append(", nessun giorno senza lezione.");
+                else r.Append("; " + piano.Saltate + " lezioni saltate per " + sospensioni.Count +
+                              (sospensioni.Count == 1 ? " giorno o periodo" : " giorni o periodi") + " senza lezione.");
+                if (S.CalValidoDal != "")
+                {
+                    DateTime cambio = dtValidoDal.Value.Date;
+                    if (cambio > fine)
+                    {
+                        r.Append("\nIl cambio d'orario (" + Giorno(cambio) + ") viene dopo la fine del periodo: " +
+                                 "sposta la data, o togli la spunta.");
+                        ruolo = Ruolo.Avviso;
+                    }
+                    else
+                    {
+                        PianoCalendario dopo = Calendario.Piano(blocchi, orario.IndiciGiorni,
+                                                                cambio > inizio ? cambio : inizio, fine, sospensioni);
+                        r.Append("\nCambio d'orario dal " + Giorno(cambio) + ": " + dopo.Serie.Count +
+                                 " serie nuove da quel giorno con ORARI_5_cambioOrario" +
+                                 (cambio > inizio ? "; le settimane prima restano." : ", cioe' da tutto il periodo."));
+                    }
+                }
+                r.Append("\nOre: " + string.Join("  ", inizi.ToArray()) + "  (durata " + S.CalMinutiOra + " minuti).");
+                if (nonCapite.Count > 0)
+                {
+                    string esempio = nonCapite[0].Length > 40 ? nonCapite[0].Substring(0, 37) + "..." : nonCapite[0];
+                    r.Append("\nRighe dei giorni senza lezione non capite: " + nonCapite.Count + ", come \"" + esempio +
+                             "\". Scrivi una data per riga, per esempio 01/11/2026.");
+                    ruolo = Ruolo.Avviso;
+                }
+                lblCalRiepilogo.Text = r.ToString();
+                lblCalRiepilogo.Tag = ruolo;
             }
+            DisponiRiepilogo();
             Tema.Applica(lblCalRiepilogo);
 
             if (txtAnteprima4 != null)
@@ -835,19 +970,51 @@ namespace Campanella
             sb.AppendLine("    funzione qualsiasi, anche solo per le email: se l'hai gia' dato, qui");
             sb.AppendLine("    non ti chiede niente. Se te lo chiede adesso, e' come per la posta:");
             sb.AppendLine("    Avanzate -> Apri ... (non sicura) -> Consenti.");
+            sb.AppendLine("    Con tante lezioni ci mette qualche minuto. Se finisce il tempo di");
+            sb.AppendLine("    un'esecuzione, o se Google chiede di rallentare, si ferma e riprende");
+            sb.AppendLine("    da solo dopo un minuto, da dove era arrivato: non devi fare niente.");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
             sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");
             sb.AppendLine("    anche dal telefono.");
             sb.AppendLine();
+            sb.AppendLine("GIORNI SENZA LEZIONE");
+            sb.AppendLine("--------------------");
+            sb.AppendLine("Nei giorni scritti qui sopra in \"Giorni senza lezione\" sul calendario");
+            sb.AppendLine("non c'e' nessuna lezione. Una riga per giorno o per periodo:");
+            sb.AppendLine("    01/11/2026 Tutti i Santi");
+            sb.AppendLine("    23/12/2026-06/01/2027 Vacanze di Natale");
+            sb.AppendLine("    dal 23/12/2026 al 06/01/2027 Vacanze");
+            sb.AppendLine("\"Aggiungi le feste nazionali\" mette quelle del periodo, Pasqua e");
+            sb.AppendLine("Pasquetta comprese. Vacanze, patrono e ponti copiali dalla circolare sul");
+            sb.AppendLine("calendario scolastico della regione e della scuola. Ogni ora di lezione");
+            sb.AppendLine("diventa piu' eventi settimanali, uno per ogni tratto di settimane senza");
+            sb.AppendLine("interruzioni: quanti, te lo dice ORARI_1_anteprima (e il riepilogo qui");
+            sb.AppendLine("sopra). Un giorno senza lezione aggiunto dopo aver messo l'orario: spunta");
+            sb.AppendLine("\"L'orario e' cambiato\" con la data da cui vale e usa ORARI_5_cambioOrario,");
+            sb.AppendLine("anche se l'orario e' lo stesso.");
+            sb.AppendLine();
             sb.AppendLine("SE L'ORARIO CAMBIA");
             sb.AppendLine("------------------");
-            sb.AppendLine("Esegui  ORARI_ANNULLA_calendario  (toglie solo gli eventi messi da qui,");
-            sb.AppendLine("nel periodo indicato), poi rigenera i dati con il nuovo tabellone e");
-            sb.AppendLine("riesegui  ORARI_4_calendario. Il calendario e gli altri eventi non");
-            sb.AppendLine("vengono toccati; il calendario, se non ti serve piu', lo cancelli tu");
-            sb.AppendLine("da Google Calendar. Se riesegui  ORARI_4_calendario  senza annullare,");
-            sb.AppendLine("si ferma e te lo dice: non mette le lezioni due volte.");
+            sb.AppendLine("1.  Carica il nuovo tabellone al passo 1. Qui sopra spunta \"L'orario e'");
+            sb.AppendLine("    cambiato: il nuovo vale dal\" e scegli il primo giorno dell'orario nuovo.");
+            sb.AppendLine();
+            sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (voce 1 del menu) e incollali nel file");
+            sb.AppendLine("    DatiOrari, al posto di quello che c'era. Salva.");
+            sb.AppendLine();
+            sb.AppendLine("3.  Esegui  ORARI_5_cambioOrario. Le serie dell'orario di prima finiscono");
+            sb.AppendLine("    il giorno prima: le settimane passate restano come sono. Quelle che");
+            sb.AppendLine("    cominciavano dopo si tolgono, e da quel giorno c'e' l'orario nuovo.");
+            sb.AppendLine("    Rieseguita con la stessa data da' lo stesso risultato, e anche lei");
+            sb.AppendLine("    riprende da sola se si ferma. Le modifiche fatte a mano su singole");
+            sb.AppendLine("    lezioni delle serie accorciate potrebbero non restare: dai un'occhiata.");
+            sb.AppendLine();
+            sb.AppendLine("ORARI_ANNULLA_calendario  resta per togliere tutto: solo gli eventi messi");
+            sb.AppendLine("da qui, nel periodo indicato; il calendario e gli altri eventi non vengono");
+            sb.AppendLine("toccati (il calendario, se non ti serve piu', lo cancelli tu da Google");
+            sb.AppendLine("Calendar). Dopo, ORARI_4_calendario rimette l'orario da capo. Se riesegui");
+            sb.AppendLine("ORARI_4_calendario  sopra un orario gia' messo, si ferma e te lo dice:");
+            sb.AppendLine("non mette le lezioni due volte.");
             sb.AppendLine();
             sb.AppendLine("COME VENGONO GLI EVENTI");
             sb.AppendLine("-----------------------");
