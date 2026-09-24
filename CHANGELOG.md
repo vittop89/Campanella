@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.6.0 — (data da definire)
+
+Scripts to paste again: Organizzazione_Gmail.gs; copy Configurazione.gs again.
+With the new class labels, also paste the Classe_*.gs file of each class,
+copied from "Le mie classi...".
+
+**Posta: a label for each of your classes**
+
+- Step 4 has "Le mie classi...": one rule per class, with a label such as
+  "Classi 2026-27/3B" under a parent label ("Classi" and the school year,
+  editable). A message gets it if either holds: the class is in the subject,
+  whoever sent it (management's "Consiglio di classe 3B", colleagues,
+  Classroom notifications like "3B Matematica: ...", families), or the
+  sender is a student of that class. Class labels add to the others:
+  Studenti, Colleghi and the rest stay.
+- The classes come from the timetable (your lessons, without the "a
+  disposizione" hours: Orari, the timetable file and your name in step 4)
+  and from the classes written in Cartelle; others are added by hand. 3B,
+  3 B and 3^B are the same class. "Cerca nell'oggetto" starts from 3B, "3 B"
+  and III B (Gmail searches whole words; 3B LSA gets the same ones; a code
+  that is not number and section, such as A5, stays as it is) and can be
+  edited, comma separated. Whether Gmail's "3 B" also matches 3^B and 3°B is
+  to be checked with the preview.
+- Students' addresses are pasted in the window, for example from Classroom
+  (course -> People -> tick above the students -> Actions -> Email: Gmail
+  opens a message with every address in the To field, to copy) or from the
+  class's Google group. Only email addresses are taken, also in the form
+  Name Surname <address>, lower case, once each; the staff's addresses (step
+  3, management, secretariat) are removed and counted, and more than 40
+  trigger a warning ("sembra piu' di una classe"). They are data of minors,
+  and Campanella does not keep them anywhere: not in campanella.json, not in
+  the data file, not in the rules, not in Configurazione.gs. The window
+  copies (outside the clipboard history, never to a file) a separate script
+  file, Classe_3B.gs, to paste into the Apps Script project next to
+  Configurazione.gs; once the window is closed the addresses are gone, and
+  reopening it says so. The rule holds only the placeholder @CLASSE:3B@.
+  Without that file the rule still labels the messages with the class in
+  the subject.
+- "Usa queste classi" creates or updates one rule per ticked class (at the
+  end of the list, in shades of one colour that no other rule uses, each
+  class its own) and removes the rule of an unticked class. In a new school
+  year it offers, unticked, to remove last year's class rules, and reminds
+  you to delete their Classe_*.gs files and, if you created them, their
+  Gmail filters. Labels in Gmail are never deleted.
+- The rule window ("Modifica") has "Basta uno dei due: l'oggetto oppure i
+  mittenti", the option behind the class rules (unoQualsiasi in
+  Configurazione.gs, written only when on: without classes the
+  configuration and its fingerprint do not change); for a class rule it
+  shows the placeholder instead of the senders.
+- The script: a rule with unoQualsiasi and both senders and text searches
+  the text from anyone and, separately, the senders in groups of 20 with any
+  text; recipients, attachment, advanced search, excluded labels and period
+  apply to all of them, and native Gmail filters follow (one for the text,
+  one per group of senders). @CLASSE:3B@ becomes the students of
+  Classe_3B.gs, none without the file. PASSO_1_anteprima says how many
+  addresses each class file has (never which ones), or that the file is
+  missing. A conversation found by two searches of the same rule now counts
+  once in the trial reorder and in the hourly sorting too, even when
+  Gmail's index lags. A rejected search of a class rule is logged without
+  addresses.
+- In "Filtri che hai gia' in Gmail..." class filters never start ticked,
+  and those with students' addresses cannot be ticked (they would bring the
+  addresses into Campanella and into Configurazione.gs): remove them in
+  Gmail.
+- The settings files move to format 3, so 1.5.3 does not overwrite them: it
+  would drop unoQualsiasi, and a class rule would silently want the subject
+  AND the students.
+
 ## 1.5.3 — 24 September 2026
 
 Scripts to paste again: Organizzazione_Gmail.gs (and copy Configurazione.gs

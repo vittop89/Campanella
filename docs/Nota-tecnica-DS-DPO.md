@@ -32,6 +32,10 @@ Quattro funzioni, tutte facoltative e indipendenti:
 1. **Posta** — crea in Gmail delle etichette (Dirigenza, Segreteria, Circolari,
    Colleghi, Studenti, Ministero, Sindacati, Newsletter…) e le applica ai
    messaggi già ricevuti e a quelli futuri, per riordinare la casella.
+   Facoltativamente, un'etichetta per ogni classe del docente (per esempio
+   «Classi 2026-27/3B»), per i messaggi con la classe nell'oggetto o mandati
+   dagli studenti della classe, i cui indirizzi il docente incolla nel
+   progetto dello script (punto 3).
    Con lo stesso elenco del personale, «Scrivere a un gruppo» aiuta a
    scrivere a una categoria di colleghi (per esempio gli assistenti
    amministrativi): copia i loro indirizzi negli appunti e apre in Gmail un
@@ -113,7 +117,9 @@ Quattro funzioni, tutte facoltative e indipendenti:
   reindirizzamenti.
 - **Non crea trattamenti nuovi**: i dati sono quelli già presenti
   nell'account istituzionale del docente (mittenti, oggetti, etichette) e il
-  tabellone orario già distribuito dalla scuola.
+  tabellone orario già distribuito dalla scuola; per le etichette delle
+  classi, se il docente le usa, gli indirizzi degli studenti delle sue
+  classi, che ha già nel corso di Classroom o nei gruppi della scuola.
 
 ## 3. Dati personali coinvolti e dove risiedono
 
@@ -123,6 +129,7 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Indirizzi di dirigenza e segreteria | pubblici nel sito della scuola | come sopra | solo il docente |
 | Etichette applicate ai messaggi | generate dallo script | nell'account Gmail del docente | solo il docente |
 | Filtri di Gmail che il docente sceglie di togliere (etichetta e criteri, che possono contenere indirizzi) | l'esportazione dei filtri che il docente scarica da Gmail e apre in Campanella; il file resta dove il docente l'ha salvato, e Campanella dice che si può cancellare dopo averlo aperto | solo i filtri scelti, nel file dei dati di Campanella insieme all'elenco del personale (sul computer o nel Drive istituzionale, come sopra) e nel file di configurazione dello script; prima di togliere un filtro, lo script ne scrive una copia nel registro delle esecuzioni e, se il riepilogo è attivo, nell'email al docente stesso; nelle proprietà dello script resta solo un'impronta numerica dei filtri tolti, senza indirizzi né parole | solo il docente |
+| Indirizzi email degli studenti delle classi del docente (facoltativi, per le etichette delle classi) | incollati dal docente in Campanella, per esempio dall'elenco del corso in Classroom; Campanella toglie quelli del personale | solo nel file `Classe_….gs` di ogni classe, nel progetto Apps Script del docente (account istituzionale), dove servono allo smistamento. Campanella non li conserva: non sono nel file delle impostazioni, nel file dei dati né nel file di configurazione dello script, dove la regola ha solo un segnaposto; dal programma passano per gli appunti di Windows, esclusi dalla cronologia, e non vengono mai scritti su un file del computer. Lo script non li scrive nel registro delle esecuzioni né nei riepiloghi (al più quanti sono). Se il docente crea i filtri nativi di Gmail (passo facoltativo), quelli degli studenti li contengono, nelle impostazioni di Gmail. Per toglierli si cancella il file (e, se ci sono, quei filtri) | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar, con il cognome scelto nella descrizione | solo il docente |
 | Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne legge solo il numero e l'ora di arrivo (per ritrovarle nei fogli degli anni scorsi prima di un eventuale svuotamento) e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
 | Testi e file dati alla funzione Privacy | scelti dal docente | elaborati sul computer, senza rete, da rizzo-pii raggiunto solo a un indirizzo locale; le copie anonimizzate dove il docente le salva, mai sopra gli originali | solo il docente |
@@ -259,7 +266,8 @@ eseguendo lo script il [data].]*
   l'installer), e si collega alla rete solo nei casi descritti al punto 2.
 - Le **condizioni d'uso** che l'utente accetta all'installazione o al primo
   avvio (e di nuovo quando cambiano) ricordano che il titolare dei dati è la
-  scuola, che i dati degli studenti restano fuori dal computer, e che i testi
+  scuola, che i dati particolari degli studenti (certificazioni, PDP e PEI,
+  relazioni) restano fuori dal computer, e che i testi
   dati a un'IA vanno prima anonimizzati. Descrivono anche il foglio di
   controllo dei moduli, con il permesso su tutti i moduli dell'account e le
   chiusure che scattano da sole, e dicono che anche lo script dentro il
@@ -287,7 +295,9 @@ eseguendo lo script il [data].]*
    scollegano i fogli dell'anno, che restano nel Drive.
 4. Eliminare il progetto Apps Script della posta dal Drive e revocare
    l'accesso da https://myaccount.google.com/permissions, anche quello
-   concesso agli script dei moduli.
+   concesso agli script dei moduli. Con il progetto spariscono anche i file
+   `Classe_….gs` con gli indirizzi degli studenti; per toglierli prima basta
+   cancellare quei file.
 5. Disinstallare Campanella dalle Impostazioni di Windows (App installate) e,
    se si vuole, cancellare il file dei dati (`campanella-dati.json`) dalla
    cartella del Drive.

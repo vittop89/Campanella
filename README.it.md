@@ -8,7 +8,7 @@ runtime da installare.
 
 | Strumento | Cosa fa |
 |-----------|---------|
-| **Posta** | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura, con i colori che scegli |
+| **Posta** | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura, con i colori che scegli; se vuoi, un'etichetta per ogni tua classe |
 | **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico e ci copia i modelli; per i moduli Google, che dal PC non si possono copiare, scrive lo script che ogni anno dà al modulo il suo foglio delle risposte |
 | **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar |
 | **Privacy** | le regole su dati della scuola e IA, gli strumenti per togliere i dati personali prima di darli a un assistente, e i documenti per dirigenza e DPO |
@@ -256,6 +256,12 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   una copia nel registro per rifarli a mano.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
+- Le etichette delle classi, facoltative, usano anche gli indirizzi email dei
+  tuoi studenti, che incolli in Campanella: Campanella non li salva (né nelle
+  impostazioni, né nel file dei dati, né in Configurazione.gs, né in un file
+  del computer). Esistono solo nel file `Classe_*.gs` che incolli nel tuo
+  progetto Apps Script, e lo script scrive nel registro quanti sono, mai
+  quali. Cancellando quel file spariscono.
 - Ogni script ha le sue funzioni per annullare (`ANNULLA_…`, `MODULO_ANNULLA`,
   `PANNELLO_ANNULLA`). Senza gruppo per le etichette, `ANNULLA_etichettatura`
   toglie solo le etichette che lo script ha creato, e dice "NIENTE DA

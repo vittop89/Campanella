@@ -24,6 +24,7 @@ programma: è quello che finisce per sbaglio dentro al repository.
 | qualunque `.xlsx` di orario | come sopra |
 | `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
 | `mailFilters.xml` (i filtri esportati da Gmail) | i filtri veri di un account, con gli indirizzi e le parole che cercano. Le prove usano `test/filtri_gmail_esempio.xml`, inventato. |
+| `Classe_*.gs` (Posta, passo 4, «Le mie classi…») | gli indirizzi degli studenti di una classe. Campanella li copia solo negli appunti, per il progetto dello script: se li salvi in un file, fuori dal repository. |
 | `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
 
 Il `.gitignore` del progetto li esclude già tutti. Prima di ogni `push`
@@ -119,6 +120,23 @@ di togliere ognuno dei filtri che hai scelto, ne scrive nel registro una
 copia completa, criteri compresi (anche indirizzi): serve a rifarlo a mano.
 Con il riepilogo acceso la stessa copia ti arriva per email. Toglie solo
 quei filtri; gli altri, le etichette e i messaggi restano.
+
+**Gli indirizzi degli studenti delle tue classi.** Le etichette delle classi
+(Posta, passo 4, «Le mie classi…», facoltative) prendono anche i messaggi
+mandati dagli studenti di una classe. I loro indirizzi li incolli tu nella
+finestra, per esempio dall'elenco del corso in Classroom: sono dati di minori,
+e Campanella non li conserva. Restano in memoria finché la finestra è aperta
+(Campanella toglie quelli del personale) e non vanno né in `campanella.json`,
+né nel file dei dati nel Drive, né nelle regole, né in `Configurazione.gs`,
+dove la regola ha solo un segnaposto (`@CLASSE:3B@`). Esistono solo nel file
+`Classe_3B.gs` che copi dalla finestra (fuori dalla cronologia degli appunti,
+mai su un file del computer) e incolli nel progetto Apps Script del tuo
+account della scuola, dove servono allo smistamento. Lo script non li scrive
+nel registro né nei riepiloghi: l'anteprima dice solo quanti sono. Per
+toglierli si cancella quel file dal progetto; a fine anno toglili, e togli le
+classi. I filtri veri di Gmail che lo script crea per gli studenti di una
+classe li contengono anch'essi, nelle impostazioni di Gmail: si tolgono da
+Gmail.
 
 **I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
 2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio
