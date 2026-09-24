@@ -454,7 +454,10 @@ ORARI - le email a te e il calendario
    (07/12/2026 ponte 7-8 e' solo il 7 dicembre: per due giorni scrivi
    7-8/12/2026), o di un giorno solo con una fine o una durata nel motivo
    (23/12/2026 Vacanze fino all'Epifania, 07/12/2026 ponte di 2 giorni),
-   la mette come l'ha letta. Correggile; il riepilogo dice quante sono.
+   o che sembra l'inizio o la fine di un periodo, o un giorno di lezione
+   (23/12/2026 Vacanze natalizie e' solo il 23; 14/09/2026 Inizio delle
+   lezioni e 07/01/2027 Ripresa delle lezioni non vanno scritte qui), la
+   mette come l'ha letta. Correggile; il riepilogo dice quante sono.
    Servono le chiusure della scuola; quello che scrivi segue i dati di
    altre persone (con i dati nel Drive non resta sul computer).
    "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e

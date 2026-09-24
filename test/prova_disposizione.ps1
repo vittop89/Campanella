@@ -899,6 +899,15 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
             $ultima -match '^riga 8: dal lun 07/12/2026 al lun 07/12/2026 \(1 giorno\) ponte 7-8   <- nel motivo c''e'' un numero' -and
             $lstLette.Items[$lstLette.Items.Count - 1].DaGuardare)
         Verifica "e il riepilogo lo dice in ambra" ($lblRiep.Text -match 'un numero' -and [string]$lblRiep.Tag -eq 'avviso')
+        # un giorno che sembra l'inizio di un periodo: in ambra anche lui, e il riepilogo lo conta
+        $txtSosp.Text = $sospProva + "`r`n07/12/2026 ponte 7-8`r`n23/12/2026 Vacanze natalizie"
+        [System.Windows.Forms.Application]::DoEvents()
+        $ultima = [string]$lstLette.Items[$lstLette.Items.Count - 1]
+        Verifica "un giorno solo che sembra l'inizio di un periodo e' da guardare ('$ultima'), e il riepilogo conta le due righe" (
+            $ultima -match "^riga 9: dal mer 23/12/2026 al mer 23/12/2026 \(1 giorno\) Vacanze natalizie   <- sembra l'inizio o la fine di un periodo" -and
+            $lstLette.Items[$lstLette.Items.Count - 1].DaGuardare -and ($lblRiep.Text -replace '\s+', ' ') -match '2 righe hanno nel motivo' -and
+            ($lblRiep.Text -replace '\s+', ' ') -match "l'inizio o la fine di un periodo scritti come un giorno solo" -and
+            [string]$lblRiep.Tag -eq 'avviso')
         # scrivendo in fondo, la lista scorre fino alla riga che si sta scrivendo
         $txtSosp.SelectionStart = $txtSosp.TextLength
         $tPO.GetMethod('AggiornaCalendario', $FIp).Invoke($orari, @()) | Out-Null

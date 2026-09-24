@@ -155,6 +155,14 @@ namespace Campanella
         static readonly Regex GiorniNelNome = new Regex(@"(?<![0-9.,])([0-9]{1,3})\s*(?:giorni|gg)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+        // nel nome l'inizio o la fine di un periodo, o un giorno di lezione: "Inizio
+        // delle lezioni", "Vacanze natalizie", "fine vacanze", "Ripresa delle
+        // lezioni", "Rientro dalle vacanze". In una riga di un giorno solo non e'
+        // un giorno senza lezione: e' un confine scritto al posto del periodo
+        static readonly Regex ConfineNelNome = new Regex(
+            @"(?<!\p{L})(?:vacanz\p{L}*|inizio|iniziano|termine|terminano|fine|ripresa|riprendono|rientro)(?!\p{L})",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
         // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web
         static readonly Regex ACapo = new Regex("\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]");
 
@@ -171,6 +179,17 @@ namespace Campanella
         /// </summary>
         public const string AvvisoDurata = "nel motivo c'e' una fine o una durata che non torna con le date: " +
                                            "per un periodo scrivi anche la fine, come 23/12/2026-06/01/2027";
+
+        /// <summary>
+        /// L'avviso di una riga di un giorno solo che nel nome parla del
+        /// confine di un periodo o di un giorno di lezione ("Inizio delle
+        /// lezioni", "Vacanze natalizie", "fine vacanze", "Rientro dalle
+        /// vacanze"): di solito il primo o l'ultimo giorno scritto al posto del
+        /// periodo, o un giorno in cui si fa lezione.
+        /// </summary>
+        public const string AvvisoConfine = "sembra l'inizio o la fine di un periodo, o un giorno di lezione: per un " +
+                                            "periodo scrivi anche la fine (23/12/2026-06/01/2027); i giorni di " +
+                                            "lezione non vanno qui";
 
         // ===================================================================
         //  LE RIGHE SCRITTE DAL DOCENTE
@@ -215,7 +234,10 @@ namespace Campanella
         /// ("07/12/2026 ponte 7-8", "8.12") non ferma la riga, ma le da' un
         /// Avviso: la pagina la mostra da controllare. Lo stesso, in una riga di
         /// un giorno solo, la fine di un periodo a parole ("fino all'Epifania"),
-        /// e una durata che non torna con le date ("di 2 giorni", "2gg").
+        /// e una durata che non torna con le date ("di 2 giorni", "2gg"). E una
+        /// riga di un giorno solo che parla del confine di un periodo o di un
+        /// giorno di lezione ("23/12/2026 Vacanze natalizie", "14/09/2026 Inizio
+        /// delle lezioni", "07/01/2027 Ripresa delle lezioni").
         /// </summary>
         public static List<RigaLetta> LeggiRighe(string testo, DateTime inizioPeriodo)
         {
@@ -331,6 +353,10 @@ namespace Campanella
                 foreach (Match n in GiorniNelNome.Matches(nome))
                     if (int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture) != durata) r.Avviso = AvvisoDurata;
             }
+            // un giorno solo che parla del confine di un periodo o di un giorno di
+            // lezione: "23/12/2026 Vacanze natalizie" e' solo il 23, "14/09/2026
+            // Inizio delle lezioni" un giorno di lezione
+            if (r.Avviso == "" && dal.Date == al.Date && ConfineNelNome.IsMatch(nome)) r.Avviso = AvvisoConfine;
         }
 
         /// <summary>

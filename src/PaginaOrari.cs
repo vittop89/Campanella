@@ -704,7 +704,10 @@ namespace Campanella
                 "che i periodi siano quelli giusti. In ambra quelle non capite, quelle fuori dal " +
                 "periodo e quelle con un numero nel motivo che potrebbe essere un giorno: \"07/12/2026 " +
                 "ponte 7-8\" e' solo il 7 dicembre, per due giorni scrivi 7-8/12/2026. Anche un giorno " +
-                "solo con una fine o una durata nel motivo (\"fino all'Epifania\", \"di 2 giorni\").\r\n\r\n" +
+                "solo con una fine o una durata nel motivo (\"fino all'Epifania\", \"di 2 giorni\"), o " +
+                "che sembra l'inizio o la fine di un periodo, o un giorno di lezione (\"23/12/2026 Vacanze " +
+                "natalizie\" e' solo il 23; \"Inizio delle lezioni\" o \"Ripresa delle lezioni\" non vanno " +
+                "qui).\r\n\r\n" +
                 "\"Aggiungi le feste nazionali\" mette in fondo quelle del periodo che mancano, " +
                 "Pasqua e Pasquetta comprese.");
             txtSospensioni = Tema.CasellaMulti(0, y + 24, 620, 100, "01/11/2026 Tutti i Santi");
@@ -1049,8 +1052,9 @@ namespace Campanella
                 if (conAvviso > 0)
                 {
                     r.Append("\n" + (conAvviso == 1 ? "Una riga ha" : conAvviso + " righe hanno") + " nel motivo un numero " +
-                             "che potrebbe essere un giorno, o una fine o una durata che non tornano con le date: " +
-                             "controlla qui sopra che il periodo sia quello giusto.");
+                             "che potrebbe essere un giorno, una fine o una durata che non tornano con le date, o " +
+                             "l'inizio o la fine di un periodo scritti come un giorno solo: controlla qui sopra che " +
+                             "il periodo sia quello giusto, e che non sia un giorno di lezione.");
                     ruolo = Ruolo.Avviso;
                 }
                 if (fuoriPeriodo.Count > 0)
@@ -1126,7 +1130,10 @@ namespace Campanella
             sb.AppendLine("guardare: non capite, fuori dal periodo, o con un numero nel motivo che");
             sb.AppendLine("potrebbe essere un giorno (\"07/12/2026 ponte 7-8\" e' solo il 7), o un");
             sb.AppendLine("giorno solo con una fine o una durata nel motivo (\"fino all'Epifania\",");
-            sb.AppendLine("\"di 2 giorni\"). \"dal\" con una data sola non lo capisco: scrivi la fine.");
+            sb.AppendLine("\"di 2 giorni\"), o che sembra l'inizio o la fine di un periodo, o un giorno");
+            sb.AppendLine("di lezione (\"23/12/2026 Vacanze natalizie\" e' solo il 23; \"Inizio delle");
+            sb.AppendLine("lezioni\" e \"Ripresa delle lezioni\" non vanno qui). \"dal\" con una data");
+            sb.AppendLine("sola non lo capisco: scrivi la fine.");
             sb.AppendLine("\"Aggiungi le feste nazionali\" mette quelle del periodo, Pasqua e");
             sb.AppendLine("Pasquetta comprese. Vacanze, patrono e ponti copiali dalla circolare sul");
             sb.AppendLine("calendario scolastico della regione e della scuola. Ogni ora di lezione");

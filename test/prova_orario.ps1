@@ -408,7 +408,11 @@ console.log(JSON.stringify({
             # la data con il punto e un'ora nel nome; una durata che torna con le date; "al" che non e' una fine
             @('07.12 uscita alle 12.10', '2026-12-07..2026-12-07 uscita alle 12.10'),
             @('23/12/2026-06/01/2027 Natale (15 giorni)', '2026-12-23..2027-01-06 Natale (15 giorni)'),
-            @('05/05/2027 gita al museo', '2027-05-05..2027-05-05 gita al museo')
+            @('05/05/2027 gita al museo', '2027-05-05..2027-05-05 gita al museo'),
+            # un giorno solo con un nome qualunque, e un periodo che parla di vacanze o di rientro: niente da guardare
+            @('07/12/2026 ponte', '2026-12-07..2026-12-07 ponte'),
+            @('23/12/2026-06/01/2027 Vacanze natalizie', '2026-12-23..2027-01-06 Vacanze natalizie'),
+            @('dal 1 al 6/04/2027 vacanze pasquali, rientro dopo Pasquetta', '2027-04-01..2027-04-06 vacanze pasquali, rientro dopo Pasquetta')
         )
         foreach ($c in $capite) {
             $r = LeggiRighe $c[0] '2026-09-14'
@@ -463,6 +467,33 @@ console.log(JSON.stringify({
                 $r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
                 $l.Count -eq 1 -and $l[0].Avviso -eq $avvisoDurata)
         }
+        # un giorno solo che parla del confine di un periodo o di un giorno di
+        # lezione: il primo o l'ultimo giorno scritto al posto del periodo, o un
+        # giorno in cui si fa lezione. Capita come scritta, con l'avviso
+        $campoConfine = $tCal.GetField('AvvisoConfine', $FS)
+        $avvisoConfine = if ($null -ne $campoConfine) { [string]$campoConfine.GetValue($null) } else { '(manca Calendario.AvvisoConfine)' }
+        $conConfine = @(
+            @('14/09/2026 Inizio delle lezioni', '2026-09-14..2026-09-14 Inizio delle lezioni'),
+            @('23/12/2026 Vacanze natalizie', '2026-12-23..2026-12-23 Vacanze natalizie'),
+            @('01/04/2027 Vacanze pasquali', '2027-04-01..2027-04-01 Vacanze pasquali'),
+            @('23/12/2026 inizio vacanze', '2026-12-23..2026-12-23 inizio vacanze'),
+            @('06/01/2027 fine vacanze', '2027-01-06..2027-01-06 fine vacanze'),
+            @('07/01/2027 Ripresa delle lezioni', '2027-01-07..2027-01-07 Ripresa delle lezioni'),
+            @('07/04/2027 Rientro dalle vacanze pasquali', '2027-04-07..2027-04-07 Rientro dalle vacanze pasquali'),
+            @('10/06/2027 Termine delle lezioni', '2027-06-10..2027-06-10 Termine delle lezioni'),
+            @('- 14 settembre 2026: inizio delle lezioni', '2026-09-14..2026-09-14 inizio delle lezioni'),
+            @('07/01/2027 riprendono le lezioni', '2027-01-07..2027-01-07 riprendono le lezioni')
+        )
+        Verifica "c'e' l'avviso per un giorno che sembra il confine di un periodo o un giorno di lezione ('$avvisoConfine')" (
+            $avvisoConfine -match "l'inizio o la fine di un periodo" -and $avvisoConfine -match 'giorni di lezione non vanno qui' -and
+            $avvisoConfine -match '23/12/2026-06/01/2027')
+        foreach ($c in $conConfine) {
+            $r = LeggiRighe $c[0] '2026-09-14'
+            $l = @(Lette $c[0] '2026-09-14')
+            Verifica "'$($c[0])' -> $($c[1]), da controllare$(if ($l.Count -eq 1 -and $l[0].Avviso -ne $avvisoConfine) { ' (invece: ''' + $l[0].Avviso + $l[0].Motivo + ''')' })" (
+                $r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
+                $l.Count -eq 1 -and $l[0].Avviso -eq $avvisoConfine)
+        }
         # un periodo scritto in un altro modo, o due giorni sulla stessa riga: la
         # riga non si capisce, e lo dice. Mai un giorno solo con il resto nel nome
         $cifreLarghe = [string][char]0xFF10 + [char]0xFF11 + '/11/2026 cifre a larghezza piena'
@@ -511,7 +542,7 @@ console.log(JSON.stringify({
             Verifica ("con l'a capo U+{0:X4} fra due righe, due giorni" -f [int]$acapo) (
                 ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2026-12-08..2026-12-08 Immacolata' -and $r.NonCapite.Count -eq 0)
         }
-        $daControllare = @($conAvviso + $conDurata)
+        $daControllare = @($conAvviso + $conDurata + $conConfine)
         $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') +
                   @($daControllare | ForEach-Object { $_[0] }) + $nonCapite) -join "`r`n"
         $r = LeggiRighe $tutto '2026-09-14'
@@ -636,6 +667,15 @@ console.log(JSON.stringify({
         Verifica "la guida del passo 4 dice di reincollare il codice se ORARI_1_anteprima non scrive la versione di adesso ($vOrari)" (
             $vOrari -ne '' -and $vOrari -eq $vSorgente -and $guida4.Contains("""Orari.gs versione $vOrari""") -and
             $guida4 -match 'reincolla il codice' -and $guida4 -match 'giorni senza lezione, che finirebbero')
+        # le righe da guardare: la guida, l'aiuto della casella e le istruzioni
+        # nominano anche un giorno che sembra il confine di un periodo
+        $paginaOrariCs = [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $qui) 'src\PaginaOrari.cs'))
+        $istruzioni = [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $qui) 'ISTRUZIONI - Campanella.txt'))
+        Verifica "guida del passo 4, aiuto dei giorni senza lezione e istruzioni dicono del giorno che sembra l'inizio o la fine di un periodo" (
+            (($guida4 -replace '\s+', ' ') -match "sembra l'inizio o la fine di un periodo, o un giorno di lezione") -and
+            (($guida4 -replace '\s+', ' ') -match '23/12/2026 Vacanze natalizie" e'' solo il 23') -and
+            $paginaOrariCs.Contains("che sembra l'inizio o la fine di un periodo, o un giorno di lezione (\""23/12/2026 Vacanze") -and
+            (($istruzioni -replace '\s+', ' ') -match "sembra l'inizio o la fine di un periodo, o un giorno di lezione"))
 
         # --- il piano: una serie per ogni tratto di settimane senza interruzioni
         Write-Host "`nI GIORNI SENZA LEZIONE: IL PIANO DEL CALENDARIO" -ForegroundColor Cyan

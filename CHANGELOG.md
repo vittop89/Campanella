@@ -32,8 +32,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   (`07/12/2026 ponte 7-8`, `fino al giorno 8`, `8.12`), and in a one-day
   line the end of a period in words (`fino all'Epifania`, `sino al
   lunedi'`) or a length that does not match the dates (`di 2 giorni`,
-  `(15 giorni)`, `2gg`), do not reject the line: it is taken as written,
-  with a warning to check it. Under the box,
+  `(15 giorni)`, `2gg`), and a one-day line that names the edge of a
+  period or a school day (`23/12/2026 Vacanze natalizie`, `06/01/2027 fine
+  vacanze`, `14/09/2026 Inizio delle lezioni`, `07/01/2027 Ripresa delle
+  lezioni`, `07/04/2027 Rientro dalle vacanze pasquali`), do not reject the
+  line: it is taken as written, with a warning to check it. Under the box,
   a read-only list updated while typing shows how every line was read,
   with the weekdays (`riga 3: dal lun 07/12/2026 al lun 07/12/2026 (1
   giorno) ponte 7-8   <- ...`, `riga 4: non capita: ...`), scrolled to the
