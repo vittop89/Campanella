@@ -7,8 +7,11 @@
  * finta casella di posta, poi esegue i quattro passi e stampa cosa succede.
  * Serve a verificare le ricerche costruite, l'etichettatura a blocchi, la
  * ripresa dopo il tempo massimo e le funzioni di annullamento, senza dover
- * caricare nulla su Google. In fondo controlla che ogni email mandata durante
- * le prove sia andata solo all'account stesso, senza copie.
+ * caricare nulla su Google. Con i file delle classi caricati fa girare ogni
+ * funzione pubblica, anche con Gmail che rifiuta ricerche e filtri, e
+ * controlla che gli indirizzi degli studenti non escano da nessuna parte. In
+ * fondo controlla che ogni email mandata durante le prove sia andata solo
+ * all'account stesso, senza copie.
  *
  * Di partenza usa test/Configurazione_esempio.gs e il motore vero; il primo
  * argomento e' un'altra configurazione (test/prova_posta.ps1 passa quella
@@ -1904,13 +1907,25 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;
 
+// il file di una classe come lo scrive Campanella (LeMieClassi.FileClasse): la
+// classe, l'etichetta della regola per cui e' stato copiato e gli indirizzi.
+// Piu' file nello stesso progetto si sommano, in qualunque ordine li legga Google
+function fileClasse(nome, etichetta, indirizzi) {
+  return '/* indirizzi degli studenti della ' + nome + ' */\n' +
+    'var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
+    'CLASSI_STUDENTI[' + JSON.stringify(nome) + '] = {\n' +
+    '  etichetta: ' + JSON.stringify(etichetta) + ',\n' +
+    '  indirizzi: [\n' + indirizzi.map(x => '    ' + JSON.stringify(x)).join(',\n') + '\n  ]\n};\n';
+}
+
 intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
 {
   // Una regola per classe: prende i messaggi con la classe nell'oggetto, da
   // chiunque, e quelli mandati dagli studenti della classe, qualunque oggetto.
   // Gli indirizzi degli studenti non stanno in Configurazione.gs: la regola ha
   // il segnaposto @CLASSE:3B@, e gli indirizzi li porta il file Classe_3B.gs,
-  // che il docente incolla nel progetto accanto alla configurazione.
+  // che il docente incolla nel progetto accanto alla configurazione, copiato
+  // per l'etichetta di quella regola.
   const S = 'scuola.example';
   indirizzoAttivo = 'docente@' + S;
   function daCapo(cfg) {
@@ -1924,14 +1939,6 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   const studenti = [];
   for (let i = 0; i < 25; i++) studenti.push('studente' + i + '.terzab@studenti.' + S);
   const colleghi = ['anna.bianchi@' + S, 'carlo.verdi@' + S];
-  // il file di una classe come lo scrive Campanella (GeneratorePosta): piu'
-  // file nello stesso progetto si sommano, in qualunque ordine li legga Google
-  function fileClasse(nome, indirizzi) {
-    return '/* indirizzi degli studenti della ' + nome + ' */\n' +
-      'var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
-      'CLASSI_STUDENTI[' + JSON.stringify(nome) + '] = [\n' +
-      indirizzi.map(x => '  ' + JSON.stringify(x)).join(',\n') + '\n];\n';
-  }
   const classe = { attiva: true, etichetta: 'Classi 2026-27/3B', da: ['@CLASSE:3B@'],
                    oggetto: ['3B', '3 B', 'III B'], unoQualsiasi: true, nota: 'la 3B' };
   // mittenti e oggetto, senza unoQualsiasi: tutti e due, come prima
@@ -1966,12 +1973,15 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   const quarta = ['studente.quartaa@studenti.' + S];
   for (const ordine of [['3B', '4A'], ['4A', '3B']]) {
     const c = vm.createContext({});
-    for (const nome of ordine) vm.runInContext(fileClasse(nome, nome === '3B' ? studenti : quarta), c);
+    for (const nome of ordine) {
+      vm.runInContext(fileClasse(nome, 'Classi 2026-27/' + nome, nome === '3B' ? studenti : quarta), c);
+    }
     verifica('due file di classi nello stesso progetto, letti ' + ordine.join(' poi ') + ': ci sono tutte e due',
-      c.CLASSI_STUDENTI && c.CLASSI_STUDENTI['3B'].length === 25 && c.CLASSI_STUDENTI['4A'][0] === quarta[0]);
+      c.CLASSI_STUDENTI && c.CLASSI_STUDENTI['3B'].indirizzi.length === 25 &&
+      c.CLASSI_STUDENTI['4A'].indirizzi[0] === quarta[0] && c.CLASSI_STUDENTI['4A'].etichetta === 'Classi 2026-27/4A');
   }
-  vm.runInContext(fileClasse('4A', quarta), contesto);
-  vm.runInContext(fileClasse('3B', studenti), contesto);
+  vm.runInContext(fileClasse('4A', 'Classi 2026-27/4A', quarta), contesto);
+  vm.runInContext(fileClasse('3B', 'Classi 2026-27/3B', studenti), contesto);
 
   // --- con il file: una ricerca per l'oggetto e una per gruppo di studenti --
   q = contesto._queryDellaRegola_(cfg, classe);
@@ -1998,20 +2008,49 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
 
   a = contesto.PASSO_1_anteprima();
   console.log(a);
+  const piatta = a.replace(/\s+/g, ' ');
   verifica('l\'anteprima conta una volta sola le conversazioni che tornano da piu\' ricerche (5)',
     stesseColonne(a, 'Classi 2026-27/3B', ['Classi 2026-27/3B', '5', '-', 'da creare']));
   verifica('la regola senza unoQualsiasi conta solo mittenti E oggetto (1)',
     stesseColonne(a, 'Verbali', ['Verbali', '1', '-', 'da creare']));
   verifica('dice quanti indirizzi ha trovato nel file della classe, solo il numero',
-    a.replace(/\s+/g, ' ').indexOf('studenti della 3B: 25 indirizzi, dal file Classe_3B.gs') > 0 &&
+    piatta.indexOf('studenti della 3B: 25 indirizzi, dal file Classe_3B.gs') > 0 &&
     a.indexOf('manca il file') < 0);
-  verifica('e nessun indirizzo di uno studente', !studenti.some(x => a.indexOf(x) >= 0));
+  // la 4A non ha una regola: il suo file resta nel progetto, con dati di minori
+  verifica('e dice che il file della 4A non lo usa nessuna regola, con quanti indirizzi e l\'invito a cancellarlo',
+    piatta.indexOf('File delle classi che nessuna regola accesa usa: Classe_4A.gs (1 indirizzo, per ' +
+                   'Classi 2026-27/4A)') >= 0 && /cancellali dal progetto/.test(piatta) &&
+    piatta.indexOf('Classe_3B.gs (') < 0);
+  verifica('e nessun indirizzo di uno studente', !studenti.concat(quarta).some(x => a.indexOf(x) >= 0));
 
   // --- il riordino in prova conta, una volta sola --------------------------
   cfg.provaSenzaModifiche = true;
   const prova = contesto.PASSO_3_riordinaPostaEsistente();
   verifica('in prova il riordino conta anche lui 5 conversazioni per la 3B, non 8',
     /Classi 2026-27\/3B\s+5 conversazioni/.test(prova) && /Verbali\s+1 conversazione\b/.test(prova));
+
+  // --- e anche se il tempo finisce a meta' della regola --------------------
+  // Il tempo finisce dopo la ricerca dell'oggetto della 3B: la ripresa riparte
+  // dagli studenti, e non deve contare di nuovo le conversazioni che la
+  // ricerca dell'oggetto aveva gia' contato (la gita, la relazione)
+  const cercaGiusta = GmailApp.search;
+  {
+    let scaduto = false;
+    GmailApp.search = (query, inizio, quanti) => {
+      const r = cercaGiusta(query, inizio, quanti);
+      if (!scaduto && query.indexOf('subject:(3B') === 0) { scaduto = true; orologio += 10 * 60 * 1000; }
+      return r;
+    };
+    proprieta.clear();
+    const prima = contesto.PASSO_3_riordinaPostaEsistente();
+    const dopo = contesto.PASSO_3_riordinaPostaEsistente();
+    GmailApp.search = cercaGiusta;
+    orologio = 0;
+    trigger.length = 0;
+    verifica('in prova, ripreso a meta\' della regola, conta ancora 5 conversazioni per la 3B (' +
+             ((dopo.match(/Classi 2026-27\/3B\s+(\d+)/) || [])[1]) + ')',
+      /Tempo massimo/.test(prima) && /PROVA COMPLETATA/.test(dopo) && /Classi 2026-27\/3B\s+5 conversazioni/.test(dopo));
+  }
   cfg.provaSenzaModifiche = false;
 
   // --- il riordino vero ----------------------------------------------------
@@ -2034,7 +2073,6 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   // Gmail aggiorna l'indice con un po' di ritardo: la ricerca dei mittenti,
   // subito dopo quella dell'oggetto, trova ancora la conversazione appena
   // etichettata. Lo smistamento non deve contarla due volte.
-  const cercaGiusta = GmailApp.search;
   GmailApp.search = (query, inizio, quanti) => cercaGiusta(query.replace(/-label:"[^"]*"/g, ''), inizio, quanti);
   const primaDelloSmistamento = registro.length;
   contesto.smistaNuoviMessaggi();
@@ -2046,43 +2084,229 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   verifica('e anche con l\'indice di Gmail in ritardo le conta una volta (3)',
     /Classi 2026-27\/3B\s+3 conversazioni/.test(smistati));
 
-  // --- una ricerca rifiutata: nel registro niente indirizzi ----------------
+  // --- una ricerca rifiutata, in prova e davvero: niente indirizzi ----------
+  // Gmail ripete la ricerca nel suo messaggio d'errore. Il primo riordino di
+  // tutti e' in prova: anche li' la ricerca rifiutata si salta e si dice, e
+  // per una classe non si scrivono ne' la ricerca ne' il messaggio di Gmail
   GmailApp.search = (query, inizio, quanti) => {
     if (query.indexOf('from:(' + studenti[0]) === 0) throw new Error('Invalid search query: ' + query);
     return cercaGiusta(query, inizio, quanti);
   };
-  proprieta.clear();
-  casella.forEach(t => t.labels.clear());
-  const primaDelRifiuto = registro.length;
-  contesto.PASSO_3_riordinaPostaEsistente();
+  for (const inProva of [true, false]) {
+    cfg.provaSenzaModifiche = inProva;
+    proprieta.clear();
+    casella.forEach(t => t.labels.clear());
+    const primaDelRifiuto = registro.length;
+    let esito = '', eccezione = null;
+    try { esito = contesto.PASSO_3_riordinaPostaEsistente(); } catch (e) { eccezione = e; }
+    const rifiuto = registro.slice(primaDelRifiuto).join('\n');
+    const come = inProva ? 'in prova' : 'davvero';
+    verifica(come + ' una ricerca degli studenti rifiutata non ferma il riordino (' +
+             (eccezione ? String(eccezione.message).slice(0, 60) : 'nessuna eccezione') + ')',
+      !eccezione && /(PROVA|RIORDINO) COMPLETAT/.test(esito));
+    verifica(come + ' si segnala, dicendo quale ricerca e non che cosa cercava',
+      rifiuto.indexOf('Regola "Classi 2026-27/3B": ricerca non accettata da Gmail (i mittenti, gruppo 1 di 2)') >= 0 &&
+      /Classi 2026-27\/3B \(ricerca rifiutata\)/.test(esito) && rifiuto.indexOf('Invalid search query') < 0 &&
+      !studenti.some(x => rifiuto.indexOf(x) >= 0 || esito.indexOf(x) >= 0));
+  }
   GmailApp.search = cercaGiusta;
-  const rifiuto = registro.slice(primaDelRifiuto).join('\n');
-  verifica('una ricerca degli studenti rifiutata si segnala, senza scrivere gli indirizzi',
-    /Classi 2026-27\/3B.*ricerca non accettata/.test(rifiuto) && !studenti.some(x => rifiuto.indexOf(x) >= 0));
+  cfg.provaSenzaModifiche = false;
 
-  // --- i filtri veri: uno per l'oggetto e uno per gruppo di studenti ---------
+  // --- i filtri veri: solo quello dell'oggetto ------------------------------
+  // Gli indirizzi degli studenti nei filtri di Gmail resterebbero nelle
+  // impostazioni dell'account anche cancellando Classe_3B.gs, finirebbero
+  // nell'esportazione dei filtri e si accumulerebbero cambiando la classe:
+  // per le classi il filtro cerca solo l'oggetto, e degli studenti si occupa
+  // lo smistamento dello script
   const filtri = [];
   contesto.Gmail = { Users: {
     Labels: { list: () => ({ labels: [...etichette.keys()].map(n => ({ name: n, id: 'id:' + n, type: 'user' })) }) },
     Settings: { Filters: { list: () => ({ filter: filtri.slice() }), create: f => { filtri.push(f); return f; } } }
   } };
   const tf = contesto.EXTRA_creaFiltriGmail();
-  delete contesto.Gmail;
+  console.log(tf);
   const della3BF = filtri.filter(f => f.action.addLabelIds[0] === 'id:Classi 2026-27/3B');
-  const perOggetto = della3BF.filter(f => !f.criteria.from);
-  const perStudenti = della3BF.filter(f => !!f.criteria.from);
-  verifica('i filtri della 3B: uno per l\'oggetto e uno per ogni gruppo di 20 studenti (' + della3BF.length + ')',
-    della3BF.length === 3 && perOggetto.length === 1 && perOggetto[0].criteria.subject === '3B OR "3 B" OR "III B"' &&
-    perStudenti.length === 2 && perStudenti.every(f => !f.criteria.subject) &&
-    perStudenti[0].criteria.from.split(' OR ').length === 20 && perStudenti[1].criteria.from.split(' OR ').length === 5);
+  verifica('il filtro della 3B e\' uno solo, quello dell\'oggetto, anche con il file della classe (' +
+           della3BF.length + ')',
+    della3BF.length === 1 && della3BF[0].criteria.subject === '3B OR "3 B" OR "III B"' && !della3BF[0].criteria.from);
+  verifica('nessun filtro creato ha l\'indirizzo di uno studente',
+    !filtri.some(f => studenti.concat(quarta).some(x => JSON.stringify(f).indexOf(x) >= 0)));
   const diVerbali = filtri.filter(f => f.action.addLabelIds[0] === 'id:Verbali');
   verifica('e Verbali un filtro solo, con mittenti E oggetto', diVerbali.length === 1 &&
     diVerbali[0].criteria.subject === 'verbale' && diVerbali[0].criteria.from === colleghi.join(' OR '));
+  const tfPiatto = tf.replace(/\s+/g, ' ');
+  verifica('il riepilogo lo dice: per le classi solo l\'oggetto, e gli studenti allo smistamento dello script',
+    tfPiatto.indexOf('Per le classi il filtro cerca solo l\'oggetto: Classi 2026-27/3B') >= 0 &&
+    tfPiatto.indexOf('I loro messaggi li etichetta lo smistamento dello script') > 0);
+  verifica('e che per i messaggi degli studenti lo smistamento automatico (PASSO_4) deve restare acceso',
+    tfPiatto.indexOf('tranne Classi 2026-27/3B (i messaggi degli studenti): per questa lo smistamento ' +
+                     'automatico (PASSO_4) deve restare acceso') >= 0);
   verifica('il riepilogo dei filtri non scrive indirizzi di studenti', !studenti.some(x => tf.indexOf(x) >= 0));
+  // senza il file della classe l'oggetto basta: Gmail fa tutto da solo
+  contesto.CLASSI_STUDENTI = undefined;
+  filtri.length = 0;
+  const tf2 = contesto.EXTRA_creaFiltriGmail();
+  verifica('senza il file della classe il riepilogo non chiede lo smistamento per la 3B',
+    tf2.indexOf('i messaggi degli studenti') < 0 && /anche senza lo script/.test(tf2));
+  delete contesto.Gmail;
+  vm.runInContext(fileClasse('4A', 'Classi 2026-27/4A', quarta), contesto);
+  vm.runInContext(fileClasse('3B', 'Classi 2026-27/3B', studenti), contesto);
+
+  // --- il file dell'anno prima non vale per la 3B dell'anno dopo -----------
+  // La 3B del 2027-28 ha lo stesso segnaposto @CLASSE:3B@, ma nel progetto
+  // c'e' ancora il file copiato per la 3B del 2026-27: sono altri studenti
+  const dopo = { attiva: true, etichetta: 'Classi 2027-28/3B', da: ['@CLASSE:3B@'],
+                 oggetto: ['3B', '3 B', 'III B'], unoQualsiasi: true };
+  const cfgDopo = Object.assign({}, cfg, { regole: [dopo] });
+  const qDopo = contesto._queryDellaRegola_(cfgDopo, dopo);
+  verifica('il file copiato per la 3B del 2026-27 non da\' studenti alla 3B del 2027-28 (' + qDopo.length + ' ricerca)',
+    qDopo.length === 1 && qDopo[0].indexOf('from:') < 0);
+  contesto.CONFIG = cfgDopo;
+  const aDopo = contesto.PASSO_1_anteprima();
+  contesto.CONFIG = cfg;
+  const piattaDopo = aDopo.replace(/\s+/g, ' ');
+  verifica('e l\'anteprima lo dice: il file e\' di un\'altra etichetta, da cancellare e copiare di nuovo',
+    piattaDopo.indexOf('il file Classe_3B.gs e\' di Classi 2026-27/3B, non di questa regola: cancellalo e ' +
+                       'copia quello nuovo da Campanella; intanto conta solo l\'oggetto') >= 0 &&
+    piattaDopo.indexOf('25 indirizzi, dal file') < 0);
+  verifica('ed elenca i due file che nessuna regola usa, con quanti indirizzi e per quale etichetta',
+    piattaDopo.indexOf('File delle classi che nessuna regola accesa usa: ') >= 0 &&
+    piattaDopo.indexOf('Classe_3B.gs (25 indirizzi, per Classi 2026-27/3B)') > 0 &&
+    piattaDopo.indexOf('Classe_4A.gs (1 indirizzo, per Classi 2026-27/4A)') > 0 &&
+    !studenti.concat(quarta).some(x => aDopo.indexOf(x) >= 0));
+  // un file senza l'etichetta (scritto a mano, o di una versione di prova): non vale
+  const c2 = { CLASSI_STUDENTI: { '3B': studenti } };
+  const salvato = contesto.CLASSI_STUDENTI;
+  contesto.CLASSI_STUDENTI = c2.CLASSI_STUDENTI;
+  verifica('un file senza l\'etichetta della regola non da\' studenti',
+    contesto._queryDellaRegola_(cfg, classe).length === 1 &&
+    /il file Classe_3B\.gs non dice per quale etichetta e'/.test(contesto._notaClasse_(cfg, classe, '3B')));
+  contesto.CLASSI_STUDENTI = salvato;
 
   verifica('in tutto questo, nel registro nessun indirizzo di uno studente',
-    !studenti.some(x => registro.slice(inizioRegistro).some(r => r.indexOf(x) >= 0)));
+    !studenti.concat(quarta).some(x => registro.slice(inizioRegistro).some(r => r.indexOf(x) >= 0)));
   contesto.CLASSI_STUDENTI = undefined;
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
+
+intestazione('GLI INDIRIZZI DEGLI STUDENTI NON ESCONO: OGNI FUNZIONE, ANCHE CON GLI ERRORI DI GMAIL');
+{
+  // Gli indirizzi dei file Classe_*.gs sono dati di minori: lo script li usa
+  // solo per cercare. Qui ogni funzione che il docente puo' eseguire, e quella
+  // del trigger, gira con i file delle classi caricati e il riepilogo per email
+  // acceso, in prova e no, prima con Gmail che risponde e poi con Gmail che
+  // rifiuta ogni ricerca e ogni filtro ripetendoli nel suo messaggio d'errore.
+  // Nessun indirizzo di uno studente, e nemmeno il suo nome utente, deve
+  // comparire nel registro, nelle email, nei valori restituiti, nelle
+  // eccezioni, nei filtri creati o nelle proprieta' dello script. Le funzioni
+  // si trovano da sole: una nuova entra qui senza doverla aggiungere. Le
+  // email vanno all'account di sempre (IO): in fondo si controlla anche questo.
+  const S = 'scuola.example';
+  const studenti = [], quarta = [];
+  for (let i = 0; i < 23; i++) studenti.push('alunno' + i + '.terzab@studenti.' + S);
+  for (let i = 0; i < 3; i++) quarta.push('d\'amico' + i + '.quartaa@studenti.' + S);
+  const pezzi = studenti.concat(quarta).map(x => x.split('@')[0].toLowerCase());
+  const pubbliche = Object.keys(contesto).filter(n => typeof contesto[n] === 'function' &&
+    (/^(PASSO|EXTRA|ANNULLA)_/.test(n) || n === 'smistaNuoviMessaggi')).sort();
+  verifica('le funzioni da provare sono quelle che il docente puo\' eseguire, e il trigger (' + pubbliche.length + ')',
+    pubbliche.length >= 15 && pubbliche.indexOf('EXTRA_creaFiltriGmail') >= 0 &&
+    pubbliche.indexOf('smistaNuoviMessaggi') >= 0 && pubbliche.indexOf('ANNULLA_etichettatura') >= 0);
+  function configurazione(prova) {
+    return {
+      impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: 'Scuola', provaSenzaModifiche: prova,
+      soloUltimiMesi: 0, escludiPostaInviata: true, inviaReport: true, giorniPostaNuova: 3,
+      personale: ['anna.bianchi@' + S], gruppi: { Docenti: ['anna.bianchi@' + S] },
+      regole: [
+        { attiva: true, etichetta: 'Dirigenza', da: ['preside@' + S], colore: { sfondo: '#cc3a21', testo: '#ffffff' } },
+        { attiva: true, etichetta: 'Classi 2026-27/3B', da: ['@CLASSE:3B@'], oggetto: ['3B', '3 B', 'III B'],
+          unoQualsiasi: true, colore: { sfondo: '#c6f3de', testo: '#000000' } },
+        // la 4A in AND: gli studenti E l'oggetto
+        { attiva: true, etichetta: 'Classi 2026-27/4A', da: ['@CLASSE:4A@'], oggetto: ['compito'] }
+      ],
+      filtriDaTogliere: [{ etichetta: 'Famiglie', criteri: { query: 'from:(@famiglie.example)' } }]
+    };
+  }
+  const filtri = [];
+  let rifiuta = false;
+  const cercaGiusta = GmailApp.search;
+  GmailApp.search = (query, inizio, quanti) => {
+    if (rifiuta) throw new Error('Invalid search query: ' + query);
+    return cercaGiusta(query, inizio, quanti);
+  };
+  contesto.Gmail = { Users: {
+    Labels: {
+      list: () => ({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }].concat(
+        [...etichette.values()].map(l => ({ id: l.id, name: l.nome, type: 'user' }))) }),
+      get: (utente, id) => ({ id, name: id, type: 'user' }),
+      patch: (risorsa, utente, id) => ({ id, color: risorsa.color })
+    },
+    Settings: { Filters: {
+      list: () => ({ filter: JSON.parse(JSON.stringify(filtri)) }),
+      create: f => {
+        if (rifiuta) throw new Error('Invalid filter: ' + JSON.stringify(f));
+        const nuovo = { id: 'F' + (filtri.length + 1), criteria: f.criteria, action: f.action };
+        filtri.push(nuovo);
+        return nuovo;
+      },
+      remove: (utente, id) => {
+        if (rifiuta) throw new Error('Backend Error: ' + id);
+        const i = filtri.findIndex(f => f.id === id);
+        if (i >= 0) filtri.splice(i, 1);
+      }
+    } }
+  } };
+  const trovati = [];
+  function guarda(dove, testo) {
+    const t = String(testo === undefined ? '' : testo).toLowerCase();
+    const chi = pezzi.filter(p => t.indexOf(p) >= 0);
+    if (chi.length) trovati.push(dove + ': ' + chi.length + ' studenti');
+  }
+  let chiamate = 0;
+  for (const prova of [true, false]) {
+    for (const errori of [false, true]) {
+      casella.length = 0;
+      etichette.clear();
+      proprieta.clear();
+      trigger.length = 0;
+      filtri.length = 0;
+      orologio = 0;
+      rifiuta = false;
+      contesto.CONFIG = configurazione(prova);
+      contesto.CLASSI_STUDENTI = undefined;
+      vm.runInContext(fileClasse('3B', 'Classi 2026-27/3B', studenti), contesto);
+      vm.runInContext(fileClasse('4A', 'Classi 2026-27/4A', quarta), contesto);
+      // un file che nessuna regola usa: l'anteprima lo elenca
+      vm.runInContext(fileClasse('2C', 'Classi 2026-27/2C', [studenti[0]]), contesto);
+      aggiungi('preside@' + S, 'Consiglio di classe 3B', '', { giorniFa: 20 });
+      aggiungi(studenti[0], 'Domanda', '', { giorniFa: 20 });
+      aggiungi(studenti[21], '3B: relazione', '', { giorniFa: 2, mittenti: [studenti[3]] });
+      aggiungi(quarta[1], 'Il compito di domani', '', { giorniFa: 1 });
+      aggiungi('anna.bianchi@' + S, 'Scambio ora', '', { giorniFa: 1 });
+      // un filtro di prima, fra quelli da togliere
+      filtri.push({ id: 'F0', criteria: { query: 'from:(@famiglie.example)' }, action: { addLabelIds: ['Label_x'] } });
+      rifiuta = errori;
+      const come = (prova ? 'in prova' : 'davvero') + (errori ? ', con gli errori' : '');
+      for (const nome of pubbliche) {
+        const primaRegistro = registro.length, primaPosta = posta.length;
+        let valore, eccezione = null;
+        try { valore = contesto[nome](); } catch (e) { eccezione = e; }
+        chiamate++;
+        guarda(nome + ' ' + come + ', registro', registro.slice(primaRegistro).join('\n'));
+        posta.slice(primaPosta).forEach(m => guarda(nome + ' ' + come + ', email', m.o + '\n' + m.c));
+        guarda(nome + ' ' + come + ', valore restituito', typeof valore === 'object' ? JSON.stringify(valore) : valore);
+        if (eccezione) guarda(nome + ' ' + come + ', eccezione', eccezione.message + '\n' + eccezione.stack);
+      }
+      guarda('filtri creati ' + come, JSON.stringify(filtri));
+      guarda('proprieta\' ' + come, JSON.stringify([...proprieta]));
+    }
+  }
+  GmailApp.search = cercaGiusta;
+  delete contesto.Gmail;
+  contesto.CLASSI_STUDENTI = undefined;
+  verifica('tutte le funzioni, in prova e no, con Gmail che risponde e che rifiuta (' + chiamate + ' esecuzioni): ' +
+           'nessun indirizzo di uno studente esce' + (trovati.length ? ' - trovati in ' + trovati.join('; ') : ''),
+    chiamate === pubbliche.length * 4 && trovati.length === 0);
 }
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;

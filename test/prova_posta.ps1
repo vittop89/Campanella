@@ -993,14 +993,20 @@ const vm = require('vm'), fs = require('fs');
 const c = vm.createContext({});
 for (const f of process.argv.slice(2)) vm.runInContext(fs.readFileSync(f, 'utf8'), c, { filename: f });
 const fuori = {};
-for (const k of Object.keys(c.CLASSI_STUDENTI || {}).sort()) fuori[k] = c.CLASSI_STUDENTI[k].length;
+for (const k of Object.keys(c.CLASSI_STUDENTI || {}).sort()) {
+  fuori[k] = c.CLASSI_STUDENTI[k].etichetta + ':' + c.CLASSI_STUDENTI[k].indirizzi.length;
+}
 process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sort() }));
 '@
         $unoPoi = (& node $sommaJs $file3B $file4A) | ConvertFrom-Json
         $poiUno = (& node $sommaJs $file4A $file3B) | ConvertFrom-Json
         Verifica "due file nello stesso progetto si sommano, in tutti e due gli ordini, e definiscono solo CLASSI_STUDENTI" (
-            $unoPoi.classi.'3B' -eq 25 -and $unoPoi.classi.'4A' -eq 1 -and $poiUno.classi.'3B' -eq 25 -and
-            $poiUno.classi.'4A' -eq 1 -and ($unoPoi.globali -join ',') -eq 'CLASSI_STUDENTI')
+            $unoPoi.classi.'3B' -eq 'Classi 2026-27/3B:25' -and $unoPoi.classi.'4A' -eq 'Classi 2026-27/4A:1' -and
+            $poiUno.classi.'3B' -eq 'Classi 2026-27/3B:25' -and $poiUno.classi.'4A' -eq 'Classi 2026-27/4A:1' -and
+            ($unoPoi.globali -join ',') -eq 'CLASSI_STUDENTI')
+        Verifica "e ognuno dice per quale regola vale: solo per quella etichetta" (
+            $testo3B.Contains('etichetta: "Classi 2026-27/3B",') -and $testo3B -match 'Valgono solo per' -and
+            $testo3B -match 'non li mette nei filtri di Gmail')
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: DA DOVE VENGONO'
@@ -1195,11 +1201,13 @@ process.stdout.write(JSON.stringify({ anteprima: contesto.PASSO_1_anteprima(),
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: I FILTRI DI GMAIL'
-        # FiltriDiCampanella non conosce gli studenti (non li ha nessuno in
-        # Campanella): per una classe calcola il filtro dell'oggetto, come lo
-        # script senza il file. I filtri degli studenti che lo script crea con il
-        # file hanno gli indirizzi: nella finestra non si possono spuntare, cosi'
-        # non finiscono ne' nello Stato ne' in Configurazione.gs.
+        # Per una classe i filtri veri di Gmail cercano solo l'oggetto: gli
+        # studenti nei filtri resterebbero nelle impostazioni dell'account anche
+        # cancellando il file. FiltriDiCampanella, che non conosce gli studenti,
+        # e' quindi proprio quello dello script, con il file e senza. Un filtro
+        # con gli studenti (fatto a mano, o da una versione di prova) nella
+        # finestra non si puo' spuntare: non finisce ne' nello Stato ne' in
+        # Configurazione.gs.
         $filtriClassiJs = Join-Path $temporanea 'filtri_classi.js'
         Scrivi $filtriClassiJs @'
 const vm = require('vm'), fs = require('fs');
@@ -1227,12 +1235,16 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $motoreCon = @(((& node $filtriClassiJs $fileC $motore $file3B) | ConvertFrom-Json).filtri)
         Verifica "senza il file, i filtri del C# sono proprio quelli dello script ($($motoreSenza.Count))" (
             ($delCsharp -join "`n|") -eq (@($motoreSenza | ForEach-Object { $_.chiave } | Sort-Object) -join "`n|"))
-        $degliStudenti = @($motoreCon | Where-Object { -not ($delCsharp -contains $_.chiave) })
-        Verifica "con il file lo script ne crea in piu' solo per gli studenti della 3B, due gruppi ($($degliStudenti.Count))" (
-            $degliStudenti.Count -eq 2 -and @($degliStudenti | Where-Object { $_.etichetta -ne 'Scuola/Classi 2026-27/3B' -or -not $_.criteri.from }).Count -eq 0)
-        # l'esportazione di Gmail con quei filtri
+        Verifica "e con il file anche: gli studenti non vanno nei filtri, e il C# e lo script sono uguali ($($motoreCon.Count))" (
+            ($delCsharp -join "`n|") -eq (@($motoreCon | ForEach-Object { $_.chiave } | Sort-Object) -join "`n|") -and
+            -not ((ConvertTo-Json -InputObject $motoreCon -Depth 5) -match 'terzab'))
+        # l'esportazione di Gmail con quei filtri, e due con gli studenti della 3B
+        # fatti a mano (o da una versione di prova)
         $nomiExp = @{ from = 'from'; subject = 'subject'; query = 'hasTheWord' }
-        $vociC = foreach ($f in $motoreCon) {
+        $conStudenti = @($motoreCon) + @(
+            @{ etichetta = 'Scuola/Classi 2026-27/3B'; criteri = [pscustomobject]@{ from = (@($studenti)[0..19] -join ' OR ') } },
+            @{ etichetta = 'Scuola/Classi 2026-27/3B'; criteri = [pscustomobject]@{ from = (@($studenti)[20..24] -join ' OR ') } })
+        $vociC = foreach ($f in $conStudenti) {
             $p = @()
             foreach ($k in $f.criteri.PSObject.Properties) {
                 $p += "<apps:property name='$($nomiExp[$k.Name])' value='$([System.Security.SecurityElement]::Escape([string]$k.Value))'/>"

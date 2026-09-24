@@ -620,10 +620,10 @@ namespace Campanella
         /// fa lo script (_criteriFiltro_), nel contenitore di un filtro da
         /// togliere. Non ne creano le regole che la configurazione scrive spente
         /// e quelle che escludono altre etichette (restano allo script); una
-        /// regola con tanti mittenti ne crea uno ogni IndirizziPerFiltro. Degli
-        /// studenti delle classi Campanella non sa niente (gli indirizzi stanno
-        /// solo nei file Classe_*.gs del progetto): per una classe c'e' il filtro
-        /// dell'oggetto, come lo script senza quel file.
+        /// regola con tanti mittenti ne crea uno ogni IndirizziPerFiltro. Gli
+        /// studenti delle classi non vanno mai nei filtri, nemmeno nello script
+        /// con i file Classe_*.gs: per una classe c'e' solo il filtro
+        /// dell'oggetto, qui e nello script.
         /// test\prova_posta.ps1 li confronta con quelli dello script vero.
         /// </summary>
         public static List<FiltroDaTogliere> FiltriDiCampanella(Stato s)

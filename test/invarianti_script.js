@@ -34,16 +34,21 @@
  *   - i nomi delle azioni vietate (TRASH, SPAM, forward...) possono stare
  *     solo nella tabella di testi _AZIONI_A_PAROLE, con cui la copia di un
  *     filtro dice che cosa faceva: solo testi, letti per chiave solo da
- *     _copiaFiltro_.
+ *     _copiaFiltro_;
+ *   - gli indirizzi degli studenti delle classi (CLASSI_STUDENTI, dai file
+ *     Classe_*.gs) si leggono solo in tre funzioni, e l'unica che li da'
+ *     (_studentiDellaClasse_) la chiama solo _espandi_, che li mette nelle
+ *     ricerche.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
  * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
  * estraneo, una copia in cc, un moveToTrash, un filtro tolto fuori da
  * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora,
- * un'etichetta cancellata anche li' dentro o la tabella dei testi usata per
- * altro devono far fallire i controlli. Se un giorno uno di questi non
- * fallisse piu', il controllo sarebbe diventato cieco.
+ * un'etichetta cancellata anche li' dentro, la tabella dei testi usata per
+ * altro, gli studenti delle classi nel riepilogo per email, nel registro o
+ * di nuovo nei filtri veri di Gmail devono far fallire i controlli. Se un
+ * giorno uno di questi non fallisse piu', il controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
  * funzione da console) su una pagina del registro finta, con persone
@@ -243,7 +248,16 @@ const REGOLE = {
     gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] },
     // la tabella dei testi delle azioni di Gmail per la copia di un filtro:
     // solo testi, letti per chiave e solo dentro _copiaFiltro_
-    tabellaDiTesti: { nome: '_AZIONI_A_PAROLE', gruppi: ['aggiunge', 'toglie', 'altro'], soloIn: '_copiaFiltro_' }
+    tabellaDiTesti: { nome: '_AZIONI_A_PAROLE', gruppi: ['aggiunge', 'toglie', 'altro'], soloIn: '_copiaFiltro_' },
+    // gli indirizzi degli studenti delle classi (i file Classe_*.gs, dati di
+    // minori): il nome CLASSI_STUDENTI si scrive solo in queste tre funzioni,
+    // e l'unica che da' gli indirizzi la chiama solo _espandi_, che li mette
+    // nelle ricerche. Nessun'altra funzione li puo' scrivere nel registro, in
+    // un riepilogo o in un filtro senza passare di li'
+    nomiSoloIn: {
+      CLASSI_STUDENTI: ['_classiNeiFile_', '_etichettaDelFile_', '_studentiDellaClasse_'],
+      _studentiDellaClasse_: ['_espandi_']
+    }
   },
   'Orari.gs': {
     // ORARI sta in DatiOrari.gs; CONFIG (il prefisso delle etichette) in
@@ -422,6 +436,28 @@ function controlla(nomeFile, sorgenteIntero) {
       }
       if (stringhe.some(s => s.trim() === f)) fuori.push('il nome ' + f + ' da solo fra virgolette (un trigger?)');
     }
+  }
+
+  // i nomi che si usano solo dentro certe funzioni (gli studenti delle
+  // classi): fuori, anche solo nominati, anche dopo un punto (this.X) o fra
+  // virgolette (this['X']), sono una violazione. Le funzioni ammesse ci sono
+  // una volta sola: una seconda con lo stesso nome prenderebbe il posto della vera
+  const nomiSoloIn = regole.nomiSoloIn || {};
+  for (const nome of Object.keys(nomiSoloIn)) {
+    const ammesse = nomiSoloIn[nome];
+    for (const f of ammesse) {
+      const quante = (corpi[f] || []).length;
+      if (quante !== 1) fuori.push('la funzione ' + f + ', che puo\' usare ' + nome + ', e\' dichiarata ' + quante + ' volte');
+    }
+    const uso = new RegExp('(?<![\\w$])' + nome + '(?![\\w$])', 'g');
+    let u;
+    while ((u = uso.exec(nudo))) {
+      if (/\bfunction\s+$/.test(nudo.slice(Math.max(0, u.index - 30), u.index))) continue;   // la dichiarazione
+      if (!dentroA(corpi, ammesse, u.index)) {
+        fuori.push(nome + ' usato fuori da ' + ammesse.join(', ') + ' (riga ' + riga(u.index) + ')');
+      }
+    }
+    if (stringhe.some(s => s.indexOf(nome) >= 0)) fuori.push('il nome ' + nome + ' fra virgolette (un accesso per nome?)');
   }
 
   // le cancellazioni: solo quelle dell'elenco
@@ -667,6 +703,23 @@ function provaDellaProva() {
     '_AZIONI_A_PAROLE letta non per chiave');
   deveFallire('Organizzazione_Gmail.gs', 'e una seconda tabella con lo stesso nome',
     posta + '\nvar _AZIONI_A_PAROLE = { aggiunge: { TRASH: \'x\' } };\n', 'dichiarata 2 volte');
+  // gli indirizzi degli studenti: CLASSI_STUDENTI solo nelle sue tre funzioni,
+  // e quella che da' gli indirizzi solo dentro _espandi_
+  deveFallire('Organizzazione_Gmail.gs', 'gli studenti aggiunti al riepilogo per email vengono trovati',
+    inserisci(posta, 'function _inviaReport_(oggetto, corpo) {', '\n  corpo += JSON.stringify(CLASSI_STUDENTI);'),
+    'CLASSI_STUDENTI usato fuori da');
+  deveFallire('Organizzazione_Gmail.gs', 'e scritti nel registro dal codice di stato',
+    inserisci(posta, 'function EXTRA_codiceStato() {', '\n  Logger.log(JSON.stringify(this.CLASSI_STUDENTI));'),
+    'CLASSI_STUDENTI usato fuori da');
+  deveFallire('Organizzazione_Gmail.gs', 'e presi per nome, fra virgolette',
+    inserisci(posta, 'function EXTRA_codiceStato() {', '\n  Logger.log(JSON.stringify(this[\'CLASSI_STUDENTI\']));'),
+    'il nome CLASSI_STUDENTI fra virgolette');
+  deveFallire('Organizzazione_Gmail.gs', 'gli indirizzi di una classe chiesti dall\'anteprima vengono trovati',
+    inserisci(posta, INIZIO, '\n  Logger.log(_studentiDellaClasse_(\'3B\', \'Classi 2026-27/3B\'));'),
+    '_studentiDellaClasse_ usato fuori da _espandi_');
+  deveFallire('Organizzazione_Gmail.gs', 'e una seconda _studentiDellaClasse_, che prenderebbe il posto di quella vera',
+    posta + '\nfunction _studentiDellaClasse_() {\n  return CLASSI_STUDENTI;\n}\n',
+    'la funzione _studentiDellaClasse_, che puo\' usare CLASSI_STUDENTI, e\' dichiarata 2 volte');
   // i servizi sono un elenco di quelli ammessi, file per file: uno nuovo che
   // scrive nel Drive o parla con un altro server fallisce anche se nessuno
   // l'aveva previsto
@@ -755,6 +808,26 @@ function bancoConGuasti() {
       'if (Object.prototype.hasOwnProperty.call(voce.criteri, k) && criteri[k] !== voce.criteri[k]) return false;');
     const s5 = esitoBanco('inpiu.gs', unoInPiu);
     verifica('e anche se si toglie un filtro con un criterio in piu\'', s5 !== null && s5 !== 0);
+    // Gli indirizzi degli studenti delle classi: il banco fa girare ogni
+    // funzione pubblica con i file delle classi caricati, e se ne esce anche
+    // uno solo (registro, email, valori, eccezioni, filtri) fallisce
+    const studentiNeiFiltri = sostituisci(posta,
+      'var mittenti = _espandi_(cfg, _senzaClassi_(regola.da || []), regola);',
+      'var mittenti = _espandi_(cfg, regola.da || [], regola);');
+    const s6 = esitoBanco('filtri-studenti.gs', studentiNeiFiltri);
+    verifica('se i filtri veri di Gmail tornano ad avere gli studenti il banco fallisce', s6 !== null && s6 !== 0);
+    const ricercaScritta = sostituisci(posta, 'if (!_classiDellaRegola_(regola).length) {', 'if (true) {');
+    const s7 = esitoBanco('ricerca-scritta.gs', ricercaScritta);
+    verifica('e se una ricerca rifiutata di una classe si scrive nel registro, con gli studenti', s7 !== null && s7 !== 0);
+    const nelRiepilogo = sostituisci(posta, RIGA,
+      'MailApp.sendEmail(_mioIndirizzo_(), \'[Organizzazione Gmail] \' + oggetto, corpo + ' +
+      '(typeof CLASSI_STUDENTI !== \'undefined\' ? JSON.stringify(CLASSI_STUDENTI) : \'\'));');
+    const s8 = esitoBanco('riepilogo-studenti.gs', nelRiepilogo);
+    verifica('e se il riepilogo per email li aggiunge', s8 !== null && s8 !== 0);
+    const nelCodice = inserisci(posta, 'function EXTRA_codiceStato() {',
+      '\n  if (typeof CLASSI_STUDENTI !== \'undefined\') Logger.log(JSON.stringify(CLASSI_STUDENTI));');
+    const s9 = esitoBanco('codice-studenti.gs', nelCodice);
+    verifica('e se il codice di stato li scrive nel registro', s9 !== null && s9 !== 0);
   } finally {
     fs.rmSync(cartella, { recursive: true, force: true });
   }

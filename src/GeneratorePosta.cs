@@ -735,9 +735,11 @@ namespace Campanella
         /// <summary>
         /// Il testo del file Classe_3B.gs: un'intestazione che dice di chi sono
         /// gli indirizzi, che Campanella non ne tiene copia, come aggiornarli e
-        /// di cancellarlo a fine anno; poi gli indirizzi in CLASSI_STUDENTI.
-        /// Piu' file nello stesso progetto si sommano, in qualunque ordine Google
-        /// li legga.
+        /// di cancellarlo a fine anno; poi in CLASSI_STUDENTI l'etichetta della
+        /// regola e gli indirizzi. Lo script li usa solo per la regola con
+        /// quell'etichetta (_studentiDellaClasse_): il file della 3B dell'anno
+        /// prima non vale per la 3B dell'anno dopo. Piu' file nello stesso
+        /// progetto si sommano, in qualunque ordine Google li legga.
         /// </summary>
         public static string FileClasse(string classe, string etichetta, List<string> indirizzi, DateTime quando)
         {
@@ -751,9 +753,11 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("   Gli indirizzi email degli studenti della " + nome + " (" + n + "), per la regola");
             sb.AppendLine("   \"" + AnalisiOrario.TestoCommento(etichetta) + "\" dello script della posta: i loro messaggi");
-            sb.AppendLine("   prendono quell'etichetta anche senza la classe nell'oggetto.");
+            sb.AppendLine("   prendono quell'etichetta anche senza la classe nell'oggetto. Valgono solo per");
+            sb.AppendLine("   quella regola: per un'altra etichetta (l'anno dopo) copia il file nuovo.");
             sb.AppendLine();
-            sb.AppendLine("   Campanella non ne tiene copia: ci sono solo qui, nel tuo progetto.");
+            sb.AppendLine("   Campanella non ne tiene copia, e lo script non li mette nei filtri di Gmail:");
+            sb.AppendLine("   ci sono solo qui, nel tuo progetto.");
             sb.AppendLine("   Per aggiornarli incollali di nuovo in Campanella (Posta, passo 4,");
             sb.AppendLine("   \"Le mie classi...\"), copia di nuovo il file e sostituisci tutto questo.");
             sb.AppendLine("   Sono dati di studenti, spesso minorenni: a fine anno cancella questo file");
@@ -761,10 +765,13 @@ namespace Campanella
             sb.AppendLine("   ========================================================================= */");
             sb.AppendLine();
             sb.AppendLine("var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== 'undefined' && CLASSI_STUDENTI) || {};");
-            sb.AppendLine("CLASSI_STUDENTI[\"" + AnalisiOrario.Js(classe) + "\"] = [");
+            sb.AppendLine("CLASSI_STUDENTI[\"" + AnalisiOrario.Js(classe) + "\"] = {");
+            sb.AppendLine("  etichetta: \"" + AnalisiOrario.Js(etichetta) + "\",");
+            sb.AppendLine("  indirizzi: [");
             for (int i = 0; i < n; i++)
-                sb.AppendLine("  \"" + AnalisiOrario.Js(indirizzi[i]) + "\"" + (i < n - 1 ? "," : ""));
-            sb.AppendLine("];");
+                sb.AppendLine("    \"" + AnalisiOrario.Js(indirizzi[i]) + "\"" + (i < n - 1 ? "," : ""));
+            sb.AppendLine("  ]");
+            sb.AppendLine("};");
             return sb.ToString();
         }
 
