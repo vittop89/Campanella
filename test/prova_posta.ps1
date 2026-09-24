@@ -1277,6 +1277,75 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $ffC.Dispose()
 
         # -------------------------------------------------------------------
+        Intestazione 'LE MIE CLASSI: I FILTRI CON GLI STUDENTI, SOTTO QUALUNQUE ETICHETTA MADRE'
+        # L'etichetta madre si scrive a mano, e l'anno di Cartelle e' testo
+        # libero: un filtro con gli studenti si riconosce anche quando le regole
+        # delle classi non ci sono piu' (tolte a fine anno) o stanno sotto
+        # un'altra madre. Campanella si ricorda le madri usate per le classi
+        # (solo i nomi); e ogni etichetta che sembra di una classe (3B, 3B LSA)
+        # o sta sotto una madre con "classi" nel nome vale come classe.
+        $s8 = NuovoStato
+        Imposta $s8 'Prefisso' ''
+        Imposta $s8 'Anno' '2026-2027'
+        function Classi8([string[]]$nomi) {
+            $l = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tScelta))
+            foreach ($n in $nomi) {
+                $c = [Activator]::CreateInstance($tScelta)
+                $c.Nome = $n
+                $c.Oggetto = $n
+                $l.Add($c)
+            }
+            return ,$l
+        }
+        $madrePartenza = [string](MC 'MadreDiPartenza').Invoke($null, @($s8.PSObject.BaseObject))
+        foreach ($m in @($madrePartenza, 'Le mie classi', 'Corsi')) {
+            $nomi = if ($m -eq 'Corsi') { @('Potenziamento') } else { @('3B') }
+            [void](MC 'Applica').Invoke($null, @($s8.PSObject.BaseObject, [string]$m, (Classi8 $nomi).PSObject.BaseObject, $false))
+        }
+        # l'anno dopo: tolte tutte le regole delle classi degli anni prima
+        [void](MC 'Applica').Invoke($null, @($s8.PSObject.BaseObject, 'Classi 2027-2028', (Classi8 @()).PSObject.BaseObject, $true))
+        Verifica "le regole delle classi di prima sono tolte ($madrePartenza, Le mie classi, Corsi)" (
+            @((Leggi $s8 'Regole') | Where-Object { $_.Sorgente -eq 'classe' }).Count -eq 0)
+        $alunni = 'anna.rossi@studenti.scuola-esempio.edu.it OR luca.verdi@studenti.scuola-esempio.edu.it'
+        $etichetteStudenti = @('Classi/3B', 'Le mie classi 2026-27/3B', 'Classi 2026-2027/3B', 'Classi 2026/27/3B',
+                               'Classi a.s. 2026-27/3B', 'Classi  2026-27/3B', 'Le mie classi/3B', 'Terze/3B LSA',
+                               'Corsi/Potenziamento', '3B', 'Scuola/Le mie Classi/Terze/Potenziamento')
+        $voci8 = @($etichetteStudenti | ForEach-Object {
+            "<entry><category term='filter'></category><title>Mail Filter</title><apps:property name='from' " +
+            "value='$alunni'/><apps:property name='label' value='$_'/></entry>" })
+        # un filtro tuo, con gli indirizzi delle famiglie: quello si sceglie
+        $voci8 += "<entry><category term='filter'></category><title>Mail Filter</title><apps:property name='from' " +
+                  "value='genitori@famiglie.example'/><apps:property name='label' value='Famiglie'/></entry>"
+        $esp8 = "<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' " +
+                "xmlns:apps='http://schemas.google.com/apps/2006'><title>Mail Filters</title>" + ($voci8 -join '') + '</feed>'
+        $letti8 = @($tFiltriG.GetMethod('Leggi', $FS, $null, [Type[]]@([string]), $null).Invoke($null, @([string]$esp8)))
+        $tipi8 = @($letti8 | ForEach-Object { $_.Etichetta + '=' + $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s8)).Tipo })
+        $nonClasse = @($tipi8 | Select-Object -First $etichetteStudenti.Count | Where-Object { $_ -notlike '*=classe' })
+        Verifica "senza piu' le regole delle classi, i filtri con gli studenti sono 'di una classe' sotto ogni madre, quello delle famiglie no ($($tipi8[-1]))$(if ($nonClasse.Count) { ': no ' + ($nonClasse -join '; ') })" (
+            $nonClasse.Count -eq 0 -and $tipi8[-1] -ne 'Famiglie=classe')
+        $ff8 = [Activator]::CreateInstance($asm.GetType('Campanella.FormFiltriGmail'), @($s8.PSObject.BaseObject))
+        $ff8.Carica($letti8)
+        for ($i = 0; $i -lt $letti8.Count; $i++) { $ff8.Spunta($i, $true) }
+        $scelti8 = @($ff8.SceltiAdesso())
+        $ff8.Dispose()
+        Verifica "spuntandoli tutti si sceglie solo quello delle famiglie ($(@($scelti8 | ForEach-Object { $_.Etichetta }) -join ', '))" (
+            $scelti8.Count -eq 1 -and $scelti8[0].Etichetta -eq 'Famiglie')
+        $lista8 = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType(
+            $asm.GetType('Campanella.FiltroDaTogliere')))
+        foreach ($x in $scelti8) { $lista8.Add($x) }
+        Imposta $s8 'FiltriDaTogliere' $lista8
+        $conf8 = Genera $s8 $false
+        Verifica "e nella configurazione non c'e' nessuno studente" (-not $conf8.Contains('studenti.scuola-esempio'))
+        # la madre cambiata a meta' anno: la regola c'e', sotto "Classi 2026-27"
+        $s9 = NuovoStato
+        Imposta $s9 'Prefisso' ''
+        [void](MC 'Applica').Invoke($null, @($s9.PSObject.BaseObject, 'Classi 2026-27', (Classi8 @('3B')).PSObject.BaseObject, $false))
+        $vecchiaMadre = @($letti8 | Where-Object { $_.Etichetta -eq 'Terze/3B LSA' -or $_.Etichetta -eq 'Le mie classi/3B' })
+        $tipi9 = @($vecchiaMadre | ForEach-Object { $mConfrontaC.Invoke($null, @($_.PSObject.BaseObject, $s9)).Tipo })
+        Verifica "con la regola sotto un'altra madre, gli stessi filtri sono 'di una classe', non 'simili' ($($tipi9 -join ', '))" (
+            ($tipi9 -join ',') -eq 'classe,classe')
+
+        # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA REGOLA DI UNA CLASSE NELLA SUA FINESTRA'
         # "Modifica" al passo 4: la spunta "basta uno dei due" e, al posto dei
         # mittenti, il segnaposto della classe, che non si cambia da li'

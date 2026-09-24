@@ -95,6 +95,7 @@ static class ProvaStato
                 case "filtri-scritti-a-mano": FiltriScrittiAMano(); break;
                 case "classi-andata-e-ritorno": ClassiAndataERitorno(); break;
                 case "classi-colori": ClassiColori(); break;
+                case "classi-madri": ClassiMadri(); break;
                 // queste due girano nella stessa cartella, una dopo l'altra: la
                 // prima con lo Stato di adesso, la seconda con Formato = 1
                 case "scrivi-per-la-vecchia": ScriviPerLaVecchia(); break;
@@ -1046,6 +1047,43 @@ static class ProvaStato
         Verifica("una classe nuova segue la tinta delle classi che ci sono (" + ColoreDi(f) + ")", Sfondo(f) == "#a4c2f4");
     }
 
+    // Le etichette madri usate per le classi (solo i nomi) restano anche tolte
+    // le regole: servono a riconoscere un filtro di Gmail con gli studenti
+    // sotto una madre scritta a mano (FiltriGmail.EtichettaDiUnaClasse)
+    static void ClassiMadri()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        Verifica("uno Stato nuovo non ha madri delle classi", s.MadriClassi != null && s.MadriClassi.Count == 0);
+        s.Regole.Add(NuovaClasse("Le mie classi/3B", "3B"));
+        s.AggiungiMadreClassi("Classi 2026-27");
+        s.AggiungiMadreClassi(" classi  2026-27/ ");
+        Verifica("una madre si ricorda una volta, maiuscole e spazi a parte (" + string.Join("|", s.MadriClassi.ToArray()) + ")",
+            string.Join("|", s.MadriClassi.ToArray()) == "Classi 2026-27");
+        s.Salva();
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("le madri stanno nel file dei dati, insieme alle regole",
+            ListaNelFile(dati, "madriClassi") == "Classi 2026-27" && !Json(Impostazioni()).ContainsKey("madriClassi"));
+        Stato t = Carica();
+        Verifica("rilette, con quella della regola delle classi che c'e' (" + string.Join("|", t.MadriClassi.ToArray()) + ")",
+            string.Join("|", t.MadriClassi.ToArray()) == "Classi 2026-27|Le mie classi");
+        t.Regole.RemoveAll(delegate(Regola r) { return r.Sorgente == "classe"; });
+        t.Salva();
+        Verifica("e restano anche tolte le regole delle classi",
+            string.Join("|", Carica().MadriClassi.ToArray()) == "Classi 2026-27|Le mie classi");
+
+        // un file di prima della chiave, con una regola di una classe: la sua madre
+        Dictionary<string, object> classe = RegolaJson("Corsi/Potenziamento", "classe", null);
+        classe["da"] = new object[] { "@CLASSE:Potenziamento@" };
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["regole"] = new object[] { classe, RegolaJson("Verbali/2026", "", null) };
+        ScriviImpostazioni(false, "", altro);
+        Verifica("da un file senza la chiave, le madri delle regole delle classi (" +
+                 string.Join("|", Carica().MadriClassi.ToArray()) + ")",
+            string.Join("|", Carica().MadriClassi.ToArray()) == "Corsi");
+    }
+
     static void ColoriDelleClassi(Stato s)
     {
         Type t = typeof(Stato).Assembly.GetType("Campanella.ColoriEtichette");
@@ -1438,6 +1476,7 @@ $casi = @(
     'filtri-scritti-a-mano'
     'classi-andata-e-ritorno'
     'classi-colori'
+    'classi-madri'
 )
 
 $base = Join-Path $env:TEMP ('campanella-prova-stato-' + [Guid]::NewGuid().ToString('N'))

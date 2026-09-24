@@ -709,6 +709,21 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Vero se un nome sembra quello di una classe: numero e una sezione di
+        /// al piu' tre lettere, poi eventualmente un separatore e il resto
+        /// ("3B", "3 B", "5AL", "3B LSA"), o il numero romano, da I a V, uno
+        /// spazio e la sezione in maiuscolo ("III B"). Serve a riconoscere le
+        /// etichette delle classi nei filtri di Gmail.
+        /// </summary>
+        public static bool SembraClasse(string nome)
+        {
+            string s = Pulito(nome);
+            Match m = NumeroSezione.Match(s);
+            if (m.Success) return m.Groups[2].Value.Length <= 3;
+            return Regex.IsMatch(s, @"^(I|II|III|IV|V) [A-Z]{1,3}(?:$|[^A-Za-z0-9])");
+        }
+
         /// <summary>Il file con gli indirizzi di una classe: Classe_3B.gs (lo stesso nome che cerca lo script, _fileClasse_).</summary>
         public static string NomeFile(string classe)
         {
@@ -897,6 +912,8 @@ namespace Campanella
                 else aggiornate++;
                 r.Etichetta = m + "/" + nome;
                 r.Sorgente = Regola.SorgenteClasse;
+                // la madre resta ricordata anche quando le regole andranno via
+                s.AggiungiMadreClassi(m);
                 r.Da = new List<string>(new string[] { Segnaposto(nome) });
                 r.Oggetto = ParoleOggetto(c.Oggetto);
                 r.UnoQualsiasi = true;

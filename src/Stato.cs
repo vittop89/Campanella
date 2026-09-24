@@ -281,6 +281,11 @@ namespace Campanella
         // i filtri di Gmail che l'utente aveva gia' e vuole togliere (dato
         // personale: i criteri possono avere indirizzi)
         public List<FiltroDaTogliere> FiltriDaTogliere = new List<FiltroDaTogliere>();
+        // le etichette madri usate per le classi ("Classi 2026-27", "Le mie
+        // classi"): solo nomi di etichette. Restano anche tolte le regole, cosi'
+        // un filtro di Gmail con gli studenti sotto una di queste si riconosce
+        // (FiltriGmail.EtichettaDiUnaClasse) e non si puo' scegliere
+        public List<string> MadriClassi = new List<string>();
 
         // ---- cartelle (generatore anno scolastico) --------------------------
         // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
@@ -980,6 +985,10 @@ namespace Campanella
                 }
             r["filtriDaTogliere"] = filtri;
 
+            List<object> madri = new List<object>();
+            if (MadriClassi != null) foreach (string m in MadriClassi) madri.Add(m);
+            r["madriClassi"] = madri;
+
             List<object> lez = new List<object>();
             foreach (Lezione l in Lezioni)
             {
@@ -1282,6 +1291,16 @@ namespace Campanella
                 }
             }
 
+            // le madri delle classi: quelle scritte e quelle delle regole delle
+            // classi che ci sono (un file di prima della chiave, o una regola
+            // spostata a mano sotto un'altra madre)
+            object[] mc = r.ContainsKey("madriClassi") ? r["madriClassi"] as object[] : null;
+            MadriClassi = new List<string>();
+            if (mc != null) foreach (object o in mc) AggiungiMadreClassi(Convert.ToString(o));
+            foreach (Regola x in Regole)
+                if (x.Sorgente == Regola.SorgenteClasse && (x.Etichetta ?? "").LastIndexOf('/') > 0)
+                    AggiungiMadreClassi(x.Etichetta.Substring(0, x.Etichetta.LastIndexOf('/')));
+
             // i filtri di Gmail da togliere: una voce che non si capisce tutta
             // si lascia fuori (FiltroDaTogliere.Da), e una ripetuta vale una volta
             object[] ft = r.ContainsKey("filtriDaTogliere") ? r["filtriDaTogliere"] as object[] : null;
@@ -1479,6 +1498,20 @@ namespace Campanella
         public string PrefissoPulito()
         {
             return (Prefisso ?? "").Trim().Trim('/');
+        }
+
+        /// <summary>
+        /// Si ricorda un'etichetta madre delle classi (MadriClassi): una volta
+        /// sola, maiuscole e spazi doppi a parte, senza barre in fondo.
+        /// </summary>
+        public void AggiungiMadreClassi(string madre)
+        {
+            string m = Regex.Replace(madre ?? "", @"\s+", " ").Trim().Trim('/').Trim();
+            if (m == "") return;
+            if (MadriClassi == null) MadriClassi = new List<string>();
+            foreach (string c in MadriClassi)
+                if (string.Equals(c, m, StringComparison.OrdinalIgnoreCase)) return;
+            MadriClassi.Add(m);
         }
 
         public List<string> IndirizziPersonale()

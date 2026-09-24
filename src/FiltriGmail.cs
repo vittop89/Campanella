@@ -498,29 +498,49 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se l'etichetta e' di una classe (Posta, passo 4, "Le mie
-        /// classi..."): quella di una regola delle classi, una sotto la stessa
-        /// etichetta madre, o una sotto "Classi 2025-26" (il nome di partenza,
-        /// anche di un anno le cui regole sono gia' state tolte). Con il gruppo
-        /// il nome e' intero, come in Gmail.
+        /// Vero se l'etichetta e' (o puo' essere) di una classe (Posta, passo 4,
+        /// "Le mie classi..."). L'etichetta madre si scrive a mano e l'anno e'
+        /// testo libero, quindi non basta il nome di partenza: vale come classe
+        /// un'etichetta che finisce con il nome di una classe (3B, III B, 3B
+        /// LSA: LeMieClassi.SembraClasse), una con "classi" in un pezzo della
+        /// madre (Classi 2026-27, Le mie classi, Classi a.s. 2026/27), quella di
+        /// una regola delle classi o una sotto la sua madre, e una sotto una
+        /// madre usata per le classi prima (Stato.MadriClassi: resta anche dopo
+        /// aver tolto le regole). Meglio una di troppo: un filtro che sembra di
+        /// una classe e ha degli indirizzi non si sceglie, e si toglie da Gmail.
+        /// Con il gruppo il nome e' intero, come in Gmail; spazi doppi e
+        /// maiuscole non contano.
         /// </summary>
         public static bool EtichettaDiUnaClasse(string etichetta, Stato s)
         {
-            string e = (etichetta ?? "").Trim().Trim('/');
+            string e = Regex.Replace(etichetta ?? "", @"\s+", " ").Trim().Trim('/').Trim();
+            if (e == "") return false;
             int barra = e.LastIndexOf('/');
+            if (LeMieClassi.SembraClasse(e.Substring(barra + 1))) return true;
             if (barra <= 0) return false;
             string madre = e.Substring(0, barra);
+            foreach (string pezzo in madre.Split('/'))
+                if (pezzo.IndexOf("classi", StringComparison.OrdinalIgnoreCase) >= 0) return true;
             string pre = s.PrefissoPulito();
             string davanti = (pre == "") ? "" : pre + "/";
+            List<string> madri = new List<string>();
             foreach (Regola r in s.Regole)
             {
                 if (LeMieClassi.ClasseDi(r) == null) continue;
-                string nome = (davanti + r.Etichetta).Trim().Trim('/');
-                int b = nome.LastIndexOf('/');
-                if (string.Equals(e, nome, StringComparison.OrdinalIgnoreCase) ||
-                    (b > 0 && string.Equals(madre, nome.Substring(0, b), StringComparison.OrdinalIgnoreCase))) return true;
+                string nome = Regex.Replace(davanti + r.Etichetta, @"\s+", " ").Trim().Trim('/');
+                if (string.Equals(e, nome, StringComparison.OrdinalIgnoreCase)) return true;
+                if (nome.LastIndexOf('/') > 0) madri.Add(nome.Substring(0, nome.LastIndexOf('/')));
             }
-            return Regex.IsMatch(madre.Substring(madre.LastIndexOf('/') + 1), @"^Classi \d{4}-\d{2}$", RegexOptions.IgnoreCase);
+            if (s.MadriClassi != null)
+                foreach (string m in s.MadriClassi)
+                {
+                    madri.Add(Regex.Replace(davanti + m, @"\s+", " ").Trim().Trim('/'));
+                    madri.Add(Regex.Replace(m ?? "", @"\s+", " ").Trim().Trim('/'));
+                }
+            foreach (string m in madri)
+                if (m != "" && (string.Equals(madre, m, StringComparison.OrdinalIgnoreCase) ||
+                                madre.StartsWith(m + "/", StringComparison.OrdinalIgnoreCase))) return true;
+            return false;
         }
 
         /// <summary>Vero se un criterio ha un indirizzo (o un dominio): una "@" nel valore.</summary>
