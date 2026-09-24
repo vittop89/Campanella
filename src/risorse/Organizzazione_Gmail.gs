@@ -739,11 +739,13 @@ function _riordina_() {
   }
 
   _rimuoviTrigger_(_TRIGGER_RIPRESA);
+  var vecchi = _avvisoFileVecchi_(cfg, regole);
   var riepilogo = (cfg.provaSenzaModifiche
         ? 'PROVA COMPLETATA - nessuna modifica applicata.\n' +
           'Per applicare davvero: in Configurazione.gs metti\n' +
           '  provaSenzaModifiche: false\n\n'
-        : 'RIORDINO COMPLETATO.\n\n') + _riepilogo_(stato.fatti);
+        : 'RIORDINO COMPLETATO.\n\n') + _riepilogo_(stato.fatti) +
+        (vecchi ? '\n\n' + _aCapo_(vecchi, '', '').join('\n') : '');
   _azzeraProgresso_();
   Logger.log(riepilogo);
   if (cfg.inviaReport && !cfg.provaSenzaModifiche) {
@@ -821,7 +823,11 @@ function smistaNuoviMessaggi() {
         _somma_(fatti, nome, nuove.length);
       }
     }
-    if (_totale_(fatti) > 0) Logger.log('Smistamento automatico:\n' + _riepilogo_(fatti));
+    if (_totale_(fatti) > 0) {
+      var vecchi = _avvisoFileVecchi_(cfg, regole);
+      Logger.log('Smistamento automatico:\n' + _riepilogo_(fatti) +
+                 (vecchi ? '\n\n' + _aCapo_(vecchi, '', '').join('\n') : ''));
+    }
   } finally {
     lock.releaseLock();
   }
@@ -2140,15 +2146,58 @@ function _diQualeAnno_(etichetta) {
  * la regola resta la stessa, ma gli studenti sono cambiati.
  */
 function _quandoCopiato_(copiato) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(copiato || ''));
-  if (!m) return '';
-  var testo = ' copiato il ' + m[3] + '/' + m[2] + '/' + m[1];
-  var adesso = new Date();
-  var annoAdesso = adesso.getMonth() >= 8 ? adesso.getFullYear() : adesso.getFullYear() - 1;
-  var annoFile = Number(m[2]) >= 9 ? Number(m[1]) : Number(m[1]) - 1;
-  if (annoFile >= annoAdesso) return testo;
+  var annoFile = _annoScolasticoDi_(copiato);
+  if (annoFile === null) return '';
+  var testo = ' copiato il ' + _giorno_(copiato);
+  if (annoFile >= _annoScolasticoAdesso_()) return testo;
   return testo + ': e\' dell\'anno scolastico ' + annoFile + '-' + String(annoFile + 1).slice(2) +
          ', se la classe e\' cambiata copialo di nuovo da Campanella';
+}
+
+/** L'anno in cui comincia l'anno scolastico (a settembre) di un giorno "2026-09-24": 2026; null se non e' un giorno. */
+function _annoScolasticoDi_(giorno) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(giorno || ''));
+  if (!m) return null;
+  return Number(m[2]) >= 9 ? Number(m[1]) : Number(m[1]) - 1;
+}
+
+/** L'anno in cui e' cominciato l'anno scolastico di adesso. */
+function _annoScolasticoAdesso_() {
+  var adesso = new Date();
+  return adesso.getMonth() >= 8 ? adesso.getFullYear() : adesso.getFullYear() - 1;
+}
+
+/** Un giorno "2026-09-24" come "24/09/2026". */
+function _giorno_(giorno) {
+  var p = String(giorno || '').split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(giorno || '');
+}
+
+/**
+ * Per il riepilogo del riordino e dello smistamento, che girano anche senza
+ * l'anteprima: i file delle classi copiati in un anno scolastico passato che
+ * le regole accese usano ancora. Con un'etichetta madre senza anno ("Le mie
+ * classi") la regola l'anno dopo e' la stessa, e il file le da' gli studenti
+ * di prima. Il nome del file, la regola e il giorno, mai gli indirizzi; ""
+ * se non ce ne sono.
+ */
+function _avvisoFileVecchi_(cfg, regole) {
+  var vecchi = [], adesso = _annoScolasticoAdesso_();
+  for (var r = 0; r < regole.length; r++) {
+    var classi = _classiDellaRegola_(regole[r]);
+    for (var k = 0; k < classi.length; k++) {
+      var dati = _fileDellaClasse_(classi[k]);
+      var anno = dati ? _annoScolasticoDi_(dati.copiato) : null;
+      // un file che la regola non usa lo dice l'anteprima (_fileSenzaRegola_)
+      if (anno === null || anno >= adesso || !_espandi_(cfg, ['@CLASSE:' + classi[k] + '@'], regole[r]).length) continue;
+      vecchi.push(_fileClasse_(classi[k]) + ' (per ' + regole[r].etichetta + ', copiato il ' + _giorno_(dati.copiato) + ')');
+    }
+  }
+  if (!vecchi.length) return '';
+  var uno = vecchi.length === 1;
+  return 'File delle classi di un anno scolastico passato, che le regole usano ancora: ' + vecchi.join(', ') +
+         '. Se ' + (uno ? 'la classe e\' cambiata, copialo' : 'le classi sono cambiate, copiali') + ' di nuovo da ' +
+         'Campanella (Posta, passo 4, "Le mie classi...") al posto di ' + (uno ? 'quello' : 'quelli') + ' di prima.';
 }
 
 /**

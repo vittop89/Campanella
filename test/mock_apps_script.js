@@ -2229,6 +2229,37 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   const nuovo = contesto._notaClasse_(cfg, senzaAnno, '3B');
   verifica('uno di quest\'anno dice solo quando (' + nuovo + ')',
     /copiato il \d\d\/\d\d\/\d{4}$/.test(nuovo) && nuovo.indexOf('anno scolastico') < 0);
+  // e lo dicono anche il riepilogo del riordino e quello dello smistamento di
+  // ogni ora, che girano anche senza l'anteprima: la regola usa ancora gli
+  // studenti dell'anno prima
+  {
+    const cfgSenzaAnno = Object.assign({}, cfg, { regole: [senzaAnno], provaSenzaModifiche: true });
+    contesto.CONFIG = cfgSenzaAnno;
+    contesto.CLASSI_STUDENTI = undefined;
+    vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, annoPassato), contesto);
+    proprieta.clear();
+    const riordino = contesto.PASSO_3_riordinaPostaEsistente().replace(/\s+/g, ' ');
+    const atteso = 'File delle classi di un anno scolastico passato, che le regole usano ancora: Classe_3B.gs (per ' +
+                   'Le mie classi/3B, copiato il 01/10/' + annoDi + '). Se la classe e\' cambiata, copialo di nuovo ' +
+                   'da Campanella (Posta, passo 4, "Le mie classi...") al posto di quello di prima.';
+    verifica('il riepilogo del riordino dice che il file e\' di un anno scolastico passato',
+      riordino.indexOf(atteso) > 0 && !studenti.some(x => riordino.indexOf(x) >= 0));
+    cfgSenzaAnno.provaSenzaModifiche = false;
+    const dallaTerza = aggiungi(studenti[7], 'Una domanda', '', { giorniFa: 1 });
+    const primaDelloSmistamento = registro.length;
+    contesto.smistaNuoviMessaggi();
+    const smistamento = registro.slice(primaDelloSmistamento).join('\n').replace(/\s+/g, ' ');
+    verifica('e anche lo smistamento di ogni ora (' + smistamento.slice(0, 60) + '...)',
+      dallaTerza.labels.has('Le mie classi/3B') && smistamento.indexOf(atteso) > 0 &&
+      !studenti.some(x => smistamento.indexOf(x) >= 0));
+    contesto.CLASSI_STUDENTI = undefined;
+    vm.runInContext(fileClasse('3B', 'Le mie classi/3B', studenti, iso(oggi)), contesto);
+    cfgSenzaAnno.provaSenzaModifiche = true;
+    proprieta.clear();
+    verifica('con il file di quest\'anno non lo dicono',
+      contesto.PASSO_3_riordinaPostaEsistente().indexOf('anno scolastico passato') < 0);
+    contesto.CONFIG = cfg;
+  }
   contesto.CLASSI_STUDENTI = salvato;
 
   // --- due regole accese con la stessa classe: il file vale per una --------
