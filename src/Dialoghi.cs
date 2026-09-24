@@ -772,7 +772,7 @@ namespace Campanella
 
         readonly Stato stato;
         readonly TextBox txtMadre, txtNuova, txtIncolla;
-        readonly Label lblMadre, lblNessuna, lblTitoloIncolla, lblAvviso, lblNotaVecchie;
+        readonly Label lblMadre, lblDaDove, lblTitoloIncolla, lblAvviso, lblNotaVecchie, aiutoIncolla;
         readonly DataGridView griglia;
         readonly Button btnCopia;
         readonly CheckBox chkVecchie;
@@ -793,20 +793,19 @@ namespace Campanella
 
             int y = 14;
             Label spiega = Tema.Testo1(
-                "Una regola per ogni classe, con un'etichetta come \"Classi 2026-27/3B\". Un messaggio la prende se " +
-                "vale uno dei due: la classe e' nell'oggetto, chiunque lo mandi (la dirigenza, i colleghi, Classroom), " +
-                "oppure l'ha mandato uno studente della classe. Le etichette delle classi si aggiungono alle altre: " +
-                "Studenti, Colleghi e le altre restano.",
+                "Una regola per ogni classe, con un'etichetta come \"Classi 2026-27/3B\": la prende un messaggio con " +
+                "la classe nell'oggetto, da chiunque, oppure mandato da uno studente della classe. Le etichette delle " +
+                "classi si aggiungono alle altre.",
                 16, y, Larga, Tema.Normale, Ruolo.Normale);
             Controls.Add(spiega);
-            y += spiega.Height + 4;
+            y += spiega.Height + 2;
             Label privato = Tema.Testo1(
-                "Gli indirizzi degli studenti sono dati di minori: Campanella non li conserva. Li incolli qui, copi il " +
-                "file della classe (per esempio Classe_3B.gs) nel progetto dello script, nell'account della scuola, e " +
-                "chiusa questa finestra spariscono. A fine anno togli le classi e cancella quei file.",
+                "Gli indirizzi degli studenti sono dati di minori: Campanella non li conserva. Li incolli qui e copi il " +
+                "file della classe (per esempio Classe_3B.gs) nel progetto dello script, nell'account della scuola; " +
+                "chiusa la finestra, spariscono. A fine anno togli le classi e cancella quei file.",
                 16, y, Larga, Tema.Normale, Ruolo.Avviso);
             Controls.Add(privato);
-            y += privato.Height + 10;
+            y += privato.Height + 8;
 
             Label lblM = Tema.Testo1("Etichetta madre", 16, y + 4, 0, Tema.Grassetto, Ruolo.Normale);
             Controls.Add(lblM);
@@ -818,18 +817,19 @@ namespace Campanella
             lblMadre.AutoSize = false;
             lblMadre.Height = Tema.AltezzaTesto("In Gmail: Classi 2026-27/3B, Classi 2026-27/4A...", Tema.Normale, lblMadre.Width);
             Controls.Add(lblMadre);
-            y += 38;
+            y += 34;
 
-            lblNessuna = Tema.Testo1(
-                "Non ho trovato classi. Le prendo dall'orario (Orari, passo 1 il tabellone e passo 4 il tuo nome) " +
-                "oppure da Cartelle (una classe per riga); altrimenti aggiungile qui sotto, una alla volta.",
-                16, y, Larga, Tema.Normale, Ruolo.Avviso);
-            Controls.Add(lblNessuna);
-            y += lblNessuna.Height + 4;
+            // da dove vengono le classi; senza classi, dove prenderle (AggiornaGriglia)
+            lblDaDove = Tema.Testo1("", 16, y, Larga, Tema.Normale, Ruolo.Tenue);
+            lblDaDove.AutoSize = false;
+            lblDaDove.Height = Math.Max(Tema.AltezzaTesto(DaDove(false), Tema.Normale, Larga),
+                                        Tema.AltezzaTesto(DaDove(true), Tema.Normale, Larga));
+            Controls.Add(lblDaDove);
+            y += lblDaDove.Height + 2;
 
             griglia = new DataGridView();
             griglia.Location = new Point(16, y);
-            griglia.Size = new Size(Larga, 196);
+            griglia.Size = new Size(Larga, 140);
             griglia.Font = Tema.Normale;
             griglia.BorderStyle = BorderStyle.FixedSingle;
             griglia.AllowUserToAddRows = false;
@@ -888,14 +888,15 @@ namespace Campanella
                 txtNuova.Text = "";
                 Scegli(i);
             }));
-            y += 42;
+            y += 40;
 
+            // il titolo cambia con la classe scelta, e il "?" gli sta attaccato (AggiornaScelta)
             lblTitoloIncolla = Tema.Testo1("", 16, y, 0, Tema.Grassetto, Ruolo.Normale);
             lblTitoloIncolla.AutoSize = false;
             lblTitoloIncolla.Width = 560;
             lblTitoloIncolla.Height = Tema.AltezzaTesto("Gli indirizzi degli studenti della 3B LSA", Tema.Grassetto, 560);
             Controls.Add(lblTitoloIncolla);
-            Controls.Add(Tema.Aiuto(16 + 566, y + 2, "Dove prendere gli indirizzi degli studenti",
+            aiutoIncolla = Tema.Aiuto(16 + 566, y + 2, "Dove prendere gli indirizzi degli studenti",
                 "Per esempio da Google Classroom: apri il corso, scheda Persone, spunta la casella sopra l'elenco " +
                 "degli studenti e scegli Azioni -> Invia email. Gmail apre un messaggio con tutti gli indirizzi nel " +
                 "campo A: selezionali, copiali (Ctrl+C) e incollali qui, poi chiudi il messaggio senza mandarlo. " +
@@ -907,10 +908,11 @@ namespace Campanella
                 "su tutta la sua posta.\r\n\r\n" +
                 "Poi premi \"Copia\" e nel progetto dello script crea un file nuovo (+ accanto a File -> Script) con " +
                 "il nome che vedi, per esempio Classe_3B, e incollaci il testo. Campanella non conserva gli " +
-                "indirizzi: per cambiarli incollali di nuovo qui e sostituisci il file."));
-            y += lblTitoloIncolla.Height + 4;
+                "indirizzi: per cambiarli incollali di nuovo qui e sostituisci il file.");
+            Controls.Add(aiutoIncolla);
+            y += lblTitoloIncolla.Height + 2;
 
-            txtIncolla = Tema.CasellaMulti(16, y, Larga, 84, "incolla qui gli indirizzi (Ctrl+V)");
+            txtIncolla = Tema.CasellaMulti(16, y, Larga, 64, "incolla qui gli indirizzi (Ctrl+V)");
             txtIncolla.ScrollBars = ScrollBars.Vertical;
             txtIncolla.TextChanged += delegate
             {
@@ -927,23 +929,23 @@ namespace Campanella
             // alta quanto l'avviso piu' lungo che Avviso puo' scrivere
             lblAvviso.Height = Tema.AltezzaTesto(AvvisoPiuLungo(), Tema.Normale, lblAvviso.Width);
             Controls.Add(lblAvviso);
-            y += Math.Max(36, lblAvviso.Height + 6);
+            y += Math.Max(34, lblAvviso.Height + 4);
 
             chkVecchie = Tema.Spunta("", 16, y, Ruolo.Normale);
             Controls.Add(chkVecchie);
-            y += 26;
+            y += 24;
             lblNotaVecchie = Tema.Testo1("", 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             lblNotaVecchie.AutoSize = false;
             lblNotaVecchie.Height = Tema.AltezzaTesto(NotaVecchie(), Tema.Normale, Larga);
             Controls.Add(lblNotaVecchie);
-            y += lblNotaVecchie.Height + 4;
+            y += lblNotaVecchie.Height + 2;
 
             Label gmail = Tema.Testo1(
-                "Le etichette in Gmail non si cancellano mai: togliendo una classe resta la sua etichetta, con i " +
-                "messaggi. Dopo \"Usa queste classi\" copia di nuovo la configurazione (passo 5), e i file delle classi.",
+                "Le etichette in Gmail non si cancellano mai, nemmeno togliendo una classe. Dopo \"Usa queste classi\" " +
+                "copia di nuovo la configurazione (passo 5).",
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(gmail);
-            y += gmail.Height + 10;
+            y += gmail.Height + 8;
 
             Button ok = Tema.BottonePrincipale("Usa queste classi", 16 + Larga - 200, y, 200, null);
             ok.Click += delegate
@@ -956,7 +958,7 @@ namespace Campanella
             ann.DialogResult = DialogResult.Cancel;
             Controls.Add(ann);
             CancelButton = ann;
-            ClientSize = new Size(16 + Larga + 16, y + 34 + 16);
+            ClientSize = new Size(16 + Larga + 16, y + 34 + 14);
 
             Riempi(s);
             txtMadre.TextChanged += delegate { CambiaMadre(); };
@@ -1064,7 +1066,19 @@ namespace Campanella
                     griglia.Rows.Add(c.Spuntata, c.Nome, c.Oggetto, Studenti(c), c.Provenienza);
             }
             finally { riempiendo = false; }
-            lblNessuna.Visible = Classi.Count == 0;
+            lblDaDove.Text = DaDove(Classi.Count == 0);
+            lblDaDove.Tag = (Classi.Count == 0) ? Ruolo.Avviso : Ruolo.Tenue;
+            Tema.Applica(lblDaDove);
+        }
+
+        /// <summary>La riga sopra l'elenco: da dove vengono le classi, o dove prenderle se non ce n'e' nessuna.</summary>
+        static string DaDove(bool nessuna)
+        {
+            return nessuna
+                ? "Non ho trovato classi. Le prendo dall'orario (Orari: il tabellone al passo 1 e il tuo nome al passo 4) " +
+                  "oppure da Cartelle (una classe per riga); altrimenti aggiungile qui sotto, una alla volta."
+                : "Le classi del tuo orario (Orari, passo 4), di Cartelle e quelle che hanno gia' la regola: spunta quelle " +
+                  "che vuoi. Le parole dell'oggetto si cambiano con un clic.";
         }
 
         /// <summary>La colonna "Studenti": quanti indirizzi incollati, o che non si conservano.</summary>
@@ -1098,6 +1112,9 @@ namespace Campanella
             ClasseScelta c = (scelta >= 0) ? Classi[scelta] : null;
             lblTitoloIncolla.Text = (c == null) ? "Gli indirizzi degli studenti: scegli una classe"
                                                 : "Gli indirizzi degli studenti della " + c.Nome;
+            // il "?" subito dopo il titolo, che cambia con la classe
+            lblTitoloIncolla.Width = Math.Min(560, TextRenderer.MeasureText(lblTitoloIncolla.Text, Tema.Grassetto).Width + 4);
+            aiutoIncolla.Left = lblTitoloIncolla.Right + 6;
             btnCopia.Text = "Copia " + LeMieClassi.NomeFile(c == null ? "3B" : c.Nome);
             btnCopia.Enabled = c != null && c.Indirizzi != null && c.Indirizzi.Count > 0;
             lblAvviso.Text = (c == null) ? "" : Avviso(scelta);

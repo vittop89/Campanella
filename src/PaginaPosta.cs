@@ -665,6 +665,26 @@ namespace Campanella
                 "Lo script toglie solo i filtri spuntati, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));
+
+            // le classi del docente: una regola per classe, accanto ai filtri
+            string classi = "Le mie classi...";
+            int xk = wf + 8 + 17 + 16;
+            int wk = 26 + TextRenderer.MeasureText(classi, Tema.Normale).Width;
+            p.Controls.Add(Tema.Bottone(classi, xk, yb + 40, wk, delegate { LeMieClassiDialogo(); }));
+            p.Controls.Add(Tema.Aiuto(xk + wk + 8, yb + 47, "Le mie classi",
+                "Prima di uno scrutinio, quello che riguarda la 3B e' sparso fra Dirigenza, Circolari, Colleghi e " +
+                "Studenti. Qui crei una regola per ogni tua classe, con un'etichetta come Classi 2026-27/3B. Un " +
+                "messaggio la prende se ha la classe nell'oggetto, chiunque lo mandi (la dirigenza, i colleghi, le " +
+                "notifiche di Classroom), oppure se l'ha mandato uno studente della classe. Le etichette delle " +
+                "classi si aggiungono alle altre.\r\n\r\n" +
+                "Le classi le prendo dall'orario (Orari: il tabellone e il tuo nome al passo 4) e da Cartelle; le " +
+                "altre le aggiungi tu. Gli indirizzi degli studenti li incolli nella finestra (per esempio da " +
+                "Classroom) e finiscono solo nel file della classe, per esempio Classe_3B.gs, che copi nel " +
+                "progetto dello script: Campanella non li conserva. Senza quel file la regola prende solo i " +
+                "messaggi con la classe nell'oggetto.\r\n\r\n" +
+                "Poi copia di nuovo la configurazione (passo 5) e guarda l'anteprima (PASSO_1_anteprima): dice " +
+                "anche quanti indirizzi ha trovato per ogni classe. A fine anno togli le classi (l'anno dopo la " +
+                "finestra lo propone) e cancella i file Classe_*.gs dal progetto."));
             lblFiltri = Tema.Testo1("", 0, yb + 76, 400, Tema.Piccolo, Ruolo.Tenue);
             lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri.",
                                                  Tema.Piccolo, 400);
@@ -861,7 +881,9 @@ namespace Campanella
             Cartellino(3, "Aggiungi il file della configurazione",
                 "Sempre nell'editor, colonna di sinistra, accanto a \"File\" premi il \"+\" e scegli " +
                 "\"Script\". Chiamalo esattamente  Configurazione  (senza .gs). Seleziona tutto " +
-                "(Ctrl+A) e incolla (Ctrl+V) la configurazione. Poi Ctrl+S.",
+                "(Ctrl+A) e incolla (Ctrl+V) la configurazione. Poi Ctrl+S. Se al passo 4 hai scelto le tue " +
+                "classi, aggiungi allo stesso modo il file di ogni classe (per esempio Classe_3B), copiato da " +
+                "\"Le mie classi...\".",
                 new string[] { "Copia la configurazione" },
                 new EventHandler[] { delegate { Guscio.Copia(GeneraConfigurazione(), "Configurazione copiata."); } });
 
@@ -1062,6 +1084,13 @@ namespace Campanella
                   "Il registro delle esecuzioni Google lo conserva per un po': se ci e' finito " +
                   "l'elenco, sappi che resta li'. Se compare \"Logging output too large\" non e' " +
                   "un errore: e' Google che accorcia le scritte lunghe." },
+                { "La regola di una classe prende solo i messaggi con la classe nell'oggetto",
+                  "Gli indirizzi degli studenti li porta il file della classe, per esempio Classe_3B.gs, nel " +
+                  "progetto dello script: PASSO_1_anteprima dice quanti ne ha trovati, o che il file manca. " +
+                  "Campanella non li conserva: al passo 4 apri \"Le mie classi...\", scegli la classe, incolla " +
+                  "di nuovo gli indirizzi, premi \"Copia\" e nel progetto crea (o sostituisci) il file con quel " +
+                  "nome. Se una classe prende messaggi che non sono suoi, togli le parole di troppo da " +
+                  "\"Cerca nell'oggetto\"; con l'anteprima controlla anche le forme come 3^B." },
                 { "Quanto tempo ci mette?",
                   "Dipende da quanta posta hai. Indicativamente un migliaio di conversazioni al " +
                   "minuto. Con caselle molto grandi lo script lavora a riprese, in automatico, " +
@@ -1958,6 +1987,7 @@ namespace Campanella
             }
             if (r.Oggetto.Count > 0) sb.AppendLine("Oggetto contiene: " + string.Join(", ", r.Oggetto.ToArray()));
             if (r.QueryLibera != "") sb.AppendLine("Ricerca: " + r.QueryLibera);
+            if (r.UnoQualsiasi) sb.AppendLine("Basta uno dei due: l'oggetto oppure i mittenti.");
 
             txtDescrizioneRegola.Text = sb.ToString();
             txtDescrizioneRegola.Select(0, 0);
@@ -2033,9 +2063,13 @@ namespace Campanella
             else if (r.Sorgente == "registro") m.AddRange(Righe(txtRegistro.Text));
             else
             {
+                string classe = LeMieClassi.ClasseDi(r);
                 foreach (string s in r.Da)
                 {
-                    if (s == "@PERSONALE@") m.Add("(l'elenco del passo 3: " + S.IndirizziPersonale().Count + " indirizzi)");
+                    if (classe != null && s == LeMieClassi.Segnaposto(classe))
+                        m.Add("(gli studenti della " + classe + ": gli indirizzi sono solo nel file " +
+                              LeMieClassi.NomeFile(classe) + " del progetto)");
+                    else if (s == "@PERSONALE@") m.Add("(l'elenco del passo 3: " + S.IndirizziPersonale().Count + " indirizzi)");
                     else if (s == "@DOMINIO@") m.Add("@" + (txtDominio.Text ?? "").Trim().TrimStart('@'));
                     else m.Add(s);
                 }
@@ -2103,6 +2137,24 @@ namespace Campanella
             Guscio.Stato1(n == 0 ? "Nessun filtro di Gmail da togliere." :
                 n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: copia di nuovo la configurazione " +
                 "(passo 5) ed esegui EXTRA_togliFiltri.");
+        }
+
+        /// <summary>
+        /// Le classi del docente (FormClassi): una regola per classe, messa nello
+        /// Stato da LeMieClassi.Applica. Gli indirizzi degli studenti restano
+        /// nella finestra e nei file Classe_*.gs che il docente copia: nello
+        /// Stato no, e nemmeno nella riga di stato.
+        /// </summary>
+        void LeMieClassiDialogo()
+        {
+            Raccogli();    // la dirigenza e la segreteria della pagina 2: si tolgono dagli studenti
+            using (FormClassi f = new FormClassi(S))
+            {
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+                string esito = LeMieClassi.Applica(S, f.Madre, f.Classi, f.TogliVecchie);
+                AggiornaElencoRegole(clbRegole.SelectedIndex);
+                Guscio.Stato1(esito + " Copia di nuovo la configurazione (passo 5).");
+            }
         }
 
         /// <summary>La riga sotto "Filtri che hai gia' in Gmail...": quanti ce ne sono da togliere.</summary>
