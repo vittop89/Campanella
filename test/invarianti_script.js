@@ -878,7 +878,10 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
         const apertaBlocco = pos + trovata[0].length - 1;
         let prof = 0, j = apertaBlocco;
         for (; j < a; j++) { if (nudo[j] === '{') prof++; else if (nudo[j] === '}' && --prof === 0) break; }
-        if (!/continue\s*;\s*$/.test(nudo.slice(apertaBlocco + 1, j))) {
+        // un'istruzione a se': prima di continue un ; o una graffa (quella della
+        // guardia, o di un blocco chiuso), non la ) di un if o di un while, un
+        // else, un do o un'etichetta, che lo farebbero saltare
+        if (!/[;{}]\s*continue\s*;\s*$/.test(nudo.slice(apertaBlocco, j))) {
           fuori.push('in ' + f + ' la guardia ' + gg.guardia + ' non finisce con continue');
         }
       }
@@ -1522,6 +1525,17 @@ function provaDellaProva() {
     sostituisci(orari, GUARDIA, 'if (false) {'), 'in _orariTaglia_ manca la guardia');
   deveFallire('Orari.gs', '  ...o saltata solo in un altro if',
     sostituisci(orari, GUARDIA, 'if (validoDal) if (!voce.contrassegno) {'), 'non sta da sola nel ciclo');
+  // il continue in fondo alla guardia, ma dentro un'altra istruzione: non sempre salta
+  const SALTA = /(stato\.senzaContrassegno\.push\(_orariEtichetta_\(voce\)\);\s*)continue;/;
+  const saltaCosi = x => (SALTA.test(orari) ? orari.replace(SALTA, (t, prima) => prima + x) : null);
+  deveFallire('Orari.gs', '  ...o con il continue della guardia dentro un if',
+    saltaCosi('if (stato.tolte < 0) continue;'), 'non finisce con continue');
+  deveFallire('Orari.gs', '  ...dentro un while', saltaCosi('while (0) continue;'), 'non finisce con continue');
+  deveFallire('Orari.gs', '  ...dopo un else', saltaCosi('if (validoDal) { } else continue;'), 'non finisce con continue');
+  deveFallire('Orari.gs', '  ...o dopo un\'etichetta', saltaCosi('salta: continue;'), 'non finisce con continue');
+  verifica('  ...ma il continue dopo un blocco chiuso va bene',
+    saltaCosi('if (validoDal) { stato.x = 1; } continue;') !== null &&
+    controlla('Orari.gs', saltaCosi('if (validoDal) { stato.x = 1; } continue;')).length === 0);
   deveFallire('Orari.gs', 'una voce presa da un altro elenco nel taglio viene trovata',
     sostituisci(orari, 'var voce = nostri[i];', 'var voce = stato.altre[i];'), 'in _orariTaglia_ voce si assegna solo cosi\'');
   deveFallire('Orari.gs', 'e una serie cambiata dentro una voce',
