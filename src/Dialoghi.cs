@@ -349,6 +349,8 @@ namespace Campanella
     /// fa e quanto somiglia alle regole di Campanella (FiltriGmail.Confronta), e
     /// fa spuntare quelli da togliere: di partenza quelli uguali a una regola
     /// che non fanno altro (FiltriGmail.DiPartenza) e quelli gia' scelti prima.
+    /// Quelli che sembrano di una classe e cercano degli indirizzi non si
+    /// scelgono, nemmeno se scelti prima (FiltriGmail.DiUnaClasseConIndirizzi).
     /// Scelti va nello Stato; i filtri li toglie lo script, con
     /// EXTRA_togliFiltri. Due filtri uguali si spuntano insieme: per lo script
     /// sono la stessa voce. Ogni riga della griglia sa di quale filtro e' (Tag):
@@ -374,6 +376,8 @@ namespace Campanella
         readonly Label lblEsito, lblConto;
         readonly TextBox txtDettaglio;
         bool fileAperto = false, riempiendo = false;
+        // i filtri scelti prima che sembrano di una classe e cercano degli indirizzi: non si tengono
+        int sceltiDelleClassi = 0;
         const int Larga = 860;
 
         public FormFiltriGmail(Stato s)
@@ -419,7 +423,8 @@ namespace Campanella
                 "(999 gia' spuntati, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
                 "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 che " +
                 "sembrano di una classe, con degli indirizzi (si tolgono in Gmail). In fondo, 999 scelti prima che " +
-                "nel file non ci sono.",
+                "nel file non ci sono. 999 filtri scelti prima sembrano di una classe e cercano degli indirizzi: non " +
+                "sono piu' fra quelli da togliere (se non ti servono, toglili in Gmail).",
                 Tema.Normale, lblEsito.Width);
             Controls.Add(lblEsito);
             y += Math.Max(38, lblEsito.Height + 10);
@@ -513,20 +518,24 @@ namespace Campanella
             CancelButton = ann;
             ClientSize = new Size(16 + Larga + 16, y + 34 + 16);
 
-            // di partenza: i filtri scelti prima, spuntati
+            // di partenza: i filtri scelti prima, spuntati. Non quelli che
+            // sembrano di una classe e cercano degli indirizzi (scelti con la
+            // 1.5.3, o prima di creare le classi sotto quell'etichetta): come nel
+            // file, non si possono scegliere
             if (s != null && s.FiltriDaTogliere != null)
                 foreach (FiltroDaTogliere f in s.FiltriDaTogliere)
                 {
                     if (f == null) continue;
+                    if (FiltriGmail.DiUnaClasseConIndirizzi(f.Etichetta, f.Criteri, s)) { sceltiDelleClassi++; continue; }
                     Riga r = new Riga();
                     r.Voce = f.Copia();
                     r.Somiglia = FiltriGmail.Confronta(f.Etichetta, f.Criteri, s);
                     r.Prima = true;
                     righe.Add(r);
                 }
-            lblEsito.Text = righe.Count == 0
+            lblEsito.Text = (righe.Count == 0
                 ? "Nessun file aperto, e nessun filtro scelto prima."
-                : "Nessun file aperto: qui sotto ci sono i filtri scelti prima.";
+                : "Nessun file aperto: qui sotto ci sono i filtri scelti prima.") + DelleClassiTolti();
             Riempi(null);
             Tema.Applica(this);
         }
@@ -645,11 +654,22 @@ namespace Campanella
                 (n == 1 ? "Nel file c'e' 1 filtro: " : "Nel file ci sono " + n + " filtri: ") +
                 string.Join(", ", parti.ToArray()) + ".") +
                 (mancano > 0 ? " In fondo, " + Quanti(mancano, "scelto", "scelti") + " prima che nel file " +
-                               (mancano == 1 ? "non c'e'." : "non ci sono.") : "");
+                               (mancano == 1 ? "non c'e'." : "non ci sono.") : "") + DelleClassiTolti();
             Riempi(spunte);
         }
 
         static string Quanti(int n, string uno, string tanti) { return n + " " + (n == 1 ? uno : tanti); }
+
+        /// <summary>I filtri scelti prima che sembrano di una classe e cercano degli indirizzi: non sono piu' scelti, e lo dice.</summary>
+        string DelleClassiTolti()
+        {
+            if (sceltiDelleClassi == 0) return "";
+            return sceltiDelleClassi == 1
+                ? " 1 filtro scelto prima sembra di una classe e cerca degli indirizzi: non e' piu' fra quelli da " +
+                  "togliere (se non ti serve, toglilo in Gmail)."
+                : " " + sceltiDelleClassi + " filtri scelti prima sembrano di una classe e cercano degli indirizzi: non " +
+                  "sono piu' fra quelli da togliere (se non ti servono, toglili in Gmail).";
+        }
 
         /// <summary>Le righe nella griglia; spunte null = spuntate quelle con una voce (i filtri scelti prima).</summary>
         void Riempi(List<bool> spunte)

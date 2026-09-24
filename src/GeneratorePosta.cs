@@ -240,7 +240,7 @@ namespace Campanella
                                             ColoriEtichette.DelRuolo(coloreColleghi, nome, s.ColoriRuoli)));
 
             sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
-            List<string> filtri = FiltriJs(s.FiltriDaTogliere);
+            List<string> filtri = FiltriJs(s);
             sb.AppendLine("  ]" + (filtri.Count > 0 ? "," : ""));
             if (filtri.Count > 0)
             {
@@ -263,15 +263,18 @@ namespace Campanella
         /// criteri con i nomi del servizio Gmail API, i si'/no come true e la
         /// dimensione come numero, come li da' il servizio. Una voce che non
         /// si capisce tutta (FiltroDaTogliere.Da) non si scrive, e una ripetuta
-        /// si scrive una volta.
+        /// si scrive una volta; nemmeno una che sembra di una classe e cerca
+        /// degli indirizzi (FiltriGmail.DiUnaClasseConIndirizzi).
         /// </summary>
-        static List<string> FiltriJs(List<FiltroDaTogliere> scelti)
+        static List<string> FiltriJs(Stato s)
         {
             List<string> fuori = new List<string>(), chiavi = new List<string>();
-            if (scelti == null) return fuori;
-            foreach (FiltroDaTogliere scelto in scelti)
+            if (s.FiltriDaTogliere == null) return fuori;
+            foreach (FiltroDaTogliere scelto in s.FiltriDaTogliere)
             {
-                if (scelto == null) continue;
+                // uno che sembra di una classe e cerca degli indirizzi, scelto
+                // prima: porterebbe qui gli indirizzi degli studenti
+                if (scelto == null || FiltriGmail.DiUnaClasseConIndirizzi(scelto.Etichetta, scelto.Criteri, s)) continue;
                 List<KeyValuePair<string, object>> grezzi = new List<KeyValuePair<string, object>>();
                 foreach (KeyValuePair<string, string> kv in scelto.Criteri)
                     grezzi.Add(new KeyValuePair<string, object>(kv.Key, kv.Value));
@@ -311,7 +314,7 @@ namespace Campanella
         /// <summary>Quanti filtri di Gmail da togliere finiscono nella configurazione.</summary>
         public static int FiltriDaTogliere(Stato s)
         {
-            return FiltriJs(s.FiltriDaTogliere).Count;
+            return FiltriJs(s).Count;
         }
 
         /// <summary>
@@ -1068,8 +1071,9 @@ namespace Campanella
         /// l'etichetta madre, con le parole dell'oggetto e fra i mittenti solo
         /// il segnaposto; una classe senza spunta perde la sua regola. Con
         /// togliVecchie toglie le regole delle classi sotto un'altra etichetta
-        /// madre (l'anno prima). Poi i colori delle classi nuove. Dice che cosa
-        /// ha fatto, senza indirizzi.
+        /// madre (l'anno prima). Poi i colori delle classi nuove, e via dai
+        /// filtri di Gmail da togliere quelli che adesso sembrano di una classe
+        /// e cercano degli indirizzi. Dice che cosa ha fatto, senza indirizzi.
         /// </summary>
         public static string Applica(Stato s, string madre, List<ClasseScelta> classi, bool togliVecchie)
         {
@@ -1111,6 +1115,9 @@ namespace Campanella
                 r.Descrizione = Descrizione(nome);
             }
             ColoriEtichette.DelleClassi(s.Regole, s.ColoriRuoli);
+            // un filtro con degli indirizzi scelto prima sotto questa madre adesso
+            // e' di una classe: gli studenti non devono restare nello Stato
+            int filtriTolti = FiltriGmail.TogliQuelliDelleClassi(s);
             List<string> parti = new List<string>();
             if (nuove > 0) parti.Add(nuove + (nuove == 1 ? " regola nuova" : " regole nuove"));
             if (aggiornate > 0) parti.Add(aggiornate + (aggiornate == 1 ? " aggiornata" : " aggiornate"));
@@ -1129,7 +1136,12 @@ namespace Campanella
             }
             return "Classi: " + (parti.Count == 0 ? "niente da cambiare" : string.Join(", ", parti.ToArray())) + "." +
                    (daCancellare.Count == 0 ? "" : " Nel progetto dello script cancella " +
-                    string.Join(", ", daCancellare.ToArray()) + ": ha gli indirizzi degli studenti.");
+                    string.Join(", ", daCancellare.ToArray()) + ": ha gli indirizzi degli studenti.") +
+                   (filtriTolti == 0 ? "" : filtriTolti == 1
+                    ? " 1 filtro di Gmail scelto prima sembra di una classe e cerca degli indirizzi: non lo togliera' " +
+                      "lo script, toglilo tu in Gmail."
+                    : " " + filtriTolti + " filtri di Gmail scelti prima sembrano di una classe e cercano degli " +
+                      "indirizzi: non li togliera' lo script, toglili tu in Gmail.");
         }
 
         /// <summary>La regola di una classe (per chiave) sotto l'etichetta madre, o null.</summary>

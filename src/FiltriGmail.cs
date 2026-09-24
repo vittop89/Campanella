@@ -468,7 +468,7 @@ namespace Campanella
             if (f == null || f.Etichetta == "") { x = new Somiglianza(); x.Tipo = SenzaEtichetta; }
             else if (f.CriteriIncompleti) { x = new Somiglianza(); x.Tipo = NonCapito; }
             else if (f.DaTogliere() == null) { x = new Somiglianza(); x.Tipo = SenzaCriteri; }
-            else if (EtichettaDiUnaClasse(f.Etichetta, s) && ConIndirizzi(f.Criteri))
+            else if (DiUnaClasseConIndirizzi(f.Etichetta, f.Criteri, s))
             {
                 // gli studenti di una classe: nella voce da togliere finirebbero i
                 // loro indirizzi, e Campanella non li deve conservare
@@ -556,6 +556,32 @@ namespace Campanella
                 foreach (KeyValuePair<string, string> kv in criteri)
                     if ((kv.Value ?? "").IndexOf('@') >= 0) return true;
             return false;
+        }
+
+        /// <summary>
+        /// Vero se un filtro sembra di una classe (EtichettaDiUnaClasse) e cerca
+        /// degli indirizzi: forse gli studenti, che Campanella non conserva. Non
+        /// si puo' scegliere, e fra quelli da togliere non ci deve stare.
+        /// </summary>
+        public static bool DiUnaClasseConIndirizzi(string etichetta, Dictionary<string, string> criteri, Stato s)
+        {
+            return EtichettaDiUnaClasse(etichetta, s) && ConIndirizzi(criteri);
+        }
+
+        /// <summary>
+        /// Toglie dai filtri da togliere quelli che sembrano di una classe e
+        /// cercano degli indirizzi (DiUnaClasseConIndirizzi): scelti prima (con
+        /// la 1.5.3, o prima di creare le classi sotto la loro etichetta madre),
+        /// porterebbero gli indirizzi degli studenti nel file dei dati e in
+        /// Configurazione.gs. All'avvio e dopo "Usa queste classi". Quanti ne ha tolti.
+        /// </summary>
+        public static int TogliQuelliDelleClassi(Stato s)
+        {
+            if (s == null || s.FiltriDaTogliere == null) return 0;
+            return s.FiltriDaTogliere.RemoveAll(delegate(FiltroDaTogliere f)
+            {
+                return f != null && DiUnaClasseConIndirizzi(f.Etichetta, f.Criteri, s);
+            });
         }
 
         /// <summary>Lo stesso, dall'etichetta sola (senza criteri non si riconoscono i filtri creati da Campanella).</summary>

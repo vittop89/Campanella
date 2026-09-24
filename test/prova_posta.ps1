@@ -1565,6 +1565,56 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
             $x2FA.Tipo -eq 'classe' -and $x2FA.Testo() -match '^sembra di una classe e cerca degli indirizzi' -and
             -not ($x2FA.Testo() -match 'indirizzi degli studenti'))
 
+        # un filtro con gli studenti scelto PRIMA (con la 1.5.3, o prima di creare
+        # le classi sotto quella madre) non resta scelto: ne' nella finestra, ne'
+        # nella configurazione, ne' nello Stato
+        $tFDT = $asm.GetType('Campanella.FiltroDaTogliere')
+        $tListaFDT = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFDT)
+        $s12 = NuovoStato
+        Imposta $s12 'Prefisso' ''
+        [void](MC 'Applica').Invoke($null, @($s12.PSObject.BaseObject, 'Corsi', (Classi8 @('Potenziamento')).PSObject.BaseObject, $false))
+        $conStudenti12 = @($letti8 | Where-Object { $_.Etichetta -eq 'Corsi/Potenziamento' })[0]
+        $famiglie12 = @($letti8 | Where-Object { $_.Etichetta -eq 'Famiglie' })[0]
+        $prima12 = [Activator]::CreateInstance($tListaFDT)
+        $prima12.Add($conStudenti12.DaTogliere())
+        $prima12.Add($famiglie12.DaTogliere())
+        Imposta $s12 'FiltriDaTogliere' $prima12
+        $ff12 = [Activator]::CreateInstance($asm.GetType('Campanella.FormFiltriGmail'), @($s12.PSObject.BaseObject))
+        $lblE12 = $asm.GetType('Campanella.FormFiltriGmail').GetField('lblEsito', $FI).GetValue($ff12)
+        $scelti12 = @($ff12.SceltiAdesso() | ForEach-Object { $_.Etichetta }) -join ', '
+        $esito12 = [string]$lblE12.Text
+        Verifica "appena aperta la finestra, quello con gli studenti scelto prima non e' scelto ($scelti12), e lo dice ('$esito12')" (
+            $scelti12 -eq 'Famiglie' -and $esito12 -match "1 filtro scelto prima sembra di una classe e cerca degli indirizzi")
+        $ff12.Carica($letti8)
+        $scelti12 = @($ff12.SceltiAdesso() | ForEach-Object { $_.Etichetta }) -join ', '
+        $esito12 = [string]$lblE12.Text
+        Verifica "aperto il file, nemmeno ($scelti12), e non dice che nel file non c'e' ('$esito12')" (
+            $scelti12 -eq 'Famiglie' -and $esito12 -match "1 filtro scelto prima sembra di una classe" -and
+            -not ($esito12 -match "nel file non c'e'"))
+        $ff12.Dispose()
+        $conf12 = Genera $s12 $false
+        Verifica "nella configurazione c'e' solo quello delle famiglie ($([int]$tGen.GetMethod('FiltriDaTogliere', $FS).Invoke($null, @($s12.PSObject.BaseObject))))" (
+            -not $conf12.Contains('studenti.scuola-esempio') -and $conf12.Contains('genitori@famiglie.example') -and
+            [int]$tGen.GetMethod('FiltriDaTogliere', $FS).Invoke($null, @($s12.PSObject.BaseObject)) -eq 1)
+        $mTogliC = $tFiltriG.GetMethod('TogliQuelliDelleClassi', $FS)
+        $tolti12 = if ($null -ne $mTogliC) { [int]$mTogliC.Invoke($null, @($s12.PSObject.BaseObject)) } else { -1 }
+        Verifica "e dallo Stato (all'avvio) si tolgono, cosi' non restano nel file dei dati ($tolti12)" (
+            $tolti12 -eq 1 -and (@((Leggi $s12 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie')
+        $guscioCs = Get-Content -Raw (Join-Path $radice 'src\Guscio.cs')
+        Verifica "all'avvio Campanella li toglie subito dopo aver letto le impostazioni" (
+            [regex]::IsMatch($guscioCs, 'Stato s = Stato\.Carica\(\);\s+FiltriGmail\.TogliQuelliDelleClassi\(s\);'))
+        # scelto prima, e le classi create dopo sotto quella madre: li toglie "Usa queste classi", e lo dice
+        $s13 = NuovoStato
+        Imposta $s13 'Prefisso' ''
+        $prima13 = [Activator]::CreateInstance($tListaFDT)
+        $prima13.Add($conStudenti12.DaTogliere())
+        $prima13.Add($famiglie12.DaTogliere())
+        Imposta $s13 'FiltriDaTogliere' $prima13
+        $esito13 = [string](MC 'Applica').Invoke($null, @($s13.PSObject.BaseObject, 'Corsi', (Classi8 @('Potenziamento')).PSObject.BaseObject, $false))
+        Verifica "creando le classi sotto la sua madre, 'Usa queste classi' lo toglie dai filtri da togliere e lo dice ('$esito13')" (
+            (@((Leggi $s13 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie' -and
+            $esito13 -match "1 filtro di Gmail scelto prima sembra di una classe" -and -not ($esito13 -match 'studenti\.scuola'))
+
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA REGOLA DI UNA CLASSE NELLA SUA FINESTRA'
         # "Modifica" al passo 4: la spunta "basta uno dei due" e, al posto dei

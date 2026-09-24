@@ -55,7 +55,11 @@ namespace Campanella
 
             try
             {
+                // i filtri di Gmail da togliere che sembrano di una classe e cercano
+                // degli indirizzi (scelti con la 1.5.3, o prima di creare le classi
+                // sotto quell'etichetta) non restano: forse sono gli studenti
                 Stato s = Stato.Carica();
+                FiltriGmail.TogliQuelliDelleClassi(s);
                 Tema.Imposta(s.TemaScuro);
 
                 // Se la cartella e' in sola lettura (chiavetta protetta, cartella
