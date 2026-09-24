@@ -32,6 +32,21 @@ namespace Campanella
         public string Nome = "";
     }
 
+    /// <summary>
+    /// Come e' stata letta una riga dei giorni senza lezione: il giorno o il
+    /// periodo capito (Giorni) oppure perche' non si capisce (Motivo) e, se
+    /// capita, un avviso da controllare. La pagina Orari le mostra tutte sotto
+    /// la casella, mentre si scrive (Calendario.Descrivi).
+    /// </summary>
+    class RigaLetta
+    {
+        public int Numero;               // la riga del testo, da 1
+        public string Testo = "";        // com'e' scritta
+        public Sospensione Giorni;       // null: non capita
+        public string Motivo = "";       // perche' non e' capita
+        public string Avviso = "";       // capita, ma da controllare
+    }
+
     /// <summary>Una serie settimanale del piano: un blocco, dalla prima all'ultima lezione di un tratto.</summary>
     class SerieCalendario
     {
@@ -54,15 +69,39 @@ namespace Campanella
         // una data: 2026-11-01, oppure 1/11/2026, 01/11/26, 01/11 (anche con i punti).
         // [0-9] e non \d: \d prende anche le cifre degli altri alfabeti (quelle a
         // larghezza piena di un PDF, per esempio), che poi int.Parse non legge
-        const string Data = @"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}[/.][0-9]{1,2}(?:[/.](?:[0-9]{4}|[0-9]{2}))?)";
+        const string Data = @"(?:[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}[/.][0-9]{1,2}(?:[/.](?:[0-9]{4}|[0-9]{2}))?)";
+        // la stessa senza la forma aaaa-mm-gg: quella che segue un giorno solo, "23-31/12/2026"
+        const string GiornoMese = @"(?:[0-9]{1,2}[/.][0-9]{1,2}(?:[/.](?:[0-9]{4}|[0-9]{2}))?)";
+        // un mese a parole, intero o abbreviato
+        const string Mese = @"(?<mese>gen(?:naio)?|feb(?:braio)?|mar(?:zo)?|apr(?:ile)?|mag(?:gio)?|giu(?:gno)?|" +
+                            @"lug(?:lio)?|ago(?:sto)?|set(?:t(?:embre)?)?|ott(?:obre)?|nov(?:embre)?|dic(?:embre)?)";
+        // fra l'inizio e la fine di un periodo: il trattino, "al" o "fino al"
+        const string Fra = @"\s*[-–—]\s*|\s+(?:fino\s+)?al\s+";
+        // dopo le date: la fine della riga o un separatore, poi il nome. Altre
+        // cifre attaccate no ("1/11/202" non e' un anno a due cifre); un punto o
+        // una parentesi si', come in fondo a una frase della circolare. "fine"
+        // segna dove finiscono le date
+        const string PoiNome = @"(?<fine>)(?=$|[\s:,;.)–—-])[\s:,;.)–—-]*(?<nome>.*)$";
 
-        // [dal] data [ (- | [fino] al) data ] [nome]. Dopo le date non ci devono
-        // essere altre cifre attaccate ("1/11/202" non e' un anno a due cifre);
-        // un punto o una parentesi si', come in fondo a una frase della circolare
-        static readonly Regex RigaSospensione = new Regex(
-            @"^(?:dal\s+)?" + Data +
-            @"(?:\s*[-–—]\s*" + Data + @"|\s+(?:fino\s+)?al\s+" + Data + @")?" +
-            @"(?=$|[\s:,;.)–—-])[\s:,;.)–—-]*(.*)$",
+        // [dal] data [ (- | [fino] al) data ] [nome]
+        static readonly Regex DueDate = new Regex(
+            @"^(?:dal\s+)?(?<d1>" + Data + @")(?:(?:" + Fra + @")(?<d2>" + Data + @"))?" + PoiNome,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // il mese scritto una volta sola: un giorno e poi la data intera,
+        // "23-31/12/2026", "dal 23 al 31/12/2026", "7 e 8/12/2026" (con "e", due
+        // giorni di seguito)
+        static readonly Regex GiornoEData = new Regex(
+            @"^(?:dal\s+)?(?<g1>[0-9]{1,2})(?<fra>" + Fra + @"|\s+e\s+)(?<d2>" + GiornoMese + @")" + PoiNome,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // a parole: "8 dicembre 2026", "7-8 dicembre 2026", "dal 23 al 31 dicembre",
+        // "7 e 8 dic.", "dal 7 all'8 dicembre", "1° maggio". Dopo il mese niente
+        // altre lettere ("8 martedi'" non e' marzo)
+        static readonly Regex GiorniAParole = new Regex(
+            @"^(?:dal\s+)?(?<g1>[0-9]{1,2})\s*[°º]?" +
+            @"(?:(?<fra>" + Fra + @"|\s+e\s+|\s+(?:fino\s+)?all['’]\s*)(?<g2>[0-9]{1,2})\s*[°º]?)?" +
+            @"\s*" + Mese + @"\.?(?![a-z])(?:\s+(?<anno>[0-9]{4})(?![0-9]))?" + PoiNome,
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // una data dentro il nome: "07/12/2026, 08/12/2026 ponte", "dal 23/12/2026 a
@@ -75,31 +114,55 @@ namespace Campanella
         // il segno di grado). Non "2 settimane" o "3 marce": dopo il mese non ci sono
         // altre lettere
         static readonly Regex DataAParole = new Regex(
-            @"(?<![0-9])([0-9]{1,2})\s*[\u00b0\u00ba]?\s*(gen(?:naio)?|feb(?:braio)?|mar(?:zo)?|apr(?:ile)?|" +
+            @"(?<![0-9])([0-9]{1,2})\s*[°º]?\s*(gen(?:naio)?|feb(?:braio)?|mar(?:zo)?|apr(?:ile)?|" +
             @"mag(?:gio)?|giu(?:gno)?|lug(?:lio)?|ago(?:sto)?|set(?:t(?:embre)?)?|ott(?:obre)?|nov(?:embre)?|" +
             @"dic(?:embre)?)\.?(?![a-z])(?:\s+([0-9]{4})(?![0-9]))?",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        // dopo le date, un collegamento seguito da un numero: "- 03", "al 3",
+        // subito dopo le date, un collegamento seguito da un numero: "- 03", "al 3",
         // "all'8", "e 8 dicembre", ", 2": la fine di un periodo scritta in un altro modo
         static readonly Regex Collegamento = new Regex(
-            @"^\s*(?:[-\u2013\u2014/,;&+]|e|a|al|all['\u2019]|fino\s+(?:a|al|all['\u2019]))\s*(?=[0-9])",
+            @"^\s*(?:[-–—/,;&+]|e|a|al|all['’]|fino\s+(?:a|al|all['’]))\s*(?=[0-9])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        // un giorno detto con l'articolo o la preposizione, nel nome: "anche l'8",
-        // "e il 9", "fino al 3", "dall'8". Non una percentuale, un piano o un'ora:
-        // "al 50%", "al 2o piano", "alle 10.30", "il 3,5", "dal 2 ore"
-        static readonly Regex GiornoNelNome = new Regex(
-            @"(?<![\w])(?:(?:il|al|dal|del|nel)\s+|(?:l|all|dall|dell|nell)['\u2019]\s*)([0-9]{1,2})(?![0-9])" +
-            @"(?![.,:][0-9])(?!\s*[%\u00b0\u00ba])(?!\s*(?:ore|ora|h|min)\b)",
+        // un numero nel nome che potrebbe essere un giorno: "ponte 7-8", "fino al
+        // giorno 6", "anche martedi' 8". Non un'ora, un decimale, una percentuale,
+        // un piano, una classe o una quantita': "alle 10.30", "il 3,5", "al 50%",
+        // "al 2° piano", "1A", "3 ore", "2 settimane", "il 2 turno"
+        static readonly Regex NumeroNelNome = new Regex(
+            @"(?<![0-9.,:/])([0-9]{1,2})(?![0-9])(?![.,:][0-9])(?!\s*[%°ºª^])(?![a-z])" +
+            @"(?!\s*(?:ore|ora|h|min|minuti|settimana|settimane|giorno|giorni|mese|mesi|anno|anni|volte|turno|turni|" +
+            @"piano|classi|persone|euro)\b)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         // gli a capo: anche quelli che arrivano incollando da un PDF o da una pagina web
         static readonly Regex ACapo = new Regex("\r\n|[\n\r\u000B\u000C\u0085\u2028\u2029]");
 
+        static readonly string[] Mesi = { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" };
+        static readonly string[] GiorniBrevi = { "dom", "lun", "mar", "mer", "gio", "ven", "sab" };
+
+        /// <summary>L'avviso di una riga capita con un numero nel nome che potrebbe essere un giorno.</summary>
+        public const string AvvisoNumero = "nel motivo c'e' un numero: controlla che il periodo sia giusto";
+
         // ===================================================================
         //  LE RIGHE SCRITTE DAL DOCENTE
         // ===================================================================
+
+        /// <summary>
+        /// I giorni senza lezione capiti, e le righe non capite cosi' come sono
+        /// state scritte (LeggiRighe dice come e' stata letta ognuna).
+        /// </summary>
+        public static List<Sospensione> Leggi(string testo, DateTime inizioPeriodo, out List<string> nonCapite)
+        {
+            List<Sospensione> fuori = new List<Sospensione>();
+            nonCapite = new List<string>();
+            foreach (RigaLetta r in LeggiRighe(testo, inizioPeriodo))
+            {
+                if (r.Giorni != null) fuori.Add(r.Giorni);
+                else nonCapite.Add(r.Testo);
+            }
+            return fuori;
+        }
 
         /// <summary>
         /// Una riga per giorno o per periodo: "01/11/2026 Tutti i Santi",
@@ -107,74 +170,213 @@ namespace Campanella
         /// 06/01/2027", "2026-11-01", anni a due cifre, e anche senza anno
         /// ("01/11", "23/12-06/01"): allora l'anno e' quello dell'anno
         /// scolastico del periodo (da settembre a dicembre l'anno in cui
-        /// comincia, da gennaio ad agosto quello dopo). Le righe vuote e
-        /// quelle che cominciano con # non contano. Le righe che non si
-        /// capiscono (una data impossibile, la fine prima dell'inizio, un
-        /// periodo scritto in un altro modo, come "dal 23/12 a 06/01",
-        /// "2026-11-01-03", "dal 23/12 al 6 gennaio" o "01/11 - 03", due giorni
-        /// sulla stessa riga) finiscono in nonCapite, cosi' come sono state
-        /// scritte: mai un giorno solo con il resto nel nome. Un giorno a
-        /// parole fra le date della riga ("25/04/2027 - 25 aprile") e' un nome.
+        /// comincia, da gennaio ad agosto quello dopo), o quello dell'altra
+        /// data della riga ("23/12-06/01/2027"). Il mese scritto una volta
+        /// sola: "23-31/12/2026", "dal 23 al 31/12/2026", "7 e 8/12/2026", e a
+        /// parole "7-8 dicembre 2026", "dal 23 al 31 dicembre", "8 dicembre"
+        /// ("e" vuol dire due giorni di seguito). Le righe vuote e quelle che
+        /// cominciano con # non contano. Non si capisce (Motivo) una data
+        /// impossibile, la fine prima dell'inizio, un'altra data nel nome
+        /// ("07/12/2026, 08/12/2026", "dal 23/12 a 06/01"), la fine scritta in
+        /// un altro modo subito dopo le date ("2026-11-01-03", "01/11 - 03",
+        /// "dal 23/12 al 6 gennaio"): mai un giorno solo con il resto nel nome.
+        /// Un giorno a parole fra le date della riga ("25/04/2027 - 25 aprile")
+        /// e' un nome. Un numero nel nome che potrebbe essere un giorno fuori dal
+        /// periodo ("07/12/2026 ponte 7-8") non ferma la riga, ma le da' un
+        /// Avviso: la pagina la mostra da controllare.
         /// </summary>
-        public static List<Sospensione> Leggi(string testo, DateTime inizioPeriodo, out List<string> nonCapite)
+        public static List<RigaLetta> LeggiRighe(string testo, DateTime inizioPeriodo)
         {
-            List<Sospensione> fuori = new List<Sospensione>();
-            nonCapite = new List<string>();
+            List<RigaLetta> fuori = new List<RigaLetta>();
             int annoInizio = AnnoScolastico(inizioPeriodo);
-            foreach (string grezza in ACapo.Split(testo ?? ""))
+            string[] righe = ACapo.Split(testo ?? "");
+            for (int i = 0; i < righe.Length; i++)
             {
-                string riga = grezza.Trim();
+                string riga = righe[i].Trim();
                 if (riga == "" || riga.StartsWith("#")) continue;
-                // un punto elenco copiato da una circolare
-                string senzaPunto = Regex.Replace(riga, @"^[-*•]\s+", "");
-
-                Match m = RigaSospensione.Match(senzaPunto);
-                DateTime dal, al;
-                if (!m.Success || !LeggiData(m.Groups[1].Value, annoInizio, out dal))
-                {
-                    nonCapite.Add(riga);
-                    continue;
-                }
-                Group seconda = m.Groups[2].Success ? m.Groups[2] : m.Groups[3];
-                if (!seconda.Success) al = dal;
-                else if (!LeggiData(seconda.Value, annoInizio, out al)) { nonCapite.Add(riga); continue; }
-                if (al < dal) { nonCapite.Add(riga); continue; }
-
-                // un periodo che non ho capito: dopo le date un collegamento con un
-                // numero che non e' un giorno a parole ("2026-11-01-03", "- 03", "al
-                // 3"), un'altra data nel nome, o un giorno a parole fuori dalle date
-                // della riga ("al 6 gennaio"). "25/04/2027 - 25 aprile" invece e' un nome
-                Group ultima = seconda.Success ? seconda : m.Groups[1];
-                string dopo = senzaPunto.Substring(ultima.Index + ultima.Length);
-                string nome = m.Groups[4].Value.Trim();
-                bool altroPeriodo = DataNelNome.IsMatch(nome);
-                Match collegamento = Collegamento.Match(dopo);
-                if (collegamento.Success)
-                {
-                    Match aParole = DataAParole.Match(dopo, collegamento.Length);
-                    if (!aParole.Success || aParole.Index != collegamento.Length) altroPeriodo = true;
-                }
-                foreach (Match aParole in DataAParole.Matches(dopo))
-                    if (!FraLeDate(aParole, dal, al)) altroPeriodo = true;
-                // "anche l'8": un giorno senza il mese (con il mese decide la regola di sopra)
-                foreach (Match giorno in GiornoNelNome.Matches(dopo))
-                {
-                    Match aParole = DataAParole.Match(dopo, giorno.Groups[1].Index);
-                    if (!aParole.Success || aParole.Index != giorno.Groups[1].Index) altroPeriodo = true;
-                }
-                if (altroPeriodo)
-                {
-                    nonCapite.Add(riga);
-                    continue;
-                }
-
-                Sospensione s = new Sospensione();
-                s.Dal = dal;
-                s.Al = al;
-                s.Nome = nome;
-                fuori.Add(s);
+                RigaLetta r = new RigaLetta();
+                r.Numero = i + 1;
+                r.Testo = riga;
+                LeggiUna(riga, annoInizio, r);
+                fuori.Add(r);
             }
             return fuori;
+        }
+
+        /// <summary>Il numero della riga (da 1, come RigaLetta.Numero) in cui sta la posizione nel testo.</summary>
+        public static int NumeroDiRiga(string testo, int posizione)
+        {
+            string prima = (testo ?? "").Substring(0, Math.Max(0, Math.Min(posizione, (testo ?? "").Length)));
+            return ACapo.Matches(prima).Count + 1;
+        }
+
+        static void NonCapita(RigaLetta r, string motivo)
+        {
+            r.Giorni = null;
+            r.Motivo = motivo;
+        }
+
+        /// <summary>Legge una riga non vuota e la scrive in r.</summary>
+        static void LeggiUna(string riga, int annoInizio, RigaLetta r)
+        {
+            // un punto elenco copiato da una circolare
+            string s = Regex.Replace(riga, @"^[-*•]\s+", "");
+            DateTime dal, al;
+            string perche;
+            Match m = DueDate.Match(s);
+            if (!m.Success) m = GiornoEData.Match(s);
+            if (!m.Success) m = GiorniAParole.Match(s);
+            if (!m.Success)
+            {
+                NonCapita(r, "non comincia con una data (come 01/11/2026, 23/12/2026-06/01/2027 o 7-8 dicembre 2026)");
+                return;
+            }
+            if (!Date(m, annoInizio, out dal, out al, out perche)) { NonCapita(r, perche); return; }
+            if (al < dal) { NonCapita(r, "la fine viene prima dell'inizio"); return; }
+
+            // dopo le date: un'altra data nel nome, un collegamento con un numero
+            // che non e' un giorno a parole fra le date ("2026-11-01-03", "- 03",
+            // "al 3"), o un giorno a parole fuori dalle date ("al 6 gennaio").
+            // "25/04/2027 - 25 aprile" invece e' un nome
+            string dopo = s.Substring(m.Groups["fine"].Index);
+            string nome = m.Groups["nome"].Value.Trim();
+            if (DataNelNome.IsMatch(nome))
+            {
+                NonCapita(r, "dopo la data ce n'e' un'altra: un giorno o un periodo per riga, come 07/12/2026-08/12/2026");
+                return;
+            }
+            Match collegamento = Collegamento.Match(dopo);
+            if (collegamento.Success)
+            {
+                Match subito = DataAParole.Match(dopo, collegamento.Length);
+                if (!subito.Success || subito.Index != collegamento.Length || !FraLeDate(subito, dal, al))
+                {
+                    NonCapita(r, "la fine del periodo va scritta come data, come 01/11/2026-03/11/2026 o 1-3/11/2026");
+                    return;
+                }
+            }
+            foreach (Match aParole in DataAParole.Matches(dopo))
+            {
+                if (FraLeDate(aParole, dal, al)) continue;
+                NonCapita(r, "c'e' un altro giorno a parole: scrivi il periodo con le date, come 23/12/2026-06/01/2027");
+                return;
+            }
+
+            Sospensione giorni = new Sospensione();
+            giorni.Dal = dal;
+            giorni.Al = al;
+            giorni.Nome = nome;
+            r.Giorni = giorni;
+            // un numero nel nome che potrebbe essere un giorno fuori dal periodo: la
+            // riga vale, ma va guardata ("07/12/2026 ponte 7-8" e' solo il 7)
+            foreach (Match n in NumeroNelNome.Matches(nome))
+            {
+                int g = int.Parse(n.Groups[1].Value, CultureInfo.InvariantCulture);
+                if (g < 1 || g > 31 || GiornoDelPeriodo(g, dal, al)) continue;
+                r.Avviso = AvvisoNumero;
+                break;
+            }
+        }
+
+        /// <summary>
+        /// Le date di una riga, dalla forma che l'ha riconosciuta (DueDate,
+        /// GiornoEData o GiorniAParole). False, con il perche', se una non esiste
+        /// o se con "e" i due giorni non sono di seguito.
+        /// </summary>
+        static bool Date(Match m, int annoInizio, out DateTime dal, out DateTime al, out string perche)
+        {
+            dal = al = DateTime.MinValue;
+            perche = "la data non esiste (giorno, mese o anno impossibili)";
+            int g1, m1, a1, g2, m2, a2;
+            if (m.Groups["d1"].Success)
+            {
+                // due date intere (la seconda puo' mancare): senza anno, quello
+                // dell'altra data della riga, o quello dell'anno scolastico
+                if (!Pezzi(m.Groups["d1"].Value, out g1, out m1, out a1)) return false;
+                if (m.Groups["d2"].Success)
+                {
+                    if (!Pezzi(m.Groups["d2"].Value, out g2, out m2, out a2)) return false;
+                    if (a1 == 0 && a2 != 0) a1 = (m1 * 100 + g1 <= m2 * 100 + g2) ? a2 : a2 - 1;
+                    else if (a2 == 0 && a1 != 0) a2 = (m2 * 100 + g2 >= m1 * 100 + g1) ? a1 : a1 + 1;
+                }
+                else { g2 = g1; m2 = m1; a2 = a1; }
+                if (a1 == 0) a1 = AnnoDelMese(m1, annoInizio);
+                if (a2 == 0) a2 = AnnoDelMese(m2, annoInizio);
+                return Giorno(g1, m1, a1, out dal) && Giorno(g2, m2, a2, out al);
+            }
+            if (m.Groups["d2"].Success)
+            {
+                // un giorno solo e poi la data intera: mese e anno sono quelli della data
+                if (!Pezzi(m.Groups["d2"].Value, out g2, out m2, out a2)) return false;
+                if (a2 == 0) a2 = AnnoDelMese(m2, annoInizio);
+                g1 = int.Parse(m.Groups["g1"].Value, CultureInfo.InvariantCulture);
+                if (!Giorno(g1, m2, a2, out dal) || !Giorno(g2, m2, a2, out al)) return false;
+            }
+            else
+            {
+                // a parole: il mese, e l'anno se c'e'
+                m1 = Array.IndexOf(Mesi, m.Groups["mese"].Value.Substring(0, 3).ToLowerInvariant()) + 1;
+                a1 = m.Groups["anno"].Success ? int.Parse(m.Groups["anno"].Value, CultureInfo.InvariantCulture)
+                                              : AnnoDelMese(m1, annoInizio);
+                g1 = int.Parse(m.Groups["g1"].Value, CultureInfo.InvariantCulture);
+                g2 = m.Groups["g2"].Success ? int.Parse(m.Groups["g2"].Value, CultureInfo.InvariantCulture) : g1;
+                if (!Giorno(g1, m1, a1, out dal) || !Giorno(g2, m1, a1, out al)) return false;
+            }
+            // "7 e 8": due giorni di seguito. Due giorni lontani non sono un periodo
+            if (Regex.IsMatch(m.Groups["fra"].Value, @"^\s+e\s+$", RegexOptions.IgnoreCase) && al != dal.AddDays(1))
+            {
+                perche = "con \"e\" vanno due giorni di seguito (7 e 8/12/2026): due giorni lontani, su due righe";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Giorno, mese e anno di una data scritta in cifre (aaaa-mm-gg, gg/mm/aaaa,
+        /// gg/mm/aa, gg/mm, anche con i punti); anno 0 se non c'e'.
+        /// </summary>
+        static bool Pezzi(string s, out int giorno, out int mese, out int anno)
+        {
+            giorno = mese = anno = 0;
+            Match iso = Regex.Match(s, @"^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$");
+            if (iso.Success)
+            {
+                anno = int.Parse(iso.Groups[1].Value, CultureInfo.InvariantCulture);
+                mese = int.Parse(iso.Groups[2].Value, CultureInfo.InvariantCulture);
+                giorno = int.Parse(iso.Groups[3].Value, CultureInfo.InvariantCulture);
+                return true;
+            }
+            string[] p = s.Split('/', '.');
+            if (p.Length < 2) return false;
+            giorno = int.Parse(p[0], CultureInfo.InvariantCulture);
+            mese = int.Parse(p[1], CultureInfo.InvariantCulture);
+            if (p.Length > 2) anno = (p[2].Length == 2) ? 2000 + int.Parse(p[2], CultureInfo.InvariantCulture)
+                                                         : int.Parse(p[2], CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        /// <summary>L'anno di un mese scritto senza anno: da settembre a dicembre quello in cui comincia l'anno scolastico.</summary>
+        static int AnnoDelMese(int mese, int annoInizio)
+        {
+            return (mese >= 9) ? annoInizio : annoInizio + 1;
+        }
+
+        static bool Giorno(int giorno, int mese, int anno, out DateTime d)
+        {
+            d = DateTime.MinValue;
+            if (anno < 2000 || anno > 2100 || mese < 1 || mese > 12 || giorno < 1) return false;
+            if (giorno > DateTime.DaysInMonth(anno, mese)) return false;
+            d = new DateTime(anno, mese, giorno);
+            return true;
+        }
+
+        /// <summary>Vero se uno dei giorni da dal ad al compresi e' il giorno g del suo mese.</summary>
+        static bool GiornoDelPeriodo(int g, DateTime dal, DateTime al)
+        {
+            if ((al.Date - dal.Date).Days >= 31) return true;
+            for (DateTime d = dal.Date; d <= al.Date; d = d.AddDays(1))
+                if (d.Day == g) return true;
+            return false;
         }
 
         /// <summary>
@@ -184,8 +386,7 @@ namespace Campanella
         static bool FraLeDate(Match aParole, DateTime dal, DateTime al)
         {
             int giorno = int.Parse(aParole.Groups[1].Value, CultureInfo.InvariantCulture);
-            string[] mesi = { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" };
-            int mese = Array.IndexOf(mesi, aParole.Groups[2].Value.Substring(0, 3).ToLowerInvariant()) + 1;
+            int mese = Array.IndexOf(Mesi, aParole.Groups[2].Value.Substring(0, 3).ToLowerInvariant()) + 1;
             List<int> anni = new List<int>();
             if (aParole.Groups[3].Success) anni.Add(int.Parse(aParole.Groups[3].Value, CultureInfo.InvariantCulture));
             else { anni.Add(dal.Year); anni.Add(al.Year); }
@@ -209,29 +410,37 @@ namespace Campanella
             return (inizioPeriodo.Month >= 7) ? inizioPeriodo.Year : inizioPeriodo.Year - 1;
         }
 
-        static bool LeggiData(string s, int annoInizio, out DateTime d)
+        /// <summary>"lun 07/12/2026"</summary>
+        static string GiornoBreve(DateTime d)
         {
-            d = DateTime.MinValue;
-            int anno, mese, giorno;
-            Match iso = Regex.Match(s, @"^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$");
-            if (iso.Success)
-            {
-                anno = int.Parse(iso.Groups[1].Value);
-                mese = int.Parse(iso.Groups[2].Value);
-                giorno = int.Parse(iso.Groups[3].Value);
-            }
-            else
-            {
-                string[] p = s.Split('/', '.');
-                giorno = int.Parse(p[0]);
-                mese = int.Parse(p[1]);
-                if (p.Length > 2) anno = (p[2].Length == 2) ? 2000 + int.Parse(p[2]) : int.Parse(p[2]);
-                else anno = (mese >= 9) ? annoInizio : annoInizio + 1;
-            }
-            if (anno < 2000 || anno > 2100 || mese < 1 || mese > 12 || giorno < 1) return false;
-            if (giorno > DateTime.DaysInMonth(anno, mese)) return false;
-            d = new DateTime(anno, mese, giorno);
-            return true;
+            return GiorniBrevi[(int)d.DayOfWeek] + " " + d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Come la pagina mostra una riga letta, sotto la casella: "riga 3: dal
+        /// lun 07/12/2026 al lun 07/12/2026 (1 giorno) ponte 7-8   &lt;- nel
+        /// motivo c'e' un numero: ...", oppure "riga 4: non capita: ...". Una
+        /// riga che non tocca il periodo lo dice.
+        /// </summary>
+        public static string Descrivi(RigaLetta r, DateTime inizio, DateTime fine)
+        {
+            string testa = "riga " + r.Numero + ": ";
+            if (r.Giorni == null) return testa + "non capita: " + r.Motivo;
+            Sospensione s = r.Giorni;
+            int giorni = (s.Al.Date - s.Dal.Date).Days + 1;
+            string t = testa + "dal " + GiornoBreve(s.Dal) + " al " + GiornoBreve(s.Al) + " (" + giorni +
+                       (giorni == 1 ? " giorno)" : " giorni)") + ((s.Nome ?? "") == "" ? "" : " " + s.Nome);
+            List<string> guarda = new List<string>();
+            if (r.Avviso != "") guarda.Add(r.Avviso);
+            if (s.Al.Date < inizio.Date || s.Dal.Date > fine.Date) guarda.Add("fuori dal periodo: controlla l'anno");
+            return (guarda.Count == 0) ? t : t + "   <- " + string.Join("; ", guarda.ToArray());
+        }
+
+        /// <summary>Vero se la riga va guardata: non capita, con un avviso, o fuori dal periodo.</summary>
+        public static bool DaGuardare(RigaLetta r, DateTime inizio, DateTime fine)
+        {
+            if (r.Giorni == null || r.Avviso != "") return true;
+            return r.Giorni.Al.Date < inizio.Date || r.Giorni.Dal.Date > fine.Date;
         }
 
         /// <summary>La riga come la scrive la pagina: "01/11/2026 Tutti i Santi" o "23/12/2026-06/01/2027 Natale".</summary>

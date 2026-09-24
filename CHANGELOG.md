@@ -13,16 +13,27 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   `dal 23/12/2026 al 06/01/2027`, `2026-11-01`, two-digit years, and also
   without the year, `01/11` or `23/12-06/01`: the year comes from the school
   year of the period, September to December the first one, January on the
-  second). A period may end with a full stop, as in circulars, and "fino al"
-  works too. Empty lines and lines starting with # do not count; a line
-  Campanella does not understand (an impossible date, the end before the
-  start, two dates written another way, as in `07/12/2026, 08/12/2026` or
-  `2026-11-01-03`, the second one in words or as a day only, as in
-  `dal 23/12/2026 al 6 gennaio 2027` or `01/11/2026 - 03`, another day in
-  the name, as in `ponte, anche l'8`, digits of other scripts) is shown in
-  the summary, in amber, and left out of DatiOrari.gs: never taken as its
-  first day only. A day in words within the dates of the line, as in
-  `25/04/2027 - 25 aprile`, is just part of the name.
+  second, or from the other date of the line, as in `23/12-06/01/2027`).
+  The month may be written once: `23-31/12/2026`, `dal 23 al 31/12/2026`,
+  `7 e 8/12/2026` ("e" for two consecutive days) and, in words,
+  `7-8 dicembre 2026`, `dal 23 al 31 dicembre`, `8 dicembre 2026`. A period
+  may end with a full stop, as in circulars, and "fino al" works too. Empty
+  lines and lines starting with # do not count; a line Campanella does not
+  understand (an impossible date, the end before the start, two dates
+  written another way, as in `07/12/2026, 08/12/2026` or `2026-11-01-03`,
+  the end written right after the date in words or as a day only, as in
+  `dal 23/12/2026 al 6 gennaio 2027` or `01/11/2026 - 03`, two days far
+  apart joined by "e", digits of other scripts) is left out of
+  DatiOrari.gs: never taken as its first day only. A day in words within
+  the dates of the line, as in `25/04/2027 - 25 aprile`, is just part of
+  the name. A number in the name that could be a day outside the line's
+  dates (`07/12/2026 ponte 7-8`, `fino al giorno 8`) does not reject the
+  line: it is taken as written, with a warning to check it. Under the box,
+  a read-only list updated while typing shows how every line was read,
+  with the weekdays (`riga 3: dal lun 07/12/2026 al lun 07/12/2026 (1
+  giorno) ponte 7-8   <- ...`, `riga 4: non capita: ...`), scrolled to the
+  line being written; lines not understood, with a warning or outside the
+  period are in amber, and the summary counts them.
   Lines pasted from a PDF with Unicode line breaks are split. A line that
   does not touch the period (a wrong year) is not counted, and the summary
   says so in amber. "Aggiungi le feste nazionali" adds at the end the

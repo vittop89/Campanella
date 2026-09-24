@@ -338,6 +338,12 @@ console.log(JSON.stringify({
         $lista = $tCal.GetMethod('Leggi', $FS).Invoke($null, $a)
         @{ Lista = $lista; Righe = @($lista | ForEach-Object { (Giorno $_.Dal) + '..' + (Giorno $_.Al) + ' ' + $_.Nome }); NonCapite = @($a[2]) }
     }
+    # Calendario.LeggiRighe(testo, inizio del periodo): come e' stata letta ogni riga
+    function Lette($testo, $inizio) {
+        $m = $tCal.GetMethod('LeggiRighe', $FS)
+        if ($null -eq $m) { throw 'manca Calendario.LeggiRighe' }
+        return $m.Invoke($null, @([string]$testo, (DataIso $inizio)))
+    }
     Verifica "c'e' Calendario, con Leggi, Festivita, Pasqua, ConFeste e PianoDelDocente" (
         $null -ne $tCal -and $null -ne $tCal.GetMethod('Leggi', $FS) -and $null -ne $tCal.GetMethod('Festivita', $FS) -and
         $null -ne $tCal.GetMethod('Pasqua', $FS) -and $null -ne $tCal.GetMethod('ConFeste', $FS) -and
@@ -378,11 +384,58 @@ console.log(JSON.stringify({
             @('04/10/2026 San Francesco, il 4 ottobre', '2026-10-04..2026-10-04 San Francesco, il 4 ottobre'),
             @('20/11/2026 sciopero, adesione al 50%', '2026-11-20..2026-11-20 sciopero, adesione al 50%'),
             @("12/03/2027 prove al 2$([char]0xB0) piano", "2027-03-12..2027-03-12 prove al 2$([char]0xB0) piano"),
-            @('13/03/2027 uscita dalle 10.30, anche il 3,5 per cento', '2027-03-13..2027-03-13 uscita dalle 10.30, anche il 3,5 per cento')
+            @('13/03/2027 uscita dalle 10.30, anche il 3,5 per cento', '2027-03-13..2027-03-13 uscita dalle 10.30, anche il 3,5 per cento'),
+            # il mese scritto una volta sola: le forme di periodo piu' comuni delle circolari
+            @('23-31/12/2026', '2026-12-23..2026-12-31 '),
+            @('23 - 31/12/2026 Vacanze', '2026-12-23..2026-12-31 Vacanze'),
+            @('7 e 8/12/2026 ponte', '2026-12-07..2026-12-08 ponte'),
+            @('dal 23 al 31/12/2026 Vacanze', '2026-12-23..2026-12-31 Vacanze'),
+            @('dal 23 fino al 31/12 Vacanze', '2026-12-23..2026-12-31 Vacanze'),
+            @('1-3/11 ponte', '2026-11-01..2026-11-03 ponte'),
+            @('23/12-06/01/2027 Natale', '2026-12-23..2027-01-06 Natale'),
+            # senza anno la prima data prende quello della seconda, non dell'anno scolastico
+            @('23/12-06/01/2026 Natale di prima', '2025-12-23..2026-01-06 Natale di prima'),
+            @('23/12/2025-06/01 Natale di prima', '2025-12-23..2026-01-06 Natale di prima'),
+            @('7-8 dicembre 2026 ponte', '2026-12-07..2026-12-08 ponte'),
+            @('7 e 8 dic. ponte', '2026-12-07..2026-12-08 ponte'),
+            @("dal 7 all'8 dicembre ponte", '2026-12-07..2026-12-08 ponte'),
+            @('dal 23 al 31 dicembre 2026 Vacanze', '2026-12-23..2026-12-31 Vacanze'),
+            @('8 dicembre 2026 Immacolata', '2026-12-08..2026-12-08 Immacolata'),
+            @("1$([char]0xB0) maggio Festa del Lavoro", '2027-05-01..2027-05-01 Festa del Lavoro'),
+            # giuste anche con i numeri nel nome: i giorni della riga, o un numero che non e' un giorno
+            @('03/10/2026-04/10/2026 Elezioni del 3 e 4 ottobre', '2026-10-03..2026-10-04 Elezioni del 3 e 4 ottobre'),
+            @('10/02/2027 Chiusura per il 2 turno elettorale', '2027-02-10..2027-02-10 Chiusura per il 2 turno elettorale')
         )
         foreach ($c in $capite) {
             $r = LeggiRighe $c[0] '2026-09-14'
-            Verifica "'$($c[0].Trim())' -> $($c[1])" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0)
+            $l = @(Lette $c[0] '2026-09-14')
+            Verifica "'$($c[0].Trim())' -> $($c[1])" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
+                $l.Count -eq 1 -and $l[0].Avviso -eq '')
+        }
+        # un numero nel nome che potrebbe essere un giorno: la riga vale per il
+        # giorno scritto con la data, ma non passa inosservata. Resta capita, con
+        # l'avviso, e la pagina la mostra da controllare
+        $avvisoNumero = [string]$tCal.GetField('AvvisoNumero', $FS).GetValue($null)
+        $conAvviso = @(
+            @('07/12/2026 ponte 7-8', '2026-12-07..2026-12-07 ponte 7-8'),
+            @('07/12/2026 ponte 7 e 8', '2026-12-07..2026-12-07 ponte 7 e 8'),
+            @('07/12/2026 ponte (7 e 8)', '2026-12-07..2026-12-07 ponte (7 e 8)'),
+            @('07/12/2026 ponte e 8', '2026-12-07..2026-12-07 ponte e 8'),
+            @('07/12/2026 ponte + 8', '2026-12-07..2026-12-07 ponte + 8'),
+            @('07/12/2026 ponte fino a 8', '2026-12-07..2026-12-07 ponte fino a 8'),
+            @('07/12/2026 ponte fino al giorno 8', '2026-12-07..2026-12-07 ponte fino al giorno 8'),
+            @('23/12/2026 vacanze di Natale fino al giorno 6', '2026-12-23..2026-12-23 vacanze di Natale fino al giorno 6'),
+            @("07/12/2026 ponte, anche martedi' 8", "2026-12-07..2026-12-07 ponte, anche martedi' 8"),
+            @("07/12/2026 ponte, anche l'8", "2026-12-07..2026-12-07 ponte, anche l'8"),
+            @('07/12/2026 ponte (e il 9)', '2026-12-07..2026-12-07 ponte (e il 9)'),
+            @('23/12/2026 Natale, fino al 6', '2026-12-23..2026-12-23 Natale, fino al 6')
+        )
+        Verifica "c'e' l'avviso per un numero nel nome ('$avvisoNumero')" ($avvisoNumero -match "numero" -and $avvisoNumero -match 'controlla')
+        foreach ($c in $conAvviso) {
+            $r = LeggiRighe $c[0] '2026-09-14'
+            $l = @(Lette $c[0] '2026-09-14')
+            Verifica "'$($c[0])' -> $($c[1]), da controllare" ($r.Righe.Count -eq 1 -and $r.Righe[0] -eq $c[1] -and $r.NonCapite.Count -eq 0 -and
+                $l.Count -eq 1 -and $l[0].Avviso -eq $avvisoNumero)
         }
         # un periodo scritto in un altro modo, o due giorni sulla stessa riga: la
         # riga non si capisce, e lo dice. Mai un giorno solo con il resto nel nome
@@ -397,24 +450,45 @@ console.log(JSON.stringify({
                        "23/12/2026 $trattino 6 gen. 2027 Natale", '01/11/2026 - 03', '2026-11-01 - 03', 'dal 02/11/2026 al 3',
                        'dal 02/11/2026 fino al 3 Ponte', "dal 02/11/2026 all'8 Ponte", '07/12/2026 e 8 dicembre ponte',
                        '01/11/2026 Tutti i Santi e ponte fino al 2 novembre', '01/11/2026, 2 ponte',
-                       # un altro giorno nel nome, con l'articolo o la preposizione
-                       "07/12/2026 ponte, anche l'8", '07/12/2026 ponte (e il 9)', '23/12/2026 Natale, fino al 6')
+                       # il mese una volta sola, ma con "e" due giorni lontani, al contrario o impossibili
+                       '7 e 9/12/2026 ponte', '31-23/12/2026', '30-31/11/2026', '7 e 8/13/2026', '7-8 dicembre 2026 e 9 dicembre')
         foreach ($n in $nonCapite) {
-            try { $r = LeggiRighe $n '2026-09-14' }
+            try { $r = LeggiRighe $n '2026-09-14'; $l = @(Lette $n '2026-09-14') }
             catch { Verifica "'$n' non si capisce, e lo dice (invece: $($_.Exception.InnerException.GetType().Name))" $false; continue }
-            Verifica "'$n' non si capisce, e lo dice" ($r.Righe.Count -eq 0 -and $r.NonCapite.Count -eq 1 -and $r.NonCapite[0] -eq $n)
+            Verifica "'$n' non si capisce, e lo dice ($(if ($l.Count) { $l[0].Motivo }))" (
+                $r.Righe.Count -eq 0 -and $r.NonCapite.Count -eq 1 -and $r.NonCapite[0] -eq $n -and $l.Count -eq 1 -and
+                $null -eq $l[0].Giorni -and $l[0].Motivo -ne '')
         }
+        # come la pagina le mostra, una per riga scritta: il periodo capito con i
+        # giorni della settimana, e quelle da guardare con il perche'
+        $mDescrivi = $tCal.GetMethod('Descrivi', $FS)
+        $mGuardare = $tCal.GetMethod('DaGuardare', $FS)
+        $scritte = "# le date della circolare`r`n`r`n07/12/2026 ponte e martedi' 8`r`n01/11/2026 - 03`r`n23-31/12/2026 Vacanze`r`n01/11/2025 Tutti i Santi"
+        $mostrate = @(Lette $scritte '2026-09-14' | ForEach-Object {
+            [string]$mDescrivi.Invoke($null, @($_.PSObject.BaseObject, (DataIso '2026-09-14'), (DataIso '2027-06-10'))) })
+        $daGuardare = @(Lette $scritte '2026-09-14' | ForEach-Object {
+            [bool]$mGuardare.Invoke($null, @($_.PSObject.BaseObject, (DataIso '2026-09-14'), (DataIso '2027-06-10'))) }) -join ','
+        $attese = @("riga 3: dal lun 07/12/2026 al lun 07/12/2026 (1 giorno) ponte e martedi' 8   <- $avvisoNumero",
+                    'riga 4: non capita: la fine del periodo va scritta come data, come 01/11/2026-03/11/2026 o 1-3/11/2026',
+                    'riga 5: dal mer 23/12/2026 al gio 31/12/2026 (9 giorni) Vacanze',
+                    "riga 6: dal sab 01/11/2025 al sab 01/11/2025 (1 giorno) Tutti i Santi   <- fuori dal periodo: controlla l'anno")
+        Verifica "ogni riga come la mostra la pagina, con il suo numero, i giorni della settimana e quelle da guardare ($($mostrate -join ' | '))" (
+            ($mostrate -join '|') -eq ($attese -join '|') -and $daGuardare -eq 'True,True,False,True')
         # gli a capo che non sono \r o \n (incollati da un PDF o da una pagina web)
         foreach ($acapo in @([char]0x2028, [char]0x2029, [char]0x0B, [char]0x0C, [char]0x85)) {
             $r = LeggiRighe ("01/11/2026 Tutti i Santi" + $acapo + "08/12/2026 Immacolata") '2026-09-14'
             Verifica ("con l'a capo U+{0:X4} fra due righe, due giorni" -f [int]$acapo) (
                 ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2026-12-08..2026-12-08 Immacolata' -and $r.NonCapite.Count -eq 0)
         }
-        $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') + $nonCapite) -join "`r`n"
+        $tutto = (@('', '# le vacanze della regione') + @($capite | ForEach-Object { $_[0] }) + @('   ', '  # anche con spazi prima') +
+                  @($conAvviso | ForEach-Object { $_[0] }) + $nonCapite) -join "`r`n"
         $r = LeggiRighe $tutto '2026-09-14'
-        Verifica "tutte insieme: $($capite.Count) capite nell'ordine, le vuote e le note con # ignorate, $($nonCapite.Count) non capite" (
-            ($r.Righe -join '|') -eq (@($capite | ForEach-Object { $_[1] }) -join '|') -and
-            ($r.NonCapite -join '|') -eq ($nonCapite -join '|'))
+        $l = @(Lette $tutto '2026-09-14')
+        Verifica "tutte insieme: $($capite.Count + $conAvviso.Count) capite nell'ordine ($($conAvviso.Count) da controllare), le vuote e le note con # ignorate, $($nonCapite.Count) non capite" (
+            ($r.Righe -join '|') -eq (@($capite + $conAvviso | ForEach-Object { $_[1] }) -join '|') -and
+            ($r.NonCapite -join '|') -eq ($nonCapite -join '|') -and
+            @($l | Where-Object { $_.Avviso -ne '' }).Count -eq $conAvviso.Count -and
+            $l.Count -eq ($capite.Count + $conAvviso.Count + $nonCapite.Count) -and $l[0].Numero -eq 3)
         $r = LeggiRighe "01/11 Tutti i Santi`n29/03 Pasquetta" '2027-01-10'
         Verifica "senza anno, con il periodo che comincia a gennaio: novembre e' dell'anno prima" (
             ($r.Righe -join '|') -eq '2026-11-01..2026-11-01 Tutti i Santi|2027-03-29..2027-03-29 Pasquetta')

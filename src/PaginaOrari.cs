@@ -67,6 +67,7 @@ namespace Campanella
         // passo 4
         ComboBox cmbDocente, cmbColore, cmbCosaVedere4;
         TextBox txtCalNome, txtPrimaOra, txtOreInizio, txtAnteprima4, txtSospensioni;
+        ListBox lstLette;           // come e' stata letta ogni riga dei giorni senza lezione
         DateTimePicker dtInizio, dtFine, dtValidoDal;
         CheckBox chkValidoDal;
         NumericUpDown numMinuti;
@@ -689,14 +690,19 @@ namespace Campanella
                 "     23/12/2026-06/01/2027 Vacanze di Natale\r\n" +
                 "     dal 23/12/2026 al 06/01/2027 Vacanze\r\n\r\n" +
                 "Vanno bene anche 1/11/26 e 2026-11-01. L'anno si puo' non scrivere (01/11, " +
-                "23/12-06/01): lo prendo dal periodo, da settembre a dicembre il primo anno, da " +
-                "gennaio in poi il secondo. Le righe che cominciano con # sono note e non " +
-                "contano.\r\n\r\n" +
-                "Un periodo si scrive con il trattino o con \"dal ... al ...\" (anche \"fino al\"). " +
-                "Una riga con due date scritte in un altro modo (\"07/12, 08/12\", \"dal 23/12 a " +
-                "06/01\"), con la seconda a parole o con il solo giorno (\"dal 23/12 al 6 gennaio\", " +
-                "\"01/11 - 03\", \"ponte, anche l'8\") non la prendo a meta': il riepilogo la segnala fra " +
-                "quelle non capite.\r\n\r\n" +
+                "23/12-06/01): lo prendo dall'altra data della riga o dal periodo, da settembre a " +
+                "dicembre il primo anno, da gennaio in poi il secondo. Le righe che cominciano con # " +
+                "sono note e non contano.\r\n\r\n" +
+                "Un periodo si scrive con il trattino o con \"dal ... al ...\" (anche \"fino al\"). Il " +
+                "mese si puo' scrivere una volta sola: 23-31/12/2026, dal 23 al 31/12/2026, 7 e " +
+                "8/12/2026 (con \"e\" due giorni di seguito), 7-8 dicembre 2026. Una riga con due date " +
+                "scritte in un altro modo (\"07/12, 08/12\", \"dal 23/12 a 06/01\"), o con la fine " +
+                "scritta dopo la data a parole o con il solo giorno (\"dal 23/12 al 6 gennaio\", " +
+                "\"01/11 - 03\"), non la prendo a meta': e' fra quelle non capite.\r\n\r\n" +
+                "Sotto la casella c'e' come ho letto ogni riga, con i giorni della settimana: guarda " +
+                "che i periodi siano quelli giusti. In ambra quelle non capite, quelle fuori dal " +
+                "periodo e quelle con un numero nel motivo che potrebbe essere un giorno: \"07/12/2026 " +
+                "ponte 7-8\" e' solo il 7 dicembre, per due giorni scrivi 7-8/12/2026.\r\n\r\n" +
                 "\"Aggiungi le feste nazionali\" mette in fondo quelle del periodo che mancano, " +
                 "Pasqua e Pasquetta comprese.");
             txtSospensioni = Tema.CasellaMulti(0, y + 24, 620, 100, "01/11/2026 Tutti i Santi");
@@ -707,7 +713,26 @@ namespace Campanella
             p.Controls.Add(Tema.Testo1(
                 "Vacanze, patrono e ponti: copiali dalla circolare sul calendario scolastico della " +
                 "regione e della scuola.", 640, y + 62, 240, Tema.Piccolo, Ruolo.Tenue));
-            y += 24 + 100 + 14;
+            y += 24 + 100 + 6;
+
+            // come ho letto ogni riga, mentre si scrive: un giorno preso al posto
+            // di un periodo si vede subito. In ambra quelle da guardare
+            p.Controls.Add(Tema.Testo1("Come le ho lette, riga per riga (in ambra quelle da guardare):",
+                                       0, y, 880, Tema.Piccolo, Ruolo.Tenue));
+            lstLette = new ListBox();
+            lstLette.Location = new Point(0, y + 20);
+            lstLette.Font = Tema.Piccolo;
+            lstLette.IntegralHeight = false;
+            lstLette.SelectionMode = SelectionMode.None;
+            lstLette.HorizontalScrollbar = true;
+            lstLette.DrawMode = DrawMode.OwnerDrawFixed;
+            lstLette.ItemHeight = Tema.Piccolo.Height + 3;
+            lstLette.Size = new Size(880, 5 * lstLette.ItemHeight + 4);     // cinque righe
+            lstLette.DrawItem += DisegnaLetta;
+            lstLette.TabStop = false;
+            lstLette.AccessibleName = "Come ho letto i giorni senza lezione";
+            p.Controls.Add(lstLette);
+            y += 20 + lstLette.Height + 14;
 
             // --- il cambio d'orario --------------------------------------------
             chkValidoDal = Tema.Spunta("L'orario e' cambiato: il nuovo vale dal", 0, y + 3, Ruolo.Normale);
@@ -774,6 +799,66 @@ namespace Campanella
 
             MostraCalendario();
             return p;
+        }
+
+        /// <summary>Una riga della lista sotto i giorni senza lezione: il testo, e se va guardata (in ambra).</summary>
+        class RigaVista
+        {
+            public string Testo = "";
+            public bool DaGuardare;
+            public override string ToString() { return Testo; }
+        }
+
+        /// <summary>
+        /// La lista sotto i giorni senza lezione: come e' stata letta ogni riga
+        /// (Calendario.LeggiRighe e Descrivi), con il periodo di adesso.
+        /// </summary>
+        void AggiornaLette()
+        {
+            if (lstLette == null) return;
+            DateTime inizio = dtInizio.Value.Date, fine = dtFine.Value.Date;
+            List<RigaLetta> lette = Calendario.LeggiRighe(txtSospensioni.Text, inizio);
+            lstLette.BeginUpdate();
+            try
+            {
+                lstLette.Items.Clear();
+                int larga = 0;
+                foreach (RigaLetta r in lette)
+                {
+                    RigaVista v = new RigaVista();
+                    v.Testo = Calendario.Descrivi(r, inizio, fine);
+                    v.DaGuardare = Calendario.DaGuardare(r, inizio, fine);
+                    lstLette.Items.Add(v);
+                    larga = Math.Max(larga, TextRenderer.MeasureText(v.Testo, lstLette.Font).Width);
+                }
+                if (lette.Count == 0)
+                {
+                    RigaVista vuota = new RigaVista();
+                    vuota.Testo = "Nessuna riga: scrivi un giorno o un periodo per riga, per esempio 01/11/2026 Tutti i Santi.";
+                    lstLette.Items.Add(vuota);
+                }
+                lstLette.HorizontalExtent = larga + 8;
+                // si vede la riga dove si sta scrivendo (o l'ultima aggiunta dal bottone delle feste)
+                string testo = txtSospensioni.Text;
+                int qui = Calendario.NumeroDiRiga(testo, Math.Min(txtSospensioni.SelectionStart, testo.Length));
+                int indice = 0;
+                for (int i = 0; i < lette.Count; i++) if (lette[i].Numero <= qui) indice = i;
+                int visibili = Math.Max(1, lstLette.ClientSize.Height / lstLette.ItemHeight);
+                if (indice < lstLette.TopIndex) lstLette.TopIndex = indice;
+                else if (indice >= lstLette.TopIndex + visibili) lstLette.TopIndex = indice - visibili + 1;
+            }
+            finally { lstLette.EndUpdate(); }
+        }
+
+        /// <summary>Una riga della lista: in ambra quelle da guardare, le altre come il testo.</summary>
+        void DisegnaLetta(object o, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= lstLette.Items.Count) return;
+            RigaVista v = lstLette.Items[e.Index] as RigaVista;
+            using (SolidBrush fondo = new SolidBrush(lstLette.BackColor)) e.Graphics.FillRectangle(fondo, e.Bounds);
+            Color colore = (v != null && v.DaGuardare) ? Tema.Ambra : Tema.Testo;
+            TextRenderer.DrawText(e.Graphics, lstLette.Items[e.Index].ToString(), lstLette.Font, e.Bounds, colore,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
         }
 
         /// <summary>Il riepilogo alto quanto il suo testo, e quello che sta sotto alla stessa distanza.</summary>
@@ -884,6 +969,7 @@ namespace Campanella
         {
             if (lblCalRiepilogo == null) return;
             RaccogliCalendario();
+            AggiornaLette();
 
             string docente = orario.TrovaDocente(S.CalDocente);
             if (orario.Lezioni.Count == 0)
@@ -914,6 +1000,9 @@ namespace Campanella
                                                              orario.OrePerGiorno);
                 List<string> nonCapite;
                 List<Sospensione> sospensioni = Calendario.Leggi(S.CalSospensioni, inizio, out nonCapite);
+                int conAvviso = 0;
+                foreach (RigaLetta letta in Calendario.LeggiRighe(S.CalSospensioni, inizio))
+                    if (letta.Giorni != null && letta.Avviso != "") conAvviso++;
                 PianoCalendario piano = Calendario.Piano(blocchi, orario.IndiciGiorni, inizio, fine, sospensioni);
                 // le righe che non toccano il periodo (un anno sbagliato) non contano
                 List<Sospensione> fuoriPeriodo = Calendario.FuoriPeriodo(sospensioni, inizio, fine);
@@ -952,7 +1041,13 @@ namespace Campanella
                 {
                     string esempio = nonCapite[0].Length > 40 ? nonCapite[0].Substring(0, 37) + "..." : nonCapite[0];
                     r.Append("\nRighe dei giorni senza lezione non capite: " + nonCapite.Count + ", come \"" + esempio +
-                             "\". Scrivi una data per riga, per esempio 01/11/2026.");
+                             "\" (il perche' e' qui sopra). Scrivi una data per riga, per esempio 01/11/2026.");
+                    ruolo = Ruolo.Avviso;
+                }
+                if (conAvviso > 0)
+                {
+                    r.Append("\n" + (conAvviso == 1 ? "Una riga ha" : conAvviso + " righe hanno") + " nel motivo un numero " +
+                             "che potrebbe essere un giorno: controlla qui sopra che il periodo sia quello giusto.");
                     ruolo = Ruolo.Avviso;
                 }
                 if (fuoriPeriodo.Count > 0)
@@ -1015,6 +1110,12 @@ namespace Campanella
             sb.AppendLine("    01/11/2026 Tutti i Santi");
             sb.AppendLine("    23/12/2026-06/01/2027 Vacanze di Natale");
             sb.AppendLine("    dal 23/12/2026 al 06/01/2027 Vacanze");
+            sb.AppendLine("    7-8/12/2026 Ponte                  (il mese scritto una volta sola)");
+            sb.AppendLine("    7-8 dicembre 2026 Ponte");
+            sb.AppendLine("Sotto la casella c'e' come ho letto ogni riga, con i giorni della");
+            sb.AppendLine("settimana: guarda che i periodi siano quelli giusti. In ambra quelle da");
+            sb.AppendLine("guardare: non capite, fuori dal periodo, o con un numero nel motivo che");
+            sb.AppendLine("potrebbe essere un giorno (\"07/12/2026 ponte 7-8\" e' solo il 7).");
             sb.AppendLine("\"Aggiungi le feste nazionali\" mette quelle del periodo, Pasqua e");
             sb.AppendLine("Pasquetta comprese. Vacanze, patrono e ponti copiali dalla circolare sul");
             sb.AppendLine("calendario scolastico della regione e della scuola. Ogni ora di lezione");

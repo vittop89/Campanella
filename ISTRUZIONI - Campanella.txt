@@ -431,11 +431,18 @@ ORARI - le email a te e il calendario
    cui sei iscritto); se non c'e', lo script lo crea.
    In "Giorni senza lezione" scrivi una riga per giorno o per periodo
    (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
-   dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Una riga con
-   due date scritte in un altro modo (07/12/2026, 08/12/2026), con la
-   seconda a parole o con il solo giorno (dal 23/12/2026 al 6 gennaio,
-   01/11/2026 - 03, ponte anche l'8) o con un anno fuori dal periodo il
-   riepilogo la segnala in ambra, e non la mette: correggila.
+   dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Il mese si
+   puo' scrivere una volta sola: 23-31/12/2026, dal 23 al 31/12/2026, 7 e
+   8/12/2026 (con "e" due giorni di seguito), 7-8 dicembre 2026. Sotto la
+   casella Campanella mostra come ha letto ogni riga, con i giorni della
+   settimana, mentre scrivi: guarda che i periodi siano quelli giusti. In
+   ambra le righe da guardare. Una con due date scritte in un altro modo
+   (07/12/2026, 08/12/2026) o con la fine scritta dopo la data a parole o
+   con il solo giorno (dal 23/12/2026 al 6 gennaio, 01/11/2026 - 03) non
+   la capisce, e non la mette. Una con un anno fuori dal periodo, o con
+   un numero nel motivo che potrebbe essere un giorno (07/12/2026 ponte
+   7-8 e' solo il 7 dicembre: per due giorni scrivi 7-8/12/2026), la
+   mette come l'ha letta. Correggile; il riepilogo dice quante sono.
    Servono le chiusure della scuola; quello che scrivi segue i dati di
    altre persone (con i dati nel Drive non resta sul computer).
    "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e

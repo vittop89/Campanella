@@ -878,6 +878,47 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
     }
     ControllaPannello $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
     ControllaAiuti $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
+    # sotto la casella, come ha letto ogni riga: una per riga scritta (le note
+    # no), con i giorni della settimana, e in ambra quelle da guardare
+    $campoLette = $tPO.GetField('lstLette', $FIp)
+    $lstLette = if ($null -ne $campoLette) { $campoLette.GetValue($orari) } else { $null }
+    $voci = @(if ($null -ne $lstLette) { $lstLette.Items | ForEach-Object { $_.ToString() } })
+    Verifica "sotto la casella c'e' come ha letto ogni riga, una per riga scritta ($($voci.Count): $($voci -join ' | '))" (
+        $null -ne $lstLette -and $voci.Count -eq 6 -and
+        $voci[0] -eq 'riga 2: dal dom 01/11/2026 al dom 01/11/2026 (1 giorno) Tutti i Santi' -and
+        $voci[1] -eq 'riga 3: dal mer 23/12/2026 al mer 06/01/2027 (15 giorni) Vacanze di Natale' -and
+        $voci[3] -match '^riga 5: non capita: ' -and $lstLette.Top -ge $txtSosp.Bottom -and $lstLette.Bottom -le $chkCambio.Top)
+    if ($null -ne $lstLette) {
+        $inAmbra = @($lstLette.Items | Where-Object { $_.DaGuardare }).Count
+        Verifica "in ambra quelle da guardare: le tre non capite ($inAmbra)" ($inAmbra -eq 3)
+        # si aggiorna mentre si scrive: un giorno solo con il resto nel nome si vede subito
+        $txtSosp.Text = $sospProva + "`r`n07/12/2026 ponte 7-8"
+        [System.Windows.Forms.Application]::DoEvents()
+        $ultima = [string]$lstLette.Items[$lstLette.Items.Count - 1]
+        Verifica "scrivendo una riga la lista la mostra subito, da guardare ('$ultima')" (
+            $ultima -match '^riga 8: dal lun 07/12/2026 al lun 07/12/2026 \(1 giorno\) ponte 7-8   <- nel motivo c''e'' un numero' -and
+            $lstLette.Items[$lstLette.Items.Count - 1].DaGuardare)
+        Verifica "e il riepilogo lo dice in ambra" ($lblRiep.Text -match 'un numero' -and [string]$lblRiep.Tag -eq 'avviso')
+        # scrivendo in fondo, la lista scorre fino alla riga che si sta scrivendo
+        $txtSosp.SelectionStart = $txtSosp.TextLength
+        $tPO.GetMethod('AggiornaCalendario', $FIp).Invoke($orari, @()) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        $visibili = [math]::Floor($lstLette.ClientSize.Height / $lstLette.ItemHeight)
+        Verifica "e scorre fino alla riga che si sta scrivendo (dalla $($lstLette.TopIndex + 1)a, $visibili visibili su $($lstLette.Items.Count))" (
+            $visibili -ge 4 -and $lstLette.TopIndex + $visibili -ge $lstLette.Items.Count -and $lstLette.TopIndex -gt 0)
+        $txtSosp.SelectionStart = 0
+        $tPO.GetMethod('AggiornaCalendario', $FIp).Invoke($orari, @()) | Out-Null
+        Verifica "  ...e torna in cima con il cursore in cima" ($lstLette.TopIndex -eq 0)
+        ControllaPannello $pannelloOrari 'Orari / 4 con una riga da controllare'
+        if ($Immagini) {
+            $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
+            $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
+            $bmp.Save((Join-Path $cartella '35-Orari-4-come-ho-letto-le-righe.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
+        $txtSosp.Text = $sospProva
+        [System.Windows.Forms.Application]::DoEvents()
+    }
     if ($Immagini) {
         $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
         $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
