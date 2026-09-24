@@ -1514,6 +1514,27 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
             }
             return ,$l
         }
+        # a fine agosto, senza l'anno di Cartelle, la madre e' gia' dell'anno che
+        # comincia, come per lo script (un file Classe_*.gs copiato ad agosto e'
+        # dell'anno nuovo): le regole fatte il 28 agosto il 24 settembre si
+        # ritrovano, e quelle dell'anno prima sono le vecchie
+        $mAl = MC 'MadreDiPartenzaAl'
+        function MadreIl($st, [string]$giorno) {
+            if ($null -eq $mAl) { return '(manca MadreDiPartenzaAl)' }
+            return [string]$mAl.Invoke($null, @($st.PSObject.BaseObject, [datetime]$giorno))
+        }
+        $sAgo = NuovoStato
+        Imposta $sAgo 'Prefisso' ''
+        Imposta $sAgo 'Anno' ''
+        [void](MC 'Applica').Invoke($null, @($sAgo.PSObject.BaseObject, 'Classi 2025-26', (Classi8 @('3B')).PSObject.BaseObject, $false))
+        $madre28 = MadreIl $sAgo '2026-08-28'
+        [void](MC 'Applica').Invoke($null, @($sAgo.PSObject.BaseObject, $madre28, (Classi8 @('4A')).PSObject.BaseObject, $true))
+        $madre24 = MadreIl $sAgo '2026-09-24'
+        $madre31 = MadreIl $sAgo '2026-07-31'
+        $regoleAgo = @((Leggi $sAgo 'Regole') | Where-Object { $_.Sorgente -eq 'classe' } | ForEach-Object { $_.Etichetta }) -join ','
+        Verifica "senza l'anno di Cartelle, il 28 agosto la madre e' gia' dell'anno che comincia ($madre28), il 24 settembre la stessa ($madre24): le regole di agosto si ritrovano ($regoleAgo)" (
+            $madre28 -eq 'Classi 2026-27' -and $madre24 -eq 'Classi 2026-27' -and $madre31 -eq 'Classi 2025-26' -and
+            $regoleAgo -eq 'Classi 2026-27/4A' -and [string](MC 'AnnoDelleClassi').Invoke($null, @([datetime]'2026-08-01')) -eq '2026-27')
         $madrePartenza = [string](MC 'MadreDiPartenza').Invoke($null, @($s8.PSObject.BaseObject))
         foreach ($m in @($madrePartenza, 'Le mie classi', 'Corsi')) {
             $nomi = if ($m -eq 'Corsi') { @('Potenziamento') } else { @('3B') }

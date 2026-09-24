@@ -285,6 +285,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   hourly sorting's log also flag a class file from a past school year
   that a rule still uses (August already counts for the school year that
   starts: a file copied at the end of August is for September's classes).
+  The classes window follows the same rule: without the year of Cartelle,
+  from August on it starts from the parent of the school year that starts
+  (Classi 2026-27 on 28 August), so the rules and files prepared at the end
+  of August are found again in September instead of looking like last
+  year's.
   A conversation found by two
   searches of the same rule counts once in the trial reorder (even when it
   resumes halfway through a rule) and in the hourly sorting, even when

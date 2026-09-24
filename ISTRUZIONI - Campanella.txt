@@ -287,7 +287,10 @@ POSTA - riordinare la casella
    file, e l'anteprima, il riepilogo del riordino (PASSO_3) e quello dello
    smistamento avvisano se un file e' di un anno scolastico passato (agosto
    conta gia' per l'anno che comincia: un file copiato a fine agosto e' per
-   le classi di settembre). Chiusa
+   le classi di settembre). Per questo anche la finestra, se in Cartelle
+   l'anno non l'hai scritto, da agosto propone la madre dell'anno che
+   comincia (Classi 2026-27): le classi preparate a fine agosto a settembre
+   si ritrovano. Chiusa
    la finestra gli indirizzi spariscono, e riaprendola lo dice; negli
    appunti il file resta finche' non copi altro, e chiudendo la finestra
    Campanella chiede se svuotarli (poi ci restano anche chiusa Campanella).

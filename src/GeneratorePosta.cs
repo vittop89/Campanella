@@ -1024,14 +1024,20 @@ namespace Campanella
         /// L'etichetta madre di partenza: quella delle regole delle classi che ci
         /// sono, se fra quelle che non sono di un altro anno ce n'e' una sola (il
         /// docente l'aveva scelta, o cambiata, lui: "Le mie classi"); altrimenti
-        /// "Classi " e l'anno scolastico (quello di Cartelle, o quello di adesso).
-        /// Cosi' riaprendo la finestra le regole si ritrovano, e l'anno dopo la
-        /// madre dell'anno prima non si riusa.
+        /// "Classi " e l'anno scolastico (quello di Cartelle, o quello delle
+        /// classi di oggi: AnnoDelleClassi). Cosi' riaprendo la finestra le regole
+        /// si ritrovano, e l'anno dopo la madre dell'anno prima non si riusa.
         /// </summary>
         public static string MadreDiPartenza(Stato s)
         {
+            return MadreDiPartenzaAl(s, DateTime.Now);
+        }
+
+        /// <summary>Lo stesso, se oggi fosse il giorno dato (per le prove: il 28 agosto, il 24 settembre).</summary>
+        public static string MadreDiPartenzaAl(Stato s, DateTime oggi)
+        {
             string anno = (s.Anno ?? "").Trim();
-            if (anno == "") anno = Stato.AnnoScolastico(DateTime.Now);
+            if (anno == "") anno = AnnoDelleClassi(oggi);
             List<string> madri = new List<string>();
             foreach (Regola r in s.Regole)
             {
@@ -1045,6 +1051,20 @@ namespace Campanella
                 if (!gia) madri.Add(m);
             }
             return (madri.Count == 1) ? madri[0] : "Classi " + anno;
+        }
+
+        /// <summary>
+        /// L'anno scolastico delle classi, nella forma 2026-27: agosto conta gia'
+        /// per quello che comincia, come nello script (_annoScolasticoDi_), che
+        /// dice di un anno passato un file Classe_*.gs copiato prima. Chi a fine
+        /// agosto prepara le classi nuove le mette sotto l'anno che arriva, e a
+        /// settembre la finestra le ritrova (Stato.AnnoScolastico cambia solo a
+        /// settembre: vale per il resto dell'applicazione).
+        /// </summary>
+        public static string AnnoDelleClassi(DateTime quando)
+        {
+            int inizio = (quando.Month >= 8) ? quando.Year : quando.Year - 1;
+            return inizio + "-" + ((inizio + 1) % 100).ToString("00");
         }
 
         /// <summary>Vero se nel nome c'e' un anno (il primo numero di quattro cifre) diverso da quello dell'anno scolastico.</summary>
