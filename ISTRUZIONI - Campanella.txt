@@ -318,7 +318,9 @@ POSTA - riordinare la casella
    un'etichetta che sembra di una classe (3B, 3B LSA, una madre con la parola
    "classi" o usata per le classi) non si possono scegliere, nemmeno se li
    avevi scelti prima: Campanella li toglie dalla scelta (all'avvio e con
-   "Usa queste classi") e lo dice. Si tolgono da Gmail.
+   "Usa queste classi") e lo dice (quelli tolti all'avvio, al passo 4 sotto
+   "Filtri che hai gia' in Gmail..." e nella finestra dei filtri, finche'
+   non la apri). Si tolgono da Gmail.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una

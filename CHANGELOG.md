@@ -247,7 +247,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   reach the data file and Configurazione.gs. Such a filter chosen before
   (with 1.5.3, or before the classes were created under its parent) is
   dropped from the choice at start-up and by "Usa queste classi", never
-  written to Configurazione.gs, and the window says so. Remove it in Gmail.
+  written to Configurazione.gs, and the window says so; the ones dropped at
+  start-up are also shown in amber in step 4, under "Filtri che hai gia' in
+  Gmail...", until the window is opened (the count is not saved). Remove it
+  in Gmail.
 - The same format 3 of the settings files (see Orari above) keeps 1.5.3 from
   overwriting them for the classes too: it would drop unoQualsiasi, and a
   class rule would silently want the subject AND the students. The data file

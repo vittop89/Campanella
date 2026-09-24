@@ -1609,8 +1609,22 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         Verifica "e dallo Stato (all'avvio) si tolgono, cosi' non restano nel file dei dati ($tolti12)" (
             $tolti12 -eq 1 -and (@((Leggi $s12 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie')
         $guscioCs = Get-Content -Raw (Join-Path $radice 'src\Guscio.cs')
-        Verifica "all'avvio Campanella li toglie subito dopo aver letto le impostazioni" (
-            [regex]::IsMatch($guscioCs, 'Stato s = Stato\.Carica\(\);\s+FiltriGmail\.TogliQuelliDelleClassi\(s\);'))
+        Verifica "all'avvio Campanella li toglie subito dopo aver letto le impostazioni, e si ricorda quanti" (
+            [regex]::IsMatch($guscioCs, 'Stato s = Stato\.Carica\(\);\s+s\.FiltriClassiToltiAllAvvio = FiltriGmail\.TogliQuelliDelleClassi\(s\);'))
+        # e lo dice: la finestra dei filtri, aperta dopo l'avvio, conta anche
+        # quelli tolti all'avvio, che nello Stato non ci sono piu'
+        $campoTolti = $tStato.GetField('FiltriClassiToltiAllAvvio', $FI)
+        if ($null -ne $campoTolti) { $campoTolti.SetValue($s12.PSObject.BaseObject, $tolti12) }
+        $ff12b = [Activator]::CreateInstance($asm.GetType('Campanella.FormFiltriGmail'), @($s12.PSObject.BaseObject))
+        $esito12b = [string]$asm.GetType('Campanella.FormFiltriGmail').GetField('lblEsito', $FI).GetValue($ff12b).Text
+        $ff12b.Dispose()
+        Verifica "la finestra dei filtri aperta dopo l'avvio dice quello tolto all'avvio ('$esito12b')" (
+            $null -ne $campoTolti -and $esito12b -match "1 filtro scelto prima sembra di una classe e cerca degli indirizzi")
+        # il numero non si salva: al prossimo avvio non c'e' piu' niente da togliere, e niente da dire
+        $statoCs = Get-Content -Raw (Join-Path $radice 'src\Stato.cs')
+        Verifica "e il numero non va nei file delle impostazioni e dei dati (Stato.cs lo nomina solo dove lo dichiara)" (
+            ([regex]::Matches($statoCs, 'FiltriClassiToltiAllAvvio')).Count -eq 1 -and
+            [regex]::IsMatch($statoCs, 'public int FiltriClassiToltiAllAvvio = 0;'))
         # scelto prima, e le classi create dopo sotto quella madre: li toglie "Usa queste classi", e lo dice
         $s13 = NuovoStato
         Imposta $s13 'Prefisso' ''

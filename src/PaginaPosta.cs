@@ -686,9 +686,10 @@ namespace Campanella
                 "anche quanti indirizzi ha trovato per ogni classe, e quali file nessuna regola usa. I filtri veri " +
                 "di Gmail delle classi cercano solo l'oggetto: gli studenti non ci vanno. A fine anno togli le " +
                 "classi (l'anno dopo la finestra lo propone) e cancella i file Classe_*.gs dal progetto."));
+            // alta quanto il testo piu' lungo: con i filtri tolti all'avvio
             lblFiltri = Tema.Testo1("", 0, yb + 76, 400, Tema.Piccolo, Ruolo.Tenue);
-            lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri.",
-                                                 Tema.Piccolo, 400);
+            lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." +
+                                                 TestoToltiAllAvvio(99), Tema.Piccolo, 400);
             p.Controls.Add(lblFiltri);
 
             txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 108, Ruolo.Normale);
@@ -777,7 +778,7 @@ namespace Campanella
 
             // regole che etichettano gli stessi messaggi di una sottoetichetta
             // per ruolo (lo scrive AggiornaDoppioni; vuota, non si vede)
-            lblDoppioni = Tema.Testo1("", 0, y + 410, 900, Tema.Normale, Ruolo.Avviso);
+            lblDoppioni = Tema.Testo1("", 0, Math.Max(y + 410, lblFiltri.Bottom + 8), 900, Tema.Normale, Ruolo.Avviso);
             lblDoppioni.Visible = false;
             p.Controls.Add(lblDoppioni);
             return p;
@@ -2133,7 +2134,10 @@ namespace Campanella
             Raccogli();    // gruppo, indirizzi e spunte delle regole: servono al confronto
             using (FormFiltriGmail f = new FormFiltriGmail(S))
             {
-                if (f.ShowDialog(this) != DialogResult.OK) return;
+                DialogResult esito = f.ShowDialog(this);
+                // quelli tolti all'avvio la finestra li ha detti: il passo 4 non li ripete
+                S.FiltriClassiToltiAllAvvio = 0;
+                if (esito != DialogResult.OK) { AggiornaFiltriDaTogliere(); return; }
                 S.FiltriDaTogliere = f.Scelti;
             }
             AggiornaFiltriDaTogliere();
@@ -2161,15 +2165,31 @@ namespace Campanella
             }
         }
 
-        /// <summary>La riga sotto "Filtri che hai gia' in Gmail...": quanti ce ne sono da togliere.</summary>
+        /// <summary>
+        /// La riga sotto "Filtri che hai gia' in Gmail...": quanti ce ne sono da
+        /// togliere e, finche' non si apre la finestra, quanti ne ha tolti
+        /// dalla scelta l'avvio (FiltriClassiToltiAllAvvio), in ambra.
+        /// </summary>
         void AggiornaFiltriDaTogliere()
         {
             if (lblFiltri == null) return;
             int n = GeneratorePosta.FiltriDaTogliere(S);
-            lblFiltri.Text = (n == 0) ? "Nessun filtro di Gmail da togliere." :
-                n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.";
-            lblFiltri.Tag = (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
+            int tolti = S.FiltriClassiToltiAllAvvio;
+            lblFiltri.Text = ((n == 0) ? "Nessun filtro di Gmail da togliere." :
+                n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.") +
+                (tolti == 0 ? "" : TestoToltiAllAvvio(tolti));
+            lblFiltri.Tag = (tolti > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
             Tema.Applica(lblFiltri);
+        }
+
+        /// <summary>Quello che il passo 4 dice dei filtri tolti dalla scelta all'avvio.</summary>
+        static string TestoToltiAllAvvio(int tolti)
+        {
+            return (tolti == 1)
+                ? " All'avvio ho tolto dalla scelta 1 filtro che sembra di una classe e cerca degli indirizzi " +
+                  "(forse gli studenti): se non ti serve, toglilo in Gmail."
+                : " All'avvio ho tolto dalla scelta " + tolti + " filtri che sembrano di una classe e cercano " +
+                  "degli indirizzi (forse gli studenti): se non ti servono, toglili in Gmail.";
         }
 
         void LeggiSpunteRegole()

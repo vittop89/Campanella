@@ -521,7 +521,9 @@ namespace Campanella
             // di partenza: i filtri scelti prima, spuntati. Non quelli che
             // sembrano di una classe e cercano degli indirizzi (scelti con la
             // 1.5.3, o prima di creare le classi sotto quell'etichetta): come nel
-            // file, non si possono scegliere
+            // file, non si possono scegliere. Quelli gia' tolti all'avvio dallo
+            // Stato si contano lo stesso: e' qui che si dice
+            if (s != null) sceltiDelleClassi = s.FiltriClassiToltiAllAvvio;
             if (s != null && s.FiltriDaTogliere != null)
                 foreach (FiltroDaTogliere f in s.FiltriDaTogliere)
                 {

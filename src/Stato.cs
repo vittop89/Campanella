@@ -509,6 +509,15 @@ namespace Campanella
         public bool DatiNonTrovati = false;
 
         /// <summary>
+        /// Quanti filtri di Gmail da togliere, scelti prima, Campanella ha tolto
+        /// dalla scelta all'avvio perche' sembrano di una classe e cercano degli
+        /// indirizzi (FiltriGmail.TogliQuelliDelleClassi). Non si salva: lo
+        /// dicono il passo 4 della Posta e la finestra dei filtri, finche' non
+        /// la si apre; al prossimo avvio non c'e' piu' niente da togliere.
+        /// </summary>
+        public int FiltriClassiToltiAllAvvio = 0;
+
+        /// <summary>
         /// Perche' all'avvio campanella.json c'era ma non si e' potuto usare
         /// (illeggibile, o scritto da una versione piu' recente). Finche' non e'
         /// vuoto quel file non si sovrascrive: dentro c'e' qualcosa che qui non si vede.

@@ -707,6 +707,17 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
         if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannelloF = $c }
     }
     ControllaPannello $pannelloF 'Posta / 4 con un filtro da togliere'
+    # i filtri tolti dalla scelta all'avvio (sembrano di una classe e cercano
+    # degli indirizzi): il passo 4 lo dice, in ambra, e ci sta
+    $campoTolti = $tStato.GetField('FiltriClassiToltiAllAvvio', $FI)
+    $campoTolti.SetValue($stato, 12)
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "il passo 4 dice anche i filtri tolti dalla scelta all'avvio ('$($lblF.Text)')" (
+        $lblF.Text -match "^1 filtro di Gmail da togliere: li toglie EXTRA_togliFiltri\. All'avvio ho tolto dalla scelta 12 filtri che sembrano di una classe" -and
+        $lblF.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+    ControllaPannello $pannelloF 'Posta / 4 con i filtri tolti all''avvio'
+    $campoTolti.SetValue($stato, 0)
     $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT)))
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
     Verifica "e senza filtri lo dice" ($lblF.Text -eq 'Nessun filtro di Gmail da togliere.')
