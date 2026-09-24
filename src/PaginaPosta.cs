@@ -2161,7 +2161,7 @@ namespace Campanella
                 if (f.ShowDialog(this) != DialogResult.OK) return;
                 string esito = LeMieClassi.Applica(S, f.Madre, f.Classi, f.TogliVecchie);
                 AggiornaElencoRegole(clbRegole.SelectedIndex);
-                Guscio.Stato1(esito + " Copia di nuovo la configurazione (passo 5).");
+                Guscio.Stato1(esito + " Adesso " + LeMieClassi.DopoLeClassi(Guscio.VersioneScript("Organizzazione_Gmail.gs")));
             }
         }
 

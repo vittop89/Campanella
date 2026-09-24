@@ -1153,6 +1153,22 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Che cosa fare dopo "Usa queste classi" (la finestra e la riga di
+        /// stato lo dicono): copiare di nuovo la configurazione e, se lo script
+        /// della posta nel progetto e' di una versione di prima, reincollare
+        /// anche il codice. Quello di prima non conosce le regole delle classi
+        /// (unoQualsiasi, @CLASSE:3B@): cercherebbe la classe nell'oggetto E fra
+        /// i mittenti, e non etichetterebbe niente. versione e' quella dello
+        /// script di adesso (Guscio.VersioneScript).
+        /// </summary>
+        public static string DopoLeClassi(string versione)
+        {
+            return "copia di nuovo la configurazione (passo 5). Le classi vogliono lo script della posta " +
+                   versione + ": se PASSO_1_anteprima scrive una versione di prima, reincolla anche il codice (passo " +
+                   "5), altrimenti le regole delle classi non etichettano niente.";
+        }
+
         /// <summary>A cosa serve la regola di una classe, per il passo 4 e per la nota in Configurazione.gs.</summary>
         public static string Descrizione(string classe)
         {

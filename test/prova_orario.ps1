@@ -624,6 +624,19 @@ console.log(JSON.stringify({
             Verifica "oggi $($c[0]): la fine proposta e' il $($c[1]) ($fl)" ($fl -eq $c[1])
         }
 
+        # --- la guida del passo 4 dice di reincollare il codice degli orari di
+        # una versione di prima, che non conosce i giorni senza lezione: con la
+        # versione che l'anteprima stampa, quella del codice di adesso
+        $vOrari = [string]$asm.GetType('Campanella.Guscio').GetMethod('VersioneScript', $FS).Invoke($null, @([string]'Orari.gs'))
+        $vSorgente = [regex]::Match([IO.File]::ReadAllText((Join-Path (Split-Path -Parent $qui) 'src\risorse\Orari.gs')),
+                                    "var _ORARI_VERSIONE\s*=\s*'([0-9.]+)'").Groups[1].Value
+        $pagina4 = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($asm.GetType('Campanella.PaginaOrari'))
+        $guida4 = [string]$asm.GetType('Campanella.PaginaOrari').GetMethod('IstruzioniCalendario',
+            [System.Reflection.BindingFlags]'NonPublic,Instance').Invoke($pagina4, @())
+        Verifica "la guida del passo 4 dice di reincollare il codice se ORARI_1_anteprima non scrive la versione di adesso ($vOrari)" (
+            $vOrari -ne '' -and $vOrari -eq $vSorgente -and $guida4.Contains("""Orari.gs versione $vOrari""") -and
+            $guida4 -match 'reincolla il codice' -and $guida4 -match 'giorni senza lezione, che finirebbero')
+
         # --- il piano: una serie per ogni tratto di settimane senza interruzioni
         Write-Host "`nI GIORNI SENZA LEZIONE: IL PIANO DEL CALENDARIO" -ForegroundColor Cyan
         $oPiano = AnalizzaFile (ScriviCsv 'piano.csv' @(

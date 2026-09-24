@@ -1195,6 +1195,14 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "colori: sfumature diverse del verde acqua, che le regole accese non usano ($($sfondi -join ' '))" (
             ($sfondi -join '|') -eq '#c6f3de|#a0eac9|#68dfa9')
         Verifica "nel riepilogo niente indirizzi" (-not ($esito -match '@'))
+        # dopo "Usa queste classi": la configurazione di nuovo e, con lo script
+        # della posta di una versione di prima (che non conosce le classi), anche il codice
+        $vPosta = [string]$asm.GetType('Campanella.Guscio').GetMethod('VersioneScript', $FS).Invoke($null, @([string]'Organizzazione_Gmail.gs'))
+        $dopoClassi = [string](MC 'DopoLeClassi').Invoke($null, @([string]$vPosta))
+        Verifica "dopo 'Usa queste classi' dice di copiare la configurazione e, se PASSO_1_anteprima non scrive $vPosta, di reincollare il codice ('$dopoClassi')" (
+            $vPosta -ne '' -and [IO.File]::ReadAllText($motore).Contains("var _POSTA_VERSIONE         = '$vPosta'") -and
+            $dopoClassi -match 'configurazione \(passo 5\)' -and $dopoClassi.Contains("posta $vPosta") -and
+            $dopoClassi -match 'reincolla anche il codice' -and $dopoClassi -match 'PASSO_1_anteprima')
         Verifica "e nessuna regola con gli indirizzi scritti come nome di una classe" (
             @($regole7 | Where-Object { ([string]$_.Etichetta).Contains('@') -or (($_.Da -join ' ') -match 'mario\.rossi') }).Count -eq 0)
 

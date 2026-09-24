@@ -783,6 +783,19 @@ namespace Campanella
             catch (Exception) { return ""; }     // illeggibile vale come mancante: chi chiama lo dice
         }
 
+        /// <summary>
+        /// La versione scritta nello script Google incorporato (var _ORARI_VERSIONE
+        /// = '1.6.0'), quella che la sua anteprima stampa: le istruzioni la
+        /// nominano, perche' chi ha incollato uno script piu' vecchio lo
+        /// riconosca. "" se non si trova.
+        /// </summary>
+        public static string VersioneScript(string risorsa)
+        {
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(
+                LeggiRisorsa(risorsa), @"\bvar\s+_[A-Z]+_VERSIONE\s*=\s*'([0-9]+(?:\.[0-9]+)*)'");
+            return m.Success ? m.Groups[1].Value : "";
+        }
+
         // -------------------------------------------------------------------
         //  I DOCUMENTI PER LA DIRIGENZA E IL DPO
         //  Stanno dentro l'eseguibile: cosi' ci sono anche quando Campanella

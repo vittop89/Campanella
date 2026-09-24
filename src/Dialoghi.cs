@@ -1031,7 +1031,7 @@ namespace Campanella
 
             Label gmail = Tema.Testo1(
                 "Le etichette in Gmail non si cancellano mai, nemmeno togliendo una classe. Dopo \"Usa queste classi\" " +
-                "copia di nuovo la configurazione (passo 5).",
+                LeMieClassi.DopoLeClassi(Guscio.VersioneScript("Organizzazione_Gmail.gs")),
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(gmail);
             y += gmail.Height + 8;

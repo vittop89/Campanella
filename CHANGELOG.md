@@ -178,6 +178,16 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   functions that find the lock busy (the label colours, EXTRA_togliFiltri,
   ANNULLA_etichettatura, ANNULLA_progressoRiordino) no longer blame only the
   reordering: they say it may also be a timetable sending or the calendar.
+- The guide of step 4 no longer says "if you have not done it yet" about the
+  timetable code: it says to run ORARI_1_anteprima and paste the code again
+  when it does not print "Orari.gs versione" and the version of the code in
+  this Campanella. An older Orari.gs ignores the days without lessons (they
+  would end up on the calendar as school days) and has no
+  ORARI_5_cambioOrario. The instructions say the same, and "Le mie classi"
+  (its note and the status line after "Usa queste classi") says that the
+  classes want the mail script of this version: an older one, reading the
+  new Configurazione.gs, would look for the class in the subject and among
+  the senders together, and label nothing.
 
 **Posta: a label for each of your classes**
 

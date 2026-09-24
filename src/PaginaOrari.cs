@@ -1084,8 +1084,14 @@ namespace Campanella
             sb.AppendLine("L'ORARIO SU GOOGLE CALENDAR, PASSO PER PASSO");
             sb.AppendLine("===========================================");
             sb.AppendLine();
-            sb.AppendLine("1.  Se non l'hai gia' fatto, metti nel progetto Apps Script il file  Orari");
-            sb.AppendLine("    con il \"Codice degli orari\" (passo 3, voce 1 del menu).");
+            string versione = Guscio.VersioneScript("Orari.gs");
+            sb.AppendLine("1.  Metti nel progetto Apps Script il file  Orari  con il \"Codice degli");
+            sb.AppendLine("    orari\" (passo 3, voce 1 del menu). Se c'e' gia' (per gli orari via");
+            sb.AppendLine("    email), esegui  ORARI_1_anteprima: se non scrive  \"Orari.gs versione " +
+                          versione + "\",");
+            sb.AppendLine("    reincolla il codice, al posto di quello che c'era. Quello di prima");
+            sb.AppendLine("    non conosce i giorni senza lezione, che finirebbero sul calendario");
+            sb.AppendLine("    come giorni di lezione, ne' ORARI_5_cambioOrario.");
             sb.AppendLine();
             sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (qui, voce 1 del menu) e incollali nel");
             sb.AppendLine("    file  DatiOrari, al posto di quello che c'era. Adesso contengono anche");

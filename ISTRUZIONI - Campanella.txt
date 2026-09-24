@@ -309,7 +309,11 @@ POSTA - riordinare la casella
    etichette in Gmail non si cancellano mai. A fine anno cancella tu, nel
    progetto dello script, i file Classe_*.gs: l'anteprima elenca quelli che
    nessuna regola usa. Dopo ogni cambio copia di nuovo la configurazione
-   (passo 5).
+   (passo 5). Le classi vogliono lo script della posta 1.6.0: se
+   PASSO_1_anteprima scrive una versione di prima, reincolla anche il
+   codice, altrimenti le regole delle classi non etichettano niente (lo
+   script di prima cercherebbe la classe nell'oggetto e insieme fra i
+   mittenti).
    In "Modifica" ogni regola ha la spunta "Basta uno dei due: l'oggetto
    oppure i mittenti": e' quella delle classi, e vale anche per le tue
    regole. I filtri veri di Gmail (EXTRA_creaFiltriGmail) per le classi
@@ -456,7 +460,12 @@ ORARI - le email a te e il calendario
    "Aggiungi le feste nazionali" mette quelle del periodo, Pasqua e
    Pasquetta comprese; vacanze, patrono e ponti copiali dalla circolare
    sul calendario scolastico della regione e della scuola. Rigenera
-   DatiOrari.gs, incollalo ed esegui ORARI_4_calendario.
+   DatiOrari.gs, incollalo ed esegui ORARI_4_calendario. Con Campanella
+   1.6.0 reincolla anche il codice degli orari (il file Orari), se l'avevi
+   incollato con una versione di prima: ORARI_1_anteprima deve scrivere
+   "Orari.gs versione 1.6.0". Quello di prima non conosce i giorni senza
+   lezione, che finirebbero sul calendario come giorni di lezione, ne'
+   ORARI_5_cambioOrario.
    Ogni blocco di ore consecutive della stessa classe diventa un evento
    settimanale fino alla data di fine, ma non nei giorni senza lezione:
    quindi piu' serie, una per ogni tratto di settimane senza interruzioni
