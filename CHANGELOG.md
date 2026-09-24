@@ -111,7 +111,10 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
 - Posta: ANNULLA_automazione also removes and names the calendar resumes
   (ORARI_4_calendario, ORARI_5_cambioOrario), and marks a calendar job half
   done as stopped, so that a resume already started, waiting for the lock,
-  does not pick it up again; run by hand, the function goes on.
+  does not pick it up again; run by hand, the function goes on. The other
+  calendar function, run by hand meanwhile, says that the job will not
+  resume by itself and has to be run again (as after the day's quota or too
+  many refusals from Google), instead of promising a resume.
 
 **For developers**
 
@@ -131,7 +134,7 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   start with last year in the same calendar, a "Dal" moved forward, lessons
   moved or cancelled by hand, a copy made by hand), undo of a job half done,
   undo stopped by time or by Google's limits, and ANNULLA_automazione with a
-  resume already started.
+  resume already started and the other calendar function run by hand.
 - invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only
   four members of CalendarApp; every method that reads, creates, changes or
   removes events only in a few functions, on a receiver written exactly so,

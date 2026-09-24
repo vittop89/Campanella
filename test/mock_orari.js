@@ -1400,7 +1400,7 @@ if (conCalendario) {
   contesto.ORARI_4_calendario();
   verifica('un altro errore si vede cosi\' com\'e\'', errore(() => contesto.ORARI_ANNULLA_calendario()) === 'Errore interno di prova');
   azzeraCalendario();
-  attrezziCalendario = { azzeraCalendario, vive, salvato, ripresaDi, piano };
+  attrezziCalendario = { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo };
 }
 
 intestazione('CONVIVENZA CON LA POSTA');
@@ -1480,7 +1480,7 @@ verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
 // dice che il lavoro e' stato fermato. Rieseguito a mano, riparte.
 intestazione('ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA');
 if (attrezziCalendario) {
-  const { azzeraCalendario, vive, salvato, ripresaDi, piano } = attrezziCalendario;
+  const { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo } = attrezziCalendario;
   azzeraCalendario();
   sogliaCalendario = 5;
   contesto.ORARI_4_calendario();
@@ -1498,9 +1498,51 @@ if (attrezziCalendario) {
   lockOccupato = false;
   verifica('e se trova il blocco preso non si riprogramma lo stesso', ripresaDi('ORARI_4_calendario').length === 0);
   verifica('il punto resta, per chi vuole finire', !!salvato() && salvato().fatti === 5);
+  // l'altra funzione del calendario, eseguita a mano, non dice che il lavoro
+  // fermato riprende da solo: dice di rieseguirlo
+  const altraAMano = errore(() => contesto.ORARI_5_cambioOrario());
+  verifica('ORARI_5_cambioOrario a mano con l\'orario fermato a meta\' dice che non riprende da solo, che l\'ha ' +
+    'fermato ANNULLA_automazione e di rieseguire ORARI_4_calendario (invece: ' + altraAMano.slice(0, 90) + ')',
+    /non riprende da solo/.test(altraAMano) && /ANNULLA_automazione/.test(altraAMano) &&
+    /ORARI_4_calendario/.test(altraAMano) && /rieseguilo/.test(altraAMano) && !/fra poco/.test(altraAMano) &&
+    !!salvato() && salvato().fatti === 5 && vive(calF).length === 5);
   contesto.ORARI_4_calendario();
   verifica('rieseguito a mano, finisce il lavoro da dove era arrivato',
     vive(calF).length === piano.tratti.length && !salvato() && ripresaDi('ORARI_4_calendario').length === 0);
+
+  // e al contrario: un cambio d'orario fermato, e ORARI_4_calendario a mano
+  sogliaCalendario = 4;
+  contesto.ORARI_5_cambioOrario();
+  sogliaCalendario = Infinity;
+  contesto.ANNULLA_automazione();
+  const cambioFermato = salvato();
+  const quattroAMano = errore(() => contesto.ORARI_4_calendario());
+  verifica('ORARI_4_calendario a mano con il cambio d\'orario fermato a meta\' dice di rieseguire ORARI_5_cambioOrario, ' +
+    'non che riprende da solo', !!cambioFermato && cambioFermato.funzione === 'ORARI_5_cambioOrario' &&
+    cambioFermato.fermato === true && /non riprende da solo/.test(quattroAMano) &&
+    /ANNULLA_automazione/.test(quattroAMano) && /ORARI_5_cambioOrario/.test(quattroAMano) && !/fra poco/.test(quattroAMano));
+  contesto.ORARI_5_cambioOrario();
+  verifica('  ...e rieseguito a mano, il cambio finisce', !salvato() && ripresaDi('ORARI_5_cambioOrario').length === 0);
+
+  // anche il limite di Google della giornata toglie la ripresa: il lavoro va
+  // rieseguito, e l'altra funzione lo dice senza nominare ANNULLA_automazione
+  azzeraCalendario();
+  guasti([{ op: 'createEventSeries', alla: 3, messaggio: 'Service invoked too many times for one day: calendar.' }]);
+  contesto.ORARI_4_calendario();
+  guasti([]);
+  const dopoIlGiorno = errore(() => contesto.ORARI_5_cambioOrario());
+  verifica('con il lavoro fermato dal limite della giornata, l\'altra funzione dice che non riprende da solo',
+    !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 && /non riprende da solo/.test(dopoIlGiorno) &&
+    /rieseguilo/.test(dopoIlGiorno) && !/ANNULLA_automazione/.test(dopoIlGiorno) && !/fra poco/.test(dopoIlGiorno));
+  // con la ripresa programmata, invece, riprende da solo davvero
+  azzeraCalendario();
+  sogliaCalendario = 5;
+  contesto.ORARI_4_calendario();
+  sogliaCalendario = Infinity;
+  const conRipresa = errore(() => contesto.ORARI_5_cambioOrario());
+  verifica('  ...mentre con la ripresa programmata dice che riprende da solo fra poco',
+    ripresaDi('ORARI_4_calendario').length === 1 && /riprende da solo fra poco/.test(conRipresa));
+  riprendiFinoInFondo('ORARI_4_calendario');
   azzeraCalendario();
 } else {
   verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);

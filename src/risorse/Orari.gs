@@ -399,13 +399,19 @@ function _orariCalendario_(funzione, e) {
     return fermo;
   }
   if (salvato && salvato.funzione !== funzione) {
+    // riprende da solo se la sua ripresa c'e' ancora: ANNULLA_automazione
+    // (che lo segna fermato), il limite della giornata o Google che rifiuta
+    // ancora dopo tante riprese la tolgono, e allora va rieseguito a mano
+    var daSolo = !salvato.fermato && _orariRipresaProgrammata_(salvato.funzione);
+    var come = daSolo
+      ? 'riprende da solo fra poco, oppure rieseguilo tu per finirlo'
+      : 'non riprende da solo' + (salvato.fermato ? ' (e\' stato fermato con ANNULLA_automazione)' : '') +
+        ': rieseguilo tu, riparte da dove era arrivato';
     throw new Error(salvato.funzione === _ORARI_TRIGGER_CAMBIO
-      ? 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): riprende da solo fra poco, oppure ' +
-        'rieseguilo tu per finirlo. Per togliere tutto quello che Campanella ha messo sul calendario ' +
-        'c\'e\' ORARI_ANNULLA_calendario.'
-      : 'L\'orario messo da ORARI_4_calendario e\' ancora a meta\': riprende da solo fra poco, oppure ' +
-        'rieseguilo tu per finirlo, e poi esegui ORARI_5_cambioOrario. Per togliere tutto c\'e\' ' +
-        'ORARI_ANNULLA_calendario.');
+      ? 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): ' + come + '. Per togliere tutto quello ' +
+        'che Campanella ha messo sul calendario c\'e\' ORARI_ANNULLA_calendario.'
+      : 'L\'orario messo da ORARI_4_calendario e\' ancora a meta\': ' + come + ', e poi esegui ' +
+        'ORARI_5_cambioOrario. Per togliere tutto c\'e\' ORARI_ANNULLA_calendario.');
   }
 
   // prima di toccare il calendario: dati, date e piano, tutti controllati
@@ -1286,6 +1292,13 @@ function _etichettaInviati_(oggetto) {
 function _programmaRipresaOrari_(funzione) {
   _togliTriggerOrari_(funzione);
   ScriptApp.newTrigger(funzione).timeBased().after(60 * 1000).create();
+}
+
+/** Vero se c'e' una ripresa programmata di quella funzione. */
+function _orariRipresaProgrammata_(funzione) {
+  var t = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < t.length; i++) if (t[i].getHandlerFunction() === funzione) return true;
+  return false;
 }
 
 function _togliTriggerOrari_(funzione) {
