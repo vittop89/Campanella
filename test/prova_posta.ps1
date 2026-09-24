@@ -923,12 +923,16 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $grado = [string][char]0x00B0
         $attese = [ordered]@{
             '3B' = '3B|3 B|III B'; '3^B' = '3B|3 B|III B'; ('3' + $grado + 'B') = '3B|3 B|III B'; ' 3 b ' = '3B|3 B|III B'
-            '3B LSA' = '3B|3 B|III B'; '2B-Ls' = '2B|2 B|II B'; '5AL' = '5AL|5 AL|V AL'; '4Ar' = '4AR|4 AR|IV AR'
-            'A5' = 'A5'; '1A2' = '1A2'; '10A' = '10A'
+            '3B LSA' = '3B|3 B|III B'; '2B-Ls' = '2B|2 B|II B'; '4Ar' = '4AR|4 AR|IV AR'
+            # una sezione che e' una parola ("1 a 10", "classi 1 e 2", "dal 5 al 10"): niente forme con lo spazio da sole
+            '3A' = '3A|classe 3 A|classe III A'; '1E' = '1E|classe 1 E|classe I E'; '2I' = '2I|classe 2 I|classe II I'
+            '4O' = '4O|classe 4 O|classe IV O'; '5AL' = '5AL|classe 5 AL|classe V AL'
+            # un codice che non e' numero e sezione: nessuna parola, le scrive il docente
+            'A5' = ''; '1A2' = ''; '10A' = ''; 'B' = ''; 'D.' = ''
         }
         $storte = @()
         foreach ($k in $attese.Keys) { if ((Varianti $k) -ne $attese[$k]) { $storte += "$k -> $(Varianti $k)" } }
-        Verifica "le parole di partenza: 3B, ""3 B"", III B; per 3B LSA le stesse; un codice che non e' numero e sezione resta com'e'$(if ($storte.Count) { ': no ' + ($storte -join '; ') })" (
+        Verifica "le parole di partenza: 3B, ""3 B"", III B; per 3B LSA le stesse; con A, E, I, O ""classe 3 A""; un codice che non e' numero e sezione nessuna$(if ($storte.Count) { ': no ' + ($storte -join '; ') })" (
             $storte.Count -eq 0)
         Verifica "3B, 3 B, 3^B e 3$($grado)B sono la stessa classe; 3B LSA, 3B ITE e 3BL sono altre" (
             (ChiaveClasse '3B') -eq (ChiaveClasse '3 B') -and (ChiaveClasse '3^B') -eq (ChiaveClasse '3b') -and
@@ -1082,6 +1086,18 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         [void]$fcS.Aggiungi('2C ITE')
         Verifica "e la 2C ITE aggiunta a mano e' un'altra riga ($(Righe $fcS))" ((Righe $fcS) -eq '2C+,2C ITE+,2C LSA+,2D+')
         $fcS.Dispose()
+        # i codici che non sono numero e sezione (A5, AF: gruppi, laboratori) non partono spuntati, e senza parole
+        $s7c = $tStato.GetMethod('Carica', $FS).Invoke($null, @())
+        Imposta $s7c 'Classi' "A5`r`n3B`r`nAF"
+        $fcA = NuovaFC $s7c
+        $iA5 = Indice $fcA 'A5'
+        Verifica "A5 e AF non partono spuntate e senza parole dell'oggetto, la 3B si' ($(Righe $fcA))" (
+            (Righe $fcA) -eq '3B+,A5-,AF-' -and $fcA.Classi[$iA5].Oggetto -eq '' -and $fcA.Classi[0].Oggetto -eq '3B, 3 B, III B')
+        Verifica "e chiedono di scrivere come compaiono nell'oggetto ('$($fcA.Avviso($iA5))')" ($fcA.Avviso($iA5) -match 'scrivi tu')
+        $iB = $fcA.Aggiungi('B')
+        Verifica "una aggiunta a mano e' spuntata, ma anche lei senza parole ($(Righe $fcA))" (
+            (Righe $fcA) -eq '3B+,A5-,AF-,B+' -and $fcA.Classi[$iB].Oggetto -eq '')
+        $fcA.Dispose()
         $i3B = Indice $fc '3B'
         $incolla3B = ($studenti -join ', ') + ", PROF.ROSSI@scuola-esempio.edu.it, " + $studenti[0].ToUpperInvariant()
         $fc.Incolla($i3B, $incolla3B)

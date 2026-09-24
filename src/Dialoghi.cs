@@ -1019,7 +1019,9 @@ namespace Campanella
                 if (LeMieClassi.Chiave(n) == "" || Indice(n) >= 0) continue;
                 ClasseScelta x = new ClasseScelta();
                 x.Nome = LeMieClassi.Nome(n);
-                x.Spuntata = spuntate;
+                // un codice che non e' numero e sezione (A5, AF) non ha parole
+                // dell'oggetto: resta senza spunta finche' il docente non le scrive
+                x.Spuntata = spuntate && LeMieClassi.NumeroESezioneDi(n);
                 x.Oggetto = string.Join(", ", LeMieClassi.Varianti(n).ToArray());
                 x.Provenienza = da;
                 Classi.Add(x);
@@ -1124,7 +1126,8 @@ namespace Campanella
                 ? "Non ho trovato classi. Le prendo dall'orario (Orari: il tabellone al passo 1 e il tuo nome al passo 4) " +
                   "oppure da Cartelle (una classe per riga); altrimenti aggiungile qui sotto, una alla volta."
                 : "Le classi del tuo orario (Orari, passo 4), di Cartelle e quelle che hanno gia' la regola: spunta quelle " +
-                  "che vuoi. Le parole dell'oggetto si cambiano con un clic.";
+                  "che vuoi. Le parole dell'oggetto si cambiano con un clic; quelle con lo spazio controllale in Gmail, " +
+                  "cercando per esempio subject:\"3 B\".";
         }
 
         /// <summary>La colonna "Studenti": quanti indirizzi incollati, o che non si conservano.</summary>
@@ -1193,6 +1196,16 @@ namespace Campanella
         {
             if (i < 0 || i >= Classi.Count) return "";
             ClasseScelta c = Classi[i];
+            // un codice come A5 o AF: come compare nell'oggetto Campanella non lo sa
+            string parole = (LeMieClassi.ParoleOggetto(c.Oggetto).Count == 0)
+                ? "Scrivi tu in \"Cerca nell'oggetto\" come compare nell'oggetto delle email" +
+                  (LeMieClassi.NumeroESezioneDi(c.Nome) ? "" : " (per un codice come " + c.Nome + " non lo so)") + ". "
+                : "";
+            return parole + AvvisoStudenti(c);
+        }
+
+        string AvvisoStudenti(ClasseScelta c)
+        {
             string file = LeMieClassi.NomeFile(c.Nome);
             int tolti = (c.Tolti == null) ? 0 : c.Tolti.Count;
             string delPersonale = (tolti == 0) ? "" : " " + tolti + " del personale " + (tolti == 1 ? "tolto" : "tolti") +
@@ -1220,7 +1233,7 @@ namespace Campanella
         string AvvisoPiuLungo()
         {
             ClasseScelta prova = new ClasseScelta();
-            prova.Nome = "3B LSA";
+            prova.Nome = "Laboratorio LSA";
             prova.Indirizzi = new List<string>();
             for (int k = 0; k < 100; k++) prova.Indirizzi.Add("x");
             prova.Tolti = new List<string>(new string[] { "a", "b" });

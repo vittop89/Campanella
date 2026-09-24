@@ -670,27 +670,42 @@ namespace Campanella
             return fuori;
         }
 
+        // sezioni che sono anche parole italiane: "3 A" prenderebbe "da 1 a 10",
+        // "1 E" "le classi 1 e 2", "5 AL" "dal 5 al 10"
+        static readonly string[] SezioniParola =
+        {
+            "A", "E", "I", "O", "U", "AD", "AL", "CI", "DA", "DI", "ED", "HA", "HO", "IL", "IN", "LA", "LE", "LO",
+            "MI", "NE", "SI", "SU", "TI", "UN", "VI", "CHE", "CON", "COL", "DAL", "DEL", "FRA", "GLI", "NEL", "NON",
+            "PER", "SUL", "TRA", "UNA", "UNO"
+        };
+
         /// <summary>
         /// Le parole di partenza per l'oggetto: per la 3B (e la 3B LSA) 3B, "3 B"
-        /// e III B. Gmail cerca parole intere: "3 B" dovrebbe prendere anche 3^B
-        /// e 3(grado)B (da verificare con l'anteprima). Un codice che non e' numero e
-        /// sezione resta com'e'.
+        /// e III B. Gmail cerca parole intere, e una frase come parole vicine:
+        /// "3 B" dovrebbe prendere anche 3^B e 3(grado)B (da controllare in
+        /// Gmail). Se la sezione e' anche una parola (A, E, I, O, AL...) le forme
+        /// con lo spazio da sole prenderebbero "da 1 a 10": allora 3A, "classe 3
+        /// A" e "classe III A". Un codice che non e' numero e sezione (A5, AF, un
+        /// laboratorio) non ha parole: come compare nell'oggetto lo scrive il docente.
         /// </summary>
         public static List<string> Varianti(string grezzo)
         {
             List<string> fuori = new List<string>();
-            string s = Pulito(grezzo);
-            Match m = NumeroSezione.Match(s);
-            if (!m.Success)
-            {
-                if (s != "") fuori.Add(s);
-                return fuori;
-            }
+            Match m = NumeroSezione.Match(Pulito(grezzo));
+            if (!m.Success) return fuori;
             string n = m.Groups[1].Value, sezione = m.Groups[2].Value.ToUpperInvariant();
+            bool parola = Array.IndexOf(SezioniParola, sezione) >= 0;
+            string prima = parola ? "classe " : "";
             fuori.Add(n + sezione);
-            fuori.Add(n + " " + sezione);
-            fuori.Add(Romani[int.Parse(n)] + " " + sezione);
+            fuori.Add(prima + n + " " + sezione);
+            fuori.Add(prima + Romani[int.Parse(n)] + " " + sezione);
             return fuori;
+        }
+
+        /// <summary>Vero se il nome e' numero e sezione (3B, 3B LSA): le altre classi partono senza parole e senza spunta.</summary>
+        public static bool NumeroESezioneDi(string grezzo)
+        {
+            return NumeroSezione.IsMatch(Pulito(grezzo));
         }
 
         /// <summary>Le parole dell'oggetto scritte nella finestra: separate da virgole, una volta ciascuna (maiuscole a parte).</summary>
