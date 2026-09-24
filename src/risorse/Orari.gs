@@ -333,7 +333,8 @@ function _orariCalendarioConLock_(funzione, e) {
     // lo lascio fermo, lo riprogrammo fra un minuto
     var aMeta = _orariLavoroCalendario_();
     if (aMeta) _programmaRipresaOrari_(aMeta.funzione);
-    var occupato = 'Un\'altra esecuzione (un invio degli orari o il riordino della posta) e\' ancora in corso: ' +
+    var occupato = 'Un\'altra esecuzione (il calendario, un invio degli orari o il riordino della posta) e\' ' +
+      'ancora in corso: ' +
       (aMeta ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
     Logger.log(occupato);
     return occupato;
@@ -455,7 +456,7 @@ function _orariCalendario_(funzione, e) {
       if (Date.now() > scadenza) return _orariCalendarioInterrotto_(funzione, stato, piano, 'tempo', salva);
       var serie = _orariCreaSerie_(cal, piano.serie[stato.fatti], c, d, doc);
       // contata subito: se poi il contrassegno non riesce, la serie c'e' gia'
-      // (e la descrizione la riconosce) e ripresa non si rifa'
+      // (e la descrizione la riconosce): alla ripresa non si rifa'
       stato.fatti++;
       stato.rifiuti = 0;
       salva();
