@@ -32,6 +32,10 @@ Quattro funzioni, tutte facoltative e indipendenti:
 1. **Posta** — crea in Gmail delle etichette (Dirigenza, Segreteria, Circolari,
    Colleghi, Studenti, Ministero, Sindacati, Newsletter…) e le applica ai
    messaggi già ricevuti e a quelli futuri, per riordinare la casella.
+   Facoltativamente, un'etichetta per ogni classe del docente (per esempio
+   «Classi 2026-27/3B»), per i messaggi con la classe nell'oggetto o mandati
+   dagli studenti della classe, i cui indirizzi il docente incolla nel
+   progetto dello script (punto 3).
    Con lo stesso elenco del personale, «Scrivere a un gruppo» aiuta a
    scrivere a una categoria di colleghi (per esempio gli assistenti
    amministrativi): copia i loro indirizzi negli appunti e apre in Gmail un
@@ -120,7 +124,9 @@ Quattro funzioni, tutte facoltative e indipendenti:
   reindirizzamenti.
 - **Non crea trattamenti nuovi**: i dati sono quelli già presenti
   nell'account istituzionale del docente (mittenti, oggetti, etichette) e il
-  tabellone orario già distribuito dalla scuola.
+  tabellone orario già distribuito dalla scuola; per le etichette delle
+  classi, se il docente le usa, gli indirizzi degli studenti delle sue
+  classi, che ha già nel corso di Classroom o nei gruppi della scuola.
 
 ## 3. Dati personali coinvolti e dove risiedono
 
@@ -129,7 +135,8 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Elenco del personale (nominativo, ruolo, indirizzo istituzionale dei colleghi) | rubrica/registro elettronico, oppure i mittenti già presenti nella casella | nel file di configurazione dello script dentro l'account Google del docente; e sul computer del docente, oppure — scelta consigliata — in un file dentro la cartella del Drive istituzionale (in quel caso il file delle impostazioni sul computer non contiene nomi). Gli indirizzi che lo script ricava dalla casella (`EXTRA_elencaIndirizziScuola`) arrivano in un'email al docente stesso, e finiscono nel registro delle esecuzioni di Apps Script, che resta nell'account per il tempo stabilito da Google, solo se quell'email non parte. Le righe senza spunta (per esempio indirizzi di studenti trovati nella casella) non entrano nella configurazione dello script, ma restano nel file dei dati finché il docente non le toglie («Togli le righe senza spunta»). Con «Scrivere a un gruppo», gli indirizzi di una categoria passano per gli appunti di Windows, esclusi dalla cronologia | solo il docente |
 | Indirizzi di dirigenza e segreteria | pubblici nel sito della scuola | come sopra | solo il docente |
 | Etichette applicate ai messaggi | generate dallo script | nell'account Gmail del docente | solo il docente |
-| Filtri di Gmail che il docente sceglie di togliere (etichetta e criteri, che possono contenere indirizzi) | l'esportazione dei filtri che il docente scarica da Gmail e apre in Campanella; il file resta dove il docente l'ha salvato, e Campanella dice che si può cancellare dopo averlo aperto | solo i filtri scelti, nel file dei dati di Campanella insieme all'elenco del personale (sul computer o nel Drive istituzionale, come sopra) e nel file di configurazione dello script; prima di togliere un filtro, lo script ne scrive una copia nel registro delle esecuzioni e, se il riepilogo è attivo, nell'email al docente stesso; nelle proprietà dello script resta solo un'impronta numerica dei filtri tolti, senza indirizzi né parole | solo il docente |
+| Filtri di Gmail che il docente sceglie di togliere (etichetta e criteri, che possono contenere indirizzi; quelli che sembrano di una classe e hanno indirizzi non si possono scegliere, e quelli scelti prima, con la 1.5.3 o prima di creare le classi, Campanella li toglie dalla scelta all'avvio e non li scrive nel file di configurazione, per non portare in Campanella indirizzi di studenti) | l'esportazione dei filtri che il docente scarica da Gmail e apre in Campanella; il file resta dove il docente l'ha salvato, e Campanella dice che si può cancellare dopo averlo aperto | solo i filtri scelti, nel file dei dati di Campanella insieme all'elenco del personale (sul computer o nel Drive istituzionale, come sopra) e nel file di configurazione dello script; prima di togliere un filtro, lo script ne scrive una copia nel registro delle esecuzioni e, se il riepilogo è attivo, nell'email al docente stesso; nelle proprietà dello script resta solo un'impronta numerica dei filtri tolti, senza indirizzi né parole | solo il docente |
+| Indirizzi email degli studenti delle classi del docente (facoltativi, per le etichette delle classi) | incollati dal docente in Campanella, per esempio dall'elenco del corso in Classroom; Campanella toglie quelli del personale (con la spunta nell'elenco, dirigenza e segreteria) | solo nel file `Classe_….gs` di ogni classe, nel progetto Apps Script del docente (account istituzionale), dove servono solo alle ricerche dello smistamento; il file vale solo per l'etichetta per cui è stato copiato e dice il giorno della copia; con un'etichetta madre senza l'anno la finestra ricorda di ricopiarlo ogni anno scolastico, e anteprima, riordino e smistamento avvisano se è di un anno passato. Campanella non li conserva: non sono nel file delle impostazioni, nel file dei dati né nel file di configurazione dello script, dove la regola ha solo un segnaposto, e un indirizzo scritto fra le parole dell'oggetto viene scartato. Dal programma passano per gli appunti di Windows, esclusi dalla cronologia: restano negli appunti fino alla copia successiva, e chiudendo la finestra Campanella propone di svuotarli; non vengono mai scritti su un file del computer. Lo script non li scrive nel registro delle esecuzioni, nei riepiloghi né nei messaggi d'errore (al più quanti sono), e non li mette nei filtri nativi di Gmail, che per le classi cercano solo l'oggetto. L'anteprima elenca i file che nessuna regola usa. Per toglierli si cancella il file | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar, con il cognome scelto nella descrizione | solo il docente |
 | Giorni senza lezione del proprio orario (date e un nome, testo libero: servono le chiusure della scuola, ma il docente può scriverci altro) | il docente, dalla circolare sul calendario scolastico | nel file dati di Campanella, insieme ai dati personali (con i dati nel Drive, non nel file delle impostazioni sul computer); le righe riconosciute, con data e nome, nel file dei dati dello script | solo il docente |
 | Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne legge solo il numero e l'ora di arrivo (per ritrovarle nei fogli degli anni scorsi prima di un eventuale svuotamento) e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
@@ -285,7 +292,8 @@ eseguendo lo script il [data].]*
   l'installer), e si collega alla rete solo nei casi descritti al punto 2.
 - Le **condizioni d'uso** che l'utente accetta all'installazione o al primo
   avvio (e di nuovo quando cambiano) ricordano che il titolare dei dati è la
-  scuola, che i dati degli studenti restano fuori dal computer, e che i testi
+  scuola, che i dati particolari degli studenti (certificazioni, PDP e PEI,
+  relazioni) restano fuori dal computer, e che i testi
   dati a un'IA vanno prima anonimizzati. Descrivono anche il foglio di
   controllo dei moduli, con il permesso su tutti i moduli dell'account e le
   chiusure che scattano da sole, e dicono che anche lo script dentro il
@@ -308,15 +316,21 @@ eseguendo lo script il [data].]*
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),
    cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,
    oppure esportarli, sceglierli in Campanella (Posta, passo 4) ed eseguire
-   `EXTRA_togliFiltri`, che toglie solo i filtri scelti. I messaggi segnati
-   come letti da una regola restano letti.
+   `EXTRA_togliFiltri`, che toglie solo i filtri scelti. Quelli delle classi
+   cercano solo l'oggetto e si scelgono come gli altri; un filtro con gli
+   indirizzi degli studenti (fatto a mano) Campanella non lo lascia scegliere,
+   e si toglie da Gmail. Il file esportato si può cancellare dopo averlo
+   aperto. I messaggi segnati come letti da una regola restano letti.
 3. Se usa lo script dei moduli: eseguire `MODULO_ANNULLA` in ogni modulo in
    cui l'ha incollato; se usa il foglio di controllo, `PANNELLO_ANNULLA`
    (menu Campanella del foglio). Tolgono le chiusure programmate e
    scollegano i fogli dell'anno, che restano nel Drive.
 4. Eliminare il progetto Apps Script della posta dal Drive e revocare
    l'accesso da https://myaccount.google.com/permissions, anche quello
-   concesso agli script dei moduli.
+   concesso agli script dei moduli. Con il progetto spariscono anche i file
+   `Classe_….gs` con gli indirizzi degli studenti, che non stanno altrove
+   (nemmeno nei filtri nativi di Gmail); per toglierli prima basta cancellare
+   quei file.
 5. Disinstallare Campanella dalle Impostazioni di Windows (App installate) e,
    se si vuole, cancellare il file dei dati (`campanella-dati.json`) dalla
    cartella del Drive.

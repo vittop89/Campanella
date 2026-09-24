@@ -2,7 +2,9 @@
 
 ## 1.6.0 — (data da definire)
 
-Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs again.
+Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy
+DatiOrari.gs and Configurazione.gs again. With the new class labels, also
+paste the Classe_*.gs file of each class, copied from "Le mie classi...".
 
 **Orari: school holidays and timetable changes on Google Calendar**
 
@@ -125,6 +127,123 @@ Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy DatiOrari.gs 
   calendar function, run by hand meanwhile, says that the job will not
   resume by itself and has to be run again (as after the day's quota or too
   many refusals from Google), instead of promising a resume.
+
+**Posta: a label for each of your classes**
+
+- Step 4 has "Le mie classi...": one rule per class, with a label such as
+  "Classi 2026-27/3B" under a parent label ("Classi" and the school year,
+  editable; reopening the window finds the parent of your class rules
+  again, unless it names another year). A message gets it if either holds:
+  the class is in the subject,
+  whoever sent it (management's "Consiglio di classe 3B", colleagues,
+  Classroom notifications like "3B Matematica: ...", families), or the
+  sender is a student of that class. Class labels add to the others:
+  Studenti, Colleghi and the rest stay.
+- The classes come from the timetable (your lessons, without the "a
+  disposizione" hours; a lesson for 3A/3B is two classes, a cell such as
+  "3B 2 gruppi" stays one: Orari, the timetable file and your name in step
+  4) and from the classes written in Cartelle; others are added by hand.
+  3B, 3 B and 3^B are the same class; 3B LSA and 3B ITE are other classes,
+  and when two share number and section the window says so. A slash never
+  gets into a label name.
+  "Cerca nell'oggetto" starts from 3B, "3 B" and III B (Gmail searches whole
+  words; 3B LSA gets the same ones). When the section is also an Italian
+  word (A, E, I, O, AL...) it starts from 3A, "classe 3 A" and "classe III
+  A", since "3 A" alone would match "da 1 a 10"; a code that is not number
+  and section, such as A5, starts unticked and with no words. The words can
+  be edited, comma separated (quoted if they contain a comma); addresses
+  pasted there are dropped, with a warning. The preview counts a rule, not
+  each word: what a word such as "3 B" matches (3^B too?) is checked by
+  searching Gmail for subject:"3 B".
+- Students' addresses are pasted (or dragged) in the window, for example
+  from Classroom (course -> People -> tick above the students -> Actions ->
+  Email: Gmail opens a message with every address in the To field, to copy;
+  then delete that message with the bin, or it stays among the drafts) or
+  from the class's Google group. The help says that a Ctrl+C in the browser
+  goes into Windows' clipboard history (Win+V to remove it) and that
+  dragging the text avoids the clipboard. Only email addresses are taken,
+  also in the form Name Surname <address> and with an apostrophe
+  (d'amico...), without what is stuck in front of them (a link's "?email=",
+  "Rossi|" in a row with columns), lower case, once each; the staff's
+  addresses (ticked in step 3, management, secretariat) are removed and
+  counted by where they come from, and more than 40 trigger a warning
+  ("sembra piu' di una classe").
+  They are data of minors, and Campanella does not keep them anywhere: not
+  in campanella.json, not in the data file, not in the rules, not in
+  Configurazione.gs. The window copies (outside the clipboard history,
+  never to a file) a separate script file, Classe_3B.gs, to paste into the
+  Apps Script project next to Configurazione.gs: it holds the label of its
+  rule, the day it was copied and the addresses. Once the window is closed
+  the addresses are gone, and reopening it says so; if the copied file is
+  still on the clipboard, closing the window offers to clear it (otherwise
+  it stays there even after Campanella is closed). The rule holds only the
+  placeholder @CLASSE:3B@. Without that file the rule still labels the
+  messages with the class in the subject.
+- "Usa queste classi" creates or updates one rule per ticked class (at the
+  end of the list, in shades of one colour that no other rule uses, each
+  class its own) and removes the rule of an unticked class, reminding you
+  to delete its Classe_*.gs file. Changing the parent label in the window
+  shows that parent's rules and keeps what you did (pasted addresses,
+  changed ticks and words, classes added by hand); a file copied for
+  another parent must be copied again. Closing with Annulla, Esc or the X
+  asks first if a file was copied or something changed. In a new school
+  year (also written 2026-2027) it offers, unticked, to remove last year's
+  class rules, and reminds you to delete their Classe_*.gs files, except
+  those named like one of this year's classes, which the new file replaces
+  (after "Usa queste classi" it says which ones). With a
+  parent label without the year (such as "Le mie classi") the rules stay
+  the same the next year but the students do not: the window says that in
+  a new school year the addresses must be pasted and the file copied again.
+  Labels in Gmail are never deleted.
+- The rule window ("Modifica") has "Basta uno dei due: l'oggetto oppure i
+  mittenti", the option behind the class rules (unoQualsiasi in
+  Configurazione.gs, written only when on: without classes the
+  configuration and its fingerprint do not change); for a class rule it
+  shows the placeholder instead of the senders.
+- The script: a rule with unoQualsiasi and both senders and text searches
+  the text from anyone and, separately, the senders in groups of 20 with any
+  text; recipients, attachment, advanced search, excluded labels and period
+  apply to all of them, and native Gmail filters follow (one for the text,
+  one per group of senders). @CLASSE:3B@ becomes the students of
+  Classe_3B.gs, only if the file was copied for that rule's label (last
+  year's 3B file does not count for this year's 3B); none without the file.
+  A class placeholder among the recipients (only a hand-written
+  configuration puts it there) counts as a class of the rule too.
+  Students never go into native Gmail filters, which would keep them in the
+  account settings even after deleting the file: for a class the filter
+  matches the subject only, the students' messages are labelled by the
+  hourly sorting, and EXTRA_creaFiltriGmail says that PASSO_4 must stay on
+  for them. PASSO_1_anteprima says how many addresses each class file has
+  (never which ones) and when it was copied (warning if from a past school
+  year), or that the file is missing or belongs to another label, and
+  lists the class files no active rule uses. When last year's rules are
+  kept, last year's 3B and this year's share the one Classe_3B.gs: the
+  preview says which rule the file serves and how to switch off or remove
+  the other, not to delete the file. The reorder summary (PASSO_3) and the
+  hourly sorting's log also flag a class file from a past school year
+  that a rule still uses. A conversation found by two
+  searches of the same rule counts once in the trial reorder (even when it
+  resumes halfway through a rule) and in the hourly sorting, even when
+  Gmail's index lags. A rejected search is skipped in the trial reorder
+  too; for a class rule neither the search nor Gmail's message is logged,
+  only which search it was. The test bench runs every public function with
+  class files loaded and Gmail rejecting searches and filters, and checks
+  that no student address comes out.
+- In "Filtri che hai gia' in Gmail..." class filters never start ticked. A
+  filter with addresses whose label looks like a class (it ends with 3B,
+  III B or 3B LSA, with at most a code after number and section, so not "5
+  per mille" or "5A Praga"; or it sits under a parent with the word
+  "classi" in it, not "Liceo Classico", under the parent of a class rule or
+  under one used for classes before, remembered even after the rules are
+  removed) cannot be ticked: the addresses might be students' and would
+  reach the data file and Configurazione.gs. Such a filter chosen before
+  (with 1.5.3, or before the classes were created under its parent) is
+  dropped from the choice at start-up and by "Usa queste classi", never
+  written to Configurazione.gs, and the window says so. Remove it in Gmail.
+- The same format 3 of the settings files (see Orari above) keeps 1.5.3 from
+  overwriting them for the classes too: it would drop unoQualsiasi, and a
+  class rule would silently want the subject AND the students. The data file
+  also remembers the parent labels used for classes (names only).
 
 **For developers**
 

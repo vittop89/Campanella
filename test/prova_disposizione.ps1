@@ -711,6 +711,101 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
     Verifica "e senza filtri lo dice" ($lblF.Text -eq 'Nessun filtro di Gmail da togliere.')
 }
+# --- le mie classi: il bottone del passo 4 e la sua finestra --------------------
+# Il bottone sta accanto a "Filtri che hai gia' in Gmail...", con il suo "?",
+# dentro la colonna delle regole. La finestra sta in piedi senza classi (dice
+# dove prenderle), con le classi, gli indirizzi incollati e le regole dell'anno
+# prima; i suoi "?" si aprono.
+Write-Host "`nLE MIE CLASSI" -ForegroundColor Cyan
+$metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]3)) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$pannello4 = $null
+foreach ($c in $posta.Controls) {
+    if ($c.Visible -and $c -is [System.Windows.Forms.Panel] -and $c.Dock -eq [System.Windows.Forms.DockStyle]::Fill) { $pannello4 = $c }
+}
+$btnClassi = @($pannello4.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq 'Le mie classi...' })
+$btnFiltri = @($pannello4.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq "Filtri che hai gia' in Gmail..." })
+$clbR = $posta.GetType().GetField('clbRegole', $FIp).GetValue($posta)
+$aiutoClassi = @($pannello4.Controls | Where-Object { ($_.Tag -is [string]) -and $_.Tag -eq 'aiuto' -and $btnClassi.Count -eq 1 -and
+    $_.Left -gt $btnClassi[0].Right -and $_.Left -lt $btnClassi[0].Right + 20 -and [Math]::Abs($_.Top - $btnClassi[0].Top) -lt 12 })
+Verifica "il passo 4 ha il bottone 'Le mie classi...', accanto ai filtri, con il suo '?', dentro la colonna delle regole" (
+    $btnClassi.Count -eq 1 -and $btnFiltri.Count -eq 1 -and $btnClassi[0].Top -eq $btnFiltri[0].Top -and
+    $btnClassi[0].Left -gt $btnFiltri[0].Right -and $aiutoClassi.Count -eq 1 -and $aiutoClassi[0].Right -le $clbR.Right + 12)
+ControllaPannello $pannello4 'Posta / 4 con il bottone delle classi'
+
+$tFC = $asm.GetType('Campanella.FormClassi')
+Verifica "c'e' la finestra delle classi" ($null -ne $tFC)
+if ($null -ne $tFC) {
+    # chiudendo, la finestra chiede se perdere quello che c'e' (gli indirizzi
+    # incollati) e se svuotare gli appunti: qui si risponde "si'" senza finestre
+    $sempreSi = [Func[string, string, bool]]{ param($testo, $titolo) $script:domandeFC += $titolo; return $true }
+    $script:domandeFC = @()
+    function MostraFC() {
+        $f = [Activator]::CreateInstance($tFC, @($stato.PSObject.BaseObject))
+        $f.Chiedi = $sempreSi
+        $f.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+        $f.Location = New-Object System.Drawing.Point(-4000, -4000)
+        $f.Show()
+        [System.Windows.Forms.Application]::DoEvents()
+        return $f
+    }
+    $classiPrima = $tStato.GetField('Classi', $FI).GetValue($stato)
+    $tStato.GetField('Classi', $FI).SetValue($stato, '')
+    $fv = MostraFC
+    $lblDaDove = $tFC.GetField('lblDaDove', $FIp).GetValue($fv)
+    Verifica "senza classi dice dove prenderle ('$($lblDaDove.Text.Substring(0, 40))...')" (
+        $lblDaDove.Visible -and $lblDaDove.Text -match '^Non ho trovato classi' -and $lblDaDove.Text -match 'Orari' -and
+        $lblDaDove.Text -match 'Cartelle')
+    ControllaPannello $fv 'Le mie classi, senza classi'
+    $fv.Close(); $fv.Dispose()
+
+    # con le classi di Cartelle, una regola dell'anno prima e gli indirizzi incollati
+    $tStato.GetField('Classi', $FI).SetValue($stato, "1A: Matematica`r`n3B LSA: Fisica`r`n5AL")
+    $regoleD = $tStato.GetField('Regole', $FI).GetValue($stato)
+    $vecchia = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $vecchia.Etichetta = 'Classi 2025-26/2B'
+    $vecchia.Sorgente = 'classe'
+    $vecchia.Da.Add('@CLASSE:2B@')
+    $vecchia.UnoQualsiasi = $true
+    $regoleD.Add($vecchia)
+    $fc = MostraFC
+    $fc.Incolla(1, ((1..45 | ForEach-Object { "studente$_@studenti.scuola.example" }) -join ', ') + ', rossi.mario@scuola.example')
+    $fc.Scegli(1)
+    [System.Windows.Forms.Application]::DoEvents()
+    $avvisoFC = $tFC.GetField('lblAvviso', $FIp).GetValue($fc)
+    $chkV = $tFC.GetField('chkVecchie', $FIp).GetValue($fc)
+    Verifica "con le classi, gli indirizzi incollati e l'anno prima: tutto quello che serve si vede" (
+        $fc.Classi.Count -eq 3 -and $avvisoFC.Text -match "sembra piu' di una classe" -and $avvisoFC.Text -match '1 del personale' -and
+        $chkV.Visible -and $chkV.Text -match 'del 2025-26 \(1\)' -and -not $chkV.Checked)
+    ControllaPannello $fc 'Le mie classi, con classi e indirizzi'
+    ControllaAiuti $fc 'Le mie classi'
+    $fc.Close(); $fc.Dispose()
+    Verifica "chiusa con gli indirizzi incollati e non copiati, ha chiesto prima di chiudere ($($script:domandeFC -join ', '))" (
+        ($script:domandeFC -join '|') -eq 'Chiudere senza usare le classi?')
+    [void]$regoleD.Remove($vecchia)
+
+    # la madre senza l'anno: l'avviso di una classe che ha gia' la regola dice
+    # anche che l'anno dopo il file va copiato di nuovo, e ci sta
+    $senzaAnno = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $senzaAnno.Etichetta = 'Le mie classi/3B LSA'
+    $senzaAnno.Sorgente = 'classe'
+    $senzaAnno.Da.Add('@CLASSE:3B LSA@')
+    $senzaAnno.UnoQualsiasi = $true
+    $regoleD.Add($senzaAnno)
+    $fs = MostraFC
+    $iS = -1
+    for ($k = 0; $k -lt $fs.Classi.Count; $k++) { if ($fs.Classi[$k].Nome -eq '3B LSA') { $iS = $k } }
+    $fs.Scegli($iS)
+    [System.Windows.Forms.Application]::DoEvents()
+    $avvisoS = $tFC.GetField('lblAvviso', $FIp).GetValue($fs)
+    Verifica "con la madre senza l'anno l'avviso della classe con la regola lo dice" (
+        $fs.Madre -eq 'Le mie classi' -and $iS -ge 0 -and $avvisoS.Text -match "non ha l'anno")
+    ControllaPannello $fs "Le mie classi, madre senza l'anno"
+    $fs.Close(); $fs.Dispose()
+    [void]$regoleD.Remove($senzaAnno)
+    $tStato.GetField('Classi', $FI).SetValue($stato, $classiPrima)
+}
+
 # tutto come prima
 $personale.GetType().GetMethod('Clear').Invoke($personale, @()) | Out-Null
 $tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $false)

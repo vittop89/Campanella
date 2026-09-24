@@ -24,6 +24,7 @@ programma: è quello che finisce per sbaglio dentro al repository.
 | qualunque `.xlsx` di orario | come sopra |
 | `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
 | `mailFilters.xml` (i filtri esportati da Gmail) | i filtri veri di un account, con gli indirizzi e le parole che cercano. Le prove usano `test/filtri_gmail_esempio.xml`, inventato. |
+| `Classe_*.gs` (Posta, passo 4, «Le mie classi…») | gli indirizzi degli studenti di una classe. Campanella li copia solo negli appunti, per il progetto dello script: se li salvi in un file, fuori dal repository. |
 | `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
 
 Il `.gitignore` del progetto li esclude già tutti. Prima di ogni `push`
@@ -103,9 +104,15 @@ casella, che arrivano senza spunta) non vanno nello script ma restano
 salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
-quelli che spunti, con l'etichetta e i criteri. Il file che Gmail esporta
-(di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo averlo
-aperto in Campanella puoi cancellarlo. Quando Campanella copia
+quelli che spunti, con l'etichetta e i criteri. Un filtro che sembra di una
+classe (l'etichetta finisce con 3B o 3B LSA, o sta sotto una madre con la
+parola «classi» o usata per le classi) e ha degli indirizzi non si può
+spuntare: potrebbero essere quelli degli studenti, e si toglie da Gmail. Se
+l'avevi scelto prima (con la 1.5.3, o prima di creare le classi sotto
+quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa
+queste classi», e non lo scrive nella configurazione. Il file che Gmail
+esporta (di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo
+averlo aperto in Campanella puoi cancellarlo. Quando Campanella copia
 negli appunti la configurazione degli script, i dati degli orari, gli
 indirizzi di un gruppo o i testi della Privacy, chiede a Windows di non
 tenerli nella cronologia degli appunti e di non sincronizzarli con altri
@@ -121,6 +128,37 @@ di togliere ognuno dei filtri che hai scelto, ne scrive nel registro una
 copia completa, criteri compresi (anche indirizzi): serve a rifarlo a mano.
 Con il riepilogo acceso la stessa copia ti arriva per email. Toglie solo
 quei filtri; gli altri, le etichette e i messaggi restano.
+
+**Gli indirizzi degli studenti delle tue classi.** Le etichette delle classi
+(Posta, passo 4, «Le mie classi…», facoltative) prendono anche i messaggi
+mandati dagli studenti di una classe. I loro indirizzi li incolli tu nella
+finestra, per esempio dall'elenco del corso in Classroom: sono dati di minori,
+e Campanella non li conserva. Restano in memoria finché la finestra è aperta
+(Campanella toglie quelli del personale) e non vanno né in `campanella.json`,
+né nel file dei dati nel Drive, né nelle regole, né in `Configurazione.gs`,
+dove la regola ha solo un segnaposto (`@CLASSE:3B@`); un indirizzo scritto
+fra le parole dell'oggetto viene scartato. Esistono solo nel file
+`Classe_3B.gs` che copi dalla finestra (mai su un file del computer) e
+incolli nel progetto Apps Script del tuo account della scuola, dove servono
+alle ricerche dello smistamento; il file vale solo per l'etichetta per cui
+l'hai copiato. Con un'etichetta madre senza l'anno («Le mie classi») la
+regola l'anno dopo è la stessa ma gli studenti no: la finestra ricorda di
+copiare di nuovo il file, e l'anteprima, il riordino e lo smistamento
+avvisano se è di un anno scolastico passato. Lo script non li scrive nel
+registro, nei riepiloghi né nei messaggi d'errore (l'anteprima dice solo
+quanti sono), e non li mette nei filtri veri di Gmail: per le classi il
+filtro cerca solo l'oggetto. Per
+toglierli si cancella quel file dal progetto; a fine anno toglili, e togli le
+classi (l'anteprima elenca i file che nessuna regola usa).
+
+Due copie passano fuori da Campanella. Quella che copia Campanella non entra
+nella cronologia degli appunti di Windows, ma resta negli appunti finché non
+copi altro: chiudendo la finestra Campanella ti chiede se svuotarli. Se
+prendi gli indirizzi da Classroom con Ctrl+C, quella copia invece entra nella
+cronologia (Win+V per toglierla), e il messaggio che Classroom apre in Gmail
+va eliminato con il cestino, non chiuso: chiuso resterebbe fra le bozze, con
+tutti gli indirizzi. Puoi anche trascinare il testo nella casella della
+finestra, senza passare dagli appunti.
 
 **I moduli Google e le loro risposte.** Lo script dei moduli (Cartelle, passo
 2) è un progetto a parte, incollato dentro il singolo modulo: crea il foglio

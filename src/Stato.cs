@@ -60,14 +60,23 @@ namespace Campanella
         public string QueryLibera = "";
         public bool Archivia = false;
         public bool SegnaComeLette = false;
-        // "dirigenza" | "segreteria" | "registro" | "" : i mittenti di queste
-        // regole arrivano dai campi della pagina "La tua scuola"
+        // basta uno dei due criteri: il testo (oggetto o parole) oppure i
+        // mittenti, invece di tutti e due insieme. L'hanno le regole delle
+        // classi: la 3B nell'oggetto, da chiunque, oppure uno studente della 3B
+        public bool UnoQualsiasi = false;
+        // "dirigenza" | "segreteria" | "registro": i mittenti di queste regole
+        // arrivano dai campi della pagina "La tua scuola". "classe": una regola
+        // di "Le mie classi..." (passo 4), che fra i mittenti ha solo il
+        // segnaposto @CLASSE:3B@. "": una regola come le altre
         public string Sorgente = "";
         // il colore dell'etichetta in Gmail, "sfondo/testo" dalla tavolozza di
         // Gmail (ColoriEtichette); "" = nessun colore, scelto apposta; null =
         // mai scelto (le regole salvate fino alla 1.5.2): Carica gli da' quello
         // di partenza
         public string Colore = null;
+
+        /// <summary>La sorgente delle regole delle classi (Posta, passo 4, "Le mie classi...").</summary>
+        public const string SorgenteClasse = "classe";
 
         public Regola Copia()
         {
@@ -77,9 +86,20 @@ namespace Campanella
             r.Contiene = new List<string>(Contiene);
             r.EscludiEtichette = new List<string>(EscludiEtichette);
             r.QueryLibera = QueryLibera; r.Archivia = Archivia;
-            r.SegnaComeLette = SegnaComeLette; r.Sorgente = Sorgente;
+            r.SegnaComeLette = SegnaComeLette; r.UnoQualsiasi = UnoQualsiasi;
+            r.Sorgente = Sorgente;
             r.Colore = Colore;
             return r;
+        }
+
+        /// <summary>
+        /// Vero se i mittenti arrivano dalla pagina "La tua scuola" (Dirigenza,
+        /// Segreteria, Registro elettronico): la regola non li ha dentro. Quelle
+        /// delle classi e le altre li hanno nella regola.
+        /// </summary>
+        public bool MittentiDallaScuola()
+        {
+            return Sorgente == "dirigenza" || Sorgente == "segreteria" || Sorgente == "registro";
         }
     }
 
@@ -261,6 +281,11 @@ namespace Campanella
         // i filtri di Gmail che l'utente aveva gia' e vuole togliere (dato
         // personale: i criteri possono avere indirizzi)
         public List<FiltroDaTogliere> FiltriDaTogliere = new List<FiltroDaTogliere>();
+        // le etichette madri usate per le classi ("Classi 2026-27", "Le mie
+        // classi"): solo nomi di etichette. Restano anche tolte le regole, cosi'
+        // un filtro di Gmail con gli studenti sotto una di queste si riconosce
+        // (FiltriGmail.EtichettaDiUnaClasse) e non si puo' scegliere
+        public List<string> MadriClassi = new List<string>();
 
         // ---- cartelle (generatore anno scolastico) --------------------------
         // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
@@ -513,8 +538,12 @@ namespace Campanella
         /// perderebbe, e i filtri li lascerebbe in campanella.json anche con i
         /// dati nel Drive.
         /// Formato 3 (1.6.0): i giorni senza lezione degli Orari
-        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati());
-        /// la 1.5.3 li lascerebbe in campanella.json anche con i dati nel Drive.
+        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati()) e
+        /// "unoQualsiasi" dentro le regole (le regole delle classi: l'oggetto
+        /// oppure gli studenti); la 1.5.3 riscrivendo i file lascerebbe i giorni
+        /// senza lezione in campanella.json anche con i dati nel Drive, e
+        /// perderebbe unoQualsiasi: la regola di una classe vorrebbe senza dirlo
+        /// l'oggetto E gli studenti.
         /// </summary>
         public const int Formato = 3;
 
@@ -946,7 +975,8 @@ namespace Campanella
                 d["attiva"] = x.Attiva; d["da"] = x.Da; d["oggetto"] = x.Oggetto;
                 d["contiene"] = x.Contiene; d["escludi"] = x.EscludiEtichette;
                 d["query"] = x.QueryLibera; d["archivia"] = x.Archivia;
-                d["lette"] = x.SegnaComeLette; d["sorgente"] = x.Sorgente;
+                d["lette"] = x.SegnaComeLette; d["unoQualsiasi"] = x.UnoQualsiasi;
+                d["sorgente"] = x.Sorgente;
                 // mai scelto (null) resta senza chiave: al prossimo avvio prende
                 // quello di partenza; "" (nessun colore) invece si scrive
                 if (x.Colore != null) d["colore"] = x.Colore;
@@ -966,6 +996,10 @@ namespace Campanella
                     filtri.Add(d);
                 }
             r["filtriDaTogliere"] = filtri;
+
+            List<object> madri = new List<object>();
+            if (MadriClassi != null) foreach (string m in MadriClassi) madri.Add(m);
+            r["madriClassi"] = madri;
 
             List<object> lez = new List<object>();
             foreach (Lezione l in Lezioni)
@@ -1253,6 +1287,8 @@ namespace Campanella
                     x.QueryLibera = Str(d, "query", "");
                     x.Archivia = Bool(d, "archivia", false);
                     x.SegnaComeLette = Bool(d, "lette", false);
+                    // senza chiave (1.5.3 e prima): i criteri insieme, come allora
+                    x.UnoQualsiasi = Bool(d, "unoQualsiasi", false);
                     x.Sorgente = Str(d, "sorgente", "");
                     // senza chiave (1.5.2 e prima) resta null e sotto prende quello
                     // di partenza; un colore che Gmail non accetta, scritto a mano,
@@ -1262,10 +1298,22 @@ namespace Campanella
                 }
                 if (lette.Count > 0)
                 {
+                    // una classe senza colore prende una sfumatura delle classi
+                    ColoriEtichette.DelleClassi(lette, ColoriRuoli);
                     ColoriEtichette.Completa(lette, ColoriRuoli);
                     Regole = lette;
                 }
             }
+
+            // le madri delle classi: quelle scritte e quelle delle regole delle
+            // classi che ci sono (un file di prima della chiave, o una regola
+            // spostata a mano sotto un'altra madre)
+            object[] mc = r.ContainsKey("madriClassi") ? r["madriClassi"] as object[] : null;
+            MadriClassi = new List<string>();
+            if (mc != null) foreach (object o in mc) AggiungiMadreClassi(Convert.ToString(o));
+            foreach (Regola x in Regole)
+                if (x.Sorgente == Regola.SorgenteClasse && (x.Etichetta ?? "").LastIndexOf('/') > 0)
+                    AggiungiMadreClassi(x.Etichetta.Substring(0, x.Etichetta.LastIndexOf('/')));
 
             // i filtri di Gmail da togliere: una voce che non si capisce tutta
             // si lascia fuori (FiltroDaTogliere.Da), e una ripetuta vale una volta
@@ -1464,6 +1512,20 @@ namespace Campanella
         public string PrefissoPulito()
         {
             return (Prefisso ?? "").Trim().Trim('/');
+        }
+
+        /// <summary>
+        /// Si ricorda un'etichetta madre delle classi (MadriClassi): una volta
+        /// sola, maiuscole e spazi doppi a parte, senza barre in fondo.
+        /// </summary>
+        public void AggiungiMadreClassi(string madre)
+        {
+            string m = Regex.Replace(madre ?? "", @"\s+", " ").Trim().Trim('/').Trim();
+            if (m == "") return;
+            if (MadriClassi == null) MadriClassi = new List<string>();
+            foreach (string c in MadriClassi)
+                if (string.Equals(c, m, StringComparison.OrdinalIgnoreCase)) return;
+            MadriClassi.Add(m);
         }
 
         public List<string> IndirizziPersonale()
@@ -2156,6 +2218,87 @@ namespace Campanella
             }
             foreach (Regola r in regole)
                 if (r.Colore == null) r.Colore = PrimoLibero(regole, coloriRuoli);
+        }
+
+        /// <summary>
+        /// Da' un colore alle regole delle classi che non ne hanno (Colore null:
+        /// appena create da "Le mie classi..."): sfumature diverse di una tinta
+        /// sola, cosi' in Gmail le classi si riconoscono insieme e ognuna ha la
+        /// sua, finche' le sfumature bastano (poi la meno usata). La tinta e'
+        /// quella di una classe che ha gia' un colore; se nessuna ce l'ha, la
+        /// prima tinta intera che nessun'altra regola usa (fra tutte, poi fra
+        /// quelle accese), o quella che ne usano meno. Una classe nuova prende
+        /// la prima sfumatura, dalla piu' chiara, che nessuna etichetta usa;
+        /// un colore gia' dato, anche scelto a mano, resta.
+        /// </summary>
+        public static void DelleClassi(List<Regola> regole, Dictionary<string, string> coloriRuoli)
+        {
+            List<Regola> classi = new List<Regola>(), altre = new List<Regola>();
+            bool mancano = false;
+            foreach (Regola r in regole)
+            {
+                if (r.Sorgente == Regola.SorgenteClasse) { classi.Add(r); if (r.Colore == null) mancano = true; }
+                else altre.Add(r);
+            }
+            if (!mancano) return;
+            string[] sfumature = Tinte[TintaDelleClassi(classi, altre)];
+            List<string> prese = new List<string>();
+            foreach (Regola r in classi)
+            {
+                string s = Sfondo(r.Colore);
+                if (s != "") prese.Add(s);
+            }
+            List<string> altrove = SfondiUsati(altre, coloriRuoli);
+            foreach (Regola r in classi)
+            {
+                if (r.Colore != null) continue;
+                // la prima che non usa nessuno; se non c'e', quella che usano
+                // meno classi (anche una che usa un'altra regola)
+                string scelta = null;
+                foreach (string s in sfumature)
+                    if (!prese.Contains(s) && !altrove.Contains(s)) { scelta = s; break; }
+                if (scelta == null)
+                {
+                    int meno = int.MaxValue;
+                    foreach (string s in sfumature)
+                    {
+                        int quante = prese.FindAll(delegate(string p) { return p == s; }).Count;
+                        if (quante < meno) { meno = quante; scelta = s; }
+                    }
+                }
+                r.Colore = Coppia(scelta);
+                prese.Add(scelta);
+            }
+        }
+
+        /// <summary>La riga di Tinte che ha questo sfondo, o -1.</summary>
+        static int TintaDi(string sfondo)
+        {
+            if (string.IsNullOrEmpty(sfondo)) return -1;
+            for (int t = 0; t < Tinte.Length; t++) if (Array.IndexOf(Tinte[t], sfondo) >= 0) return t;
+            return -1;
+        }
+
+        /// <summary>La tinta delle classi (vedi DelleClassi): solo fra quelle con tutte e sette le sfumature.</summary>
+        static int TintaDelleClassi(List<Regola> classi, List<Regola> altre)
+        {
+            foreach (Regola r in classi)
+            {
+                int t = TintaDi(Sfondo(r.Colore));
+                if (t >= 0) return t;
+            }
+            int migliore = -1, meno = int.MaxValue;
+            for (int giro = 0; giro < 2; giro++)
+                for (int t = 0; t < Tinte.Length; t++)
+                {
+                    if (Tinte[t].Length < 7) continue;
+                    int quante = 0;
+                    foreach (Regola r in altre)
+                        if ((giro == 0 || r.Attiva) && TintaDi(Sfondo(r.Colore)) == t) quante++;
+                    if (quante == 0) return t;
+                    if (giro == 1 && quante < meno) { meno = quante; migliore = t; }
+                }
+            return migliore;
         }
     }
 

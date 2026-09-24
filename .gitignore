@@ -24,6 +24,9 @@ personale*
 documenti/
 # l'esportazione dei filtri di Gmail (Posta, passo 4): i filtri veri, con indirizzi
 mailFilters*.xml
+# gli indirizzi degli studenti di una classe (Posta, passo 4, "Le mie classi..."):
+# Campanella li copia solo negli appunti, ma un file salvato a mano non va qui
+Classe_*.gs
 
 # --- roba di sistema -------------------------------------------------------
 Thumbs.db

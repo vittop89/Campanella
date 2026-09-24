@@ -7,6 +7,13 @@
  *  Tutte le impostazioni (dominio della scuola, elenco del personale, regole,
  *  etichette) stanno nel file "Configurazione.gs", che viene generato
  *  dall'applicazione Campanella (strumento Posta) e incollato qui accanto.
+ *  Le regole delle classi (facoltative) prendono gli indirizzi degli studenti
+ *  dai file "Classe_3B.gs", "Classe_4A.gs"... anche questi copiati da
+ *  Campanella (Posta, passo 4, "Le mie classi...") e incollati qui accanto:
+ *  Campanella non ne tiene copia. Ogni file vale solo per l'etichetta per cui
+ *  e' stato copiato, e gli indirizzi servono solo alle ricerche: non vanno
+ *  nel registro, nei riepiloghi ne' nei filtri di Gmail. A fine anno cancella
+ *  quei file.
  *
  *  Usa soltanto Gmail: non scrive nel Drive, non chiama servizi esterni
  *  (nessun UrlFetchApp) e le uniche email che manda sono i riepiloghi a te
@@ -19,7 +26,8 @@
  *    3. resta attiva e smista i messaggi nuovi ogni ora;
  *    4. (facoltativo) crea i veri filtri di Gmail, cosi' lo smistamento
  *       avviene anche senza lo script (tranne le regole che escludono le
- *       altre, come Studenti: quelle restano allo smistamento del punto 3);
+ *       altre, come Studenti, e gli studenti delle classi, il cui filtro
+ *       cerca solo l'oggetto: quelli restano allo smistamento del punto 3);
  *    5. (facoltativo) da' alle etichette i colori scelti in Campanella;
  *    6. (facoltativo) toglie i filtri di Gmail che avevi gia' e che hai
  *       scelto in Campanella, dopo averne scritto una copia nel registro.
@@ -174,7 +182,7 @@ function PASSO_1_anteprima() {
   var create = _etichetteCreate_();
   var regole = _regoleAttive_(cfg);
   var conti = [], nomi = [], code = [];
-  var totale = 0, totalePieno = false, giaDiPrima = false;
+  var totale = 0, totalePieno = false, giaDiPrima = false, senzaFile = false;
   // prima i conti, poi la tabella: la colonna dei nomi si allarga fin dove
   // le righe restano corte (_colonnaNomi_)
   for (var i = 0; i < regole.length; i++) {
@@ -210,6 +218,14 @@ function PASSO_1_anteprima() {
       righe = righe.concat(_aCapo_('nessun messaggio da questi mittenti: controlla gli indirizzi ' +
         '(per il registro elettronico, guarda il mittente vero di una notifica)', '      ', '      '));
     }
+    // gli studenti delle classi: quanti indirizzi (mai quali), o che il file
+    // manca. Quello di un'altra regola accesa della classe c'e' gia'
+    var classi = _classiDellaRegola_(regole[r]);
+    for (var k = 0; k < classi.length; k++) {
+      if (!_espandi_(cfg, ['@CLASSE:' + classi[k] + '@'], regole[r]).length &&
+          !_altraRegolaDelFile_(cfg, regole[r], classi[k])) senzaFile = true;
+      righe = righe.concat(_aCapo_(_notaClasse_(cfg, regole[r], classi[k]), '      ', '      '));
+    }
   }
   righe.push('');
   righe.push('Totale da etichettare: ' + _numeroAnteprima_(totale, totalePieno) +
@@ -218,6 +234,21 @@ function PASSO_1_anteprima() {
     'che ce l\'hanno gia\' non si contano). GIA\' ETICHETTATE: quelle che ce l\'hanno adesso. ' +
     'Un numero con il + e\' un minimo: il conteggio si ferma a ' + _TETTO_ANTEPRIMA +
     ' conversazioni per ricerca.', '', ''));
+  if (senzaFile) {
+    righe.push('');
+    righe = righe.concat(_aCapo_('Gli indirizzi degli studenti di una classe li porta il suo file, per ' +
+      'esempio Classe_3B.gs: copialo da Campanella (Posta, passo 4, "Le mie classi...") e incollalo in un ' +
+      'file nuovo di questo progetto, con quel nome. Campanella non li conserva.', '', ''));
+  }
+  // i file delle classi che nessuna regola accesa usa (la classe tolta, la
+  // regola spenta, il file dell'anno prima): restano qui, con dati di minori
+  var avanzati = _fileSenzaRegola_(cfg, regole);
+  if (avanzati.length) {
+    righe.push('');
+    righe = righe.concat(_aCapo_('File delle classi che nessuna regola accesa usa: ' + avanzati.join(', ') +
+      '. Hanno gli indirizzi degli studenti: se non ti servono piu\', cancellali dal progetto (nell\'editor, ' +
+      'i tre puntini accanto al nome del file -> Elimina).', '', ''));
+  }
 
   if (giaDiPrima) {
     righe.push('');
@@ -312,6 +343,7 @@ function _indirizziScritti_(regola) {
     var v = String(da[i] || '').trim();
     if (!v || v === '@PERSONALE@' || v === '@DOMINIO@') continue;
     if (v.indexOf('@GRUPPO:') === 0 && v.charAt(v.length - 1) === '@') continue;
+    if (_nomeClasse_(v) !== null) continue;          // gli studenti: lo dice _notaClasse_
     return true;
   }
   return false;
@@ -429,7 +461,7 @@ function _mittentiConfrontabili_(cfg, regola) {
   for (var i = 0; i < da.length; i++) {
     if (String(da[i] || '').trim() === '@DOMINIO@') return null;
   }
-  var espansi = _espandi_(cfg, da);
+  var espansi = _espandi_(cfg, da, regola);
   if (!espansi.length) return null;
   var fuori = [];
   for (var k = 0; k < espansi.length; k++) fuori.push(String(espansi[k]).toLowerCase());
@@ -630,6 +662,17 @@ function _riordina_() {
     var etichetta = prova ? null
       : (GmailApp.getUserLabelByName(nomeEtichetta) || _creaEtichetta_(nomeEtichetta));
     var queries = _queryDellaRegola_(cfg, regola);
+    // in prova, le conversazioni gia' contate per questa regola: una che torna
+    // da due sue ricerche (l'oggetto e gli studenti, due gruppi di mittenti)
+    // conta una volta, come nel riordino vero. Ripresa a meta' della regola,
+    // le ricerche contate nell'esecuzione di prima rifanno l'elenco, senza
+    // sommare di nuovo
+    var contate = {};
+    if (prova) {
+      for (var gia = 0; gia < stato.query && gia < queries.length; gia++) {
+        try { _contaConversazioni_(queries[gia], 2000, contate); } catch (e) { }
+      }
+    }
 
     while (stato.query < queries.length) {
       var query = queries[stato.query];
@@ -640,8 +683,14 @@ function _riordina_() {
 
         if (prova) {
           // in prova non applico nulla, quindi la stessa ricerca tornerebbe
-          // sempre uguale: conto a pagine (fino a un tetto) e passo oltre
-          _somma_(stato.fatti, nomeEtichetta, _contaConversazioni_(query, 2000));
+          // sempre uguale: conto a pagine (fino a un tetto) e passo oltre. Una
+          // ricerca rifiutata si salta e si dice, come nel riordino vero
+          try {
+            _somma_(stato.fatti, nomeEtichetta, _contaConversazioni_(query, 2000, contate));
+          } catch (errore) {
+            Logger.log(_ricercaRifiutata_(regola, nomeEtichetta, queries, stato.query, errore));
+            _somma_(stato.fatti, nomeEtichetta + ' (ricerca rifiutata)', 0);
+          }
           break;
         }
 
@@ -651,8 +700,7 @@ function _riordina_() {
         } catch (errore) {
           // una ricerca scritta male (di solito la "ricerca avanzata" di una
           // regola) non deve bloccare tutte le altre: la salto e lo dico
-          Logger.log('Regola "' + nomeEtichetta + '": ricerca non accettata da Gmail (' +
-                     errore.message + '). Regola saltata: ' + query);
+          Logger.log(_ricercaRifiutata_(regola, nomeEtichetta, queries, stato.query, errore));
           _somma_(stato.fatti, nomeEtichetta + ' (ricerca rifiutata)', 0);
           break;
         }
@@ -697,11 +745,13 @@ function _riordina_() {
   }
 
   _rimuoviTrigger_(_TRIGGER_RIPRESA);
+  var vecchi = _avvisoFileVecchi_(cfg, regole);
   var riepilogo = (cfg.provaSenzaModifiche
         ? 'PROVA COMPLETATA - nessuna modifica applicata.\n' +
           'Per applicare davvero: in Configurazione.gs metti\n' +
           '  provaSenzaModifiche: false\n\n'
-        : 'RIORDINO COMPLETATO.\n\n') + _riepilogo_(stato.fatti);
+        : 'RIORDINO COMPLETATO.\n\n') + _riepilogo_(stato.fatti) +
+        (vecchi ? '\n\n' + _aCapo_(vecchi, '', '').join('\n') : '');
   _azzeraProgresso_();
   Logger.log(riepilogo);
   if (cfg.inviaReport && !cfg.provaSenzaModifiche) {
@@ -752,6 +802,11 @@ function smistaNuoviMessaggi() {
       var nome = _etichettaCompleta_(cfg, regola);
       var etichetta = GmailApp.getUserLabelByName(nome) || _creaEtichetta_(nome);
       var queries = _queryDellaRegola_(cfg, regola, 'newer_than:' + giorni + 'd');
+      // Una conversazione che torna da due ricerche della regola (l'oggetto e
+      // gli studenti di una classe, o due gruppi di mittenti) si tratta una
+      // volta: l'indice di Gmail puo' non sapere ancora che la ricerca di
+      // prima le ha appena messo l'etichetta.
+      var viste = {};
 
       for (var q = 0; q < queries.length && Date.now() < scadenza; q++) {
         var threads;
@@ -760,25 +815,48 @@ function smistaNuoviMessaggi() {
           Logger.log('Regola "' + nome + '": ricerca non accettata da Gmail, saltata.');
           continue;
         }
-        if (!threads.length) continue;
-        etichetta.addToThreads(threads);
-        if (regola.archivia)       GmailApp.moveThreadsToArchive(threads);
-        if (regola.segnaComeLette) GmailApp.markThreadsRead(threads);
-        _somma_(fatti, nome, threads.length);
+        var nuove = [];
+        for (var t = 0; t < threads.length; t++) {
+          var id = threads[t].getId();
+          if (viste[id]) continue;
+          viste[id] = true;
+          nuove.push(threads[t]);
+        }
+        if (!nuove.length) continue;
+        etichetta.addToThreads(nuove);
+        if (regola.archivia)       GmailApp.moveThreadsToArchive(nuove);
+        if (regola.segnaComeLette) GmailApp.markThreadsRead(nuove);
+        _somma_(fatti, nome, nuove.length);
       }
     }
-    if (_totale_(fatti) > 0) Logger.log('Smistamento automatico:\n' + _riepilogo_(fatti));
+    if (_totale_(fatti) > 0) {
+      var vecchi = _avvisoFileVecchi_(cfg, regole);
+      Logger.log('Smistamento automatico:\n' + _riepilogo_(fatti) +
+                 (vecchi ? '\n\n' + _aCapo_(vecchi, '', '').join('\n') : ''));
+    }
   } finally {
     lock.releaseLock();
   }
 }
 
-/** Conta le conversazioni di una ricerca a pagine, fino a un tetto. */
-function _contaConversazioni_(query, tetto) {
-  var n = 0;
-  while (n < tetto) {
-    var pagina = GmailApp.search(query, n, Math.min(_THREAD_PER_BLOCCO, tetto - n));
-    n += pagina.length;
+/**
+ * Conta le conversazioni di una ricerca a pagine, fino a un tetto. "viste"
+ * (facoltativo: id -> true) sono quelle gia' contate da un'altra ricerca
+ * della stessa regola: non contano di nuovo, e quelle nuove si aggiungono.
+ */
+function _contaConversazioni_(query, tetto, viste) {
+  var n = 0, lette = 0;
+  while (lette < tetto) {
+    var pagina = GmailApp.search(query, lette, Math.min(_THREAD_PER_BLOCCO, tetto - lette));
+    lette += pagina.length;
+    for (var i = 0; i < pagina.length; i++) {
+      if (viste) {
+        var id = pagina[i].getId();
+        if (viste[id]) continue;
+        viste[id] = true;
+      }
+      n++;
+    }
     if (pagina.length < _THREAD_PER_BLOCCO) break;
   }
   return n;
@@ -902,6 +980,7 @@ function EXTRA_creaFiltriGmail() {
 
   var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
   var creati = [], saltati = [], falliti = [], alloScript = [], vecchi = [], daTogliere = [];
+  var classi = [], studenti = [], senzaFiltro = [];
   var regole = _regoleAttive_(cfg);
   // i filtri scelti in Campanella per EXTRA_togliFiltri non si creano: se no
   // quella funzione li toglierebbe e questa li rifarebbe, un giro dopo l'altro
@@ -935,6 +1014,17 @@ function EXTRA_creaFiltriGmail() {
     }
 
     var criteri = _criteriFiltro_(cfg, regola);
+    // Le classi: gli studenti non vanno nei filtri di Gmail (_criteriFiltro_),
+    // che resterebbero nelle impostazioni dell'account anche cancellando il
+    // file della classe. Il filtro cerca l'oggetto; i messaggi degli studenti
+    // li etichetta lo smistamento dello script, che quindi deve restare acceso
+    if (_classiDellaRegola_(regola).length) {
+      if (!criteri.length) senzaFiltro.push(nome);
+      else {
+        classi.push(nome);
+        if (_quantiStudenti_(cfg, regola)) studenti.push(nome);
+      }
+    }
     for (var c = 0; c < criteri.length; c++) {
       var azione = { addLabelIds: [id] };
       if (_fraIScelti_(scelti, { criteria: criteri[c], action: azione }, perId)) {
@@ -950,21 +1040,25 @@ function EXTRA_creaFiltriGmail() {
         Gmail.Users.Settings.Filters.create({ criteria: criteri[c], action: azione }, 'me');
         creati.push(nome);
       } catch (e) {
+        // il motivo di Gmail puo' ripetere i criteri: degli studenti non ne hanno
         falliti.push(nome + ': ' + e.message);
       }
     }
   }
 
   // le regole che Gmail non smistera' da solo: quelle lasciate allo script,
-  // quelle il cui filtro non si e' riusciti a creare e quelle con un filtro
-  // scelto fra quelli da togliere
-  var tranne = alloScript.slice();
+  // quelle il cui filtro non si e' riusciti a creare, quelle con un filtro
+  // scelto fra quelli da togliere e gli studenti delle classi
+  var tranne = alloScript.concat(senzaFiltro);
   for (var f = 0; f < falliti.length; f++) {
     var chi = falliti[f].split(': ')[0];
     if (tranne.indexOf(chi) < 0) tranne.push(chi);
   }
   for (var d = 0; d < daTogliere.length; d++) {
     if (tranne.indexOf(daTogliere[d]) < 0) tranne.push(daTogliere[d]);
+  }
+  for (var s = 0; s < studenti.length; s++) {
+    if (tranne.indexOf(studenti[s]) < 0) tranne.push(studenti[s] + ' (i messaggi degli studenti)');
   }
   var testo = (vecchi.length
                 ? 'ATTENZIONE: c\'e\' ancora un filtro di una versione di prima che mette questa ' +
@@ -985,6 +1079,12 @@ function EXTRA_creaFiltriGmail() {
                 ? '\nSenza filtro, restano allo smistamento dello script: ' + alloScript.join(', ') +
                   '\n  (escludono le etichette delle altre regole, e un filtro di Gmail non lo sa fare:' +
                   '\n  li prenderebbe tutti, colleghi compresi)'
+                : '') +
+              (classi.length
+                ? '\nPer le classi il filtro cerca solo l\'oggetto: ' + classi.join(', ') +
+                  '\n  (gli indirizzi degli studenti non vanno nei filtri di Gmail: resterebbero nelle' +
+                  '\n  impostazioni dell\'account anche cancellando il file della classe. I loro messaggi' +
+                  '\n  li etichetta lo smistamento dello script)'
                 : '') +
               (tranne.length
                 ? '\n\nDa adesso Gmail smista da solo la posta in arrivo, tranne ' + tranne.join(', ') +
@@ -1775,19 +1875,36 @@ function _etichettaCompleta_(cfg, regola) {
 }
 
 /**
+ * Vero se alla regola basta uno dei due criteri: il testo (oggetto o parole
+ * cercate) oppure i mittenti. E' unoQualsiasi, che hanno le regole delle
+ * classi (la 3B nell'oggetto, da chiunque, oppure un messaggio di uno
+ * studente della 3B), e conta solo se la regola li ha tutti e due: con uno
+ * solo e' una regola come le altre. Di partenza i criteri valgono insieme.
+ */
+function _bastaUno_(regola) {
+  return !!regola.unoQualsiasi && !!(regola.da && regola.da.length) &&
+    !!((regola.oggetto && regola.oggetto.length) || (regola.contiene && regola.contiene.length));
+}
+
+/**
  * Traduce una regola in una o piu' ricerche di Gmail.
  * Gli elenchi lunghi di indirizzi vengono spezzati in gruppi da
  * _INDIRIZZI_PER_QUERY: una singola ricerca troppo lunga verrebbe rifiutata.
+ * Con unoQualsiasi (_bastaUno_) la prima ricerca ha il solo testo, da
+ * chiunque, e le altre i soli mittenti, qualunque testo; destinatari,
+ * allegato, ricerca avanzata, etichette escluse e periodo valgono per tutte.
+ * Chi unisce i risultati conta le conversazioni per id: una che torna da
+ * due ricerche resta una.
  */
 function _queryDellaRegola_(cfg, regola, periodoExtra) {
-  var comune = [];
+  var testo = [], comune = [];
   // destinatari previsti ma nessuno dopo l'espansione: come per i mittenti
   // (qui sotto), niente ricerca. "to:()" non vuol dire niente.
-  var destinatari = _espandi_(cfg, regola.a || []);
+  var destinatari = _espandi_(cfg, regola.a || [], regola);
   if (!destinatari.length && regola.a && regola.a.length) return [];
 
-  if (regola.oggetto  && regola.oggetto.length)  comune.push('subject:(' + _orDiTesti_(regola.oggetto) + ')');
-  if (regola.contiene && regola.contiene.length) comune.push('(' + _orDiTesti_(regola.contiene) + ')');
+  if (regola.oggetto  && regola.oggetto.length)  testo.push('subject:(' + _orDiTesti_(regola.oggetto) + ')');
+  if (regola.contiene && regola.contiene.length) testo.push('(' + _orDiTesti_(regola.contiene) + ')');
   if (destinatari.length)                        comune.push('to:(' + destinatari.join(' OR ') + ')');
   if (regola.haAllegato)                         comune.push('has:attachment');
   if (regola.queryLibera)                        comune.push('(' + regola.queryLibera + ')');
@@ -1811,16 +1928,24 @@ function _queryDellaRegola_(cfg, regola, periodoExtra) {
   if (periodoExtra) comune.push(periodoExtra);
   else if (cfg.soloUltimiMesi > 0) comune.push('newer_than:' + cfg.soloUltimiMesi + 'm');
 
-  var base = comune.join(' ');
+  var base = testo.concat(comune).join(' ');
 
   // i mittenti sono l'unica parte che puo' diventare lunghissima
-  var mittenti = _espandi_(cfg, regola.da || []);
-  // Una regola che ha dei mittenti, ma nessuno dopo l'espansione (Colleghi con
-  // l'elenco del personale vuoto), non deve diventare una ricerca senza "from:":
-  // prenderebbe tutta la casella. Non cerca niente, e basta.
-  if (!mittenti.length) return (regola.da && regola.da.length) ? [] : [base];
-
+  var mittenti = _espandi_(cfg, regola.da || [], regola);
   var queries = [];
+  if (_bastaUno_(regola)) {
+    // basta uno dei due: il testo da chiunque, poi i mittenti senza il testo.
+    // Senza mittenti dopo l'espansione (manca il file della classe) resta la
+    // ricerca del testo, che non e' tutta la casella
+    queries.push(base);
+    base = comune.join(' ');
+  } else if (!mittenti.length) {
+    // Una regola che ha dei mittenti, ma nessuno dopo l'espansione (Colleghi con
+    // l'elenco del personale vuoto), non deve diventare una ricerca senza "from:":
+    // prenderebbe tutta la casella. Non cerca niente, e basta.
+    return (regola.da && regola.da.length) ? [] : [base];
+  }
+
   for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
     queries.push('from:(' + mittenti.slice(i, i + _INDIRIZZI_PER_QUERY).join(' OR ') + ') ' + base);
   }
@@ -1832,8 +1957,11 @@ function _queryDellaRegola_(cfg, regola, periodoExtra) {
  *   @PERSONALE@        tutto l'elenco del personale
  *   @DOMINIO@          il dominio della scuola
  *   @GRUPPO:Docenti@   solo quel gruppo di CONFIG.gruppi
+ *   @CLASSE:3B@        gli studenti della 3B, dal file Classe_3B.gs copiato
+ *                      per l'etichetta di "regola"; senza quel file (o senza
+ *                      la regola) nessuno
  */
-function _espandi_(cfg, elenco) {
+function _espandi_(cfg, elenco, regola) {
   var out = [];
   for (var i = 0; i < elenco.length; i++) {
     var v = String(elenco[i] || '').trim();
@@ -1853,6 +1981,14 @@ function _espandi_(cfg, elenco) {
       }
     } else if (v === '@DOMINIO@') {
       if (cfg.dominioScuola) out.push('@' + String(cfg.dominioScuola).replace(/^@/, ''));
+    } else if (_nomeClasse_(v) !== null) {
+      // gli studenti di una classe: li porta il file Classe_3B.gs, se e' quello
+      // di questa regola (la 3B dell'anno prima ha altri studenti)
+      var studenti = _studentiDellaClasse_(_nomeClasse_(v), regola ? regola.etichetta : '') || [];
+      for (var s = 0; s < studenti.length; s++) {
+        var studente = String(studenti[s] || '').trim();
+        if (studente) out.push(studente);
+      }
     } else {
       out.push(v);
     }
@@ -1872,21 +2008,309 @@ function _orDiTesti_(elenco) {
 
 function _virgolette_(s) { return '"' + String(s).replace(/"/g, '') + '"'; }
 
-/** Criteri per i filtri veri di Gmail (stessa logica, sintassi dell'API). */
+// ---------------------------------------------------------------------------
+//  Le classi. Una regola di una classe ha fra i mittenti il segnaposto
+//  @CLASSE:3B@: gli indirizzi degli studenti non stanno in Configurazione.gs
+//  (e nemmeno in Campanella), ma nel file Classe_3B.gs che il docente incolla
+//  nel progetto, e che definisce CLASSI_STUDENTI['3B'] con l'etichetta della
+//  regola per cui e' stato copiato e gli indirizzi. Senza quel file, o con il
+//  file copiato per un'altra etichetta (la 3B dell'anno prima), la classe non
+//  ha studenti. Sono dati di minori: servono solo alle ricerche. Nel registro
+//  e nei riepiloghi va al massimo quanti sono, mai quali, e nei filtri veri di
+//  Gmail non vanno mai (_criteriFiltro_). CLASSI_STUDENTI si legge solo in
+//  _classiNeiFile_, _fileDellaClasse_ e _studentiDellaClasse_, l'unica che
+//  da' gli indirizzi, e che chiama solo _espandi_: test/invarianti_script.js
+//  lo controlla.
+// ---------------------------------------------------------------------------
+
+/** Il nome della classe di un segnaposto @CLASSE:3B@, oppure null se non lo e'. */
+function _nomeClasse_(voce) {
+  var v = String(voce || '').trim();
+  if (v.indexOf('@CLASSE:') !== 0 || v.length < 10 || v.charAt(v.length - 1) !== '@') return null;
+  return v.substring(8, v.length - 1);
+}
+
+/**
+ * Le classi di una regola, una volta ciascuna: fra i mittenti, dove le mette
+ * Campanella, e fra i destinatari, dove puo' metterle una configurazione
+ * scritta a mano (_espandi_ riempie di studenti anche quelle).
+ */
+function _classiDellaRegola_(regola) {
+  var fuori = [], voci = (regola.da || []).concat(regola.a || []);
+  for (var i = 0; i < voci.length; i++) {
+    var nome = _nomeClasse_(voci[i]);
+    if (nome !== null && fuori.indexOf(nome) < 0) fuori.push(nome);
+  }
+  return fuori;
+}
+
+/** Un elenco di mittenti o destinatari senza i segnaposto delle classi. */
+function _senzaClassi_(elenco) {
+  var fuori = [];
+  for (var i = 0; i < elenco.length; i++) if (_nomeClasse_(elenco[i]) === null) fuori.push(elenco[i]);
+  return fuori;
+}
+
+/** Le classi che hanno un file nel progetto: i nomi, non gli indirizzi. */
+function _classiNeiFile_() {
+  if (typeof CLASSI_STUDENTI === 'undefined' || !CLASSI_STUDENTI || typeof CLASSI_STUDENTI !== 'object') return [];
+  var fuori = [];
+  for (var nome in CLASSI_STUDENTI) {
+    if (Object.prototype.hasOwnProperty.call(CLASSI_STUDENTI, nome)) fuori.push(nome);
+  }
+  return fuori;
+}
+
+/**
+ * Il file di una classe, senza gli indirizzi: l'etichetta della regola per
+ * cui e' stato copiato ('' se non la dice, scritto a mano) e il giorno
+ * ('2026-09-24', '' se non lo dice). null se il file non c'e'.
+ */
+function _fileDellaClasse_(nome) {
+  if (_classiNeiFile_().indexOf(nome) < 0) return null;
+  var voce = CLASSI_STUDENTI[nome];
+  var ok = !!voce && typeof voce === 'object';
+  return { etichetta: (ok && typeof voce.etichetta === 'string') ? voce.etichetta.trim() : '',
+           copiato: (ok && typeof voce.copiato === 'string') ? voce.copiato.trim() : '' };
+}
+
+/**
+ * Gli indirizzi degli studenti di una classe, dal suo file, solo se il file
+ * e' stato copiato per questa etichetta; altrimenti null. La chiama solo
+ * _espandi_.
+ */
+function _studentiDellaClasse_(nome, etichetta) {
+  var file = _fileDellaClasse_(nome);
+  var sua = file ? file.etichetta : '';
+  if (!sua || sua.toLowerCase() !== String(etichetta || '').trim().toLowerCase()) return null;
+  var elenco = CLASSI_STUDENTI[nome].indirizzi;
+  return (elenco && typeof elenco.length === 'number') ? elenco : null;
+}
+
+/** Quanti studenti ha una regola, da tutte le sue classi (il numero, mai gli indirizzi). */
+function _quantiStudenti_(cfg, regola) {
+  var classi = _classiDellaRegola_(regola), n = 0;
+  for (var i = 0; i < classi.length; i++) n += _espandi_(cfg, ['@CLASSE:' + classi[i] + '@'], regola).length;
+  return n;
+}
+
+/** Il file con gli indirizzi di una classe: Classe_3B.gs, lo stesso nome che gli da' Campanella. */
+function _fileClasse_(nome) {
+  var pulito = String(nome).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return 'Classe_' + (pulito || 'senza_nome') + '.gs';
+}
+
+/**
+ * Che cosa l'anteprima dice degli studenti di una classe: quanti indirizzi
+ * ha il suo file (il numero, mai gli indirizzi), oppure che il file manca, o
+ * che e' stato copiato per un'altra etichetta, e che cosa conta allora la
+ * regola. Se quell'etichetta e' di un'altra regola accesa della stessa
+ * classe il file le serve: non si dice di cancellarlo.
+ */
+function _notaClasse_(cfg, regola, nome) {
+  var file = _fileClasse_(nome);
+  var dati = _fileDellaClasse_(nome);
+  var quanti = _espandi_(cfg, ['@CLASSE:' + nome + '@'], regola).length;
+  if (quanti) return 'studenti della ' + nome + ': ' + quanti + (quanti === 1 ? ' indirizzo' : ' indirizzi') +
+                     ', dal file ' + file + _quandoCopiato_(dati.copiato);
+  // destinatari previsti e nessuno rimasto: _queryDellaRegola_ non cerca niente
+  var resta = (regola.a && regola.a.length && !_espandi_(cfg, regola.a, regola).length)
+    ? 'questa regola non trova niente'
+    : _bastaUno_(regola)
+    ? ((regola.oggetto && regola.oggetto.length) ? 'conta solo l\'oggetto' : 'conta solo le parole cercate')
+    : (_espandi_(cfg, regola.da || [], regola).length ? 'conta solo gli altri mittenti' : 'questa regola non trova niente');
+  var sua = dati ? dati.etichetta : null;
+  if (sua === null) return 'manca il file ' + file + ': ' + resta;
+  if (sua === '') return 'il file ' + file + ' non dice per quale etichetta e\': copialo di nuovo da Campanella; ' +
+                         'intanto ' + resta;
+  var altra = _altraRegolaDelFile_(cfg, regola, nome);
+  if (altra) {
+    // l'anno dopo, senza togliere le regole dell'anno prima: quale delle due
+    // serve lo sa solo il docente
+    // la spunta per toglierla c'e' solo per le regole sotto un'etichetta madre
+    var sottoMadre = String(regola.etichetta || '').trim().lastIndexOf('/') > 0;
+    return 'il file ' + file + ' e\' della regola ' + altra + ', accesa anche lei: il file di una classe vale ' +
+           'per una regola sola. Se questa non ti serve piu\', ' + (sottoMadre
+             ? 'spegnila (Posta, passo 4) o toglila (in "Le mie classi...", la spunta "Togli le regole delle ' +
+               'classi ' + _diQualeAnno_(regola.etichetta) + '")'
+             : 'spegnila o toglila (Posta, passo 4)') +
+           '; se e\' questa quella giusta, copia il suo file da Campanella. Intanto ' + resta;
+  }
+  if (sua.toLowerCase() !== String(regola.etichetta || '').trim().toLowerCase()) {
+    return 'il file ' + file + ' e\' di ' + sua + ', non di questa regola: cancellalo e copia quello nuovo da ' +
+           'Campanella; intanto ' + resta;
+  }
+  return 'il file ' + file + ' non ha indirizzi: ' + resta;
+}
+
+/**
+ * L'etichetta dell'altra regola accesa della classe per cui e' stato
+ * copiato il suo file, oppure ''. L'anno dopo, senza togliere le regole
+ * dell'anno prima, la 3B del 2026-27 e quella del 2027-28 sono accese tutte
+ * e due con @CLASSE:3B@, e il file Classe_3B.gs, uno solo, vale per una.
+ */
+function _altraRegolaDelFile_(cfg, regola, nome) {
+  var dati = _fileDellaClasse_(nome);
+  var sua = dati ? dati.etichetta.toLowerCase() : '';
+  if (!sua || sua === String(regola.etichetta || '').trim().toLowerCase()) return '';
+  var regole = _regoleAttive_(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    var e = String(regole[i].etichetta || '').trim();
+    if (e.toLowerCase() === sua && _classiDellaRegola_(regole[i]).indexOf(nome) >= 0) return e;
+  }
+  return '';
+}
+
+/**
+ * Come la finestra "Le mie classi..." chiama le regole delle classi sotto la
+ * madre di questa etichetta, nella spunta che le toglie: "del 2026-27" se la
+ * madre ha l'anno, altrimenti "di "Le mie classi"".
+ */
+function _diQualeAnno_(etichetta) {
+  var e = String(etichetta || '').trim();
+  var madre = e.lastIndexOf('/') > 0 ? e.substring(0, e.lastIndexOf('/')) : e;
+  var anno = /\d{4}[-\/]\d{2}(\d{2})?/.exec(madre);
+  return anno ? 'del ' + anno[0] : 'di "' + madre + '"';
+}
+
+/**
+ * Quando e' stato copiato il file di una classe, per l'anteprima: " copiato
+ * il 24/09/2026". Se e' di un anno scolastico passato (quello comincia a
+ * settembre) lo dice: con un'etichetta madre senza anno ("Le mie classi")
+ * la regola resta la stessa, ma gli studenti sono cambiati.
+ */
+function _quandoCopiato_(copiato) {
+  var annoFile = _annoScolasticoDi_(copiato);
+  if (annoFile === null) return '';
+  var testo = ' copiato il ' + _giorno_(copiato);
+  if (annoFile >= _annoScolasticoAdesso_()) return testo;
+  return testo + ': e\' dell\'anno scolastico ' + annoFile + '-' + String(annoFile + 1).slice(2) +
+         ', se la classe e\' cambiata copialo di nuovo da Campanella';
+}
+
+/** L'anno in cui comincia l'anno scolastico (a settembre) di un giorno "2026-09-24": 2026; null se non e' un giorno. */
+function _annoScolasticoDi_(giorno) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(giorno || ''));
+  if (!m) return null;
+  return Number(m[2]) >= 9 ? Number(m[1]) : Number(m[1]) - 1;
+}
+
+/** L'anno in cui e' cominciato l'anno scolastico di adesso. */
+function _annoScolasticoAdesso_() {
+  var adesso = new Date();
+  return adesso.getMonth() >= 8 ? adesso.getFullYear() : adesso.getFullYear() - 1;
+}
+
+/** Un giorno "2026-09-24" come "24/09/2026". */
+function _giorno_(giorno) {
+  var p = String(giorno || '').split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(giorno || '');
+}
+
+/**
+ * Per il riepilogo del riordino e dello smistamento, che girano anche senza
+ * l'anteprima: i file delle classi copiati in un anno scolastico passato che
+ * le regole accese usano ancora. Con un'etichetta madre senza anno ("Le mie
+ * classi") la regola l'anno dopo e' la stessa, e il file le da' gli studenti
+ * di prima. Il nome del file, la regola e il giorno, mai gli indirizzi; ""
+ * se non ce ne sono.
+ */
+function _avvisoFileVecchi_(cfg, regole) {
+  var vecchi = [], adesso = _annoScolasticoAdesso_();
+  for (var r = 0; r < regole.length; r++) {
+    var classi = _classiDellaRegola_(regole[r]);
+    for (var k = 0; k < classi.length; k++) {
+      var dati = _fileDellaClasse_(classi[k]);
+      var anno = dati ? _annoScolasticoDi_(dati.copiato) : null;
+      // un file che la regola non usa lo dice l'anteprima (_fileSenzaRegola_)
+      if (anno === null || anno >= adesso || !_espandi_(cfg, ['@CLASSE:' + classi[k] + '@'], regole[r]).length) continue;
+      vecchi.push(_fileClasse_(classi[k]) + ' (per ' + regole[r].etichetta + ', copiato il ' + _giorno_(dati.copiato) + ')');
+    }
+  }
+  if (!vecchi.length) return '';
+  var uno = vecchi.length === 1;
+  return 'File delle classi di un anno scolastico passato, che le regole usano ancora: ' + vecchi.join(', ') +
+         '. Se ' + (uno ? 'la classe e\' cambiata, copialo' : 'le classi sono cambiate, copiali') + ' di nuovo da ' +
+         'Campanella (Posta, passo 4, "Le mie classi...") al posto di ' + (uno ? 'quello' : 'quelli') + ' di prima.';
+}
+
+/**
+ * I file delle classi che nessuna delle regole usa: la classe tolta, la
+ * regola spenta, il file dell'anno prima. Per ognuno il nome, quanti
+ * indirizzi ha (mai quali) e per quale etichetta era stato copiato.
+ */
+function _fileSenzaRegola_(cfg, regole) {
+  var fuori = [], nomi = _classiNeiFile_();
+  for (var i = 0; i < nomi.length; i++) {
+    var sua = _fileDellaClasse_(nomi[i]).etichetta;
+    var usato = false;
+    for (var r = 0; r < regole.length && !usato; r++) {
+      usato = !!sua && _classiDellaRegola_(regole[r]).indexOf(nomi[i]) >= 0 &&
+              String(regole[r].etichetta || '').trim().toLowerCase() === sua.toLowerCase();
+    }
+    if (usato) continue;
+    var quanti = sua ? _espandi_(cfg, ['@CLASSE:' + nomi[i] + '@'], { etichetta: sua }).length : 0;
+    fuori.push(_fileClasse_(nomi[i]) + ' (' + (sua
+      ? quanti + (quanti === 1 ? ' indirizzo' : ' indirizzi') + ', per ' + sua
+      : 'senza etichetta') + ')');
+  }
+  return fuori;
+}
+
+/**
+ * Una ricerca che Gmail non ha accettato, per il registro. Gmail ripete la
+ * ricerca nel suo messaggio: per una regola con gli studenti di una classe
+ * non si scrivono ne' la ricerca ne' il messaggio, solo quale delle sue
+ * ricerche era.
+ */
+function _ricercaRifiutata_(regola, nome, queries, q, errore) {
+  if (!_classiDellaRegola_(regola).length) {
+    return 'Regola "' + nome + '": ricerca non accettata da Gmail (' + errore.message + '). Regola saltata: ' +
+           queries[q];
+  }
+  var testo = _bastaUno_(regola) ? 1 : 0;
+  var quale = (q < testo)
+    ? ((regola.oggetto && regola.oggetto.length) ? 'la ricerca dell\'oggetto' : 'la ricerca delle parole')
+    : (regola.da && regola.da.length) ? 'i mittenti, gruppo ' + (q - testo + 1) + ' di ' + (queries.length - testo)
+    : 'la ricerca con gli studenti fra i destinatari';
+  return 'Regola "' + nome + '": ricerca non accettata da Gmail (' + quale + '). Ricerca saltata.';
+}
+
+/**
+ * Criteri per i filtri veri di Gmail (stessa logica, sintassi dell'API).
+ * Con unoQualsiasi un filtro per il testo, da chiunque, e uno per ogni
+ * gruppo di mittenti, senza il testo: come le ricerche di _queryDellaRegola_.
+ * Gli studenti delle classi mai: nei filtri resterebbero nelle impostazioni
+ * dell'account anche cancellando il file della classe, e finirebbero
+ * nell'esportazione dei filtri. Per una classe resta il filtro dell'oggetto;
+ * i messaggi degli studenti li etichetta lo smistamento dello script.
+ */
 function _criteriFiltro_(cfg, regola) {
   var criteri = [];
-  var mittenti = _espandi_(cfg, regola.da || []);
-  var destinatari = _espandi_(cfg, regola.a || []);
+  var mittenti = _espandi_(cfg, _senzaClassi_(regola.da || []), regola);
+  var destinatari = _espandi_(cfg, _senzaClassi_(regola.a || []), regola);
   var allegato = !!regola.haAllegato;
+  var avanzata = regola.queryLibera ? ['(' + regola.queryLibera + ')'] : [];
   var libera = [];
   if (regola.contiene && regola.contiene.length) libera.push('(' + _orDiTesti_(regola.contiene) + ')');
-  if (regola.queryLibera) libera.push('(' + regola.queryLibera + ')');
+  libera = libera.concat(avanzata);
   var soggetto = (regola.oggetto && regola.oggetto.length) ? _orDiTesti_(regola.oggetto) : '';
 
-  // come in _queryDellaRegola_: mittenti (o destinatari) previsti ma nessuno
-  // rimasto = niente filtro
-  if (!mittenti.length && regola.da && regola.da.length) return [];
+  // come in _queryDellaRegola_: destinatari previsti ma nessuno rimasto =
+  // niente filtro
   if (!destinatari.length && regola.a && regola.a.length) return [];
+  if (_bastaUno_(regola)) {
+    // il testo da chiunque; poi gli altri mittenti che ci sono (per una
+    // classe nessuno: resta il filtro del testo)
+    criteri.push(_altriCriteri_({}, soggetto, destinatari, libera, allegato));
+    for (var g = 0; g < mittenti.length; g += _INDIRIZZI_PER_QUERY) {
+      criteri.push(_altriCriteri_({ from: mittenti.slice(g, g + _INDIRIZZI_PER_QUERY).join(' OR ') },
+                                  '', destinatari, avanzata, allegato));
+    }
+    return criteri;
+  }
+  // mittenti previsti ma nessuno rimasto (o solo studenti) = niente filtro
+  if (!mittenti.length && regola.da && regola.da.length) return [];
 
   if (mittenti.length) {
     for (var i = 0; i < mittenti.length; i += _INDIRIZZI_PER_QUERY) {
