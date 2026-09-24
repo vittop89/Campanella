@@ -950,6 +950,8 @@ namespace Campanella
             Button ok = Tema.BottonePrincipale("Usa queste classi", 16 + Larga - 200, y, 200, null);
             ok.Click += delegate
             {
+                // una parola dell'oggetto ancora in scrittura nella griglia vale anche lei
+                griglia.EndEdit();
                 if (!Confermato()) return;
                 DialogResult = DialogResult.OK;
             };
@@ -1249,8 +1251,16 @@ namespace Campanella
             Vecchie = new List<Regola>();
             foreach (Regola r in stato.Regole)
                 if (LeMieClassi.ClasseDi(r) != null && !LeMieClassi.SottoMadre(r, madre)) Vecchie.Add(r);
-            foreach (ClasseScelta c in Classi)
-                c.Regola = LeMieClassi.RegolaDellaClasse(stato, madre, LeMieClassi.Chiave(c.Nome));
+            riempiendo = true;
+            try
+            {
+                for (int i = 0; i < Classi.Count; i++)
+                {
+                    Classi[i].Regola = LeMieClassi.RegolaDellaClasse(stato, madre, LeMieClassi.Chiave(Classi[i].Nome));
+                    if (i < griglia.Rows.Count) griglia.Rows[i].Cells[3].Value = Studenti(Classi[i]);
+                }
+            }
+            finally { riempiendo = false; }
             chkVecchie.Text = TestoVecchie();
             chkVecchie.Visible = Vecchie.Count > 0;
             lblNotaVecchie.Text = NotaVecchie();
