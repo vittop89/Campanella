@@ -792,16 +792,18 @@ if ($null -ne $tFC) {
     $senzaAnno.Da.Add('@CLASSE:3B LSA@')
     $senzaAnno.UnoQualsiasi = $true
     $regoleD.Add($senzaAnno)
-    $fs = MostraFC
+    # $fsa e non $fs: PowerShell non bada alle maiuscole, e $fs cambierebbe le
+    # BindingFlags $FS che servono piu' sotto (il passo 4 degli Orari)
+    $fsa = MostraFC
     $iS = -1
-    for ($k = 0; $k -lt $fs.Classi.Count; $k++) { if ($fs.Classi[$k].Nome -eq '3B LSA') { $iS = $k } }
-    $fs.Scegli($iS)
+    for ($k = 0; $k -lt $fsa.Classi.Count; $k++) { if ($fsa.Classi[$k].Nome -eq '3B LSA') { $iS = $k } }
+    $fsa.Scegli($iS)
     [System.Windows.Forms.Application]::DoEvents()
-    $avvisoS = $tFC.GetField('lblAvviso', $FIp).GetValue($fs)
+    $avvisoS = $tFC.GetField('lblAvviso', $FIp).GetValue($fsa)
     Verifica "con la madre senza l'anno l'avviso della classe con la regola lo dice" (
-        $fs.Madre -eq 'Le mie classi' -and $iS -ge 0 -and $avvisoS.Text -match "non ha l'anno")
-    ControllaPannello $fs "Le mie classi, madre senza l'anno"
-    $fs.Close(); $fs.Dispose()
+        $fsa.Madre -eq 'Le mie classi' -and $iS -ge 0 -and $avvisoS.Text -match "non ha l'anno")
+    ControllaPannello $fsa "Le mie classi, madre senza l'anno"
+    $fsa.Close(); $fsa.Dispose()
     [void]$regoleD.Remove($senzaAnno)
     $tStato.GetField('Classi', $FI).SetValue($stato, $classiPrima)
 }
