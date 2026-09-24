@@ -238,46 +238,71 @@ POSTA - riordinare la casella
    messaggi non si cancellano.
    "Le mie classi...", accanto, crea un'etichetta per ogni tua classe, per
    esempio "Classi 2026-27/3B", dentro un'etichetta madre ("Classi" e l'anno
-   scolastico: si puo' cambiare). Un messaggio la prende se vale uno dei due:
-   la classe e' nell'oggetto, chiunque lo mandi (dirigenza, colleghi,
-   notifiche di Classroom, famiglie), oppure l'ha mandato uno studente della
-   classe. Le etichette delle classi si aggiungono alle altre: Studenti,
-   Colleghi e le altre restano. Le classi vengono dall'orario (Orari: il
-   tabellone al passo 1 e il tuo nome al passo 4; le ore a disposizione non
-   contano) e da Cartelle; le altre le aggiungi a mano. 3B, 3 B e 3^B sono
-   la stessa classe. Per ognuna "Cerca nell'oggetto" parte da 3B, "3 B" e
-   III B (Gmail cerca parole intere; per la 3B LSA le stesse; un codice come
-   A5 resta com'e'): si cambiano con un clic, separate da virgole. Con
-   l'anteprima controlla che Gmail prenda anche le forme come 3^B.
-   Gli indirizzi degli studenti li incolli nella finestra, scelta la classe:
-   per esempio da Classroom (il corso -> Persone -> spunta sopra gli
-   studenti -> Azioni -> Invia email: Gmail apre un messaggio con tutti gli
-   indirizzi nel campo A, da copiare; poi chiudilo senza mandarlo), oppure
-   dal gruppo Google della classe, se la scuola lo ha. Campanella prende solo
-   gli indirizzi, anche nella forma Nome Cognome <indirizzo>, e toglie quelli
-   del personale (passo 3, dirigenza, segreteria); oltre 40 avvisa che
-   sembrano piu' di una classe. Sono dati di minori e Campanella non li
-   conserva: non vanno ne' nelle impostazioni, ne' nel file dei dati, ne' in
-   Configurazione.gs, dove la regola ha solo il segnaposto @CLASSE:3B@.
+   scolastico: si puo' cambiare, e riaprendo la finestra torna quella delle
+   tue regole). Un messaggio la prende se vale uno dei due: la classe e'
+   nell'oggetto, chiunque lo mandi (dirigenza, colleghi, notifiche di
+   Classroom, famiglie), oppure l'ha mandato uno studente della classe. Le
+   etichette delle classi si aggiungono alle altre: Studenti, Colleghi e le
+   altre restano. Le classi vengono dall'orario (Orari: il tabellone al
+   passo 1 e il tuo nome al passo 4; le ore a disposizione non contano; una
+   lezione 3A/3B sono due classi) e da Cartelle; le altre le aggiungi a
+   mano. 3B, 3 B e 3^B sono la stessa classe; 3B LSA e 3B ITE sono altre
+   (se nell'elenco ci sono 3B e 3B LSA, la finestra chiede di scegliere).
+   Per ognuna "Cerca nell'oggetto" parte da 3B, "3 B" e III B (Gmail cerca
+   parole intere; per la 3B LSA le stesse). Se la sezione e' anche una
+   parola (A, E, I, O, AL...) parte da 3A, "classe 3 A" e "classe III A":
+   "3 A" da solo prenderebbe "da 1 a 10". Un codice che non e' numero e
+   sezione (A5, un laboratorio) parte senza spunta e senza parole: scrivile
+   tu. Le parole si cambiano con un clic, separate da virgole (una parola
+   con la virgola va fra virgolette). L'anteprima conta le conversazioni
+   della regola, non parola per parola: per sapere che cosa prende una
+   parola con lo spazio cerca in Gmail, per esempio subject:"3 B", e guarda
+   gli oggetti che escono (anche se c'e' 3^B).
+   Gli indirizzi degli studenti li incolli nella casella sotto, scelta la
+   classe (non nella colonna delle parole: li' Campanella li scarta): per
+   esempio da Classroom (il corso -> Persone -> spunta sopra gli studenti
+   -> Azioni -> Invia email: Gmail apre un messaggio con tutti gli
+   indirizzi nel campo A, da copiare; poi elimina quel messaggio con il
+   cestino, perche' chiuso resterebbe fra le bozze), oppure dal gruppo
+   Google della classe, se la scuola lo ha. Il Ctrl+C del browser finisce
+   nella cronologia degli appunti di Windows, se e' attiva: poi premi Win+V
+   e togli quella voce; oppure trascina il testo nella casella, che non
+   passa dagli appunti. Campanella prende solo gli indirizzi, anche nella
+   forma Nome Cognome <indirizzo> o con l'apostrofo (d'amico...), e toglie
+   quelli del personale (chi ha la spunta nel passo 3, la dirigenza e la
+   segreteria); oltre 40 avvisa che sembrano piu' di una classe. Sono dati
+   di minori e Campanella non li conserva: non vanno ne' nelle
+   impostazioni, ne' nel file dei dati, ne' in Configurazione.gs, dove la
+   regola ha solo il segnaposto @CLASSE:3B@.
    "Copia Classe_3B.gs" copia un file a parte (fuori dalla cronologia degli
    appunti, mai su disco), da incollare nel progetto dello script in un file
-   nuovo con quel nome, accanto a Configurazione; chiusa la finestra gli
-   indirizzi spariscono, e riaprendola lo dice. Per cambiarli li incolli di
-   nuovo e sostituisci il file. Senza quel file la regola della classe prende
-   solo i messaggi con la classe nell'oggetto.
+   nuovo con quel nome, accanto a Configurazione. Il file vale solo per
+   l'etichetta per cui l'hai copiato (cambiando la madre, o l'anno dopo, va
+   copiato di nuovo) e dice il giorno della copia. Chiusa la finestra gli
+   indirizzi spariscono, e riaprendola lo dice; negli appunti il file resta
+   finche' non copi altro, e chiudendo Campanella chiede se svuotarli. Per
+   cambiarli li incolli di nuovo e sostituisci il file. Senza quel file la
+   regola della classe prende solo i messaggi con la classe nell'oggetto.
    "Usa queste classi" crea o aggiorna una regola per classe spuntata (in
    fondo all'elenco, con sfumature diverse di un colore solo) e toglie quella
-   delle classi senza spunta. L'anno dopo propone di togliere le regole delle
-   classi dell'anno prima (di partenza no). Le etichette in Gmail non si
-   cancellano mai. A fine anno cancella tu, nel progetto dello script, i file
-   Classe_*.gs e, se avevi creato i filtri veri di Gmail, togli da Gmail
-   quelli delle classi. Dopo ogni cambio copia di nuovo la configurazione
-   (passo 5).
+   delle classi senza spunta, ricordando di cancellare il loro file.
+   Chiudendo con Annulla o la X chiede prima, se hai copiato un file o
+   cambiato qualcosa. L'anno dopo propone di togliere le regole delle classi
+   dell'anno prima (di partenza no). Le etichette in Gmail non si cancellano
+   mai. A fine anno cancella tu, nel progetto dello script, i file
+   Classe_*.gs: l'anteprima elenca quelli che nessuna regola usa. Dopo ogni
+   cambio copia di nuovo la configurazione (passo 5).
    In "Modifica" ogni regola ha la spunta "Basta uno dei due: l'oggetto
    oppure i mittenti": e' quella delle classi, e vale anche per le tue
-   regole. Nella finestra dei filtri di Gmail quelli delle classi non partono
-   mai spuntati, e quelli con gli indirizzi degli studenti non si possono
-   scegliere: si tolgono da Gmail.
+   regole. I filtri veri di Gmail (EXTRA_creaFiltriGmail) per le classi
+   cercano solo l'oggetto: gli indirizzi degli studenti non vanno nei
+   filtri, che resterebbero nelle impostazioni di Gmail anche cancellando il
+   file. I messaggi degli studenti li etichetta lo smistamento dello script
+   (PASSO_4), che quindi deve restare acceso; lo dice anche il riepilogo di
+   EXTRA_creaFiltriGmail. Nella finestra dei filtri di Gmail quelli delle
+   classi non partono mai spuntati, e quelli con degli indirizzi sotto
+   un'etichetta che sembra di una classe (3B, una madre con "classi" o usata
+   per le classi) non si possono scegliere: si tolgono da Gmail.
 4) Passo 5: copia il codice. In cima alla pagina c'e' l'impronta della
    configurazione: PASSO_1_anteprima deve scrivere la stessa. Se e' diversa, la
    configurazione incollata e' vecchia (per esempio ha ancora accesa una
@@ -302,8 +327,11 @@ POSTA - riordinare la casella
    l'impronta una riga dice quante etichette hanno un colore e se il
    servizio Gmail API c'e' per metterli, e un'altra, se ne hai scelti,
    quanti filtri di Gmail ci sono da togliere. Sotto la regola di una classe
-   dice quanti indirizzi di studenti ha il suo file Classe_*.gs (mai quali),
-   oppure che il file manca e che la regola conta solo l'oggetto.
+   dice quanti indirizzi di studenti ha il suo file Classe_*.gs (mai quali)
+   e quando l'hai copiato (avvisa se e' di un anno scolastico passato),
+   oppure che il file manca, o che e' di un'altra etichetta, e che la regola
+   conta solo l'oggetto. In fondo elenca i file delle classi che nessuna
+   regola accesa usa, da cancellare.
 
 
 CARTELLE - il nuovo anno scolastico

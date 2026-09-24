@@ -260,8 +260,9 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   tuoi studenti, che incolli in Campanella: Campanella non li salva (né nelle
   impostazioni, né nel file dei dati, né in Configurazione.gs, né in un file
   del computer). Esistono solo nel file `Classe_*.gs` che incolli nel tuo
-  progetto Apps Script, e lo script scrive nel registro quanti sono, mai
-  quali. Cancellando quel file spariscono.
+  progetto Apps Script: lo script li usa solo per cercare, scrive nel
+  registro quanti sono, mai quali, e non li mette nei filtri di Gmail (per le
+  classi cercano solo l'oggetto). Cancellando quel file spariscono.
 - Ogni script ha le sue funzioni per annullare (`ANNULLA_…`, `MODULO_ANNULLA`,
   `PANNELLO_ANNULLA`). Senza gruppo per le etichette, `ANNULLA_etichettatura`
   toglie solo le etichette che lo script ha creato, e dice "NIENTE DA

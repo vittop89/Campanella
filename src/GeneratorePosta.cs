@@ -192,6 +192,7 @@ namespace Campanella
                 sb.AppendLine("  //  unoQualsiasi = basta l'oggetto (o le parole) oppure i mittenti, non tutti e due.");
                 sb.AppendLine("  //  @CLASSE:3B@ = gli studenti della 3B: gli indirizzi non stanno qui, li porta il");
                 sb.AppendLine("  //  file Classe_3B.gs (Posta, passo 4, \"Le mie classi...\"). Senza, conta l'oggetto.");
+                sb.AppendLine("  //  Nei filtri veri di Gmail (EXTRA_creaFiltriGmail) gli studenti non vanno.");
             }
             sb.AppendLine("  regole: [");
 

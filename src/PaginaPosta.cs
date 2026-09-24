@@ -683,8 +683,9 @@ namespace Campanella
                 "progetto dello script: Campanella non li conserva. Senza quel file la regola prende solo i " +
                 "messaggi con la classe nell'oggetto.\r\n\r\n" +
                 "Poi copia di nuovo la configurazione (passo 5) e guarda l'anteprima (PASSO_1_anteprima): dice " +
-                "anche quanti indirizzi ha trovato per ogni classe. A fine anno togli le classi (l'anno dopo la " +
-                "finestra lo propone) e cancella i file Classe_*.gs dal progetto."));
+                "anche quanti indirizzi ha trovato per ogni classe, e quali file nessuna regola usa. I filtri veri " +
+                "di Gmail delle classi cercano solo l'oggetto: gli studenti non ci vanno. A fine anno togli le " +
+                "classi (l'anno dopo la finestra lo propone) e cancella i file Classe_*.gs dal progetto."));
             lblFiltri = Tema.Testo1("", 0, yb + 76, 400, Tema.Piccolo, Ruolo.Tenue);
             lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri.",
                                                  Tema.Piccolo, 400);
@@ -1090,7 +1091,10 @@ namespace Campanella
                   "Campanella non li conserva: al passo 4 apri \"Le mie classi...\", scegli la classe, incolla " +
                   "di nuovo gli indirizzi, premi \"Copia\" e nel progetto crea (o sostituisci) il file con quel " +
                   "nome. Se una classe prende messaggi che non sono suoi, togli le parole di troppo da " +
-                  "\"Cerca nell'oggetto\"; con l'anteprima controlla anche le forme come 3^B." },
+                  "\"Cerca nell'oggetto\": per vedere che cosa prende una parola cerca in Gmail, per esempio " +
+                  "subject:\"3 B\", e guarda gli oggetti che escono (anche le forme come 3^B). Con i filtri veri " +
+                  "di Gmail i messaggi degli studenti li etichetta lo script: lo smistamento automatico deve " +
+                  "restare acceso." },
                 { "Quanto tempo ci mette?",
                   "Dipende da quanta posta hai. Indicativamente un migliaio di conversazioni al " +
                   "minuto. Con caselle molto grandi lo script lavora a riprese, in automatico, " +

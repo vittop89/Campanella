@@ -256,8 +256,10 @@ found, by its arrival time, in an earlier sheet.
   which you paste in Campanella: it never saves them (not in its settings,
   not in the data file, not in Configurazione.gs, not in any file on the
   computer). They exist only in a `Classe_*.gs` file you paste into your own
-  Apps Script project, and the script logs how many there are, never which
-  ones. Deleting that file removes them.
+  Apps Script project: the script uses them only to search, logs how many
+  there are, never which ones, and keeps them out of native Gmail filters
+  (for classes those match the subject only). Deleting that file removes
+  them.
 - Every script has its undo functions (`ANNULLA_…`, `MODULO_ANNULLA`,
   `PANNELLO_ANNULLA`). With no label group, `ANNULLA_etichettatura` removes
   only the labels the script created, and says "NIENTE DA TOGLIERE" when
