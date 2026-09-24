@@ -783,6 +783,26 @@ if ($null -ne $tFC) {
     Verifica "chiusa con gli indirizzi incollati e non copiati, ha chiesto prima di chiudere ($($script:domandeFC -join ', '))" (
         ($script:domandeFC -join '|') -eq 'Chiudere senza usare le classi?')
     [void]$regoleD.Remove($vecchia)
+
+    # la madre senza l'anno: l'avviso di una classe che ha gia' la regola dice
+    # anche che l'anno dopo il file va copiato di nuovo, e ci sta
+    $senzaAnno = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $senzaAnno.Etichetta = 'Le mie classi/3B LSA'
+    $senzaAnno.Sorgente = 'classe'
+    $senzaAnno.Da.Add('@CLASSE:3B LSA@')
+    $senzaAnno.UnoQualsiasi = $true
+    $regoleD.Add($senzaAnno)
+    $fs = MostraFC
+    $iS = -1
+    for ($k = 0; $k -lt $fs.Classi.Count; $k++) { if ($fs.Classi[$k].Nome -eq '3B LSA') { $iS = $k } }
+    $fs.Scegli($iS)
+    [System.Windows.Forms.Application]::DoEvents()
+    $avvisoS = $tFC.GetField('lblAvviso', $FIp).GetValue($fs)
+    Verifica "con la madre senza l'anno l'avviso della classe con la regola lo dice" (
+        $fs.Madre -eq 'Le mie classi' -and $iS -ge 0 -and $avvisoS.Text -match "non ha l'anno")
+    ControllaPannello $fs "Le mie classi, madre senza l'anno"
+    $fs.Close(); $fs.Dispose()
+    [void]$regoleD.Remove($senzaAnno)
     $tStato.GetField('Classi', $FI).SetValue($stato, $classiPrima)
 }
 

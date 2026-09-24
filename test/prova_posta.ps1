@@ -1185,6 +1185,7 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "e dice che gli indirizzi non sono conservati: si incollano di nuovo ('$($fc2.Avviso($j3B))')" (
             ($null -eq $fc2.Classi[$j3B].Indirizzi) -and $fc2.Avviso($j3B) -match 'non li conserva' -and $fc2.Avviso($j3B) -match 'Classe_3B\.gs' -and
             $fc2.TestoFile($j3B) -eq '')
+        Verifica "con l'anno nell'etichetta madre non parla dell'anno dopo" (-not ($fc2.Avviso($j3B) -match "non ha l'anno"))
         $colore3B = $r3B.Colore
         $fc2.Classi[$j3B].Oggetto = '3B, III B, terza B'
         $fc2.Classi[(Indice $fc2 '1A')].Spuntata = $false
@@ -1259,6 +1260,11 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "riaperta, la madre e' quella delle regole ($($fcM.Madre)), con le loro parole, e niente 'anno prima'" (
             $fcM.Madre -eq 'Le mie classi' -and $fcM.Classi[$iM].Oggetto -eq '3B, terza B' -and $fcM.Vecchie.Count -eq 0 -and
             (Righe $fcM) -eq '2C+,3B+')
+        # l'anno dopo le regole sotto "Le mie classi" restano le stesse, e il
+        # file della classe darebbe gli studenti di prima: lo dice la finestra
+        Verifica "senza l'anno nella madre, l'avviso di una classe con la regola dice di copiare di nuovo il file l'anno dopo ('$($fcM.Avviso($iM))')" (
+            $fcM.Avviso($iM) -match "L'etichetta madre non ha l'anno" -and
+            $fcM.Avviso($iM) -match "all'anno scolastico nuovo la regola resta questa, ma gli studenti cambiano")
         [void](MC 'Applica').Invoke($null, @($s10.PSObject.BaseObject, [string]$fcM.Madre, $fcM.Classi.PSObject.BaseObject, $false))
         $regole10 = @((Leggi $s10 'Regole') | Where-Object { $_.Sorgente -eq 'classe' })
         Verifica "e ""Usa queste classi"" non fa doppioni ne' perde le parole ($(@($regole10 | ForEach-Object { $_.Etichetta + '=' + ($_.Oggetto -join '|') }) -join ', '))" (

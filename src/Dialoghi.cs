@@ -1337,9 +1337,13 @@ namespace Campanella
             }
             if (c.Indirizzi != null)
                 return "Nel testo incollato non c'e' nessun indirizzo di uno studente." + delPersonale;
+            // con una madre senza l'anno ("Le mie classi") la regola l'anno dopo e'
+            // la stessa, e il file le darebbe gli studenti di prima
             if (c.Regola != null)
                 return "Gli indirizzi degli studenti Campanella non li conserva: se " + file + " e' gia' nel progetto " +
-                       "dello script, la regola li usa. Per cambiarli incollali qui di nuovo e copia di nuovo il file.";
+                       "dello script, la regola li usa. Per cambiarli incollali qui di nuovo e copia di nuovo il file." +
+                       (MadreSenzaAnno() ? " L'etichetta madre non ha l'anno: all'anno scolastico nuovo la regola resta " +
+                                           "questa, ma gli studenti cambiano: incollali di nuovo e copia di nuovo il file." : "");
             return "Nessun indirizzo incollato: senza " + file + " nel progetto la regola prende solo i messaggi con " +
                    "la classe nell'oggetto.";
         }
@@ -1357,9 +1361,21 @@ namespace Campanella
                 "(99 dall'elenco del passo 3, 99 dalla pagina \"La tua scuola\")");
             prova.Indirizzi = null;
             prova.Regola = new Regola();
+            // con la madre senza l'anno, anche se quella di adesso ce l'ha
+            comeSenzaAnno = true;
             string b = Avviso(Classi.Count - 1);
+            comeSenzaAnno = false;
             Classi.RemoveAt(Classi.Count - 1);
             return (Tema.AltezzaTesto(a, Tema.Normale, Larga - 242) >= Tema.AltezzaTesto(b, Tema.Normale, Larga - 242)) ? a : b;
+        }
+
+        // solo per misurare l'avviso piu' lungo (AvvisoPiuLungo)
+        bool comeSenzaAnno = false;
+
+        /// <summary>Vero se l'etichetta madre scritta non ha l'anno (quattro cifre): l'anno dopo le regole restano le stesse.</summary>
+        bool MadreSenzaAnno()
+        {
+            return comeSenzaAnno || !Regex.IsMatch(Madre, @"\d{4}");
         }
 
         /// <summary>Il testo del file Classe_*.gs della classe i, con gli indirizzi incollati; "" se non ce ne sono.</summary>
