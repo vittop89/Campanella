@@ -1312,6 +1312,26 @@ if (conCalendario) {
       verifica('e dal cambio c\'e\' l\'orario nuovo', uguali(lezioniSul(calM, vd, ultimoGiorno), nuovoPiano.lezioni));
       docOriginale.celle = celleOriginali.slice();
     }
+    // una serie di due lezioni, una prima e una dopo il cambio, una delle due
+    // spostata: a parita' vale la prima, cosi' la lezione che resta si vede
+    // dov'era (quella dopo il cambio si toglie comunque)
+    const lun9 = new Date(2026, 8, 28, 9, 0), lun10 = new Date(2026, 8, 28, 10, 0);
+    const lun9dopo = new Date(2026, 9, 5, 9, 0), lun10dopo = new Date(2026, 9, 5, 10, 0);
+    const mer15dopo = new Date(2026, 9, 7, 15, 0), mer16dopo = new Date(2026, 9, 7, 16, 0);
+    const mer15 = new Date(2026, 8, 30, 15, 0), mer16 = new Date(2026, 8, 30, 16, 0);
+    const primaRegolare = { lezioni: [{ inizio: lun9, fine: lun10 }, { inizio: mer15dopo, fine: mer16dopo }] };
+    contesto._orariPrimaLezione_(primaRegolare);
+    verifica('due lezioni, la seconda spostata: la serie comincia dalla prima, lunedi\' alle 9',
+      primaRegolare.inizio.getTime() === lun9.getTime() && primaRegolare.fine.getTime() === lun10.getTime());
+    const primaSpostata = { lezioni: [{ inizio: mer15, fine: mer16 }, { inizio: lun9dopo, fine: lun10dopo }] };
+    contesto._orariPrimaLezione_(primaSpostata);
+    verifica('due lezioni, la prima spostata: la serie comincia dove si vede la prima (mercoledi\' alle 15), e si nota',
+      primaSpostata.inizio.getTime() === mer15.getTime() && primaSpostata.irregolare === true);
+    const conSpostata = { lezioni: [{ inizio: mer15, fine: mer16 }, { inizio: lun9dopo, fine: lun10dopo },
+      { inizio: new Date(2026, 9, 12, 9, 0), fine: new Date(2026, 9, 12, 10, 0) }] };
+    contesto._orariPrimaLezione_(conSpostata);
+    verifica('tre lezioni, la prima spostata di due giorni: la serie comincia dalla sua settimana, lunedi\' alle 9, ' +
+      'e si nota', conSpostata.inizio.getTime() === lun9.getTime() && conSpostata.irregolare === true);
   }
 
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');

@@ -812,9 +812,11 @@ function _orariPrimaLezione_(voce) {
     var f = _orariForma_(lezioni[i]);
     conta[f] = (conta[f] || 0) + 1;
   }
-  // la forma della serie: la piu' frequente; a parita', quella della lezione piu' tarda
+  // la forma della serie: la piu' frequente; a parita', quella della lezione
+  // piu' presto. Si pareggia solo con pochissime lezioni, e allora conta la
+  // prima: e' quella che resta dopo il cambio, e si vede dov'era
   var forma = '', quante = 0;
-  for (var j = lezioni.length - 1; j >= 0; j--) {
+  for (var j = 0; j < lezioni.length; j++) {
     var g = _orariForma_(lezioni[j]);
     if (conta[g] > quante) { quante = conta[g]; forma = g; }
   }
