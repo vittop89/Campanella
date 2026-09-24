@@ -460,6 +460,25 @@ console.log(JSON.stringify({
         Verifica "una seconda volta non aggiunge niente" ($ancora.Aggiunte -eq 0 -and $ancora.Testo -eq $cf.Testo)
         $vuoto = ConFeste '' '2026-09-14' '2027-06-10'
         Verifica "partendo da vuoto le mette tutte e dodici, senza righe vuote" ($vuoto.Aggiunte -eq 12 -and @($vuoto.Testo -split "`r`n").Count -eq 12)
+        # un periodo con il punto in fondo copre le feste che contiene
+        $natale = ConFeste 'dal 23/12/2026 al 06/01/2027.' '2026-09-14' '2027-06-10'
+        Verifica "le vacanze di Natale scritte con il punto in fondo coprono Natale, Santo Stefano, Capodanno ed Epifania" (
+            $natale.Aggiunte -eq 8 -and
+            -not (@($natale.Testo -split "`r`n" | Select-Object -Skip 1) -match '25/12/2026|26/12/2026|01/01/2027|06/01/2027'))
+        # Pasqua (o Pasquetta) il 25 aprile: una riga sola per quel giorno, con i due nomi
+        $f = Feste '2037-09-01' '2038-08-31'
+        Verifica "anno 2037/38: Pasqua il 25 aprile 2038, e le feste in ordine di data" (
+            $f -contains '2038-04-25 Pasqua' -and
+            (@($f | ForEach-Object { $_.Substring(0, 10) }) -join ' ') -eq (@($f | ForEach-Object { $_.Substring(0, 10) } | Sort-Object) -join ' '))
+        $doppia = ConFeste '' '2037-09-01' '2038-08-31'
+        $righe2038 = @($doppia.Testo -split "`r`n")
+        Verifica "Pasqua il 25 aprile: una riga sola, '25/04/2038 Pasqua e Festa della Liberazione' ($($doppia.Aggiunte) aggiunte)" (
+            @($righe2038 | Where-Object { $_ -like '25/04/2038*' }).Count -eq 1 -and
+            $righe2038 -contains '25/04/2038 Pasqua e Festa della Liberazione' -and $doppia.Aggiunte -eq 11 -and $righe2038.Count -eq 11)
+        $doppia = ConFeste '' '2010-09-01' '2011-08-31'
+        Verifica "e Pasquetta il 25 aprile (2011): '25/04/2011 Lunedi' dell'Angelo e Festa della Liberazione'" (
+            @($doppia.Testo -split "`r`n" | Where-Object { $_ -like '25/04/2011*' }).Count -eq 1 -and
+            ($doppia.Testo -split "`r`n") -contains "25/04/2011 Lunedi' dell'Angelo e Festa della Liberazione")
 
         # --- il piano: una serie per ogni tratto di settimane senza interruzioni
         Write-Host "`nI GIORNI SENZA LEZIONE: IL PIANO DEL CALENDARIO" -ForegroundColor Cyan

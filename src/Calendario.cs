@@ -195,12 +195,13 @@ namespace Campanella
         // ===================================================================
 
         /// <summary>
-        /// Le feste nazionali che cadono nel periodo (estremi compresi),
-        /// nell'ordine: Tutti i Santi, Immacolata, Natale, Santo Stefano,
+        /// Le feste nazionali che cadono nel periodo (estremi compresi), in
+        /// ordine di data: Tutti i Santi, Immacolata, Natale, Santo Stefano,
         /// Capodanno, Epifania, Pasqua e Lunedi' dell'Angelo, 25 aprile, primo
         /// maggio, 2 giugno, e dal 2026 il 4 ottobre (San Francesco d'Assisi e
         /// Santa Caterina da Siena, legge 151/2025). Il patrono no: cambia da
-        /// comune a comune.
+        /// comune a comune. Pasqua o Pasquetta possono cadere il 25 aprile:
+        /// allora quel giorno ha due feste.
         /// </summary>
         public static List<Sospensione> Festivita(DateTime inizio, DateTime fine)
         {
@@ -222,6 +223,15 @@ namespace Campanella
                 dellAnno.Add(Festa(new DateTime(anno, 12, 8), "Immacolata"));
                 dellAnno.Add(Festa(new DateTime(anno, 12, 25), "Natale"));
                 dellAnno.Add(Festa(new DateTime(anno, 12, 26), "Santo Stefano"));
+                // Pasquetta puo' venire dopo il 25 aprile: in ordine di data, e a
+                // parita' nell'ordine dell'elenco (Pasqua prima della Liberazione)
+                for (int i = 1; i < dellAnno.Count; i++)
+                {
+                    Sospensione x = dellAnno[i];
+                    int j = i - 1;
+                    while (j >= 0 && dellAnno[j].Dal > x.Dal) { dellAnno[j + 1] = dellAnno[j]; j--; }
+                    dellAnno[j + 1] = x;
+                }
                 foreach (Sospensione f in dellAnno)
                     if (f.Dal >= inizio.Date && f.Dal <= fine.Date) fuori.Add(f);
             }
@@ -254,24 +264,33 @@ namespace Campanella
 
         /// <summary>
         /// Il testo con in fondo, una per riga, le feste nazionali del periodo
-        /// che nessuna riga copre gia'. Quante ne ha aggiunte lo dice aggiunte.
+        /// che nessuna riga copre gia'. Due feste nello stesso giorno (Pasqua
+        /// il 25 aprile) fanno una riga sola, con i due nomi. Quante righe ha
+        /// aggiunto lo dice aggiunte.
         /// </summary>
         public static string ConFeste(string testo, DateTime inizio, DateTime fine, out int aggiunte)
         {
             List<string> nonCapite;
             List<Sospensione> gia = Leggi(testo, inizio, out nonCapite);
-            StringBuilder nuove = new StringBuilder();
-            aggiunte = 0;
+            List<Sospensione> nuove = new List<Sospensione>();
             foreach (Sospensione f in Festivita(inizio, fine))
             {
                 if (Coperto(f.Dal, gia)) continue;
-                if (aggiunte > 0) nuove.Append("\r\n");
-                nuove.Append(Riga(f));
-                aggiunte++;
+                Sospensione stessoGiorno = null;
+                foreach (Sospensione n in nuove) if (n.Dal == f.Dal) stessoGiorno = n;
+                if (stessoGiorno != null) { stessoGiorno.Nome += " e " + f.Nome; continue; }
+                nuove.Add(Festa(f.Dal, f.Nome));
             }
+            aggiunte = nuove.Count;
             if (aggiunte == 0) return testo ?? "";
+            StringBuilder righe = new StringBuilder();
+            foreach (Sospensione n in nuove)
+            {
+                if (righe.Length > 0) righe.Append("\r\n");
+                righe.Append(Riga(n));
+            }
             string prima = (testo ?? "").TrimEnd();
-            return (prima == "") ? nuove.ToString() : prima + "\r\n" + nuove.ToString();
+            return (prima == "") ? righe.ToString() : prima + "\r\n" + righe.ToString();
         }
 
         // ===================================================================
