@@ -786,6 +786,13 @@ namespace Campanella
         /// <summary>"Aggiungi le feste nazionali": in fondo, quelle del periodo che nessuna riga copre.</summary>
         void AggiungiFeste()
         {
+            if (dtFine.Value.Date < dtInizio.Value.Date)
+            {
+                // ConFeste non troverebbe niente, e "ci sono gia' tutte" non sarebbe vero
+                Guscio.Stato1("La data di fine viene prima di quella di inizio: sistema il periodo, poi aggiungi le feste.",
+                              Tema.Ambra);
+                return;
+            }
             int aggiunte;
             string testo = Calendario.ConFeste(txtSospensioni.Text, dtInizio.Value.Date, dtFine.Value.Date, out aggiunte);
             if (aggiunte == 0)
@@ -849,11 +856,16 @@ namespace Campanella
                                           DateTimeStyles.None, out d);
         }
 
-        /// <summary>Il 10 giugno che chiude l'anno scolastico in corso.</summary>
+        /// <summary>
+        /// Il 10 giugno che chiude l'anno scolastico: con la regola delle righe
+        /// senza anno (Calendario.AnnoScolastico), luglio e agosto contano gia'
+        /// per l'anno che parte a settembre. Mai prima di oggi, che e' l'inizio
+        /// di partenza: dall'11 al 30 giugno, il 10 giugno dell'anno dopo.
+        /// </summary>
         static DateTime FineLezioni(DateTime oggi)
         {
-            int inizioAnno = (oggi.Month >= 9) ? oggi.Year : oggi.Year - 1;
-            return new DateTime(inizioAnno + 1, 6, 10);
+            DateTime fine = new DateTime(Calendario.AnnoScolastico(oggi) + 1, 6, 10);
+            return (fine < oggi.Date) ? fine.AddYears(1) : fine;
         }
 
         void RiempiDocenti()
@@ -901,6 +913,9 @@ namespace Campanella
                 List<string> nonCapite;
                 List<Sospensione> sospensioni = Calendario.Leggi(S.CalSospensioni, inizio, out nonCapite);
                 PianoCalendario piano = Calendario.Piano(blocchi, orario.IndiciGiorni, inizio, fine, sospensioni);
+                // le righe che non toccano il periodo (un anno sbagliato) non contano
+                List<Sospensione> fuoriPeriodo = Calendario.FuoriPeriodo(sospensioni, inizio, fine);
+                int nelPeriodo = sospensioni.Count - fuoriPeriodo.Count;
                 string ruolo = Ruolo.Buono;
 
                 StringBuilder r = new StringBuilder();
@@ -908,9 +923,9 @@ namespace Campanella
                          " blocchi, quindi " + piano.Serie.Count + " serie settimanali nel calendario \"" +
                          (S.CalNome != "" ? S.CalNome : "Orario " + docente) + "\".");
                 r.Append("\nDal " + Giorno(inizio) + " al " + Giorno(fine) + ": " + piano.Lezioni + " lezioni");
-                if (sospensioni.Count == 0) r.Append(", nessun giorno senza lezione.");
-                else r.Append("; " + piano.Saltate + " lezioni saltate per " + sospensioni.Count +
-                              (sospensioni.Count == 1 ? " giorno o periodo" : " giorni o periodi") + " senza lezione.");
+                if (nelPeriodo == 0) r.Append(", nessun giorno senza lezione nel periodo.");
+                else r.Append("; " + piano.Saltate + " lezioni saltate per " + nelPeriodo +
+                              (nelPeriodo == 1 ? " giorno o periodo" : " giorni o periodi") + " senza lezione.");
                 if (S.CalValidoDal != "")
                 {
                     DateTime cambio = dtValidoDal.Value.Date;
@@ -935,6 +950,15 @@ namespace Campanella
                     string esempio = nonCapite[0].Length > 40 ? nonCapite[0].Substring(0, 37) + "..." : nonCapite[0];
                     r.Append("\nRighe dei giorni senza lezione non capite: " + nonCapite.Count + ", come \"" + esempio +
                              "\". Scrivi una data per riga, per esempio 01/11/2026.");
+                    ruolo = Ruolo.Avviso;
+                }
+                if (fuoriPeriodo.Count > 0)
+                {
+                    string riga = Calendario.Riga(fuoriPeriodo[0]);
+                    string esempio = riga.Length > 40 ? riga.Substring(0, 37) + "..." : riga;
+                    r.Append("\n" + (fuoriPeriodo.Count == 1 ? "Una riga dei giorni senza lezione e' fuori"
+                                                             : fuoriPeriodo.Count + " righe dei giorni senza lezione sono fuori") +
+                             " dal periodo, come \"" + esempio + "\": controlla l'anno.");
                     ruolo = Ruolo.Avviso;
                 }
                 lblCalRiepilogo.Text = r.ToString();

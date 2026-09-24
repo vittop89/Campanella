@@ -180,6 +180,20 @@ namespace Campanella
             return (s.Nome ?? "") == "" ? date : date + " " + s.Nome;
         }
 
+        /// <summary>
+        /// I giorni o periodi senza lezione che non toccano il periodo (finiscono
+        /// prima dell'inizio o cominciano dopo la fine): di solito un anno
+        /// sbagliato, o una riga ricopiata dall'anno prima.
+        /// </summary>
+        public static List<Sospensione> FuoriPeriodo(List<Sospensione> sospensioni, DateTime inizio, DateTime fine)
+        {
+            List<Sospensione> fuori = new List<Sospensione>();
+            if (sospensioni == null) return fuori;
+            foreach (Sospensione s in sospensioni)
+                if (s.Al.Date < inizio.Date || s.Dal.Date > fine.Date) fuori.Add(s);
+            return fuori;
+        }
+
         /// <summary>Vero se il giorno cade in uno dei giorni o periodi senza lezione.</summary>
         public static bool Coperto(DateTime giorno, List<Sospensione> sospensioni)
         {

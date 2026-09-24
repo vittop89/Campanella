@@ -480,6 +480,27 @@ console.log(JSON.stringify({
             @($doppia.Testo -split "`r`n" | Where-Object { $_ -like '25/04/2011*' }).Count -eq 1 -and
             ($doppia.Testo -split "`r`n") -contains "25/04/2011 Lunedi' dell'Angelo e Festa della Liberazione")
 
+        # --- le righe fuori dal periodo (un anno sbagliato) si contano a parte
+        $fp = LeggiRighe "01/11/2025 Tutti i Santi`n08/12/2026 Immacolata`n2027-06-11 dopo la fine`n2026-09-14 il primo giorno" '2026-09-14'
+        $b = New-Object 'object[]' 3
+        $b[0] = $fp.Lista
+        $b[1] = DataIso '2026-09-14'
+        $b[2] = DataIso '2027-06-10'
+        $mFuori = $tCal.GetMethod('FuoriPeriodo', $FS)
+        $fuori = if ($null -ne $mFuori) { @($mFuori.Invoke($null, $b) | ForEach-Object { Giorno $_.Dal }) } else { @('(manca Calendario.FuoriPeriodo)') }
+        Verifica "le righe fuori dal periodo sono quelle prima dell'inizio e dopo la fine ($($fuori -join ', '))" (
+            ($fuori -join ',') -eq '2025-11-01,2027-06-11')
+
+        # --- la fine di partenza del periodo: il 10 giugno dell'anno scolastico,
+        # con luglio e agosto che contano gia' per l'anno che parte a settembre
+        # (la stessa regola delle righe senza anno), e mai prima di oggi
+        $mFine = $asm.GetType('Campanella.PaginaOrari').GetMethod('FineLezioni', $FS)
+        foreach ($c in @(@('2026-08-20', '2027-06-10'), @('2026-07-01', '2027-06-10'), @('2026-09-24', '2027-06-10'),
+                         @('2027-01-15', '2027-06-10'), @('2027-06-10', '2027-06-10'), @('2027-06-20', '2028-06-10'))) {
+            $fl = Giorno ($mFine.Invoke($null, @((DataIso $c[0]))))
+            Verifica "oggi $($c[0]): la fine proposta e' il $($c[1]) ($fl)" ($fl -eq $c[1])
+        }
+
         # --- il piano: una serie per ogni tratto di settimane senza interruzioni
         Write-Host "`nI GIORNI SENZA LEZIONE: IL PIANO DEL CALENDARIO" -ForegroundColor Cyan
         $oPiano = AnalizzaFile (ScriviCsv 'piano.csv' @(

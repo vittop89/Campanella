@@ -801,7 +801,28 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
         [System.Windows.Forms.Application]::DoEvents()
         Verifica "premuto di nuovo non aggiunge niente" ($txtSosp.Text -eq $dopoFeste)
         ControllaPannello $pannelloOrari 'Orari / 4 dopo le feste nazionali'
+
+        # con la fine prima dell'inizio non dice che le feste ci sono gia' tutte
+        $dtFinePO = $tPO.GetField('dtFine', $FIp).GetValue($orari)
+        $fineGiusta = $dtFinePO.Value
+        $txtSosp.Text = ''
+        $dtFinePO.Value = [DateTime]::new(2026, 6, 10)
+        [System.Windows.Forms.Application]::DoEvents()
+        $onClick.Invoke($btnFeste, @([System.EventArgs]::Empty)) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "con la fine prima dell'inizio il bottone non aggiunge niente e dice perche' ($($lblStato.Text))" (
+            $txtSosp.Text -eq '' -and $lblStato.Text -match 'fine viene prima' -and $lblStato.Text -notmatch 'ci sono gia')
+        $dtFinePO.Value = $fineGiusta
     }
+    # una riga con l'anno sbagliato: fuori dal periodo, contata a parte e segnalata
+    $txtSosp.Text = "01/11/2025 Tutti i Santi`r`n08/12/2026 Immacolata"
+    [System.Windows.Forms.Application]::DoEvents()
+    $testoRiep = ($lblRiep.Text -replace '\s+', ' ')
+    Write-Host "          riepilogo: $testoRiep"
+    Verifica "una riga fuori dal periodo non si conta fra i giorni senza lezione, e il riepilogo lo dice in ambra" (
+        $lblRiep.Text -match 'per 1 giorno o periodo senza lezione' -and $lblRiep.Text -match 'fuori dal periodo' -and
+        $lblRiep.Text -match '01/11/2025' -and [string]$lblRiep.Tag -eq 'avviso')
+    ControllaPannello $pannelloOrari 'Orari / 4 con una riga fuori dal periodo'
     # tutto come prima
     foreach ($c in @('CalDocente', 'CalNome', 'CalSospensioni', 'CalValidoDal')) { $tStato.GetField($c, $FI).SetValue($stato, '') }
     $tPO.GetMethod('MostraCalendario', $FIp).Invoke($orari, @()) | Out-Null
