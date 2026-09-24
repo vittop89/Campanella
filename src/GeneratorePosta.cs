@@ -606,12 +606,14 @@ namespace Campanella
             new Regex(@"^([1-9]) ?[\^\u00b0\u00ba\u00aa.]? ?([A-Za-z]+)(?:$|[^A-Za-z0-9](.*)$)");
         static readonly string[] Romani = { "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX" };
         // un indirizzo email dentro un testo qualunque (anche "Nome Cognome <indirizzo>").
-        // Prima della @ anche l'apostrofo (Google Workspace lo ammette: d'amico,
-        // dell'orto) e gli altri caratteri che la norma permette; gli apici
+        // Prima della @ solo quello che ammette Google Workspace: lettere, cifre,
+        // punto, trattino, trattino basso, l'apostrofo (d'amico, dell'orto) e il
+        // + degli alias. Cosi' quello che sta attaccato davanti ("?email=",
+        // "Rossi|" di una riga a colonne) resta fuori. Gli apici e i punti
         // intorno a un indirizzo li toglie Indirizzi
         static readonly Regex Indirizzo =
-            new Regex(@"[A-Za-z0-9._%+\-'!#$&*=?^`{|}~]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}");
-        static readonly char[] PrimaDellIndirizzo = { '\'', '`', '.', '!', '#', '$', '&', '*', '=', '?', '^', '{', '|', '}', '~' };
+            new Regex(@"[A-Za-z0-9._+\-']+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}");
+        static readonly char[] PrimaDellIndirizzo = { '\'', '.', '-', '+' };
 
         static string Pulito(string s) { return Regex.Replace(s ?? "", @"\s+", " ").Trim(); }
 

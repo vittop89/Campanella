@@ -976,6 +976,15 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         Verifica "gli indirizzi con l'apostrofo si leggono interi, senza gli apici intorno ($lettiA)" (
             $lettiA -eq ("d'amico.sara@$dominioStudenti,o'neil@$dominioStudenti,dell'orto.luca@$dominioStudenti," +
                          "bianchi@$dominioStudenti"))
+        # quello che sta attaccato davanti non e' dell'indirizzo: un collegamento
+        # con ?email=, una riga con le colonne separate da | o da ;
+        $attaccati = "https://x.example/u/0/?email=anna@$dominioStudenti&x=1`r`nRossi|luca@$dominioStudenti`r`n" +
+                     "Verdi;Mario;mario@$dominioStudenti`r`nmailto:sara@$dominioStudenti`r`n``neri@$dominioStudenti```r`n" +
+                     "#bianchi@$dominioStudenti, =rosa.neri@$dominioStudenti"
+        $lettiB = @((MC 'Indirizzi').Invoke($null, @([string]$attaccati))) -join ','
+        Verifica "e senza quello che ci sta attaccato davanti ($lettiB)" (
+            $lettiB -eq ("anna@$dominioStudenti,luca@$dominioStudenti,mario@$dominioStudenti,sara@$dominioStudenti," +
+                         "neri@$dominioStudenti,bianchi@$dominioStudenti,rosa.neri@$dominioStudenti"))
         $sp = NuovoStato
         AggiungiPersona $sp 'ROSSI PAOLO' 'DOCENTE' 'Prof.Rossi@scuola-esempio.edu.it' $true
         $tolti = New-Object 'System.Collections.Generic.List[string]'
