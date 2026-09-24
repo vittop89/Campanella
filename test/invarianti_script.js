@@ -18,6 +18,10 @@
  *   - ogni sendEmail va a un destinatario ammesso (l'account stesso), senza
  *     cc ne' bcc (nemmeno { 'bcc': x } oppure o.bcc = x);
  *   - le cancellazioni sono solo quelle dell'elenco di ciascun file;
+ *   - accorciare una serie gia' sul calendario (setRecurrence, solo negli
+ *     orari) si puo' solo nel taglio del cambio d'orario, _orariTaglia_, e
+ *     solo sulle serie che trova _orariNostri_, che guarda il contrassegno;
+ *     niente nomi calcolati ne' il metodo preso come valore;
  *   - i filtri di Gmail (solo Posta) etichettano, archiviano e segnano come
  *     letti, e basta;
  *   - del servizio Gmail API (solo Posta) si usano poche chiamate: elencare
@@ -41,8 +45,9 @@
  * UrlFetchApp, un foglio nel Drive, una connessione Jdbc, un destinatario
  * estraneo, una copia in cc, un moveToTrash, un filtro tolto fuori da
  * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora,
- * un'etichetta cancellata anche li' dentro o la tabella dei testi usata per
- * altro devono far fallire i controlli. Se un giorno uno di questi non
+ * un'etichetta cancellata anche li' dentro, la tabella dei testi usata per
+ * altro, una serie del calendario accorciata fuori dal cambio d'orario o
+ * presa senza guardare il contrassegno devono far fallire i controlli. Se un giorno uno di questi non
  * fallisse piu', il controllo sarebbe diventato cieco.
  *
  * Infine i due estrattori del personale (l'estensione per Chrome e la
@@ -251,9 +256,20 @@ const REGOLE = {
     destinatari: [/^mio$/, /^m\.a$/, /^_mioIndirizzoOrari_?\(\)$/],
     etichetteDiSistema: [],
     gmailApi: [],
-    gmailApiSoloIn: {}
+    gmailApiSoloIn: {},
+    // accorciare una serie gia' sul calendario (setRecurrence) cambia eventi
+    // che il docente vede: solo nel taglio del cambio d'orario, e solo sulle
+    // serie che trova _orariNostri_, che guarda il contrassegno
+    metodiSoloIn: {
+      setRecurrence: { funzioni: ['_orariTaglia_'], serieDa: '_orariNostri_',
+                       contrassegno: /\.\s*getTag\s*\(\s*_ORARI_TAG\s*\)\s*===\s*_ORARI_TAG_VALORE\b/ }
+    }
   }
 };
+
+// dentro le funzioni che accorciano le serie, i modi di prendere una serie
+// senza passare da chi guarda il contrassegno
+const PRENDE_EVENTI = /\.\s*(getEvents|getEventsForDay|getEventSeries|getEventSeriesById|getEventById|createEventSeries|createEvent|createAllDayEvent\w*)\s*\(/g;
 
 /**
  * Dove sta il corpo di ogni funzione dichiarata nel testo nudo: nome ->
@@ -419,6 +435,46 @@ function controlla(nomeFile, sorgenteIntero) {
                              : f + ' usata fuori da ' + pubbliche.join(' e ')) + ' (riga ' + riga(u.index) + ')');
       }
       if (stringhe.some(s => s.trim() === f)) fuori.push('il nome ' + f + ' da solo fra virgolette (un trigger?)');
+    }
+  }
+
+  // i metodi ammessi solo dentro certe funzioni (setRecurrence solo nel taglio
+  // del cambio d'orario), e li' solo sulle serie trovate da chi guarda il
+  // contrassegno: niente getEvents, getEventSeriesById... nella funzione
+  // stessa. Il metodo non si prende come valore e non si chiama per nome
+  // calcolato (x[k](...)), che sfuggirebbe a tutto il resto.
+  const metodiSoloIn = regole.metodiSoloIn || {};
+  if (Object.keys(metodiSoloIn).length) {
+    const calcolata = /\]\s*\(/g;
+    while ((m = calcolata.exec(nudo))) fuori.push('metodo chiamato con un nome calcolato (riga ' + riga(m.index) + ')');
+  }
+  for (const metodo of Object.keys(metodiSoloIn)) {
+    const r = metodiSoloIn[metodo];
+    for (const f of r.funzioni.concat([r.serieDa])) {
+      const quante = (corpi[f] || []).length;
+      if (quante !== 1) fuori.push('la funzione ' + f + ' e\' dichiarata ' + quante + ' volte');
+    }
+    const uso = new RegExp('\\.\\s*' + metodo + '\\b(\\s*\\()?', 'g');
+    while ((m = uso.exec(nudo))) {
+      if (!m[1]) { fuori.push(metodo + ' presa come valore (riga ' + riga(m.index) + ')'); continue; }
+      if (!dentroA(corpi, r.funzioni, m.index)) {
+        fuori.push(metodo + ' fuori da ' + r.funzioni.join(' e ') + ' (riga ' + riga(m.index) + ')');
+      }
+    }
+    for (const f of r.funzioni) {
+      for (const [da, a] of (corpi[f] || [])) {
+        const corpo = nudo.slice(da, a);
+        PRENDE_EVENTI.lastIndex = 0;
+        let p;
+        while ((p = PRENDE_EVENTI.exec(corpo))) {
+          fuori.push('in ' + f + ' le serie vengono solo da ' + r.serieDa + ', non da ' + p[1] +
+                     ' (riga ' + riga(da + p.index) + ')');
+        }
+        if (!new RegExp('\\b' + r.serieDa + '\\s*\\(').test(corpo)) fuori.push(f + ' non prende le serie da ' + r.serieDa);
+      }
+    }
+    for (const [da, a] of (corpi[r.serieDa] || [])) {
+      if (!r.contrassegno.test(nudo.slice(da, a))) fuori.push(r.serieDa + ' non guarda il contrassegno');
     }
   }
 
@@ -708,6 +764,46 @@ function provaDellaProva() {
     'servizio non ammesso: SpreadsheetApp');
   deveFallire('Orari.gs', 'una copia in cc negli orari, con la chiave fra virgolette, viene trovata',
     sostituisci(orari, 'to: m.a,', 'to: m.a, "cc": \'collega@scuola-esempio.edu.it\','), 'copia (cc)');
+
+  // accorciare una serie (setRecurrence) si', ma solo nel taglio del cambio
+  // d'orario e solo sulle serie trovate con il contrassegno
+  const ACCORCIA = '.setRecurrence(';
+  const accorciaDiOggi = smonta(orari).codice.split(ACCORCIA).length - 1;
+  verifica('gli orari di oggi accorciano le serie (' + accorciaDiOggi + ' chiamata), e il controllo lo lascia fare ' +
+    'solo li\'', accorciaDiOggi >= 1 && controlla('Orari.gs', orari).length === 0);
+  const TAGLIA = 'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {';
+  const NOSTRI = 'try { nostro = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE); } catch (e) { }';
+  deveFallire('Orari.gs', 'una serie accorciata fuori dal taglio (in ORARI_4_calendario) viene trovata',
+    inserisci(orari, 'function _orariCreaSerie_(cal, voce, c, d, doc) {',
+      '\n  cal.getEvents(new Date(), new Date())[0].getEventSeries().setRecurrence(CalendarApp.newRecurrence(), ' +
+      'new Date(), new Date());'),
+    'setRecurrence fuori da _orariTaglia_');
+  deveFallire('Orari.gs', 'anche in una funzione nuova con un nome quasi uguale',
+    orari + '\nfunction _orariTagliaTutto_(cal) {\n  cal.getEvents(new Date(), new Date())[0].getEventSeries()' +
+      '.setRecurrence(CalendarApp.newRecurrence(), new Date(), new Date());\n}\n',
+    'setRecurrence fuori da _orariTaglia_');
+  deveFallire('Orari.gs', 'o in un secondo _orariTaglia_, che prenderebbe il posto di quello vero',
+    orari + '\nfunction _orariTaglia_(cal) {\n  _orariNostri_(cal, new Date(), new Date())[0].serie' +
+      '.setRecurrence(CalendarApp.newRecurrence(), new Date(), new Date());\n}\n',
+    'la funzione _orariTaglia_ e\' dichiarata 2 volte');
+  deveFallire('Orari.gs', 'nel taglio, una serie presa da getEvents invece che da _orariNostri_ viene trovata',
+    inserisci(orari, TAGLIA,
+      '\n  cal.getEvents(periodo.inizio, periodo.fine)[0].getEventSeries().setRecurrence(' +
+      'CalendarApp.newRecurrence(), periodo.inizio, periodo.fine);'),
+    'in _orariTaglia_ le serie vengono solo da _orariNostri_');
+  deveFallire('Orari.gs', 'o cercata per id', inserisci(orari, TAGLIA,
+      '\n  cal.getEventSeriesById(\'x\').setRecurrence(CalendarApp.newRecurrence(), periodo.inizio, periodo.fine);'),
+    'in _orariTaglia_ le serie vengono solo da _orariNostri_');
+  deveFallire('Orari.gs', 'un _orariNostri_ che non guarda piu\' il contrassegno viene trovato',
+    sostituisci(orari, NOSTRI, 'nostro = true;'), '_orariNostri_ non guarda il contrassegno');
+  deveFallire('Orari.gs', 'setRecurrence chiamata con un nome calcolato, anche nel taglio, viene trovata',
+    inserisci(orari, TAGLIA, '\n  var k = \'setRe\' + \'currence\'; cal[k](CalendarApp.newRecurrence(), ' +
+      'periodo.inizio, periodo.fine);'),
+    'metodo chiamato con un nome calcolato');
+  deveFallire('Orari.gs', 'e setRecurrence presa come valore',
+    inserisci(orari, 'function _orariCreaSerie_(cal, voce, c, d, doc) {',
+      '\n  var accorcia = cal.getEvents(new Date(), new Date())[0].getEventSeries().setRecurrence;'),
+    'setRecurrence presa come valore');
 }
 
 // ---------------------------------------------------------------------------
