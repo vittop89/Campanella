@@ -58,7 +58,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   earlier as there are lessons moved by hand before it (counted, not
   measured) or moved past the next week: a first lesson moved by hand, by
   four days, to the week before or past the next lesson, neither moves the
-  whole series nor disappears nor leaves a lesson too many. With two shapes
+  whole series nor disappears nor leaves a lesson too many. A lesson moved
+  before the first regular one with a week missing in between (the first
+  lesson moved by one to three days and the second cancelled) stays in the
+  week it falls in, when Campanella could have put a lesson there (from the
+  start of the period, not on a day off); otherwise it is counted as
+  above. With two shapes
   equally frequent (only in very short series) the weekday written in the
   description, where Campanella put the series, decides, then the earliest
   lesson. Only events with the mark are shortened or removed; a series or a

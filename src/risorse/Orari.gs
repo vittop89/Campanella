@@ -570,6 +570,9 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
   for (var i = 0; i < nostri.length; i++) {
     var voce = nostri[i];
     if (voce.ultimo < validoDal) continue;          // finisce prima del cambio: resta com'e'
+    // la prima lezione di nuovo, con il periodo: una lezione spostata sta
+    // nella sua settimana solo dove Campanella metteva lezioni
+    if (voce.serie) _orariPrimaLezione_(voce, periodo);
     if (!voce.contrassegno) {
       // la sola descrizione non basta per cambiarla: la nomino e basta
       stato.nSenzaContrassegno++;
@@ -819,9 +822,11 @@ function _orariNostri_(cal, inizio, fine) {
  * prima lezione e' la prima con quelli, o qualche settimana prima se ci sono
  * lezioni spostate che vengono da prima (vedi sotto). Poi voce.ultimo,
  * l'inizio dell'ultima lezione, e voce.irregolare: ci sono lezioni spostate,
- * o settimane che mancano (cancellate a mano).
+ * o settimane che mancano (cancellate a mano). Con il periodo (inizio e
+ * giorni senza lezione, come da _orariPeriodo_) una lezione spostata prima
+ * della prima regolare sta, se puo', nella settimana in cui cade.
  */
-function _orariPrimaLezione_(voce) {
+function _orariPrimaLezione_(voce, periodo) {
   var settimana = 7 * 24 * 3600 * 1000;
   var lezioni = voce.lezioni.sort(function (x, y) { return x.inizio - y.inizio; });
   var conta = {};
@@ -865,6 +870,16 @@ function _orariPrimaLezione_(voce) {
   // (mai meno di zero: una lezione spostata proprio all'ora di un'altra conta due volte)
   var vuoteInMezzo = Math.max(0, Math.round((ultimaRegolare.inizio - prima.inizio) / settimana) + 1 - quante);
   var indietro = primaDellaPrima + Math.max(0, inMezzo - vuoteInMezzo);
+  // la prima lezione spostata di qualche giorno e la seconda cancellata: fra
+  // la spostata e la prima regolare manca una settimana, e contata la
+  // spostata finirebbe nella settimana cancellata (e dopo il taglio non ci
+  // sarebbe piu'). Con il periodo, ogni lezione spostata prima della prima
+  // regolare sta nella settimana in cui cade, se puo' (_orariSettimaneProprie_);
+  // anticipata alla settimana prima dell'inizio o di un giorno senza lezione,
+  // dove Campanella non ha messo lezioni, si conta come sopra
+  if (periodo && primaDellaPrima && inMezzo <= vuoteInMezzo) {
+    indietro = Math.max(indietro, _orariSettimaneProprie_(lezioni, forma, prima, periodo));
+  }
   var p = prima.inizio;
   voce.inizio = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * indietro,
                          p.getHours(), p.getMinutes(), p.getSeconds());
@@ -872,6 +887,32 @@ function _orariPrimaLezione_(voce) {
   voce.ultimo = lezioni[lezioni.length - 1].inizio;
   var attese = Math.round((ultimaRegolare.inizio - voce.inizio) / settimana) + 1;
   voce.irregolare = (quante < lezioni.length) || (lezioni.length < attese);
+}
+
+/**
+ * Per _orariPrimaLezione_: le lezioni spostate prima della prima regolare,
+ * ognuna nella settimana in cui cade (le settimane della serie cominciano
+ * nel giorno della prima regolare, quello della descrizione). Quante
+ * settimane prima della prima regolare comincia allora la serie; 0 se non si
+ * puo': due spostate nella stessa settimana, o una settimana il cui giorno
+ * viene prima dell'inizio del periodo o e' senza lezione, dove Campanella non
+ * ha messo lezioni.
+ */
+function _orariSettimaneProprie_(lezioni, forma, prima, periodo) {
+  var p = prima.inizio, viste = [], fino = 0;
+  var giornoPrima = new Date(p.getFullYear(), p.getMonth(), p.getDate());
+  for (var i = 0; i < lezioni.length; i++) {
+    var t = lezioni[i].inizio;
+    if (t >= p || _orariForma_(lezioni[i]) === forma) continue;
+    var giorni = Math.round((giornoPrima - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / (24 * 3600 * 1000));
+    var k = Math.ceil(giorni / 7);
+    var giorno = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * k);
+    if (k < 1 || viste.indexOf(k) >= 0 || giorno < periodo.inizio ||
+        _orariSospeso_(_orariChiaveData_(giorno), periodo.sospensioni)) return 0;
+    viste.push(k);
+    fino = Math.max(fino, k);
+  }
+  return fino;
 }
 
 /**

@@ -1432,6 +1432,72 @@ if (conCalendario) {
     contesto._orariPrimaLezione_(conVirgola);
     verifica('  ...e con "ROSSI, MARIA" nel nome il giorno e\' mercoledi\', non martedi\'',
       conVirgola.inizio.getTime() === mer15.getTime() && conVirgola.fine.getTime() === mer16.getTime());
+
+    // la prima lezione spostata di uno o tre giorni e la seconda cancellata:
+    // fra la spostata e la prima regolare manca una settimana. La spostata e'
+    // della settimana in cui cade, se li' Campanella poteva mettere una
+    // lezione (dal primo giorno del periodo, e non in un giorno senza
+    // lezione); altrimenti si conta come prima (anticipata alla settimana prima)
+    const lunedi = '[Campanella] Orario di ' + c.docente + ', Lunedi\', 1a ora (prova)';
+    const dal14 = { inizio: new Date(2026, 8, 14), fine: new Date(2027, 5, 10), sospensioni: [] };
+    const lez = (mese, giorno, ora) => ({ inizio: new Date(2026, mese, giorno, ora, 0), fine: new Date(2026, mese, giorno, ora + 1, 0) });
+    const alle = (voce, mese, giorno, ora) => voce.inizio.getTime() === new Date(2026, mese, giorno, ora, 0).getTime() &&
+      voce.fine.getTime() === new Date(2026, mese, giorno, ora + 1, 0).getTime();
+    for (const giorni of [1, 3]) {
+      const v = { descrizione: lunedi, lezioni: [lez(8, 14 + giorni, 9), lez(8, 28, 9), lez(9, 5, 9), lez(9, 12, 9)] };
+      contesto._orariPrimaLezione_(v, dal14);
+      verifica('la prima lezione spostata di ' + giorni + (giorni === 1 ? ' giorno' : ' giorni') + ' e la seconda ' +
+        'cancellata: la serie comincia dal lunedi\' 14/09 (' + chiave(v.inizio) + '), e si nota',
+        alle(v, 8, 14, 9) && v.irregolare === true);
+    }
+    const anticipataPrima = { descrizione: lunedi, lezioni: [lez(8, 9, 15), lez(8, 21, 9), lez(8, 28, 9)] };
+    contesto._orariPrimaLezione_(anticipataPrima, dal14);
+    verifica('  ...ma la prima anticipata alla settimana prima dell\'inizio del periodo e\' ancora del 14/09 (' +
+      chiave(anticipataPrima.inizio) + ')', alle(anticipataPrima, 8, 14, 9));
+    const dopoIlPonte = { descrizione: lunedi, lezioni: [lez(9, 9, 15), lez(9, 19, 9), lez(9, 26, 9)] };
+    contesto._orariPrimaLezione_(dopoIlPonte, { inizio: dal14.inizio, fine: dal14.fine,
+                                                sospensioni: [{ dal: '2026-10-05', al: '2026-10-05', nome: 'ponte' }] });
+    verifica('  ...e la prima dopo un ponte, anticipata alla settimana del ponte, e\' ancora del 12/10 (' +
+      chiave(dopoIlPonte.inizio) + ')', alle(dopoIlPonte, 9, 12, 9));
+    const senzaPeriodo = { descrizione: lunedi, lezioni: [lez(8, 15, 9), lez(8, 28, 9), lez(9, 5, 9)] };
+    contesto._orariPrimaLezione_(senzaPeriodo);
+    verifica('  ...e senza il periodo si conta come prima: dal 21/09 (' + chiave(senzaPeriodo.inizio) + ')',
+      alle(senzaPeriodo, 8, 21, 9));
+    // due lezioni spostate nella stessa settimana: non si sa di quali settimane sono, si contano
+    const dueNellaStessa = { descrizione: lunedi, lezioni: [lez(8, 15, 9), lez(8, 17, 9), lez(9, 5, 9), lez(9, 12, 9)] };
+    contesto._orariPrimaLezione_(dueNellaStessa, dal14);
+    verifica('  ...e con due spostate nella stessa settimana si contano: dal 21/09 (' + chiave(dueNellaStessa.inizio) + ')',
+      alle(dueNellaStessa, 8, 21, 9));
+
+    // e nel cambio d'orario vero: la serie tiene il suo inizio, e la lezione
+    // spostata non sparisce
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    const calB = calendari[0];
+    const conSettimanaCancellata = vive(calB).filter(s => chiave(s.inizio) < validoDal &&
+      chiave(s.ricorrenza.until) >= validoDal && s.inizi(giornoPrima).length >= 3 && chiave(s.inizio) === chiave(s.inizioOriginale));
+    if (conSettimanaCancellata.length >= 2) {
+      const coppie = [[conSettimanaCancellata[0], 1], [conSettimanaCancellata[1], 3]];
+      for (const [s, giorni] of coppie) {
+        const t = s.inizio, durata = s.fine - s.inizio;
+        const nuovo = new Date(t.getFullYear(), t.getMonth(), t.getDate() + giorni, t.getHours(), t.getMinutes());
+        s.sposta(0, nuovo, new Date(nuovo.getTime() + durata));
+        s.cancella(1);
+      }
+      const primaB = lezioniSul(calB, primoGiorno, giornoPrima);
+      docOriginale.celle = ruotata(celleOriginali);
+      contesto.ORARI_5_cambioOrario();
+      const dopoB = lezioniSul(calB, primoGiorno, giornoPrima);
+      verifica('con la prima lezione spostata di uno o tre giorni e la seconda cancellata, le lezioni prima del cambio ' +
+        'restano come erano (' + primaB.length + ')' + (uguali(dopoB, primaB) ? '' : ' (sparite: ' +
+          primaB.filter(x => dopoB.indexOf(x) < 0).join(', ') + '; comparse: ' + dopoB.filter(x => primaB.indexOf(x) < 0).join(', ') + ')'),
+        uguali(dopoB, primaB));
+      verifica('  ...e le due serie tengono il loro inizio',
+        coppie.every(([s]) => s.inizio.getTime() === s.inizioOriginale.getTime()));
+      docOriginale.celle = celleOriginali.slice();
+    } else {
+      verifica('ci sono due serie da accorciare per la prima lezione spostata e la seconda cancellata', false);
+    }
   }
 
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');

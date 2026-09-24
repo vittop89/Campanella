@@ -1461,7 +1461,7 @@ function provaDellaProva() {
   const QUALUNQUE = '{ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: ev.getStartTime(), ' +
     'fine: ev.getEndTime(), ultimo: ev.getStartTime() }';
   const SINGOLO = 'fuori.push({ evento: ev, contrassegno: contrassegno,';
-  const PRIMA_LEZIONE = 'function _orariPrimaLezione_(voce) {';
+  const PRIMA_LEZIONE = 'function _orariPrimaLezione_(voce, periodo) {';
   const VOCE_TAGLIO = 'var voce = nostri[i];';
   const RACCOLTA = 'in _orariNostri_ fuori si usa solo cosi\'';
   deveFallire('Orari.gs', '(a) ogni evento messo fra i nostri con fuori.unshift, prima della guardia, viene trovato',
