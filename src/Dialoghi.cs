@@ -423,8 +423,7 @@ namespace Campanella
                 "(999 gia' spuntati, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
                 "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 che " +
                 "sembrano di una classe, con degli indirizzi (si tolgono in Gmail). In fondo, 999 scelti prima che " +
-                "nel file non ci sono. 999 filtri scelti prima sembrano di una classe e cercano degli indirizzi: non " +
-                "sono piu' fra quelli da togliere (se non ti servono, toglili in Gmail).",
+                "nel file non ci sono." + TestoDelleClassiTolti(999),
                 Tema.Normale, lblEsito.Width);
             Controls.Add(lblEsito);
             y += Math.Max(38, lblEsito.Height + 10);
@@ -665,12 +664,31 @@ namespace Campanella
         /// <summary>I filtri scelti prima che sembrano di una classe e cercano degli indirizzi: non sono piu' scelti, e lo dice.</summary>
         string DelleClassiTolti()
         {
-            if (sceltiDelleClassi == 0) return "";
-            return sceltiDelleClassi == 1
+            return TestoDelleClassiTolti(sceltiDelleClassi);
+        }
+
+        /// <summary>Quello che DelleClassiTolti dice di n filtri; "" se n e' 0.</summary>
+        static string TestoDelleClassiTolti(int n)
+        {
+            if (n == 0) return "";
+            return n == 1
                 ? " 1 filtro scelto prima sembra di una classe e cerca degli indirizzi: non e' piu' fra quelli da " +
-                  "togliere (se non ti serve, toglilo in Gmail)."
-                : " " + sceltiDelleClassi + " filtri scelti prima sembrano di una classe e cercano degli indirizzi: non " +
-                  "sono piu' fra quelli da togliere (se non ti servono, toglili in Gmail).";
+                  "togliere (se non ti serve, toglilo in Gmail). " + Sostituisci(1)
+                : " " + n + " filtri scelti prima sembrano di una classe e cercano degli indirizzi: non " +
+                  "sono piu' fra quelli da togliere (se non ti servono, toglili in Gmail). " + Sostituisci(n);
+        }
+
+        /// <summary>
+        /// Che cosa fare della configurazione gia' incollata quando dalla scelta
+        /// sono usciti dei filtri con degli indirizzi (quelli delle classi): puo'
+        /// averli ancora, con gli indirizzi (con la 1.5.3 li scriveva tutti), ed
+        /// EXTRA_togliFiltri, togliendoli, ne scriverebbe la copia nel registro.
+        /// Va sostituita con quella nuova.
+        /// </summary>
+        public static string Sostituisci(int n)
+        {
+            return "Copia di nuovo la configurazione (passo 5) e sostituisci quella nel progetto dello script: quella " +
+                   "di prima puo' avere ancora " + (n == 1 ? "quel filtro" : "quei filtri") + ", con gli indirizzi.";
         }
 
         /// <summary>Le righe nella griglia; spunte null = spuntate quelle con una voce (i filtri scelti prima).</summary>

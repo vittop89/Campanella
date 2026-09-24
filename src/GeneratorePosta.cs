@@ -1278,11 +1278,14 @@ namespace Campanella
             return "Classi: " + (parti.Count == 0 ? "niente da cambiare" : string.Join(", ", parti.ToArray())) + "." +
                    (daCancellare.Count == 0 ? "" : " Nel progetto dello script cancella " +
                     string.Join(", ", daCancellare.ToArray()) + ": ha gli indirizzi degli studenti.") +
+                   // la configurazione incollata prima puo' averli ancora, con gli indirizzi
                    (filtriTolti == 0 ? "" : filtriTolti == 1
                     ? " 1 filtro di Gmail scelto prima sembra di una classe e cerca degli indirizzi: non lo togliera' " +
-                      "lo script, toglilo tu in Gmail."
+                      "lo script, toglilo tu in Gmail. La configurazione di prima puo' averlo ancora, con gli " +
+                      "indirizzi: sostituisci quella nel progetto dello script con quella nuova."
                     : " " + filtriTolti + " filtri di Gmail scelti prima sembrano di una classe e cercano degli " +
-                      "indirizzi: non li togliera' lo script, toglili tu in Gmail.");
+                      "indirizzi: non li togliera' lo script, toglili tu in Gmail. La configurazione di prima puo' " +
+                      "averli ancora, con gli indirizzi: sostituisci quella nel progetto dello script con quella nuova.");
         }
 
         /// <summary>La regola di una classe (per chiave) sotto l'etichetta madre, o null.</summary>

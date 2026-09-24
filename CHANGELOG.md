@@ -334,7 +334,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   written to Configurazione.gs, and the window says so; the ones dropped at
   start-up are also shown in amber in step 4, under "Filtri che hai gia' in
   Gmail...", until the window is opened (the count is not saved). Remove it
-  in Gmail.
+  in Gmail. The window, step 4 and "Usa queste classi" also say to copy the
+  configuration again and replace the one in the script project: the one
+  pasted before may still have that filter, with the addresses (1.5.3 wrote
+  all the criteria of the chosen filters).
 - The same format 3 of the settings files (see Orari above) keeps 1.5.3 from
   overwriting them for the classes too: it would drop unoQualsiasi, and a
   class rule would silently want the subject AND the students. The data file

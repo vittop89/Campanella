@@ -115,7 +115,10 @@ Inglese», come «5A Praga») non basta: un filtro così, se ha gli indirizzi
 degli studenti, non spuntarlo. Se
 l'avevi scelto prima (con la 1.5.3, o prima di creare le classi sotto
 quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa
-queste classi», e non lo scrive nella configurazione. Il file che Gmail
+queste classi», e non lo scrive nella configurazione; quella che avevi già
+incollato nel progetto dello script può averlo ancora, con gli indirizzi
+(la 1.5.3 ci scriveva tutti i criteri): copia di nuovo la configurazione e
+sostituiscila. Il file che Gmail
 esporta (di solito `mailFilters.xml`) contiene tutti i tuoi filtri: dopo
 averlo aperto in Campanella puoi cancellarlo. Quando Campanella copia
 negli appunti la configurazione degli script, i dati degli orari, il file

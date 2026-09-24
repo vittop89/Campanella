@@ -2182,14 +2182,19 @@ namespace Campanella
             Tema.Applica(lblFiltri);
         }
 
-        /// <summary>Quello che il passo 4 dice dei filtri tolti dalla scelta all'avvio.</summary>
+        /// <summary>
+        /// Quello che il passo 4 dice dei filtri tolti dalla scelta all'avvio.
+        /// La configurazione incollata prima (con la 1.5.3 aveva tutti i
+        /// criteri) puo' averli ancora, con gli indirizzi: va sostituita.
+        /// </summary>
         static string TestoToltiAllAvvio(int tolti)
         {
             return (tolti == 1)
                 ? " All'avvio ho tolto dalla scelta 1 filtro che sembra di una classe e cerca degli indirizzi " +
-                  "(forse gli studenti): se non ti serve, toglilo in Gmail."
+                  "(forse gli studenti): se non ti serve, toglilo in Gmail. " + FormFiltriGmail.Sostituisci(1)
                 : " All'avvio ho tolto dalla scelta " + tolti + " filtri che sembrano di una classe e cercano " +
-                  "degli indirizzi (forse gli studenti): se non ti servono, toglili in Gmail.";
+                  "degli indirizzi (forse gli studenti): se non ti servono, toglili in Gmail. " +
+                  FormFiltriGmail.Sostituisci(tolti);
         }
 
         void LeggiSpunteRegole()

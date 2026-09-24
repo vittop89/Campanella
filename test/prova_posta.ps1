@@ -1710,6 +1710,17 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $ff12b.Dispose()
         Verifica "la finestra dei filtri aperta dopo l'avvio dice quello tolto all'avvio ('$esito12b')" (
             $null -ne $campoTolti -and $esito12b -match "1 filtro scelto prima sembra di una classe e cerca degli indirizzi")
+        # la configurazione incollata prima (con la 1.5.3 aveva tutti i criteri)
+        # puo' avere ancora quel filtro, con gli indirizzi: va sostituita. Lo
+        # dicono la finestra, il passo 4 e "Usa queste classi"
+        $sostituisci = "Copia di nuovo la configurazione \(passo 5\) e sostituisci quella nel progetto dello script: " +
+                       "quella di prima puo' avere ancora quel filtro, con gli indirizzi"
+        $mTolti = $asm.GetType('Campanella.PaginaPosta').GetMethod('TestoToltiAllAvvio', $FS)
+        $passo4Uno = [string]$mTolti.Invoke($null, @([int]1))
+        $passo4Due = [string]$mTolti.Invoke($null, @([int]2))
+        Verifica "e dice di copiare di nuovo la configurazione e sostituire quella nel progetto: la finestra ('$esito12b') e il passo 4 ('$passo4Uno')" (
+            $esito12b -match $sostituisci -and $passo4Uno -match $sostituisci -and
+            $passo4Due -match ($sostituisci -replace 'quel filtro', 'quei filtri'))
         # il numero non si salva: al prossimo avvio non c'e' piu' niente da togliere, e niente da dire
         $statoCs = Get-Content -Raw (Join-Path $radice 'src\Stato.cs')
         Verifica "e il numero non va nei file delle impostazioni e dei dati (Stato.cs lo nomina solo dove lo dichiara)" (
@@ -1725,7 +1736,8 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
         $esito13 = [string](MC 'Applica').Invoke($null, @($s13.PSObject.BaseObject, 'Corsi', (Classi8 @('Potenziamento')).PSObject.BaseObject, $false))
         Verifica "creando le classi sotto la sua madre, 'Usa queste classi' lo toglie dai filtri da togliere e lo dice ('$esito13')" (
             (@((Leggi $s13 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }) -join ',') -eq 'Famiglie' -and
-            $esito13 -match "1 filtro di Gmail scelto prima sembra di una classe" -and -not ($esito13 -match 'studenti\.scuola'))
+            $esito13 -match "1 filtro di Gmail scelto prima sembra di una classe" -and -not ($esito13 -match 'studenti\.scuola') -and
+            $esito13 -match "La configurazione di prima puo' averlo ancora, con gli indirizzi: sostituisci quella nel progetto dello script")
 
         # -------------------------------------------------------------------
         Intestazione 'LE MIE CLASSI: LA REGOLA DI UNA CLASSE NELLA SUA FINESTRA'
