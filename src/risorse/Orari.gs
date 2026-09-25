@@ -58,17 +58,39 @@
  *    (calendario.colori in DatiOrari.gs). Del calendario cambiano solo il
  *    colore scelto nell'applicazione e il fuso orario, se non e' quello dello
  *    script.
+ *
+ *  IL CALENDARIO IN UN ALTRO ACCOUNT
+ *    Per mettere l'orario nel Google Calendar di un altro account (per
+ *    esempio il tuo personale) l'applicazione prepara da questo file
+ *    Calendario.gs, la versione solo calendario: le stesse funzioni del
+ *    calendario, con gli stessi nomi, senza quelle delle email, da incollare
+ *    in un progetto di quell'account con un DatiOrari.gs che ha soltanto il
+ *    tuo orario. Le parti che servono solo alle email stanno fra le righe
+ *    "// [SOLO EMAIL]" e "// [FINE SOLO EMAIL]": in Calendario.gs non ci
+ *    sono. Le righe fra "// [SOLO CALENDARIO.GS]" e
+ *    "// [FINE SOLO CALENDARIO.GS]" qui sono commenti, e li' diventano
+ *    codice. Questa intestazione, li', e' un'altra.
  * ============================================================================
  */
 
 var _ORARI_VERSIONE      = '1.5.0';
 var _ORARI_MAX_SECONDI   = 260;
+// [SOLO EMAIL] -----------------------------------------------------------------
+// l'invio degli orari: dove si ricorda il punto, chi riprende, l'etichetta
 var _ORARI_CHIAVE        = 'CAMPANELLA_ORARI_PROGRESSO';
 var _ORARI_CHIAVE_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
-var _ORARI_CHIAVE_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';  // il lavoro a meta' sul calendario
-var _ORARI_CHIAVE_COLORI = 'CAMPANELLA_ORARI_COLORI_PROGRESSO';  // quello di ORARI_6_coloraLezioni
 var _ORARI_TRIGGER       = 'ORARI_2_invia';
 var _ORARI_TRIGGER_CLASSI = 'ORARI_3_inviaOrariClassi';
+var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
+// chi altro puo' tenere il blocco dello script, per i messaggi: nel progetto
+// della Posta anche un invio degli orari e il riordino della posta
+var _ORARI_ALTRE_ESECUZIONI = 'il calendario, un invio degli orari o il riordino della posta';
+// [FINE SOLO EMAIL] ------------------------------------------------------------
+// [SOLO CALENDARIO.GS] (in Calendario.gs queste righe sono codice) -------------
+// var _ORARI_ALTRE_ESECUZIONI = 'il calendario';
+// [FINE SOLO CALENDARIO.GS] ----------------------------------------------------
+var _ORARI_CHIAVE_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';  // il lavoro a meta' sul calendario
+var _ORARI_CHIAVE_COLORI = 'CAMPANELLA_ORARI_COLORI_PROGRESSO';  // quello di ORARI_6_coloraLezioni
 var _ORARI_TRIGGER_CALENDARIO = 'ORARI_4_calendario';  // le riprese del calendario: la funzione stessa
 var _ORARI_TRIGGER_CAMBIO = 'ORARI_5_cambioOrario';
 var _ORARI_TRIGGER_COLORI = 'ORARI_6_coloraLezioni';
@@ -78,7 +100,6 @@ var _ORARI_NOMI_COLORI   = ['', 'Lavanda', 'Salvia', 'Vinaccia', 'Fenicottero', 
                             'Grafite', 'Mirtillo', 'Basilico', 'Pomodoro'];
 var _ORARI_PAUSA_MS      = 500;                // fra una modifica al calendario e l'altra
 var _ORARI_MAX_RIFIUTI   = 10;                 // limiti di Google di fila prima di smettere di riprovare
-var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
 var _ORARI_TAG           = 'campanella';       // contrassegno degli eventi creati qui
 var _ORARI_TAG_VALORE    = 'orario';
 // il secondo contrassegno delle serie e degli eventi rifatti dal cambio
@@ -99,8 +120,14 @@ var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';      // quello delle scuole italiane: 
 function ORARI_1_anteprima() {
   var d = _orariDati_();
   var righe = [];
+  // [SOLO EMAIL] ---------------------------------------------------------------
   righe.push('ANTEPRIMA - non viene mandato niente.');
   righe.push('Orari.gs versione ' + _ORARI_VERSIONE);
+  // [FINE SOLO EMAIL] ----------------------------------------------------------
+  // [SOLO CALENDARIO.GS] -------------------------------------------------------
+  // righe.push('ANTEPRIMA - sul calendario non viene messo niente.');
+  // righe.push('Calendario.gs versione ' + _ORARI_VERSIONE);
+  // [FINE SOLO CALENDARIO.GS] --------------------------------------------------
   var fuso = Session.getScriptTimeZone();
   righe.push('Fuso orario dello script: ' + fuso);
   if (fuso !== _ORARI_FUSO_SCUOLA) {
@@ -114,19 +141,48 @@ function ORARI_1_anteprima() {
   righe.push('Periodo: ' + (d.periodo || '(non indicato)'));
   righe.push('Docenti nel file: ' + d.docenti.length);
   righe.push('Giorni: ' + d.giorni.join(' ') + '   Ore al giorno: ' + d.ore);
-  righe.push('Destinatario: ' + _mioIndirizzoOrari_() + ' (solo tu)');
-  righe.push('Etichetta dei messaggi mandati: "' + _orariNomeEtichetta_() + '", se esiste');
-  righe.push('');
-
+  // [SOLO EMAIL] ---------------------------------------------------------------
+  // le email: a chi (il tuo indirizzo), con quale etichetta, quante
   var elenco = _daMandare_(d);
-  righe.push('Email da mandare: ' + elenco.length + ' (una per docente con almeno un\'ora)');
-  righe.push('Ancora disponibili oggi: ' + MailApp.getRemainingDailyQuota());
-  if (d.classi && d.classi.length) righe.push('Orari delle classi pronti: ' + d.classi.length);
+  righe = righe.concat(_orariAnteprimaInvio_(d, elenco));
+  // [FINE SOLO EMAIL] ----------------------------------------------------------
+  // [SOLO CALENDARIO.GS] -------------------------------------------------------
+  // righe.push('');
+  // [FINE SOLO CALENDARIO.GS] --------------------------------------------------
+  // il calendario: senza email e senza indirizzo, come in Calendario.gs
   if (d.calendario && d.calendario.docente) {
     righe.push('Calendario: "' + d.calendario.nome + '" per ' + d.calendario.docente +
                ', dal ' + d.calendario.inizio + ' al ' + d.calendario.fine);
     righe = righe.concat(_orariAnteprimaCalendario_(d));
+  } else {
+    righe.push('Calendario: nessuno. Per mettere il tuo orario su Google Calendar scegli il tuo nome ' +
+               'nell\'applicazione (Orari, passo 4) e rigenera DatiOrari.gs.');
   }
+  // [SOLO EMAIL] ---------------------------------------------------------------
+  righe = righe.concat(_orariAnteprimaMessaggio_(d, elenco));
+  // [FINE SOLO EMAIL] ----------------------------------------------------------
+
+  var testo = righe.join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
+// [SOLO EMAIL] -----------------------------------------------------------------
+/** Le righe dell'anteprima sulle email: destinatario, etichetta, quante e la quota di oggi. */
+function _orariAnteprimaInvio_(d, elenco) {
+  var righe = [];
+  righe.push('Destinatario: ' + _mioIndirizzoOrari_() + ' (solo tu)');
+  righe.push('Etichetta dei messaggi mandati: "' + _orariNomeEtichetta_() + '", se esiste');
+  righe.push('');
+  righe.push('Email da mandare: ' + elenco.length + ' (una per docente con almeno un\'ora)');
+  righe.push('Ancora disponibili oggi: ' + MailApp.getRemainingDailyQuota());
+  if (d.classi && d.classi.length) righe.push('Orari delle classi pronti: ' + d.classi.length);
+  return righe;
+}
+
+/** In fondo all'anteprima: il primo messaggio che partirebbe, com'e'. */
+function _orariAnteprimaMessaggio_(d, elenco) {
+  var righe = [];
   righe.push('');
   righe.push('Esempio del primo messaggio');
   righe.push('---------------------------');
@@ -139,11 +195,9 @@ function ORARI_1_anteprima() {
   } else {
     righe.push('(niente da mandare)');
   }
-
-  var testo = righe.join('\n');
-  Logger.log(testo);
-  return testo;
+  return righe;
 }
+// [FINE SOLO EMAIL] ------------------------------------------------------------
 
 /** Le righe dell'anteprima sul calendario: giorni senza lezione, serie, lezioni saltate, cambio d'orario. */
 function _orariAnteprimaCalendario_(d) {
@@ -196,6 +250,7 @@ function _orariAnteprimaCalendario_(d) {
 }
 
 
+// [SOLO EMAIL] -----------------------------------------------------------------
 // ===========================================================================
 //  2 - INVIO (a te stesso)
 //  Le email partono a blocchi: se finisce il tempo di un'esecuzione, lo
@@ -346,6 +401,7 @@ function _orariInvia_(tipo, e) {
   Logger.log(fine);
   return fine;
 }
+// [FINE SOLO EMAIL] ------------------------------------------------------------
 
 
 // ===========================================================================
@@ -437,8 +493,7 @@ function ORARI_6_coloraLezioni(e) {
     var aMeta = _orariLavoroColori_();
     var riprendo = !!aMeta && !aMeta.fermato;
     if (riprendo) _programmaRipresaOrari_(_ORARI_TRIGGER_COLORI);
-    var occupato = 'Un\'altra esecuzione (il calendario, un invio degli orari o il riordino della posta) e\' ' +
-      'ancora in corso: ' +
+    var occupato = 'Un\'altra esecuzione (' + _ORARI_ALTRE_ESECUZIONI + ') e\' ancora in corso: ' +
       (riprendo ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
     Logger.log(occupato);
     return occupato;
@@ -452,8 +507,8 @@ function ORARI_ANNULLA_calendario() {
   // tempo, rimetterebbe il suo punto e la sua ripresa subito dopo
   var lock = LockService.getUserLock();
   if (!lock.tryLock(5000)) {
-    var occupato = 'Un\'altra esecuzione (il calendario, un invio degli orari o il riordino della posta) ' +
-                   'e\' ancora in corso: riprova fra qualche minuto. Non ho tolto niente.';
+    var occupato = 'Un\'altra esecuzione (' + _ORARI_ALTRE_ESECUZIONI + ') e\' ancora in corso: ' +
+                   'riprova fra qualche minuto. Non ho tolto niente.';
     Logger.log(occupato);
     return occupato;
   }
@@ -476,8 +531,7 @@ function _orariCalendarioConLock_(funzione, e) {
     var aMeta = _orariLavoroCalendario_();
     var riprendo = !!aMeta && !aMeta.fermato;
     if (riprendo) _programmaRipresaOrari_(aMeta.funzione);
-    var occupato = 'Un\'altra esecuzione (il calendario, un invio degli orari o il riordino della posta) e\' ' +
-      'ancora in corso: ' +
+    var occupato = 'Un\'altra esecuzione (' + _ORARI_ALTRE_ESECUZIONI + ') e\' ancora in corso: ' +
       (riprendo ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
     Logger.log(occupato);
     return occupato;
@@ -2619,6 +2673,20 @@ function _orariOraDel_(giorno, inizioOre, n, minutiOra, fine) {
   return t;
 }
 
+/** Il testo di una casella della griglia (giorno, ora da 0): per il calendario e per i messaggi. */
+function _cella_(celle, d, giorno, ora) {
+  var i = giorno * d.ore + ora;
+  return (i < celle.length) ? (celle[i] || '') : '';
+}
+
+/** Una casella come si legge: "D" (e le sue varianti) e' "a disposizione". */
+function _mostraCella_(v) {
+  if (!v) return '';
+  var s = String(v).trim().toUpperCase();
+  if (s === 'D' || s === 'DISP' || s === 'DISP.' || s === 'DISPOSIZIONE') return 'a disposizione';
+  return String(v).trim();
+}
+
 /** Ore consecutive della stessa classe nello stesso giorno: un blocco solo. */
 function _orariBlocchi_(celle, d) {
   var blocchi = [];
@@ -2653,6 +2721,7 @@ function _orariDescrizione_(docente, blocco, d, dal) {
 }
 
 
+// [SOLO EMAIL] -----------------------------------------------------------------
 // ===========================================================================
 //  COSTRUZIONE DEI MESSAGGI
 // ===========================================================================
@@ -2702,18 +2771,6 @@ function _conteggioOre_(celle) {
   var n = 0;
   for (var i = 0; i < celle.length; i++) if (celle[i]) n++;
   return n;
-}
-
-function _cella_(celle, d, giorno, ora) {
-  var i = giorno * d.ore + ora;
-  return (i < celle.length) ? (celle[i] || '') : '';
-}
-
-function _mostraCella_(v) {
-  if (!v) return '';
-  var s = String(v).trim().toUpperCase();
-  if (s === 'D' || s === 'DISP' || s === 'DISP.' || s === 'DISPOSIZIONE') return 'a disposizione';
-  return String(v).trim();
 }
 
 function _html_(titolo, celle, d) {
@@ -2784,6 +2841,7 @@ function _fuga_(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+// [FINE SOLO EMAIL] ------------------------------------------------------------
 
 
 // ===========================================================================
@@ -2792,8 +2850,8 @@ function _fuga_(s) {
 function _orariDati_() {
   if (typeof ORARI === 'undefined') {
     throw new Error('Manca il file "DatiOrari.gs".\n' +
-      'Nell\'applicazione Campanella, pagina Orari, premi "Copia negli appunti" con ' +
-      '"Dati dell\'orario" selezionato e incolla in un nuovo file dell\'editor chiamato DatiOrari.');
+      'Nell\'applicazione Campanella, pagina Orari, copia i dati dell\'orario (il file DatiOrari.gs) e ' +
+      'incollali in un nuovo file dell\'editor chiamato DatiOrari.');
   }
   if (!ORARI.docenti || !ORARI.docenti.length) {
     throw new Error('In DatiOrari.gs non c\'e\' nessun docente.');
@@ -2801,6 +2859,7 @@ function _orariDati_() {
   return ORARI;
 }
 
+// [SOLO EMAIL] -----------------------------------------------------------------
 function _mioIndirizzoOrari_() {
   var e = '';
   try { e = Session.getActiveUser().getEmail(); } catch (err) { e = ''; }
@@ -2843,6 +2902,7 @@ function _etichettaInviati_(oggetto) {
     Logger.log('Etichetta "' + nome + '" non messa: ' + e.message);
   }
 }
+// [FINE SOLO EMAIL] ------------------------------------------------------------
 
 function _programmaRipresaOrari_(funzione) {
   _togliTriggerOrari_(funzione);
