@@ -1603,6 +1603,8 @@ namespace Campanella
             sb.AppendLine("5.  Crea un altro file: \"+\" accanto a File -> Script -> chiamalo");
             sb.AppendLine("    DatiOrari. Incolla dentro i \"Dati del tuo orario\" (voce 2 del menu).");
             sb.AppendLine("    Salva. Sono due file in tutto: non servono ne' la Posta ne' Orari.gs.");
+            sb.AppendLine("    Non i dati di tutto il tabellone (quelli del passo 3): porterebbero qui");
+            sb.AppendLine("    i colleghi, e Calendario.gs si ferma e te lo dice.");
             sb.AppendLine();
             sb.AppendLine("6.  Scegli la funzione  ORARI_4_calendario  ed Esegui. La prima volta");
             sb.AppendLine("    Google chiede di autorizzare lo script: Rivedi autorizzazioni, scegli");

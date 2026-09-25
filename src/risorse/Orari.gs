@@ -3318,6 +3318,19 @@ function _orariDati_() {
   if (!ORARI.docenti || !ORARI.docenti.length) {
     throw new Error('In DatiOrari.gs non c\'e\' nessun docente.');
   }
+  // [SOLO CALENDARIO.GS] -------------------------------------------------------
+  // // nel progetto dell'altro account vanno i dati del solo docente: quelli di
+  // // tutto il tabellone (del passo 3, o del progetto della scuola) portano
+  // // qui i colleghi e gli orari delle classi
+  // if (ORARI.docenti.length > 1 || typeof ORARI.classi !== 'undefined' ||
+  //     typeof ORARI.oggettoDocente !== 'undefined' || typeof ORARI.nota !== 'undefined') {
+  //   throw new Error('Questo DatiOrari.gs e\' quello di tutto il tabellone (' + ORARI.docenti.length + ' docenti' +
+  //     (ORARI.classi ? ', con gli orari delle classi' : '') + '): in questo account vanno soltanto i dati del tuo ' +
+  //     'orario. Nell\'applicazione, pagina Orari, passo 4 ("in un altro account Google"), copia i "Dati del tuo ' +
+  //     'orario" (voce 2 del menu) e incollali qui nel file DatiOrari, al posto di tutto quello che c\'e\'. Non ho ' +
+  //     'toccato il calendario.');
+  // }
+  // [FINE SOLO CALENDARIO.GS] --------------------------------------------------
   return ORARI;
 }
 

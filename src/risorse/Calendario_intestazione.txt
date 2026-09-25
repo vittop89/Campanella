@@ -13,10 +13,12 @@
  *  DatiOrari.gs "solo il tuo", preparato anche lui dall'applicazione: dentro
  *  c'e' soltanto il tuo orario (il tuo cognome come nel tabellone, le tue
  *  classi e le tue ore, i giorni senza lezione e il colore di ogni classe) e
- *  i tuoi colloqui con le famiglie, con i link del Meet, nessun collega.
- *  Quei link aprono le tue stanze: tieni il file per te. Prima di eseguire
- *  qualcosa: Impostazioni progetto
- *  (l'ingranaggio a sinistra) -> Fuso orario -> quello con Roma.
+ *  i tuoi colloqui con le famiglie, con i link del Meet, nessun collega (con
+ *  il DatiOrari.gs di tutto il tabellone lo script si ferma). Quei link
+ *  aprono le tue stanze: tieni il file per te. Prima di eseguire
+ *  qualcosa: Impostazioni progetto (l'ingranaggio a sinistra) ->
+ *  Fuso orario -> quello con Roma; con un altro fuso le funzioni del
+ *  calendario si fermano.
  *
  *  Non manda email e non legge la posta: le funzioni delle email di Orari.gs
  *  qui non ci sono. Se le vuoi, restano nel progetto della scuola, con

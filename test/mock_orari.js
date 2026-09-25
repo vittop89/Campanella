@@ -1079,8 +1079,9 @@ if (conCalendario) {
     azzeraCalendario();
     sbaglio = errore(() => contesto.ORARI_4_calendario());
     contesto.ORARI.docenti = docenti;
+    // (Calendario.gs si ferma gia' prima: con due docenti i dati non sono quelli del solo docente)
     verifica('  ...e ORARI_4_calendario con quel nome si ferma prima di toccare il calendario',
-      /puo' essere/.test(sbaglio) && calendari.length === 0);
+      (SOLO_CALENDARIO ? /tutto il tabellone/ : /puo' essere/).test(sbaglio) && calendari.length === 0);
   }
   // l'orario in un altro account: nel DatiOrari.gs della scuola niente calendario
   contesto.ORARI.calendario = null;
@@ -3901,6 +3902,29 @@ if (!SOLO_CALENDARIO) {
   lockOccupato = false;
   verifica('con il blocco occupato dice che e\' in corso il calendario, non la posta (' + occupato + ')',
     /in corso/.test(occupato) && /\(il calendario\)/.test(occupato) && !/posta|invio/.test(occupato));
+  // il DatiOrari.gs di tutto il tabellone (quello del passo 3, o del progetto
+  // della scuola) incollato qui: si ferma, e dice di mettere i dati del tuo orario
+  {
+    const errore = f => { try { f(); return ''; } catch (e) { return e.message; } };
+    const soloTuo = contesto.ORARI;
+    const tutti = [
+      ['con i colleghi', Object.assign({}, soloTuo, { docenti: soloTuo.docenti.concat([{ nome: 'COLLEGA', celle: [] }]) })],
+      ['con gli orari delle classi', Object.assign({}, soloTuo, { classi: [{ nome: '1A', celle: [] }] })],
+      ['con gli oggetti e la nota delle email', Object.assign({}, soloTuo, { oggettoDocente: 'Orario {docente}', nota: '' })]
+    ];
+    for (const [come, dati] of tutti) {
+      contesto.ORARI = dati;
+      const primaTutti = scritture, calendariPrima = calendari.length;
+      const ant = errore(() => contesto.ORARI_1_anteprima());
+      const quattro = errore(() => contesto.ORARI_4_calendario());
+      verifica('i dati di tutto il tabellone (' + come + '): ORARI_1_anteprima e ORARI_4_calendario si fermano, dicono di ' +
+        'incollare i "Dati del tuo orario" e non toccano il calendario',
+        /tutto il tabellone/.test(ant) && /"Dati del tuo orario" \(voce 2 del menu\)/.test(ant) && quattro === ant &&
+        /Non ho toccato il calendario/.test(quattro) && scritture === primaTutti && calendari.length === calendariPrima &&
+        !proprieta.has(PROGRESSO_CALENDARIO));
+    }
+    contesto.ORARI = soloTuo;
+  }
 }
 
 intestazione('RISULTATO');
