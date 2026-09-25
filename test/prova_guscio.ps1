@@ -19,7 +19,9 @@
         temporanea;
       - gli avvisi dell'avvio: un file dei dati o un campanella.json che
         non si possono usare (e quindi non si sovrascrivono) si dicono
-        subito, una volta sola;
+        subito, una volta sola; e, una volta sola, a chi ha messo l'orario
+        su Google Calendar con la 1.5 o prima, che dal 26 ottobre le lezioni
+        compaiono un'ora prima e come si sistema;
       - chiudere mentre un lavoro va avanti: il guscio sa quali lavori
         vanno (e chiede prima di chiudere), e lo scarico di rizzo-pii viene
         fermato con un'attesa breve e limitata;
@@ -370,6 +372,34 @@ try {
         Verifica "campanella.json di una versione piu' recente: un avviso" (
             $a.Count -eq 1 -and $a[0][1] -match "versione piu' recente" -and $a[0][1] -match 'non lo sovrascrivo')
         Verifica "e se le condizioni sono appena state chieste, nessun doppione" ((Avvisi $true).Count -eq 0)
+
+        # l'orario messo su Google Calendar con la 1.5 o prima: il calendario e'
+        # in UTC, e dal 26 ottobre le lezioni compaiono un'ora prima. Chi
+        # aggiorna per la Posta non riesegue gli script degli orari: glielo si
+        # dice all'avvio, una volta sola (calDocente e calNome inventati)
+        ScriviImpostazioni 1 $true
+        ScriviDati '{"formato":1,"personale":[],"calDocente":"ROSSI","calNome":"Orario ROSSI"}'
+        $st = Rileggi
+        $a = $mAvvisi.Invoke($null, @($st, $false))
+        Verifica "l'orario messo sul calendario con una versione di prima: un avviso sul fuso orario, con il rimedio" (
+            $a.Count -eq 1 -and $a[0][0] -match 'Google Calendar' -and $a[0][1] -match "un'ora prima" -and
+            $a[0][1] -match 'UTC' -and $a[0][1] -match 'ORARI_1_anteprima' -and $a[0][1] -match 'ORARI_ANNULLA_calendario' -and
+            $a[0][1] -match 'ORARI_4_calendario')
+        Verifica "  ...e lo segna come dato" ((Campo $st 'AvvisoFusoCalendarioDato') -eq $true)
+        Verifica "  ...anche con le condizioni appena chieste (il salvataggio non l'ha detto)" ((Avvisi $true).Count -eq 1)
+        $st.GetType().GetMethod('Salva', $FI).Invoke($st, @()) | Out-Null
+        Verifica "  ...e salvato, la volta dopo non compare piu'" ((Avvisi $false).Count -eq 0)
+        ScriviImpostazioni 1 $true
+        ScriviDati '{"formato":1,"personale":[]}'
+        $st = Rileggi
+        $a = $mAvvisi.Invoke($null, @($st, $false))
+        Verifica "senza l'orario sul calendario nessun avviso, ma segnato come dato (se lo mette, lo mette gia' giusto)" (
+            $a.Count -eq 0 -and (Campo $st 'AvvisoFusoCalendarioDato') -eq $true)
+        Remove-Item -LiteralPath (Join-Path $datiAvvio 'campanella-dati.json')
+        $st = Rileggi
+        $a = $mAvvisi.Invoke($null, @($st, $false))
+        Verifica "con il file dei dati che non si trova non si decide: non segnato, lo dira' quando c'e'" (
+            $a.Count -eq 1 -and $a[0][0] -match 'Non trovo' -and (Campo $st 'AvvisoFusoCalendarioDato') -eq $false)
     }
 }
 catch {

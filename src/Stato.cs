@@ -335,6 +335,9 @@ namespace Campanella
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
         public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo libero: segue i dati personali)
         public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
+        // vero = l'avviso dell'avvio sul fuso dei calendari messi con la 1.5 o
+        // prima e' gia' stato dato (o non serviva): non si ripete
+        public bool AvvisoFusoCalendarioDato = false;
 
         // ===================================================================
         //  PERCORSI
@@ -940,6 +943,7 @@ namespace Campanella
             r["calOreInizio"] = CalOreInizio;
             r["calColore"] = CalColore;
             r["calValidoDal"] = CalValidoDal;    // solo una data; i giorni senza lezione stanno in Dati()
+            r["avvisoFusoCalendario"] = AvvisoFusoCalendarioDato;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
             r["anonReversibileTesto"] = AnonReversibileTesto;
@@ -1085,6 +1089,7 @@ namespace Campanella
                 s.CalOreInizio = Str(r, "calOreInizio", "");
                 s.CalColore = Str(r, "calColore", "");
                 s.CalValidoDal = Str(r, "calValidoDal", "");
+                s.AvvisoFusoCalendarioDato = Bool(r, "avvisoFusoCalendario", false);
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");
                 s.AnonReversibileTesto = Bool(r, "anonReversibileTesto", true);

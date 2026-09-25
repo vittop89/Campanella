@@ -104,7 +104,8 @@ namespace Campanella
         /// { titolo, testo }. Quei file non vengono sovrascritti, e senza un avviso
         /// lo si scopriva solo chiudendo. condizioniChieste: le condizioni d'uso
         /// sono appena state accettate, e il salvataggio di quel momento ha gia'
-        /// detto cosa ha lasciato com'era (Stato.DaAvvisare).
+        /// detto cosa ha lasciato com'era (Stato.DaAvvisare). In fondo, una volta
+        /// sola, quello sul fuso dei calendari messi con la 1.5 (AvvisoFusoCalendario).
         /// </summary>
         static List<string[]> AvvisiDiAvvio(Stato s, bool condizioniChieste)
         {
@@ -140,7 +141,39 @@ namespace Campanella
                     "dalla cronologia del Drive; oppure, in Impostazioni, premi Applica accanto " +
                     "alla cartella dei dati per scegliere se usarlo o sostituirlo." });
             }
+            string fuso = AvvisoFusoCalendario(s);
+            if (fuso != "") avvisi.Add(new string[] { "L'orario su Google Calendar", fuso });
             return avvisi;
+        }
+
+        /// <summary>
+        /// L'avviso, una volta sola, per chi ha messo l'orario su Google Calendar
+        /// con Campanella 1.5 o prima: quel calendario e' nato con il fuso UTC, e
+        /// dalla fine dell'ora legale le lezioni compaiono un'ora prima. Chi
+        /// aggiorna per la Posta non riesegue gli script degli orari, e se ne
+        /// accorgerebbe solo dal calendario. Chi ha scelto il docente o il nome
+        /// del calendario (passo 4 degli Orari) lo riceve; chi non l'ha fatto non
+        /// ne ha bisogno (con questa versione il calendario nasce giusto). In tutti
+        /// e due i casi si segna come dato (AvvisoFusoCalendarioDato, salvato alla
+        /// chiusura); ma non se il file dei dati, dove stanno docente e nome, non
+        /// si e' potuto leggere: lo si decide quando c'e'. "" se non c'e' da dirlo.
+        /// </summary>
+        static string AvvisoFusoCalendario(Stato s)
+        {
+            if (s.AvvisoFusoCalendarioDato) return "";
+            bool conCalendario = s.CalDocente.Trim() != "" || s.CalNome.Trim() != "";
+            if (!conCalendario && s.DatiNelDrive && (s.DatiNonTrovati || s.ErroreDati != "")) return "";
+            s.AvvisoFusoCalendarioDato = true;
+            if (!conCalendario) return "";
+            return "Se hai messo il tuo orario su Google Calendar con Campanella 1.5 o prima, quel calendario " +
+                   "ha il fuso orario UTC: dalla fine dell'ora legale (l'ultima domenica di ottobre) a fine " +
+                   "marzo le lezioni compaiono un'ora prima.\n\n" +
+                   "Per sistemare: nella pagina Orari copia di nuovo il \"Codice degli orari\" e incollalo " +
+                   "nel file Orari del progetto Apps Script, al posto di quello che c'era; poi esegui " +
+                   "ORARI_1_anteprima e segui quello che dice (di solito ORARI_ANNULLA_calendario, poi " +
+                   "ORARI_4_calendario). Le lezioni spostate o cancellate a mano vanno rifatte.\n\n" +
+                   "Se l'orario sul calendario l'hai messo con questa versione, o non l'hai messo, non " +
+                   "devi fare niente. Questo avviso non compare piu'.";
         }
 
         static bool mostrandoImprevisto = false;
