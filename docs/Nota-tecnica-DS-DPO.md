@@ -71,8 +71,8 @@ Quattro funzioni, tutte facoltative e indipendenti:
   docente) rifà fino al giorno prima della data indicata le serie
   dell'orario messe dallo script che hanno lezioni prima e dopo quella data
   (Google non permette di accorciarle: crea una serie uguale che finisce il
-  giorno prima, con le lezioni spostate a mano, o con titolo, descrizione
-  o luogo cambiati solo per loro, come eventi singoli, e poi toglie la
+  giorno prima, con le lezioni spostate a mano, o con titolo, descrizione,
+  luogo o colore cambiati solo per loro, come eventi singoli, e poi toglie la
   vecchia) e toglie quelle senza lezioni prima di quella data: sempre e
   solo eventi con il contrassegno, e mai prima dell'inizio del periodo
   indicato (gli anni scolastici precedenti nello stesso calendario
@@ -171,12 +171,13 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
 - **Trigger** (`ScriptApp`): per riprendere da solo il lavoro quando supera il
   tempo massimo di esecuzione (il riordino della posta, i due invii degli
   orari, ai docenti e alle classi, e l'orario sul calendario, anche nel
-  cambio d'orario, che riprende anche quando Google chiede di rallentare) e
-  per lo smistamento periodico dei nuovi messaggi. Le riprese sono attivazioni
-  singole, un minuto dopo, della stessa funzione. Si disattivano tutti con
-  `ANNULLA_automazione`, che segna anche come fermato un lavoro a metà sul
-  calendario (una ripresa già partita non lo riprende); quelli del
-  calendario anche con `ORARI_ANNULLA_calendario`.
+  cambio d'orario e nei colori delle lezioni, che riprende anche quando
+  Google chiede di rallentare) e per lo smistamento periodico dei nuovi
+  messaggi. Le riprese sono attivazioni singole, un minuto dopo, della
+  stessa funzione. Si disattivano tutti con `ANNULLA_automazione`, che segna
+  anche come fermato un lavoro a metà sul calendario (una ripresa già
+  partita non lo riprende); quelli del calendario anche con
+  `ORARI_ANNULLA_calendario`.
 - **Google Calendar** (`CalendarApp`): se nel progetto c'è anche il file
   degli orari, Google chiede questo permesso per tutto il progetto alla prima
   autorizzazione, anche se il docente usa solo le email. Lo usano soltanto
@@ -207,11 +208,17 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   ne crea una uguale fino al giorno prima, con il contrassegno e un secondo
   contrassegno che dice quale serie sostituisce, ne toglie le lezioni che
   il docente aveva cancellato, spostato o cambiato solo per quella lezione
-  (titolo, descrizione, luogo), rimette quelle spostate o cambiate come
+  (titolo, descrizione, luogo, colore), rimette quelle spostate o cambiate come
   eventi singoli alla loro ora e solo alla fine
   toglie la serie vecchia), o le toglie, se non hanno lezioni prima di
-  quella data, e inserisce l'orario nuovo da quella data; e
-  `ORARI_ANNULLA_calendario`, che rimuove solo
+  quella data, e inserisce l'orario nuovo da quella data;
+  `ORARI_6_coloraLezioni`, che cambia soltanto il colore degli eventi con
+  il contrassegno nel periodo indicato, senza rifarli né spostarli, secondo
+  il colore scelto in Campanella per ogni classe (lo stesso che
+  `ORARI_4_calendario` e `ORARI_5_cambioOrario` danno agli eventi che
+  creano; nel file delle impostazioni e nei dati dello script ci sono solo
+  nomi di classi e numeri da 1 a 11, i colori degli eventi di Google
+  Calendar); e `ORARI_ANNULLA_calendario`, che rimuove solo
   quelli, nel periodo indicato. Il cambio d'orario rifà o toglie soltanto
   eventi con il contrassegno; l'annullamento anche quelli con la descrizione
   che comincia con «[Campanella]» (se Google non ha salvato il contrassegno,
@@ -219,11 +226,12 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   del calendario non li tocca. `test/invarianti_script.js` controlla sul
   codice che nessun'altra funzione possa prendere un calendario o un evento,
   né cambiarlo o toglierlo, che fra gli eventi da rifare o togliere
-  finiscano solo quelli riconosciuti così, e che il contrassegno lo ricevano
+  finiscano solo quelli riconosciuti così, che il contrassegno lo ricevano
   solo le serie e gli eventi appena creati dallo script (anche quando la
   ripresa di un lavoro interrotto glielo rimette, o l'annullamento prima di
   toglierli: li ritrova per l'id preso da quelli appena creati, all'ora
-  della loro prima lezione). Controlla
+  della loro prima lezione), e che il colore lo ricevano solo quelli appena
+  creati e, in `ORARI_6_coloraLezioni`, quelli con il contrassegno. Controlla
   anche che i due script, che stanno nello stesso progetto, non usino le
   funzioni l'uno dell'altro: quello della posta non arriva al calendario,
   quello degli orari non arriva agli indirizzi degli studenti delle classi.
@@ -340,13 +348,13 @@ eseguendo lo script il [data].]*
 1. Nell'editor dello script della posta: eseguire `ANNULLA_automazione`
    (spegne i trigger: lo smistamento periodico, la ripresa del riordino e le
    riprese degli invii degli orari, `ORARI_2_invia` e
-   `ORARI_3_inviaOrariClassi`, e del calendario, `ORARI_4_calendario` e
-   `ORARI_5_cambioOrario`), `ANNULLA_etichettatura` (toglie dai messaggi
+   `ORARI_3_inviaOrariClassi`, e del calendario, `ORARI_4_calendario`,
+   `ORARI_5_cambioOrario` e `ORARI_6_coloraLezioni`), `ANNULLA_etichettatura` (toglie dai messaggi
    le etichette create dallo script; `ANNULLA_etichettaturaCompleta` per
    quelle nate con versioni precedenti o con lo stesso nome di etichette del
    docente, come spiegato al punto 5), `ORARI_ANNULLA_calendario` (toglie
    gli eventi del periodo indicato nei dati degli orari e dimentica un
-   lavoro a metà sul calendario, con le sue riprese; se si ferma per il
+   lavoro a metà sul calendario, anche sui colori, con le sue riprese; se si ferma per il
    tempo massimo o per i limiti di Google, lo dice e va rieseguito).
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),
    cancellarli a mano da Gmail → Impostazioni → Filtri e indirizzi bloccati,

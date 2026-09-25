@@ -438,7 +438,8 @@ ORARI - le email a te e il calendario
    ORARI_1_anteprima e poi ORARI_2_invia. Alla prima esecuzione Google
    chiede anche il permesso per il Calendario, anche se usi solo le email:
    i permessi li calcola su tutto il progetto. Il Calendario lo usano solo
-   ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_ANNULLA_calendario.
+   ORARI_4_calendario, ORARI_5_cambioOrario, ORARI_6_coloraLezioni e
+   ORARI_ANNULLA_calendario.
    Le email prendono l'etichetta "Orari" (o "<gruppo>/Orari", se nella
    Posta hai scritto un nome in "Raggruppa sotto"), se quell'etichetta
    c'e' gia'.
@@ -504,6 +505,22 @@ ORARI - le email a te e il calendario
    dopo un minuto da dove era arrivato. Se Google non ha salvato il
    contrassegno di una serie, alla ripresa lo rimette; se non ci riesce,
    il messaggio finale te lo dice, con che cosa fare.
+   Ogni lezione prende il colore della sua classe (la 2B di un colore, la
+   3B di un altro), nello stesso calendario: sono i colori degli eventi di
+   Google Calendar (Pomodoro, Mirtillo, Basilico...). Di partenza ogni
+   classe del tuo orario ne ha uno diverso, e poi lo tiene; le ore a
+   disposizione sono grigie (Grafite). "Colori delle classi..." li mostra
+   e te li fa cambiare: un colore scelto da te resta, "colore del
+   calendario" lascia a quella classe il colore del calendario, "Colori di
+   partenza" rimette quelli di Campanella. I colori vanno in DatiOrari.gs:
+   ORARI_4_calendario e ORARI_5_cambioOrario li danno alle lezioni che
+   mettono. Per le lezioni gia' sul calendario rigenera e incolla
+   DatiOrari.gs ed esegui ORARI_6_coloraLezioni: cambia solo il colore
+   delle lezioni messe dallo script (con il contrassegno), senza rifarle
+   ne' spostarle, e riprende da sola se si ferma. Le lezioni di una classe
+   a cui togli il colore restano come sono: quel colore lo togli da Google
+   Calendar. Se Google non mette il colore a una serie, il lavoro va
+   avanti e il messaggio finale ti dice di eseguire ORARI_6_coloraLezioni.
    Se l'orario cambia: carica il nuovo tabellone, spunta "L'orario e'
    cambiato: il nuovo vale dal" con la data, rigenera e incolla
    DatiOrari.gs ed esegui ORARI_5_cambioOrario. Il periodo ("Dal" e "al")
@@ -512,10 +529,12 @@ ORARI - le email a te e il calendario
    spostate o cancellate a mano, e da quella data c'e' l'orario nuovo.
    Google non lascia accorciare una serie: quelle con lezioni prima e dopo
    la data le rifa' fino al giorno prima (le lezioni spostate a mano, o con
-   il titolo, la descrizione o il luogo cambiati solo per loro, come una
-   nota "VERIFICA", tornano come eventi singoli, alla loro ora e come sono)
-   e toglie le vecchie. Altre modifiche fatte a mano a una serie, come il
-   colore o un promemoria, non passano a quella rifatta. Rieseguita con la
+   il titolo, la descrizione, il luogo o il colore cambiati solo per loro,
+   come una nota "VERIFICA", tornano come eventi singoli, alla loro ora e
+   come sono) e toglie le vecchie. La serie rifatta ha il colore della sua
+   classe (se la classe non ne ha uno, quello che aveva); altre modifiche
+   fatte a mano a una serie, come un promemoria, non passano a quella
+   rifatta. Rieseguita con la
    stessa data, o ripresa dopo un'interruzione, da' lo stesso risultato
    (anche se Google non ha salvato il contrassegno di un pezzo appena
    rifatto: la ripresa lo ritrova e glielo rimette). Tocca
@@ -635,7 +654,8 @@ PER SPEGNERE GLI SCRIPT
 Nell'editor dello script della posta (e degli orari):
   ANNULLA_automazione ........... spegne lo smistamento ogni ora e le
                                   riprese automatiche (riordino, invii
-                                  degli orari e calendario)
+                                  degli orari, calendario e colori delle
+                                  lezioni)
   ANNULLA_etichettatura ......... toglie dai messaggi le etichette dello
                                   script (vedi POSTA, passo 4)
   ANNULLA_etichettaturaCompleta . toglie anche quelle con lo stesso nome
@@ -643,7 +663,8 @@ Nell'editor dello script della posta (e degli orari):
   ORARI_ANNULLA_calendario ...... toglie dal calendario gli eventi messi
                                   dallo script nel periodo indicato in
                                   DatiOrari.gs e dimentica un lavoro a
-                                  meta' (anche di ORARI_5_cambioOrario)
+                                  meta' (anche di ORARI_5_cambioOrario e
+                                  di ORARI_6_coloraLezioni)
 Nei moduli: MODULO_ANNULLA in ogni modulo con lo script, oppure, nel foglio
 di controllo, il menu Campanella > "Annulla: togli chiusure e collegamenti"
 (PANNELLO_ANNULLA). Tolgono le chiusure programmate e scollegano i fogli

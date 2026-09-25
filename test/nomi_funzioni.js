@@ -14,7 +14,10 @@
  *      "PASSO_3" (inizio di un nome, fino a un "_"), "ANNULLA_..." e
  *      "PASSO_3_riordinaPosta..." (con i puntini);
  *   2. ogni trigger e ogni voce di menu degli script deve chiamare una
- *      funzione che esiste nel suo progetto (Posta e Orari stanno insieme).
+ *      funzione che esiste nel suo progetto (Posta e Orari stanno insieme);
+ *   3. ogni funzione pubblica di Orari.gs (ORARI_...) sta nell'elenco in cima
+ *      al file e nelle istruzioni, e ogni sua ripresa la conosce anche la
+ *      Posta, perche' ANNULLA_automazione la spenga.
  */
 
 'use strict';
@@ -121,9 +124,52 @@ for (const f of script) {
 }
 
 // ---------------------------------------------------------------------------
+//  3. LE FUNZIONI DEGLI ORARI: DETTE AL DOCENTE, E SPENTE DALLA POSTA
+//  Ogni funzione pubblica di Orari.gs (ORARI_...) sta nell'elenco in cima al
+//  file e nelle istruzioni: una funzione nuova, come ORARI_6_coloraLezioni,
+//  non resta senza spiegazione. E ogni sua ripresa (var _ORARI_TRIGGER...)
+//  la conosce anche la Posta (var _TRIGGER_ORARI...), perche'
+//  ANNULLA_automazione, che spegne tutto il progetto, la tolga.
+// ---------------------------------------------------------------------------
+const ISTRUZIONI = fs.readFileSync(path.join(radice, 'ISTRUZIONI - Campanella.txt'), 'utf8');
+/** Le funzioni ORARI_ di un testo di Orari.gs che mancano nella sua intestazione o nelle istruzioni. */
+function funzioniOrariNonDette(orari, istruzioni) {
+  const fine = orari.indexOf('*/');
+  const intestazioneOrari = fine > 0 ? orari.slice(0, fine) : '';
+  const fuori = [];
+  for (const m of orari.matchAll(/^function\s+(ORARI_[A-Za-z0-9_]*[A-Za-z0-9])\s*\(/gm)) {
+    if (intestazioneOrari.indexOf(m[1]) < 0) fuori.push(m[1] + ' (intestazione di Orari.gs)');
+    if (istruzioni.indexOf(m[1]) < 0) fuori.push(m[1] + ' (ISTRUZIONI - Campanella.txt)');
+  }
+  return fuori;
+}
+/** Le riprese di Orari.gs che la Posta non conosce. */
+function ripreseNonSpente(orari, posta) {
+  const valori = testo => [...testo.matchAll(/^var\s+(\w+)\s*=\s*(['"])([^'"]+)\2/gm)];
+  const dellaPosta = valori(posta).filter(m => /^_TRIGGER_ORARI/.test(m[1])).map(m => m[3]);
+  return valori(orari).filter(m => /^_ORARI_TRIGGER/.test(m[1])).map(m => m[3]).filter(n => dellaPosta.indexOf(n) < 0);
+}
+intestazione('LE FUNZIONI DEGLI ORARI SONO DETTE AL DOCENTE, E LE LORO RIPRESE LE SPEGNE LA POSTA');
+const testoOrari = fs.readFileSync(path.join(risorse, 'Orari.gs'), 'utf8');
+const testoPosta = fs.readFileSync(path.join(risorse, 'Organizzazione_Gmail.gs'), 'utf8');
+const pubbliche = [...testoOrari.matchAll(/^function\s+(ORARI_[A-Za-z0-9_]*[A-Za-z0-9])\s*\(/gm)].map(m => m[1]);
+const nonDette = funzioniOrariNonDette(testoOrari, ISTRUZIONI);
+verifica('le ' + pubbliche.length + ' funzioni pubbliche di Orari.gs (' + pubbliche.join(', ') + ') stanno nella sua ' +
+  'intestazione e nelle istruzioni' + (nonDette.length ? ' (mancano: ' + nonDette.join(', ') + ')' : ''),
+  pubbliche.length >= 8 && pubbliche.indexOf('ORARI_6_coloraLezioni') >= 0 && nonDette.length === 0);
+const nonSpente = ripreseNonSpente(testoOrari, testoPosta);
+verifica('ogni ripresa di Orari.gs la conosce anche ANNULLA_automazione della Posta' +
+  (nonSpente.length ? ' (non conosce: ' + nonSpente.join(', ') + ')' : ''), nonSpente.length === 0);
+
+// ---------------------------------------------------------------------------
 //  LA PROVA DELLA PROVA: un nome sbagliato deve essere trovato
 // ---------------------------------------------------------------------------
 intestazione('LA PROVA DELLA PROVA');
+verifica('una funzione degli orari nuova, non scritta nell\'intestazione ne\' nelle istruzioni, viene trovata',
+  funzioniOrariNonDette(testoOrari + '\nfunction ORARI_9_prova() {\n}\n', ISTRUZIONI).length === 2);
+verifica('e una ripresa nuova degli orari che la Posta non spegne',
+  ripreseNonSpente(testoOrari.replace(/^var _ORARI_TRIGGER_COLORI\s*=\s*'[^']+';/m,
+    'var _ORARI_TRIGGER_COLORI = \'ORARI_9_prova\';'), testoPosta).join() === 'ORARI_9_prova');
 verifica('un nome inventato non passa', !esiste('PASSO_3_riordinaTutto', ''));
 verifica('un nome vecchio (ORARI_3_abbinaIndirizzi) non passa', !esiste('ORARI_3_abbinaIndirizzi', ''));
 verifica('la forma breve "PASSO_3" passa', esiste('PASSO_3', ' '));
