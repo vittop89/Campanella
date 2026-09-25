@@ -774,6 +774,8 @@ console.log(JSON.stringify({
         }
         $meet = 'https://meet.google.com/abc-defg-hij'
         $ie = [string][char]0xEC
+        # l'apostrofo tipografico, come lo scrivono Word e i Mac
+        $apo = [string][char]0x2019
         $campoCadenza = $tCol.GetField('AvvisoCadenza', $FS)
         $avvisoCadenza = if ($null -ne $campoCadenza) { [string]$campoCadenza.GetValue($null) } else { '(manca Colloqui.AvvisoCadenza)' }
         $casiK = @(
@@ -835,7 +837,26 @@ console.log(JSON.stringify({
             # una cadenza o un'eccezione: sul calendario va ogni settimana, in ambra
             @('ogni martedi a settimane alterne 15:00-16:00',
               ("riga 1: ogni martedi' 15:00-16:00, a settimane alterne, per tutto il periodo, senza link   <- " + $avvisoCadenza),
-              $true, $true)
+              $true, $true),
+            # le date del ricevimento fra parentesi in fondo al nome: la parentesi non resta nel titolo
+            @('ogni giovedi 10:10-11:10 Ricevimento (dal 12/10/2026 al 22/05/2027)',
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, dal lun 12/10/2026 al sab 22/05/2027, senza link", $true, $false),
+            # il link del Meet senza https://, come lo mostrano Calendar e Meet: e' il link, non il nome
+            @("ogni gioved$ie 10:10-11:10 Ricevimento meet.google.com/abc-defg-hij",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, con il link del Meet", $true, $false),
+            # l'apostrofo di Word e dei Mac dopo il giorno non finisce nel nome
+            @("ogni giovedi$apo 10:10-11:10 Ricevimento",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, senza link", $true, $false),
+            @("ogni giovedi$apo dalle 10.10 alle 11.10",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, senza link", $true, $false),
+            # "ogni" nel nome di una giornata e' il nome
+            @('15/12/2026 15:00-18:00 Colloqui generali, ogni docente nella propria aula',
+              'riga 1: mar 15/12/2026 15:00-18:00, Colloqui generali, ogni docente nella propria aula, senza link', $true, $false),
+            # l'etichetta del link fra parentesi non resta nel titolo
+            @("Ricevimento settimanale: ogni gioved$ie 10:10-11:10 (Meet: $meet)",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento settimanale, per tutto il periodo, con il link del Meet", $true, $false),
+            @("ogni giovedi 10:10-11:10 Ricevimento [Google Meet: $meet]",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, con il link del Meet", $true, $false)
         )
         foreach ($c in $casiK) {
             $k = RigaColloquio $c[0]
@@ -864,13 +885,60 @@ console.log(JSON.stringify({
             @('15/12/2026 15:00-18:00 Colloqui generali (secondo turno 16/12/2026)', "c'e' un'altra data"),
             @('15/12/2026 15:00 Colloqui fino alle 18:00', "c'e' un'altra ora"),
             @('15/12/2026 15:00-18:00 Colloqui http://meet.google.com/abc-defg-hij', 'http://'),
-            @('15/12/2026 15-18 Colloqui https://meet.google.com/abc-defg-hij https://meet.google.com/kmn-pqrs-tuv', "piu' di un link")
+            @('15/12/2026 15-18 Colloqui https://meet.google.com/abc-defg-hij https://meet.google.com/kmn-pqrs-tuv', "piu' di un link"),
+            # le date nel nome con una sospensione dopo, o con altre parole: non sono le date del ricevimento
+            # (sul calendario andrebbe solo in quelle settimane)
+            @('ogni giovedi 10:10-11:10 Ricevimento (dal 14/12 al 09/01 sospeso)', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento (scrutini dal 25/01 al 05/02)', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento (dal 25/01 al 05/02 scrutini, niente ricevimento)', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento (vacanze dal 22/12 al 06/01)', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento, dal 22/12 al 06/01 escluso', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento, in presenza dal 12/10 al 18/12 poi online', "con le date, c'e' altro"),
+            @('ogni giovedi 10:10-11:10 Ricevimento (in presenza dal 12/10 al 18/12)', "con le date, c'e' altro"),
+            # una seconda fascia senza minuti, o un altro giorno abbreviato
+            @('ogni giovedi 10-11 e 12-13', "c'e' un'altra ora"),
+            @('ogni giovedi 10-11 oppure 12-13', "c'e' un'altra ora"),
+            @('15/12/2026 15-18 e 20-21 Colloqui', "c'e' un'altra ora"),
+            @('ogni gio 10-11 e ven 9-10', "c'e' un altro giorno della settimana"),
+            @('ogni gio 10-11 e ven', "c'e' un altro giorno della settimana")
         )
         foreach ($c in $nonCapiteK) {
             $k = RigaColloquio $c[0]
             Verifica "'$($c[0])' non si capisce, e dice perche' ('$($k.Detta)')" (
                 $k.Detta -match '^riga 1: non capita: ' -and $k.Detta.Contains($c[1]) -and -not $k.Buona -and $k.Guarda)
         }
+        # una cadenza, un'eccezione o un periodo a parole nel nome del ricevimento
+        # senza date: va sul calendario ogni settimana per tutto il periodo, e
+        # quindi in ambra, con l'avviso che lo dice
+        $campoPeriodo = $tCol.GetField('AvvisoPeriodo', $FS)
+        $avvisoPeriodo = if ($null -ne $campoPeriodo) { [string]$campoPeriodo.GetValue($null) } else { '(manca Colloqui.AvvisoPeriodo)' }
+        $campoNotte = $tCol.GetField('AvvisoNotte', $FS)
+        $avvisoNotte = if ($null -ne $campoNotte) { [string]$campoNotte.GetValue($null) } else { '(manca Colloqui.AvvisoNotte)' }
+        $conAvviso = @(
+            @('ogni giovedi 10:10-11:10 Ricevimento ogni 15 giorni', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento, settimane dispari', $avvisoCadenza),
+            @("ogni giovedi 10:10-11:10 Ricevimento una settimana s$ie e una no", $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento (sospeso a dicembre)', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento (solo primo quadrimestre)', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento fino a maggio', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento fino a fine maggio', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento da ottobre a maggio', $avvisoPeriodo),
+            @('Ricevimento da ottobre a maggio ogni giovedi 10:10-11:10', $avvisoPeriodo),
+            # un'ora di notte: "dalle 3 alle 6" per il pomeriggio
+            @('15/12/2026 dalle 3 alle 6 Colloqui generali', $avvisoNotte),
+            @('ogni martedi 3-4 Ricevimento', $avvisoNotte),
+            @('ogni martedi 20:00-21:30 Ricevimento', $avvisoNotte)
+        )
+        foreach ($c in $conAvviso) {
+            $k = RigaColloquio $c[0]
+            Verifica "'$($c[0])' va sul calendario, ma in ambra, e dice perche' ('$($k.Detta)')" (
+                $k.Buona -and $k.Guarda -and $k.Detta.EndsWith('   <- ' + $c[1]))
+        }
+        $k = RigaColloquio 'ogni martedi 11-12 Ricevimento'
+        Verifica "ma le ore di scuola scritte senza minuti non sono di notte ('$($k.Detta)')" ($k.Buona -and -not $k.Guarda)
+        $k = RigaColloquio 'dal 01/02/2027 al 31/05/2027 ogni venerdi 12:10-13:10 Ricevimento da febbraio a maggio'
+        Verifica "e un periodo a parole con le date del ricevimento scritte non ha l'avviso ('$($k.Detta)')" ($k.Buona -and -not $k.Guarda)
+
         # le note e le righe vuote non contano; ogni riga ha il suo numero
         $varie = "# i miei colloqui`r`n`r`nogni giovedi 10:10-11:10`r`nquesta no"
         $lette = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($varie, $inizioK, $cinqueGiorni.PSObject.BaseObject)))
