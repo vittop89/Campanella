@@ -218,7 +218,11 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   `ORARI_4_calendario` e `ORARI_5_cambioOrario` danno agli eventi che
   creano; nel file delle impostazioni e nei dati dello script ci sono solo
   nomi di classi e numeri da 1 a 11, i colori degli eventi di Google
-  Calendar); e `ORARI_ANNULLA_calendario`, che rimuove solo
+  Calendar; gli eventi singoli rimessi dal cambio d'orario hanno in un
+  contrassegno anche il nome della loro classe e, se il docente aveva
+  colorato a mano quella lezione, un segno, e quel colore resta; mentre
+  `ORARI_4_calendario` o `ORARI_5_cambioOrario` hanno un lavoro a metà non
+  colora niente); e `ORARI_ANNULLA_calendario`, che rimuove solo
   quelli, nel periodo indicato. Il cambio d'orario rifà o toglie soltanto
   eventi con il contrassegno; l'annullamento anche quelli con la descrizione
   che comincia con «[Campanella]» (se Google non ha salvato il contrassegno,

@@ -301,16 +301,26 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   of the teacher gets a different colour, in a fixed order meant to keep
   neighbours apart (Pomodoro, Mirtillo, Basilico, Mandarino, Vinaccia,
   Pavone, Banana, Fenicottero, Salvia, Lavanda), the hours "a
-  disposizione" Grafite, and keeps it: a class added later (a new
-  timetable) takes a colour no other class has, and the others do not
-  change. A colour chosen by hand stays, "colore del calendario" included;
+  disposizione" Grafite, and keeps it from when DatiOrari.gs is copied or
+  saved (step 3 or 4): a class added later (a new timetable) takes a colour
+  no other class has, and the others do not change. The summary, the
+  preview and the teacher's name being typed (found by prefix, "R" may be
+  another teacher) do not change the settings. When DatiOrari.gs is copied
+  or saved Campanella also remembers its colours, those of the lessons on
+  the calendar (`calColoriScritti`): between two classes with the same
+  default colour the one already on the calendar keeps it, so a class
+  coming back with a colour left over (from another school year) takes a
+  free one instead of taking it from a class with lessons on the calendar;
+  a class that is no longer in the copied file keeps its colour, but no
+  longer as chosen by hand. A colour chosen by hand stays, "colore del
+  calendario" included; chosen equal to another class's default colour,
+  that class takes a free one at once, and the window shows it before "Usa
+  questi colori" (to have both the same, choose it for that class too).
   "Colori di partenza" goes back to the default ones. When the classes are
-  more than the colours, the extra ones take the least used. A default
-  colour equal to another class's (given while the teacher's name was being
-  typed, for instance) moves to a free one, if there is still one. The
-  colours are in the settings (`calColori`, `calColoriAMano`: class names
-  and numbers only, not personal data), and a value written by hand that
-  Google Calendar does not have is not read.
+  more than the colours, the extra ones take the least used. The colours
+  are in the settings (`calColori`, `calColoriAMano`, `calColoriScritti`:
+  class names and numbers only, not personal data), and a value written by
+  hand that Google Calendar does not have is not read.
 - DatiOrari.gs: the `calendario` block has `colori`, `{ "2B": "11", ... }`,
   only the classes with a colour. ORARI_4_calendario and ORARI_5_cambioOrario
   give each series they create the colour of its class (setColor), right
@@ -320,7 +330,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   it (a class no longer in the timetable, or without colour), the one the
   old series had; a lesson coloured by hand on its own (a colour different
   from the others of its series) comes back as a single event with its
-  colour, like the moved ones, which take the colour of the series. A colour
+  colour, like the moved ones, which take the colour of the series. Every
+  single event put back also has its class (the title of the old series,
+  tag `campanella_classe`) and, when it got the colour chosen by hand, the
+  mark `campanella_colore`. A colour
   Google does not set does not stop the job: it is counted, and the final
   message names the series and says to run ORARI_6_coloraLezioni.
 - The colours are not part of the fingerprint of the plan used by the
@@ -336,7 +349,18 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   message counts the copies). A lesson that already has the right colour is
   not touched; the classes without a colour are left as they are, and the
   message names those that still have a colour given before, saying to
-  change it in Google Calendar. It takes the same lock as the other
+  change it in Google Calendar. A single event put back by the change takes
+  the colour of the class in its tag, so a lesson renamed by hand ("2B
+  VERIFICA") gets the colour of the 2B and is not a class without colour;
+  one put back with the colour chosen by hand keeps it, like the same
+  lesson inside its series, and the message names it. With the job of
+  ORARI_4_calendario or ORARI_5_cambioOrario halfway it colours nothing
+  (also in a resume of its own) and says how to finish that first, as
+  those two do with each other: colouring the old series of a change
+  halfway made the lesson coloured by hand, already put back as a single
+  event, lose its colour, or, if Google gives the colour of a series also
+  to the lessons coloured on their own (not tried live), disappear when the
+  change resumed. It takes the same lock as the other
   functions, remembers what it already coloured (a fingerprint of the id)
   and resumes by itself a minute later when time runs out or Google asks to
   slow down (its trigger is `var _ORARI_TRIGGER_COLORI`); the day's quota
@@ -636,7 +660,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   alone, a class that lost its colour, resume for time and for Google's
   limits, another error, colours changed between a run and its resume, the
   lock, ORARI_ANNULLA_calendario, an unreadable saved point,
-  ANNULLA_automazione). DatiOrari_esempio.gs has colours for three classes
+  ANNULLA_automazione, a lesson renamed by hand and one coloured by hand
+  put back by the change, ORARI_4_calendario or ORARI_5_cambioOrario
+  halfway, also stopped right after putting back the lesson coloured by
+  hand and with both ways of colouring a series: `coloreDiGoogle` in the
+  fake Calendar gives the colour of a series also to the lessons coloured
+  on their own). DatiOrari_esempio.gs has colours for three classes
   out of four. invarianti_script.js allows setColor only on the calendar,
   the series just created, the pieces just done again by the cut, and in
   ORARI_6_coloraLezioni on the entries of _orariNostri_ after the guard of
@@ -646,11 +675,17 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   and in the instructions, and every resume of Orari.gs known to the mail
   script. prova_orario.ps1 checks the default colours in DatiOrari.gs, that
   they stay the same (also with a new class), the colours chosen by hand,
-  "Colori di partenza", two classes with the same default colour, more
-  classes than colours, the names, and the same order of the classes in the
-  app and in the script; prova_stato.ps1 the colours in the settings, also
-  written wrong by hand; prova_disposizione.ps1 the summary next to the
-  button (also with 30 classes) and the window, also with 16 classes.
+  "Colori di partenza", two classes with the same default colour (also with
+  one of them on the calendar), more classes than colours, the names, the
+  same order of the classes in the app and in the script, the colours kept
+  only when DatiOrari.gs is copied, the name typed one letter at a time
+  with another teacher found by prefix, a class coming back in January with
+  a colour left over, and one chosen by hand a year before; prova_stato.ps1
+  the colours in the settings, also written wrong by hand;
+  prova_disposizione.ps1 the summary next to the button (also with 30
+  classes, and with the name typed by prefix), DatiOrari.gs copied, and the
+  window, also with 16 classes and with a colour chosen equal to another
+  class's.
 
 ## 1.5.3 — 24 September 2026
 

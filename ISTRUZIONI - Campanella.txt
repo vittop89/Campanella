@@ -508,18 +508,26 @@ ORARI - le email a te e il calendario
    Ogni lezione prende il colore della sua classe (la 2B di un colore, la
    3B di un altro), nello stesso calendario: sono i colori degli eventi di
    Google Calendar (Pomodoro, Mirtillo, Basilico...). Di partenza ogni
-   classe del tuo orario ne ha uno diverso, e poi lo tiene; le ore a
+   classe del tuo orario ne ha uno diverso, e da quando copi o salvi
+   DatiOrari.gs lo tiene: una classe che arriva dopo (anche una che aveva
+   un colore un altro anno) ne prende uno che le altre non hanno. Le ore a
    disposizione sono grigie (Grafite). "Colori delle classi..." li mostra
-   e te li fa cambiare: un colore scelto da te resta, "colore del
+   e te li fa cambiare: un colore scelto da te resta (se e' quello di
+   un'altra classe, lei ne prende subito un altro, e la finestra te lo
+   mostra: se le vuoi uguali, sceglilo anche per lei), "colore del
    calendario" lascia a quella classe il colore del calendario, "Colori di
    partenza" rimette quelli di Campanella. I colori vanno in DatiOrari.gs:
    ORARI_4_calendario e ORARI_5_cambioOrario li danno alle lezioni che
    mettono. Per le lezioni gia' sul calendario rigenera e incolla
    DatiOrari.gs ed esegui ORARI_6_coloraLezioni: cambia solo il colore
    delle lezioni messe dallo script (con il contrassegno), senza rifarle
-   ne' spostarle, e riprende da sola se si ferma. Le lezioni di una classe
-   a cui togli il colore restano come sono: quel colore lo togli da Google
-   Calendar. Se Google non mette il colore a una serie, il lavoro va
+   ne' spostarle, e riprende da sola se si ferma. Con ORARI_4_calendario
+   o ORARI_5_cambioOrario a meta' non colora niente: finiscili prima. Le
+   lezioni di una classe a cui togli il colore restano come sono: quel
+   colore lo togli da Google Calendar. Restano come sono anche le lezioni
+   colorate a mano solo loro che il cambio d'orario ha rimesso come eventi
+   singoli; una rinominata a mano, come "2B VERIFICA", prende il colore
+   della sua classe. Se Google non mette il colore a una serie, il lavoro va
    avanti e il messaggio finale ti dice di eseguire ORARI_6_coloraLezioni.
    Se l'orario cambia: carica il nuovo tabellone, spunta "L'orario e'
    cambiato: il nuovo vale dal" con la data, rigenera e incolla
