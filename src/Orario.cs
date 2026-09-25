@@ -181,15 +181,31 @@ namespace Campanella
             return n;
         }
 
-        /// <summary>Il docente cosi' com'e' scritto nel tabellone, cercato senza badare a maiuscole e accenti.</summary>
+        /// <summary>
+        /// Il docente cosi' com'e' scritto nel tabellone, cercato senza badare a
+        /// maiuscole e accenti. Scritto solo com'e' l'inizio ("ROSSI" per "ROSSI
+        /// M."), vale se nel tabellone c'e' un docente solo che comincia cosi':
+        /// con due omonimi ("ROSSI A." e "ROSSI M.") nessuno, cosi' il calendario
+        /// (e i dati per l'altro account) non prendono l'orario di un collega.
+        /// Quali sono, lo dice Omonimi.
+        /// </summary>
         public string TrovaDocente(string nome)
         {
             string chiave = Stato.Chiave(nome);
             if (chiave == "") return "";
             foreach (string d in Docenti()) if (Stato.Chiave(d) == chiave) return d;
-            // "ROSSI M" scritto "ROSSI": basta che cominci cosi'
-            foreach (string d in Docenti()) if (Stato.Chiave(d).StartsWith(chiave)) return d;
-            return "";
+            List<string> comincia = Omonimi(nome);
+            return (comincia.Count == 1) ? comincia[0] : "";
+        }
+
+        /// <summary>I docenti del tabellone il cui nome comincia come quello scritto ("ROSSI": ROSSI A., ROSSI M.).</summary>
+        public List<string> Omonimi(string nome)
+        {
+            List<string> fuori = new List<string>();
+            string chiave = Stato.Chiave(nome);
+            if (chiave == "") return fuori;
+            foreach (string d in Docenti()) if (Stato.Chiave(d).StartsWith(chiave)) fuori.Add(d);
+            return fuori;
         }
     }
 

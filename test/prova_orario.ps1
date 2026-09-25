@@ -1592,6 +1592,33 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
         $uscita | Where-Object { $_ -match 'FALLITO|^\s{8}\S' } | ForEach-Object { Write-Host "          $_" }
         Verifica "test\invarianti_script.js --calendario: il Calendario.gs dell'applicazione rispetta le regole degli script" ($esitoInv -eq 0)
 
+        # due omonimi nel tabellone (inventati): il solo cognome non sceglie il
+        # collega, e i dati per l'altro account non escono
+        $omonimi = AnalizzaFile (ScriviCsv 'omonimi.csv' @(
+            'TABELLONE DOCENTI;;;;;;',
+            ';LUN;;MAR;;MER;',
+            ';1;2;1;2;1;2',
+            'ROSSI A.;1A;1A;;2B;3C;',
+            'ROSSI M.;;4D;4D;;;',
+            'BIANCHI;2B;;;;;',
+            'VERDI;;3C;;;1A;'))
+        $sOm = NuovoStato
+        $sOm.CalDocente = 'ROSSI'
+        $sOm.CalInizio = '2026-09-14'
+        $sOm.CalFine = '2027-06-10'
+        $sOm.CalAltroAccount = $true
+        $bOm = New-Object 'object[]' 2
+        $bOm[0] = $omonimi.PSObject.BaseObject
+        $bOm[1] = $sOm.PSObject.BaseObject
+        $datiOm = [string]$mSolo.Invoke($null, $bOm)
+        $nomiOm = try { (@($omonimi.Omonimi('ROSSI')) -join ',') } catch { '(manca RisultatoOrario.Omonimi)' }
+        Verifica "con ROSSI A. e ROSSI M. nel tabellone, 'ROSSI' non trova nessuno dei due, e i dati del solo docente non escono" (
+            $omonimi.TrovaDocente('ROSSI') -eq '' -and $nomiOm -eq 'ROSSI A.,ROSSI M.' -and
+            $datiOm -notmatch 'var ORARI' -and $datiOm -notmatch 'ROSSI A\.|ROSSI M\.|1A|4D' -and $datiOm -match 'manca il tuo nome')
+        Verifica "  ...mentre il nome esatto (anche senza il punto) o l'inizio di un nome solo vale" (
+            $omonimi.TrovaDocente('rossi m') -eq 'ROSSI M.' -and $omonimi.TrovaDocente('ROSSI A.') -eq 'ROSSI A.' -and
+            $omonimi.TrovaDocente('BIAN') -eq 'BIANCHI')
+
         # la guida del passo 4 per l'altro account
         $mGuida = $asm.GetType('Campanella.PaginaOrari').GetMethod('GuidaCalendario', [System.Reflection.BindingFlags]'NonPublic,Static')
         $guidaAltro = if ($null -ne $mGuida) { ([string]$mGuida.Invoke($null, @($true)) -replace '\s+', ' ') } else { '' }

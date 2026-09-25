@@ -1048,11 +1048,28 @@ namespace Campanella
             }
             if (orario.TrovaDocente(S.CalDocente) == "")
             {
-                Guscio.Stato1("Prima scegli il tuo nome: i dati per l'altro account contengono solo il tuo orario.",
-                              Tema.Ambra);
+                string omonimi = QualeDegliOmonimi();
+                Guscio.Stato1(omonimi != "" ? omonimi + " I dati per l'altro account contengono solo il tuo orario."
+                                            : "Prima scegli il tuo nome: i dati per l'altro account contengono solo il " +
+                                              "tuo orario.", Tema.Ambra);
                 return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// Il nome scritto al passo 4 e' l'inizio di piu' docenti del tabellone
+        /// (TrovaDocente non ne sceglie nessuno): la frase che chiede quale, come
+        /// "\"ROSSI\" puo' essere ROSSI A. o ROSSI M.: scegli il tuo nome esatto
+        /// dall'elenco." Altrimenti "".
+        /// </summary>
+        string QualeDegliOmonimi()
+        {
+            List<string> omonimi = orario.Omonimi(S.CalDocente);
+            if (omonimi.Count < 2) return "";
+            string elenco = string.Join(", ", omonimi.GetRange(0, omonimi.Count - 1).ToArray()) + " o " +
+                            omonimi[omonimi.Count - 1];
+            return "\"" + S.CalDocente + "\" puo' essere " + elenco + ": scegli il tuo nome esatto dall'elenco.";
         }
 
         /// <summary>
@@ -1377,7 +1394,10 @@ namespace Campanella
             }
             else if (docente == "")
             {
-                lblCalRiepilogo.Text = "\"" + S.CalDocente + "\" non e' nel tabellone: scegli un nome dall'elenco.";
+                // con due omonimi ("ROSSI A." e "ROSSI M.") il solo cognome non basta
+                string omonimi = QualeDegliOmonimi();
+                lblCalRiepilogo.Text = (omonimi != "") ? omonimi
+                    : "\"" + S.CalDocente + "\" non e' nel tabellone: scegli un nome dall'elenco.";
                 lblCalRiepilogo.Tag = Ruolo.Avviso;
             }
             else if (dtFine.Value.Date < dtInizio.Value.Date)

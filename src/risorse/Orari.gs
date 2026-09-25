@@ -2765,12 +2765,26 @@ function _orariFnv_(testo) {
   return ('0000000' + h.toString(16)).slice(-8);
 }
 
+/**
+ * Il docente del calendario: con il nome esatto, o scritto come l'inizio
+ * ("ROSSI" per "ROSSI M.") se nel tabellone c'e' un docente solo che comincia
+ * cosi'. Con due omonimi ("ROSSI A." e "ROSSI M.") si ferma: non mette
+ * l'orario di un collega.
+ */
 function _orariDocente_(d, nome) {
   var chiave = _orariChiave_(nome);
   for (var i = 0; i < d.docenti.length; i++)
     if (_orariChiave_(d.docenti[i].nome) === chiave) return d.docenti[i];
+  var comincia = [];
   for (var k = 0; k < d.docenti.length; k++)
-    if (_orariChiave_(d.docenti[k].nome).indexOf(chiave) === 0) return d.docenti[k];
+    if (chiave && _orariChiave_(d.docenti[k].nome).indexOf(chiave) === 0) comincia.push(d.docenti[k]);
+  if (comincia.length === 1) return comincia[0];
+  if (comincia.length > 1) {
+    var nomi = [];
+    for (var n = 0; n < comincia.length; n++) nomi.push(comincia[n].nome);
+    throw new Error('Nel tabellone "' + nome + '" puo\' essere ' + nomi.join(' o ') + ': nell\'applicazione ' +
+      '(Orari, passo 4) scegli il tuo nome esatto dall\'elenco, poi rigenera e incolla DatiOrari.gs.');
+  }
   throw new Error('Nel tabellone non trovo il nome "' + nome + '".');
 }
 

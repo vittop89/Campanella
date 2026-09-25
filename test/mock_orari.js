@@ -1060,6 +1060,24 @@ if (conCalendario) {
   contesto.ORARI.calendario = Object.assign({}, salva, { docente: 'NESSUNO' });
   sbaglio = errore(() => contesto.ORARI_4_calendario());
   verifica('con un nome che non c\'e\' si ferma', /non trovo/i.test(sbaglio));
+  // due omonimi: il solo inizio del nome non sceglie un collega
+  {
+    const omonimi = { docenti: [{ nome: 'BIANCHI' }, { nome: 'ROSSI A.' }, { nome: 'ROSSI M.' }, { nome: 'VERDI' }] };
+    const due = errore(() => contesto._orariDocente_(omonimi, 'ROSSI'));
+    verifica('con due omonimi ("ROSSI A." e "ROSSI M.") "ROSSI" non sceglie nessuno dei due: si ferma e dice di scegliere ' +
+      'il nome esatto (' + due + ')', /"ROSSI" puo' essere ROSSI A\. o ROSSI M\./.test(due) && /nome esatto/.test(due));
+    verifica('  ...mentre il nome esatto, o l\'inizio di un nome solo, vale',
+      contesto._orariDocente_(omonimi, 'rossi m').nome === 'ROSSI M.' &&
+      contesto._orariDocente_(omonimi, 'ROSSI A.').nome === 'ROSSI A.' && contesto._orariDocente_(omonimi, 'VER').nome === 'VERDI');
+    const docenti = contesto.ORARI.docenti;
+    contesto.ORARI.docenti = docenti.concat([{ nome: salva.docente + ' BIS', celle: docOriginale.celle.slice() }]);
+    contesto.ORARI.calendario = Object.assign({}, salva, { docente: salva.docente.slice(0, -1) });
+    azzeraCalendario();
+    sbaglio = errore(() => contesto.ORARI_4_calendario());
+    contesto.ORARI.docenti = docenti;
+    verifica('  ...e ORARI_4_calendario con quel nome si ferma prima di toccare il calendario',
+      /puo' essere/.test(sbaglio) && calendari.length === 0);
+  }
   contesto.ORARI.calendario = Object.assign({}, salva, { fine: '2026-09-01' });
   sbaglio = errore(() => contesto.ORARI_4_calendario());
   verifica('con la fine prima dell\'inizio si ferma', /prima/i.test(sbaglio));
