@@ -461,17 +461,29 @@ ORARI - le email a te e il calendario
    quello di riprendere da solo un lavoro lungo (i trigger): niente posta,
    niente email, niente Drive. Le funzioni del calendario hanno gli stessi
    nomi di Orari.gs, quindi quello che segue vale anche li'; li'
-   ORARI_1_anteprima scrive "Calendario.gs versione 1.6.0". Le email degli
-   orari, se le vuoi, restano nel progetto della scuola: li' non eseguire
-   ORARI_4_calendario, o l'orario finirebbe anche nel calendario della
-   scuola. Quando l'orario cambia, rigenera e incolla i dati in tutti e due
-   i progetti.
+   ORARI_1_anteprima scrive "Calendario.gs versione 1.6.0". Nel file
+   DatiOrari di quel progetto vanno i "Dati del tuo orario", non quelli di
+   tutto il tabellone: con quelli (i colleghi, gli orari delle classi)
+   Calendario.gs si ferma e te lo dice. Le email degli orari, se le vuoi,
+   restano nel progetto della scuola: li' il DatiOrari.gs non ha la parte
+   del calendario (ne' i colloqui, ne' i link del Meet), e
+   ORARI_4_calendario non mette niente e ti dice dov'e' il calendario. Se
+   nel calendario della scuola c'e' ancora l'orario messo prima, toglilo
+   prima di cambiare (ORARI_ANNULLA_calendario nel progetto della scuola),
+   oppure elimina quel calendario da Google Calendar. Quando l'orario
+   cambia, rigenera e incolla i dati in tutti e due i progetti.
    Poi scegli il tuo nome, come e' scritto nel tabellone, il nome del
-   calendario, il periodo e gli orari delle ore.
+   calendario, il periodo e gli orari delle ore. Basta l'inizio del nome
+   (ROSSI per ROSSI M.) se nel tabellone c'e' un docente solo che comincia
+   cosi'; con due (ROSSI A. e ROSSI M.) scegli quello esatto dall'elenco:
+   finche' non lo fai il calendario non ha un orario, invece di prendere
+   quello di un collega.
    Il calendario e' uno tuo con quel nome esatto (non uno di un collega a
    cui sei iscritto); se non c'e', lo script lo crea, con il fuso orario
    dello script: ORARI_1_anteprima lo scrive, e se non e' Europe/Rome ti
-   avvisa (si cambia in Impostazioni progetto -> Fuso orario). Un
+   avvisa (si cambia in Impostazioni progetto -> Fuso orario), e
+   ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_7_colloqui si fermano
+   senza toccare il calendario finche' non lo cambi. Un
    calendario messo con Campanella 1.5 o prima ha il fuso UTC: dal 26
    ottobre, a fine ora legale, le lezioni compaiono un'ora prima (Campanella
    te lo dice anche all'avvio, una volta sola). ORARI_4_calendario e
@@ -523,31 +535,44 @@ ORARI - le email a te e il calendario
    In "Colloqui con le famiglie", sotto i giorni senza lezione, scrivi i
    tuoi colloqui, una riga per voce: il ricevimento di ogni settimana
    (ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/..., anche
-   con le sue date davanti: dal 12/10/2026 al 22/05/2027 ogni giovedi ...;
-   senza date vale per tutto il periodo), le giornate (15/12/2026
+   con le sue date davanti: dal 12/10/2026 al 22/05/2027 ogni giovedi ...,
+   o dopo, come nelle circolari: ogni giovedi 10:10-11:10 Ricevimento dal
+   12/10/2026 al 22/05/2027; senza date vale per tutto il periodo), le
+   giornate (15/12/2026
    15:00-18:00 Colloqui generali https://meet.google.com/..., anche "dalle
    15 alle 18" o "15-18") e i periodi senza colloqui (niente colloqui dal
    14/12/2026 al 09/01/2027, o colloqui sospesi dal ... al ...). Il link e'
    il primo indirizzo https:// della riga, e sul calendario diventa il
    luogo dell'evento; il resto e' il nome (di partenza Ricevimento o
-   Colloqui). "Importa da un file..." prende le righe da un .csv o da un
-   .xlsx con le colonne data (o giorno), dalle, alle, cosa (o descrizione)
-   e link, e le aggiunge in fondo alla casella, che resta l'unica fonte.
-   Sotto la casella Campanella mostra come ha letto ogni riga; in ambra
-   quelle da guardare: non capite, senza ora o con la fine prima
-   dell'inizio (restano nella casella ma sul calendario non vanno), in un
-   giorno che non e' nell'orario, fuori dal periodo, o con un link che non
-   e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
+   Colloqui). Una voce per riga: una riga con un'altra data, "fino al", un
+   altro giorno della settimana, un'altra ora, due link o un link http://
+   non la capisce, invece di mettere il resto nel titolo. "Importa da un
+   file..." prende le righe da un .csv o da un .xlsx con le colonne data
+   (o giorno: una data, anche con il giorno della settimana, o il giorno
+   da solo per il ricevimento), dalle, alle, cosa (o descrizione), link e,
+   per un ricevimento, dal e al, e aggiunge in fondo alla casella quelle
+   che non ci sono gia': la casella resta l'unica fonte. Un file con i nomi
+   delle persone (cognome, nome, classe, genitore, email...) non lo
+   importa: e' un elenco di prenotazioni. Sotto la casella Campanella
+   mostra come ha letto ogni riga; in ambra quelle da guardare: non
+   capite, senza ora o con la fine prima dell'inizio, uguali a una di
+   sopra (restano nella casella ma sul calendario non vanno), in un giorno
+   che non e' nell'orario, fuori dal periodo, con una cadenza come "a
+   settimane alterne" (sul calendario vanno ogni settimana) o con un link
+   che non e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
    colloqui con l'orario: il ricevimento come le lezioni, a tratti (niente
    colloqui nei giorni senza lezione e in quelli senza colloqui), le
    giornate come eventi singoli (una giornata c'e' anche in un periodo
    senza colloqui: i colloqui generali di solito cadono proprio li'). Se
-   cambiano solo i colloqui, rigenera e incolla DatiOrari.gs ed esegui
-   ORARI_7_colloqui: li aggiorna da oggi in poi, senza toccare le lezioni;
+   cambiano solo i colloqui, o li aggiungi a un orario gia' messo,
+   rigenera e incolla DatiOrari.gs ed esegui ORARI_7_colloqui (anche
+   ORARI_4_calendario, rieseguito, te lo dice): li aggiorna da oggi in poi,
+   senza toccare le lezioni;
    quelli passati restano come sono, anche se li avevi cambiati a mano.
    Anche lei riprende da sola se si ferma. Le prenotazioni dei genitori
    restano nel registro elettronico (ClasseViva): Campanella non le legge
-   e non le tocca, sul calendario ci sono solo il giorno, l'ora e il link.
+   e non le tocca (un file di prenotazioni non lo importa), sul calendario
+   ci sono solo il giorno, l'ora e il link.
    I colloqui, con i loro link, stanno con i dati di altre persone.
    Ogni blocco di ore consecutive della stessa classe diventa un evento
    settimanale fino alla data di fine, ma non nei giorni senza lezione:

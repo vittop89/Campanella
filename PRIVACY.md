@@ -87,8 +87,11 @@ cognome come nel tabellone, le tue classi e le tue ore, i giorni senza
 lezione con il nome che hai scritto, il colore di ogni classe e i tuoi
 colloqui con i link del Meet). Nessun dato
 dei colleghi: né gli altri docenti del tabellone, né gli orari delle classi,
-né indirizzi. I giorni senza lezione sono testo libero e vanno anche lì: non
-scriverci il nome di un collega. Quello script chiede solo il permesso del
+né indirizzi (con i dati di tutto il tabellone `Calendario.gs` si ferma e dice
+di incollare quelli del tuo orario). I giorni senza lezione sono testo libero
+e vanno anche lì: non scriverci il nome di un collega. Nel progetto della
+scuola, con questa scelta, il `DatiOrari.gs` non ha la parte del calendario:
+né i colloqui né i link del Meet. Quello script chiede solo il permesso del
 Calendario e quello di riprendere da solo un lavoro lungo; non tocca la
 posta e non conosce il tuo indirizzo. Le email degli orari, se le vuoi,
 restano nell'account della scuola. È comunque il tuo orario di servizio in
@@ -104,7 +107,8 @@ entra nella stanza. Per questo il testo dei colloqui sta con i dati
 personali (con i dati nel Drive, non nel file accanto al programma), e il
 `DatiOrari.gs` che li contiene tienilo per te. Niente nomi di studenti o di
 genitori: le prenotazioni restano nel registro elettronico, e Campanella non
-le legge.
+le legge (un file con colonne di persone, come cognome, nome, classe,
+genitore o email, non lo importa: è un elenco di prenotazioni).
 
 **Le connessioni del programma.** Campanella si collega a internet solo
 quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a
