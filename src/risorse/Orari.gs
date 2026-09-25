@@ -343,7 +343,12 @@ function _orariInvia_(tipo, e) {
 //  uno che c'e' gia' con un altro fuso (UTC, come quelli creati senza fuso
 //  da Campanella 1.5) lo prende prima di ricevere lezioni. Se ne ha gia'
 //  qualcuna, lo script si ferma e spiega come sistemare: dalla fine dell'ora
-//  legale quelle lezioni comparirebbero un'ora prima.
+//  legale quelle lezioni comparirebbero un'ora prima. Che le serie create
+//  dopo setTimeZone seguano il fuso nuovo nessuno l'ha provato dal vivo:
+//  dopo setTimeZone il calendario si riprende da Google e se ne guarda il
+//  fuso, e in ogni lavoro la prima serie che passa un cambio dell'ora deve
+//  avere tutte le lezioni alla stessa ora. Se no lo script si ferma, e dice
+//  di usare un calendario nuovo (creato con il fuso: provato dal vivo).
 // ===========================================================================
 function ORARI_4_calendario(e) {
   return _orariCalendarioConLock_(_ORARI_TRIGGER_CALENDARIO, e);
@@ -436,6 +441,13 @@ function _orariCalendario_(funzione, e) {
     var niente = 'Niente da riprendere: il lavoro sul calendario e\' gia\' finito, oppure e\' stato annullato.';
     Logger.log(niente);
     return niente;
+  }
+  // la prova del fuso orario e' andata male (_orariFusoDellaSerie_): in quel
+  // calendario non si mette nient'altro, finche' ORARI_ANNULLA_calendario non
+  // dimentica il lavoro. Il messaggio e' quello di allora, con il rimedio
+  if (salvato && salvato.fusoSbagliato) {
+    if (ripresa) _togliTriggerOrari_(funzione);
+    throw new Error(String(salvato.fusoSbagliato));
   }
   // ANNULLA_automazione ha fermato il lavoro: una ripresa gia' partita, che
   // aspettava il blocco mentre toglieva i trigger, non lo riprende. Rieseguita
@@ -547,6 +559,9 @@ function _orariCalendario_(funzione, e) {
     // prima di mettere, cambiare o togliere lezioni: il fuso del calendario
     // dev'essere quello dello script (si ferma se ci sono gia' lezioni nel fuso sbagliato)
     if (!creato) fusoDiPrima = _orariSistemaFuso_(cal, c, periodo);
+    // setTimeZone nessuno l'ha provato dal vivo: da qui si usa il calendario
+    // ripreso da Google, che deve avere il fuso nuovo (se no si ferma)
+    if (fusoDiPrima) cal = _orariCalendarioColFusoNuovo_(c, fusoDiPrima);
     if (!cambio && !creato) {
       // rieseguire sopra un orario gia' messo raddoppierebbe ogni lezione
       var gia = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine)).length;
@@ -612,6 +627,17 @@ function _orariCalendario_(funzione, e) {
       salva();
       serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
       stato.daContrassegnare.pop();
+      // la prima serie che passa un cambio dell'ora dice se Google ripete le
+      // lezioni nel fuso dello script; se no, mi fermo qui (vedi sopra)
+      if (!stato.fusoProvato && _orariPassaUnCambioDellOra_(piano.serie[stato.fatti - 1])) {
+        var prova = _orariFusoDellaSerie_(cal, serie.getId(), piano.serie[stato.fatti - 1]);
+        if (prova.sbagliata) {
+          stato.fusoSbagliato = _orariFusoSbagliato_(c, prova);
+          salva();
+          throw new Error(stato.fusoSbagliato);
+        }
+        stato.fusoProvato = prova.provato;
+      }
       Utilities.sleep(_ORARI_PAUSA_MS);
     }
   } catch (err) {
@@ -1228,11 +1254,16 @@ function _orariFineCalendario_(c, doc, periodo, piano, stato) {
     'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false);
 }
 
-/** Per i messaggi finali: il fuso del calendario, se l'ho cambiato. "" se no. */
+/**
+ * Per i messaggi finali: il fuso del calendario, se l'ho cambiato, e se la
+ * prova sulla prima serie che passa un cambio dell'ora dice che le lezioni
+ * restano alla loro ora. "" se non l'ho cambiato.
+ */
 function _orariAvvisoFuso_(stato) {
   if (!stato.fusoDiPrima) return '';
   return 'Il calendario aveva il fuso orario ' + stato.fusoDiPrima + ': gli ho messo ' + Session.getScriptTimeZone() +
-    ', quello dello script, cosi\' le lezioni restano alla loro ora anche dopo il cambio dell\'ora.\n';
+    ', quello dello script, perche\' le lezioni restino alla loro ora anche dopo il cambio dell\'ora' +
+    (stato.fusoProvato ? ' (controllato: in una serie che lo passa, tutte le lezioni sono alla stessa ora)' : '') + '.\n';
 }
 
 /** Il messaggio finale del cambio d'orario. validoDal e' la data vera del cambio, mai prima dell'inizio. */
@@ -1745,6 +1776,97 @@ function _orariSistemaFuso_(cal, c, periodo) {
 }
 
 /**
+ * Dopo _orariSistemaFuso_ (fusoDiPrima: il fuso che il calendario aveva): il
+ * calendario ripreso da Google, non l'oggetto di prima, che potrebbe
+ * ricordare il fuso vecchio. Deve avere il fuso dello script: se no Google
+ * non l'ha cambiato, e si ferma prima di mettere lezioni, con il rimedio (un
+ * calendario nuovo, che nasce con il fuso giusto: quello si' provato dal vivo).
+ */
+function _orariCalendarioColFusoNuovo_(c, fusoDiPrima) {
+  var fuso = Session.getScriptTimeZone();
+  var ripreso = _orariTrovaCalendario_(c.nome);
+  var suo = ripreso ? String(ripreso.getTimeZone() || '') : '';
+  if (ripreso && suo === fuso) return ripreso;
+  throw new Error('Ho dato al calendario "' + c.nome + '" il fuso orario ' + fuso + ' (aveva ' + fusoDiPrima + '), ' +
+    'ma Google dice che ha ancora ' + (suo || '(nessuno)') + ': le lezioni finirebbero a un\'altra ora, e ' +
+    'dall\'ultima domenica di ottobre a fine marzo si sposterebbero di un\'ora. Non ho messo, cambiato ne\' tolto ' +
+    'lezioni.\n' + _orariRimedioCalendarioNuovo_(c));
+}
+
+/**
+ * La prova del fuso, sulla serie appena creata (id) di un tratto del piano
+ * (voce): Google ripete una serie alla stessa ora nel fuso del calendario, e
+ * se quel fuso non e' quello dello script (per esempio se setTimeZone, che
+ * nessuno ha provato dal vivo, non valesse per le serie nuove) le lezioni
+ * dopo un cambio dell'ora si spostano di un'ora. Se le lezioni della serie
+ * passano un cambio dell'ora (in UTC non sono tutte alla stessa ora), devono
+ * essere tutte alla stessa ora nel fuso dello script: provato. Torna
+ * { provato, sbagliata, voce, attesa }: sbagliata e' la prima lezione a
+ * un'altra ora, attesa l'ora giusta, voce quella di _orariNostri_ della
+ * serie; provato e' falso anche se
+ * la serie non passa un cambio dell'ora (si prova con la prossima).
+ */
+function _orariFusoDellaSerie_(cal, id, voce) {
+  var fuori = { provato: false, sbagliata: null, voce: null, attesa: '' };
+  var fuso = Session.getScriptTimeZone();
+  var nostri = _orariNostri_(cal, _orariData_(voce.dal), _orariFineGiornata_(_orariData_(voce.al)));
+  for (var i = 0; i < nostri.length; i++) {
+    if (!nostri[i].serie || String(nostri[i].serie.getId()) !== String(id)) continue;
+    var lezioni = nostri[i].lezioni;
+    if (!lezioni.length) return fuori;
+    var attesa = Utilities.formatDate(lezioni[0].inizio, fuso, 'HH:mm');
+    var primaUtc = Utilities.formatDate(lezioni[0].inizio, 'UTC', 'HH:mm');
+    var cambiaInUtc = false;
+    for (var k = 1; k < lezioni.length; k++) {
+      if (Utilities.formatDate(lezioni[k].inizio, fuso, 'HH:mm') !== attesa && !fuori.sbagliata) {
+        fuori.sbagliata = lezioni[k];
+      }
+      if (Utilities.formatDate(lezioni[k].inizio, 'UTC', 'HH:mm') !== primaUtc) cambiaInUtc = true;
+    }
+    fuori.voce = nostri[i];
+    fuori.attesa = attesa;
+    fuori.provato = cambiaInUtc && !fuori.sbagliata;
+    return fuori;
+  }
+  return fuori;
+}
+
+/**
+ * Vero se fra le settimane di un tratto del piano (voce.dal, voce.al) c'e' un
+ * cambio dell'ora nel fuso dello script (quello delle date qui): solo allora
+ * la prova del fuso dice qualcosa, e vale la lettura del calendario.
+ */
+function _orariPassaUnCambioDellOra_(voce) {
+  var primo = _orariData_(voce.dal), ultimo = _orariData_(voce.al);
+  if (!primo || !ultimo) return false;
+  for (var k = 1; ; k++) {
+    var g = new Date(primo.getFullYear(), primo.getMonth(), primo.getDate() + 7 * k);
+    if (g > ultimo) return false;
+    if (g.getTimezoneOffset() !== primo.getTimezoneOffset()) return true;
+  }
+}
+
+/** L'errore della prova del fuso andata male (_orariFusoDellaSerie_), con il rimedio. */
+function _orariFusoSbagliato_(c, prova) {
+  var fuso = Session.getScriptTimeZone();
+  var l = prova.sbagliata;
+  return 'Google non ripete le lezioni del calendario "' + c.nome + '" nel fuso orario ' + fuso + ' dello script: ' +
+    'nella serie appena messa (' + _orariEtichetta_(prova.voce) + ') la lezione del ' + _orariChiaveData_(l.inizio) +
+    ' compare alle ' + Utilities.formatDate(l.inizio, fuso, 'HH:mm') + ' invece che alle ' + prova.attesa + ', ' +
+    'come in un calendario con un altro fuso orario. Mi sono fermato: in questo calendario non metto altre ' +
+    'lezioni.\n' + _orariRimedioCalendarioNuovo_(c);
+}
+
+/** Il rimedio quando il calendario non tiene il fuso dello script: un calendario nuovo, che nasce con quel fuso. */
+function _orariRimedioCalendarioNuovo_(c) {
+  return 'Per sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni messe da Campanella e dimentica il ' +
+    'lavoro a meta\'; poi in Google Calendar cambia il nome del calendario "' + c.nome + '" (o eliminalo, se non ci ' +
+    'hai messo nient\'altro); poi esegui di nuovo ORARI_4_calendario, che crea un calendario nuovo con il fuso ' +
+    'orario dello script. Se l\'orario e\' cambiato a meta\' anno, prima ORARI_4_calendario con il DatiOrari.gs ' +
+    'dell\'orario di prima, poi ORARI_5_cambioOrario con quello nuovo.';
+}
+
+/**
  * Le lezioni di Campanella nel periodo, in un calendario con un fuso diverso
  * da quello dello script: che cosa succede e come si sistema. '' se non ce
  * ne sono (allora basta cambiare il fuso). Per ORARI_1_anteprima e per
@@ -1758,7 +1880,8 @@ function _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso) {
     ' (con una versione di prima, che creava il calendario senza fuso). Google ripete le lezioni alla stessa ora ' +
     'del fuso del calendario: con UTC, dalla fine dell\'ora legale (l\'ultima domenica di ottobre) compaiono ' +
     'un\'ora prima.\nPer sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni messe da Campanella nel ' +
-    'periodo, e poi ORARI_4_calendario, che mette al calendario il fuso giusto e rimette l\'orario. Cosi\' si ' +
+    'periodo, e poi ORARI_4_calendario, che mette al calendario il fuso giusto e rimette l\'orario (se Google non ' +
+    'lo lascia cambiare, ORARI_4_calendario se ne accorge, si ferma e dice come fare con un calendario nuovo). Cosi\' si ' +
     'perdono le modifiche fatte a mano alle lezioni (spostate, cancellate, cambiate): se ne avevi fatte, rifalle ' +
     'dopo. Se l\'orario e\' gia\' cambiato a meta\' anno, rimetti prima con ORARI_4_calendario il DatiOrari.gs ' +
     'dell\'orario di prima, poi incolla quello nuovo ed esegui ORARI_5_cambioOrario.';

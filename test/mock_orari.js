@@ -125,8 +125,16 @@ const ScriptApp = {
 //  - getEventSeries di un evento singolo non e' null: la "serie" di
 //    quell'evento.
 // Supposizioni, non provate dal vivo: setTimeZone non cambia le serie gia'
-// create, che restano nel fuso in cui sono nate (quelle create dopo prendono
-// il fuso nuovo); setTime su una lezione di una serie sposta solo quella,
+// create, che restano nel fuso in cui sono nate; le serie create dopo
+// setTimeZone, anche nella stessa esecuzione e con lo stesso oggetto,
+// prendono il fuso nuovo (su questa si regge il rimedio per i calendari UTC
+// della 1.5: ORARI_ANNULLA_calendario e poi ORARI_4_calendario sullo stesso
+// calendario). Per non dipenderne lo script riprende il calendario dopo
+// setTimeZone e ne controlla il fuso, e prova la prima serie che passa un
+// cambio dell'ora; fusoDiGoogle simula gli altri due casi: 'setTimeZone
+// senza effetto' (il fuso resta quello di prima) e 'serie nel fuso di
+// nascita' (getTimeZone dice il fuso nuovo, ma le serie nuove si ripetono
+// ancora in quello con cui il calendario e' nato). setTime su una lezione di una serie sposta solo quella,
 // come dall'interfaccia di Google. Gli eventi singoli (createEvent) hanno la
 // descrizione e il luogo delle opzioni, un id e i contrassegni.
 // Una lezione di una serie si puo' spostare o cancellare a mano (sposta,
@@ -150,6 +158,7 @@ let scritture = 0;                   // tutte le modifiche al calendario, dall'i
 const chiamate = {};                 // operazione -> quante volte e' stata chiamata
 let guastiPrevisti = [];             // { op, alla, messaggio }
 const conSetRecurrence = [];         // le serie su cui e' stato chiamato setRecurrence (che non fa niente)
+let fusoDiGoogle = 'come supposto'; // o 'setTimeZone senza effetto', 'serie nel fuso di nascita' (vedi sopra)
 const occorrenzeTolte = [];          // deleteEvent su una sola lezione di una serie
 
 function guasti(elenco) {
@@ -177,7 +186,8 @@ class Serie {
   constructor(cal, titolo, inizio, fine, ricorrenza, opzioni) {
     this.id = 'serie' + (prossimoId++);
     this.cal = cal; this.titolo = titolo;
-    this.fuso = cal.fuso;            // il fuso del calendario quando la serie nasce: resta questo
+    // il fuso del calendario quando la serie nasce: resta questo
+    this.fuso = (fusoDiGoogle === 'serie nel fuso di nascita') ? cal.fusoDiNascita : cal.fuso;
     this.inizio = new Date(inizio.getTime()); this.fine = new Date(fine.getTime());
     this.ricorrenza = ricorrenza; this.opzioni = opzioni || {};
     this.tag = {}; this.descrizione = (opzioni && opzioni.description) || ''; this.cancellata = false;
@@ -287,11 +297,16 @@ class Calendario {
     this.nome = nome; this.opzioni = opzioni || {}; this.serie = []; this.eventi = []; this.colore = '';
     this.proprio = true;             // false: un calendario di altri a cui sei iscritto
     this.fuso = this.opzioni.timeZone || 'UTC';     // come Google: senza timeZone, UTC
+    this.fusoDiNascita = this.fuso;
   }
   getName() { return this.nome; }
   setColor(c) { this.colore = c; return this; }
   getTimeZone() { return this.fuso; }
-  setTimeZone(f) { operazione('setTimeZone'); this.fuso = f; return this; }
+  setTimeZone(f) {
+    operazione('setTimeZone');
+    if (fusoDiGoogle !== 'setTimeZone senza effetto') this.fuso = f;
+    return this;
+  }
   createEventSeries(titolo, inizio, fine, ricorrenza, opzioni) {
     operazione('createEventSeries');
     const s = new Serie(this, titolo, inizio, fine, ricorrenza, opzioni);
@@ -766,6 +781,7 @@ if (conCalendario) {
     orologio = 0;
     occorrenzeTolte.length = 0;
     lockOccupato = false;
+    fusoDiGoogle = 'come supposto';
     docOriginale.celle = celleOriginali.slice();
   }
   /** Fa scattare la ripresa programmata finche' c'e' un lavoro a meta' (e una ripresa). */
@@ -951,8 +967,9 @@ if (conCalendario) {
   const rimesso = contesto.ORARI_4_calendario();
   verifica('dopo ORARI_ANNULLA_calendario, ORARI_4_calendario da\' al calendario il fuso dello script, e lo dice',
     calendari.length === 1 && cal15.getTimeZone() === FUSO_BANCO && /aveva il fuso orario UTC/.test(rimesso));
-  verifica('  ...e le lezioni restano alla loro ora anche dopo il 25/10',
-    uguali(lezioniSul(cal15, primoGiorno, ultimoGiorno), piano.lezioni));
+  verifica('  ...e le lezioni restano alla loro ora anche dopo il 25/10, e il messaggio dice che l\'ha controllato ' +
+    'su una serie che passa il cambio dell\'ora',
+    uguali(lezioniSul(cal15, primoGiorno, ultimoGiorno), piano.lezioni) && /controllato: in una serie che lo passa/.test(rimesso));
   // un calendario UTC senza lezioni di Campanella (creato a mano): prende il
   // fuso dello script prima di ricevere le lezioni. L'anteprima lo dice prima
   azzeraCalendario();
@@ -966,6 +983,63 @@ if (conCalendario) {
   verifica('un calendario UTC senza lezioni di Campanella prende il fuso dello script, e le lezioni sono alla loro ora',
     calendari.length === 1 && calAMano.getTimeZone() === FUSO_BANCO && /aveva il fuso orario UTC/.test(conFuso) &&
     uguali(lezioniSul(calAMano, primoGiorno, ultimoGiorno), piano.lezioni) && calAMano.eventi.every(e => !e.cancellato));
+
+  // la prova si fa solo su un tratto che passa un cambio dell'ora (25/10/2026, 28/03/2027)
+  {
+    const passa = (dal, al) => contesto._orariPassaUnCambioDellOra_({ dal, al });
+    verifica('un tratto passa un cambio dell\'ora solo se una sua settimana cade dopo il 25/10 o il 28/03 e la prima no',
+      !passa('2026-09-14', '2026-10-19') && passa('2026-09-14', '2026-10-26') && !passa('2026-11-02', '2027-03-22') &&
+      passa('2026-11-02', '2027-03-29') && !passa('2026-10-26', '2026-10-26'));
+  }
+  // e se Google facesse altrimenti (setTimeZone non e' provato dal vivo):
+  // (1) setTimeZone senza effetto: il calendario ripreso dice ancora UTC, e
+  // lo script si ferma prima di mettere lezioni, con il rimedio
+  azzeraCalendario();
+  fusoDiGoogle = 'setTimeZone senza effetto';
+  const calFermo = CalendarApp.createCalendar(c.nome);
+  const fermoFuso = errore(() => contesto.ORARI_4_calendario());
+  verifica('se Google non cambiasse il fuso del calendario, ORARI_4_calendario se ne accorge riprendendolo, si ferma ' +
+    'prima di mettere lezioni e dice di usare un calendario nuovo',
+    /dice che ha ancora UTC/.test(fermoFuso) && /Non ho messo, cambiato ne' tolto lezioni/.test(fermoFuso) &&
+    /cambia il nome del calendario/.test(fermoFuso) && /crea un calendario nuovo/.test(fermoFuso) &&
+    calFermo.serie.length === 0 && !proprieta.has(PROGRESSO_CALENDARIO));
+  // (2) getTimeZone dice il fuso nuovo, ma le serie nuove restano nel fuso di
+  // prima: la prova sulla prima serie che passa il 25/10 lo vede, e lo script
+  // si ferma, e resta fermo (anche rieseguito, o in una ripresa) finche'
+  // ORARI_ANNULLA_calendario non dimentica il lavoro
+  azzeraCalendario();
+  fusoDiGoogle = 'serie nel fuso di nascita';
+  const calNascita = CalendarApp.createCalendar(c.nome);
+  const nascita = errore(() => contesto.ORARI_4_calendario());
+  const dopoNascita = vive(calNascita).length;
+  verifica('se le serie nuove restassero nel fuso di prima, ORARI_4_calendario se ne accorge dalla prima serie che ' +
+    'passa il 25/10, si ferma subito (' + dopoNascita + ' serie) e dice l\'ora sbagliata e il rimedio',
+    /Google non ripete le lezioni del calendario/.test(nascita) && /invece che alle/.test(nascita) &&
+    /ORARI_ANNULLA_calendario/.test(nascita) && /crea un calendario nuovo/.test(nascita) &&
+    dopoNascita >= 1 && dopoNascita < piano.tratti.length && !!salvato() && !!salvato().fusoSbagliato &&
+    ripresaDi('ORARI_4_calendario').length === 0);
+  const primaDiRieseguire = scritture;
+  const ancora = errore(() => contesto.ORARI_4_calendario());
+  trigger.push({ fn: 'ORARI_4_calendario', ms: 60000 });
+  const ancoraRipresa = errore(() => contesto.ORARI_4_calendario({ triggerUid: 'ripresa' }));
+  const ancoraCambio = c.validoDal ? errore(() => contesto.ORARI_5_cambioOrario()) : nascita;
+  verifica('  ...rieseguito, ripreso o con ORARI_5_cambioOrario dice la stessa cosa e non mette altro',
+    ancora === nascita && ancoraRipresa === nascita && ancoraCambio === nascita && scritture === primaDiRieseguire &&
+    vive(calNascita).length === dopoNascita && ripresaDi('ORARI_4_calendario').length === 0);
+  contesto.ORARI_ANNULLA_calendario();
+  // senza cambiare il nome: il calendario dice gia' il fuso dello script, ma
+  // la prova lo ferma lo stesso
+  const senzaNome = errore(() => contesto.ORARI_4_calendario());
+  verifica('  ...dopo ORARI_ANNULLA_calendario, sullo stesso calendario (che ora dice ' + calNascita.getTimeZone() +
+    ') si ferma ancora', /Google non ripete le lezioni del calendario/.test(senzaNome));
+  contesto.ORARI_ANNULLA_calendario();
+  calNascita.nome = c.nome + ' (vecchio)';
+  const nuovoCal = contesto.ORARI_4_calendario();
+  const calNuovo = calendari.find(x => x !== calNascita && x.nome === c.nome);
+  verifica('  ...e con il rimedio (ORARI_ANNULLA_calendario, il nome cambiato, ORARI_4_calendario) c\'e\' un calendario ' +
+    'nuovo con il fuso dello script, e le lezioni sono alla loro ora',
+    !!calNuovo && calNuovo.getTimeZone() === FUSO_BANCO && /Creato il calendario/.test(nuovoCal) &&
+    uguali(lezioniSul(calNuovo, primoGiorno, ultimoGiorno), piano.lezioni) && vive(calNascita).length === 0);
   azzeraCalendario();
 
   // --- i giorni senza lezione, uno per uno -------------------------------------
