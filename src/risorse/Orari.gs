@@ -418,7 +418,9 @@ function ORARI_5_cambioOrario(e) {
 //  classe senza colore restano come sono (il messaggio dice quali ne hanno
 //  ancora uno di prima). Con tante serie puo' finire il tempo, o Google puo'
 //  chiedere di rallentare: si ricorda quelle gia' fatte e riprende da sola
-//  fra un minuto, come le altre, con lo stesso lock.
+//  fra un minuto, come le altre, con lo stesso lock. Con il lavoro di
+//  ORARI_4_calendario o di ORARI_5_cambioOrario a meta' non colora niente e
+//  dice di finirlo prima.
 // ===========================================================================
 function ORARI_6_coloraLezioni(e) {
   // una ripresa toglie subito il proprio trigger (vedi _orariCalendarioConLock_)
@@ -489,6 +491,22 @@ function _orariLavoroCalendario_() {
   return null;
 }
 
+/**
+ * Per chi trova a meta' il lavoro sul calendario di un'altra funzione: come
+ * si finisce. Riprende da solo se la sua ripresa c'e' ancora:
+ * ANNULLA_automazione (che lo segna fermato), il limite della giornata o
+ * Google che rifiuta ancora dopo tante riprese la tolgono, e una ripresa
+ * partita toglie la sua appena comincia (finita con un altro errore, non ce
+ * n'e' un'altra): allora va rieseguito a mano.
+ */
+function _orariComeFinire_(salvato) {
+  var daSolo = !salvato.fermato && _orariRipresaProgrammata_(salvato.funzione);
+  return daSolo
+    ? 'riprende da solo fra poco, oppure rieseguilo tu per finirlo'
+    : 'non riprende da solo' + (salvato.fermato ? ' (e\' stato fermato con ANNULLA_automazione)' : '') +
+      ': rieseguilo tu, riparte da dove era arrivato';
+}
+
 function _orariCalendario_(funzione, e) {
   var prop = PropertiesService.getUserProperties();
   var salvato = _orariLavoroCalendario_();
@@ -522,16 +540,7 @@ function _orariCalendario_(funzione, e) {
     return fermo;
   }
   if (salvato && salvato.funzione !== funzione) {
-    // riprende da solo se la sua ripresa c'e' ancora: ANNULLA_automazione
-    // (che lo segna fermato), il limite della giornata o Google che rifiuta
-    // ancora dopo tante riprese la tolgono, e una ripresa partita toglie la
-    // sua appena comincia (finita con un altro errore, non ce n'e' un'altra):
-    // allora va rieseguito a mano
-    var daSolo = !salvato.fermato && _orariRipresaProgrammata_(salvato.funzione);
-    var come = daSolo
-      ? 'riprende da solo fra poco, oppure rieseguilo tu per finirlo'
-      : 'non riprende da solo' + (salvato.fermato ? ' (e\' stato fermato con ANNULLA_automazione)' : '') +
-        ': rieseguilo tu, riparte da dove era arrivato';
+    var come = _orariComeFinire_(salvato);
     throw new Error(salvato.funzione === _ORARI_TRIGGER_CAMBIO
       ? 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): ' + come + '. Per togliere tutto quello ' +
         'che Campanella ha messo sul calendario c\'e\' ORARI_ANNULLA_calendario.'
@@ -1570,6 +1579,14 @@ function _orariColori_(e) {
     Logger.log(fermo);
     return fermo;
   }
+  // il lavoro di ORARI_4_calendario o di ORARI_5_cambioOrario a meta': non
+  // si colora niente, come quelle due si fermano davanti al lavoro
+  // dell'altra, e i due lavori restano. Il cambio d'orario riconosce dal
+  // colore le lezioni colorate a mano solo loro, e le rimette come eventi
+  // singoli con il loro: colorare adesso la serie vecchia o quegli eventi
+  // farebbe perdere il colore scelto a mano, o la lezione
+  var lavoro = _orariLavoroCalendario_();
+  if (lavoro) throw new Error(_orariCalendarioAMeta_(lavoro));
 
   // prima di toccare il calendario: dati e date, controllati
   var d = _orariDati_();
@@ -1670,6 +1687,23 @@ function _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva) {
     Utilities.sleep(_ORARI_PAUSA_MS);
   }
   return conti;
+}
+
+/** Il messaggio di ORARI_6_coloraLezioni davanti al lavoro a meta' di ORARI_4_calendario o di ORARI_5_cambioOrario. */
+function _orariCalendarioAMeta_(lavoro) {
+  if (lavoro.fusoSbagliato) {
+    return 'Non coloro niente: il lavoro sul calendario si e\' fermato per il fuso orario.\n' +
+      String(lavoro.fusoSbagliato);
+  }
+  var come = _orariComeFinire_(lavoro);
+  if (lavoro.funzione === _ORARI_TRIGGER_CAMBIO) {
+    return 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): ' + come + '. Quando e\' finito esegui ' +
+      'ORARI_6_coloraLezioni: finche\' e\' a meta\' non coloro niente, perche\' il cambio riconosce dal colore le ' +
+      'lezioni colorate a mano solo loro, e le rimette con il loro. Non ho toccato niente.';
+  }
+  return 'L\'orario messo da ORARI_4_calendario e\' ancora a meta\': ' + come + '. ORARI_4_calendario da\' gia\' ' +
+    'a ogni serie il colore della sua classe; quando e\' finito, se il suo messaggio finale te lo dice, esegui ' +
+    'ORARI_6_coloraLezioni. Finche\' e\' a meta\' non coloro niente, e non ho toccato niente.';
 }
 
 /** Per i messaggi di ORARI_6_coloraLezioni fermata a meta': quante ne ha colorate. */
