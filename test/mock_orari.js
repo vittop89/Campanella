@@ -43,6 +43,10 @@ const IO = 'io@scuola-esempio.edu.it';
 
 // ---------------------------------------------------------------------------
 //  FINTE API
+//  test/collaudo/prova_locale.js prende questa parte cosi' com'e', da qui a
+//  "const contesto = vm.createContext(": qui solo definizioni, niente
+//  require, niente file letti e niente prove (di quello che sta sopra serve
+//  solo IO, che prova_locale.js le passa).
 // ---------------------------------------------------------------------------
 let quota = 100;
 let orologio = 0;
@@ -141,7 +145,10 @@ const ScriptApp = {
 // ripetono ancora in quello con cui il calendario e' nato). Come Google,
 // getOwnedCalendarsByName da' ogni volta un oggetto nuovo (involucro) che
 // legge e cambia lo stesso calendario. setTime su una lezione di una serie sposta solo quella,
-// come dall'interfaccia di Google. Gli eventi singoli (createEvent) hanno la
+// come dall'interfaccia di Google, e setColor su una lezione di una serie
+// colora solo quella (come colora, qui sotto): tutte e due supposizioni, che
+// test/collaudo prova dal vivo. deleteCalendar toglie il calendario (lo usa
+// il collaudo per pulire). Gli eventi singoli (createEvent) hanno la
 // descrizione e il luogo delle opzioni, un id e i contrassegni.
 // Una lezione di una serie si puo' spostare o cancellare a mano (sposta,
 // cancella), come dall'interfaccia di Google: getEvents la da' all'ora
@@ -349,6 +356,12 @@ class Calendario {
   }
   getName() { return this.nome; }
   setColor(c) { this.colore = c; return this; }
+  /** come Google: il calendario sparisce, con i suoi eventi */
+  deleteCalendar() {
+    operazione('deleteCalendar');
+    const i = calendari.indexOf(this);
+    if (i >= 0) calendari.splice(i, 1);
+  }
   getTimeZone() { return this.fuso; }
   setTimeZone(f) {
     operazione('setTimeZone');
@@ -394,6 +407,13 @@ class Calendario {
           deleteEvent: () => { operazione('deleteEvent'); s.eccezioni.set(chiave, null); occorrenzeTolte.push({ serie: s, inizio }); },
           // supposizione: sposta solo questa lezione
           setTime: (i, f) => { operazione('setTime'); s.eccezioni.set(chiave, { inizio: new Date(i.getTime()), fine: new Date(f.getTime()) }); },
+          // supposizione: colora solo questa lezione, dove sta adesso (come colora)
+          setColor: c => {
+            operazione('setColor', s);
+            const x = s.eccezioni.get(chiave);
+            s.eccezioni.set(chiave, Object.assign({ inizio: new Date(inizio.getTime()), fine: new Date(fine.getTime()) },
+                                                  x || {}, { colore: coloreEvento(c) }));
+          },
           getStartTime: () => new Date(inizio.getTime()),
           getEndTime: () => new Date(fine.getTime()),
           getTitle: () => titolo
@@ -426,7 +446,8 @@ function involucro(cal) {
     createEventSeries: (titolo, inizio, fine, ricorrenza, opzioni) =>
       cal.createEventSeries(titolo, inizio, fine, ricorrenza, opzioni),
     createEvent: (titolo, inizio, fine, opzioni) => cal.createEvent(titolo, inizio, fine, opzioni),
-    getEvents: (da, a) => cal.getEvents(da, a)
+    getEvents: (da, a) => cal.getEvents(da, a),
+    deleteCalendar: () => cal.deleteCalendar()
   };
   return o;
 }
