@@ -282,6 +282,72 @@ namespace Campanella
             return ACapo.Matches(prima).Count + 1;
         }
 
+        /// <summary>Le righe di un testo, divise come quelle dei giorni senza lezione (anche gli a capo dei PDF).</summary>
+        public static string[] Righe(string testo)
+        {
+            return ACapo.Split(testo ?? "");
+        }
+
+        /// <summary>
+        /// Una riga sola letta come quelle dei giorni senza lezione (un giorno o
+        /// un periodo, con il nome): per i colloqui, i periodi senza colloqui e
+        /// le date di un ricevimento ("dal 12/10/2026 al 22/05/2027").
+        /// </summary>
+        public static RigaLetta LeggiRiga(string riga, DateTime inizioPeriodo)
+        {
+            RigaLetta r = new RigaLetta();
+            r.Numero = 1;
+            r.Testo = (riga ?? "").Trim();
+            LeggiUna(r.Testo, AnnoScolastico(inizioPeriodo), r);
+            return r;
+        }
+
+        // una data sola all'inizio di un testo, in cifre (anche senza anno) o a
+        // parole, seguita da una fine: per le giornate dei colloqui
+        static readonly Regex DataInCifre = new Regex(@"^(?<d>" + Data + @")(?![0-9])",
+            RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// La data all'inizio di un testo, scritta come nei giorni senza lezione:
+        /// 15/12/2026, 15/12/26, 2026-12-15, 15.12.2026, 15/12 (l'anno e' quello
+        /// dell'anno scolastico del periodo), 15 dicembre 2026, 15 dic. Torna la
+        /// data e quanti caratteri occupa. False se il testo non comincia con una
+        /// data; con perche' non vuoto se comincia con una data che non esiste.
+        /// </summary>
+        public static bool DataAllInizio(string testo, DateTime inizioPeriodo, out DateTime data, out int lunghezza,
+                                         out string perche)
+        {
+            data = DateTime.MinValue;
+            lunghezza = 0;
+            perche = "";
+            string s = testo ?? "";
+            int annoInizio = AnnoScolastico(inizioPeriodo);
+            Match m = DataInCifre.Match(s);
+            int g, mese, anno;
+            if (m.Success)
+            {
+                if (!Pezzi(m.Groups["d"].Value, out g, out mese, out anno)) return false;
+                if (anno == 0) anno = AnnoDelMese(mese, annoInizio);
+                lunghezza = m.Length;
+            }
+            else
+            {
+                m = DataAParole.Match(s);
+                if (!m.Success || m.Index != 0) return false;
+                g = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                mese = Array.IndexOf(Mesi, m.Groups[2].Value.Substring(0, 3).ToLowerInvariant()) + 1;
+                anno = m.Groups[3].Success ? int.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture)
+                                           : AnnoDelMese(mese, annoInizio);
+                lunghezza = m.Length;
+            }
+            if (!Giorno(g, mese, anno, out data))
+            {
+                perche = "la data non esiste (giorno, mese o anno impossibili)";
+                return false;
+            }
+            return true;
+        }
+
         static void NonCapita(RigaLetta r, string motivo)
         {
             r.Giorni = null;
