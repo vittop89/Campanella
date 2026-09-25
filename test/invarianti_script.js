@@ -32,7 +32,12 @@
  *     si da' in nessun altro modo (niente Object, constructor, prototype,
  *     proprieta' calcolate scritte fuori dalle due ammesse, for ... of su una
  *     proprieta', JSON.parse fuori dal punto salvato), le sue costanti e i
- *     servizi non si cambiano; gli altri metodi degli eventi e dei calendari,
+ *     servizi non si cambiano. I colloqui con le famiglie seguono le stesse
+ *     regole delle lezioni: li crea solo _orariCreaColloquio_, il loro
+ *     contrassegno (lo stesso, con un valore suo) e il loro colore li
+ *     riceve solo il colloquio appena creato o ritrovato dopo la guardia, e
+ *     il taglio di ORARI_7_colloqui tocca solo quelli con il contrassegno;
+ *     gli altri metodi degli eventi e dei calendari,
  *     call, apply, bind, eval, this, la destrutturazione, i nomi calcolati e
  *     le funzioni dentro quelle che cambiano o tolgono sono fuori (vedi
  *     CALENDARIO_ORARI);
@@ -355,9 +360,12 @@ const CALENDARIO_ORARI = {
     // Google non l'ha salvato, ritrovata da _orariNostri_; nel taglio alla
     // serie e all'evento singolo appena rifatti, o allo stesso pezzo ritrovato
     // per id (la serie della lezione trovata, o l'evento singolo)
+    // (i colloqui con le famiglie come le lezioni: al colloquio appena creato,
+    // e a quello a cui Google non l'ha salvato, la serie o la giornata singola)
     setTag:                  { funzioni: ['_orariCalendario_', '_orariRimettiContrassegno_', '_orariTaglia_',
                                           '_orariRimettiContrassegniAlPezzo_'],
-                               ricevente: { _orariCalendario_: 'serie', _orariRimettiContrassegno_: 'voce.serie',
+                               ricevente: { _orariCalendario_: ['serie', 'nuovoColloquio'],
+                                            _orariRimettiContrassegno_: ['voce.serie', 'voce.evento'],
                                             _orariTaglia_: ['nuova', 'singolo'],
                                             _orariRimettiContrassegniAlPezzo_: ['serie', 'ev'] } },
     // il colore: al calendario (quello scelto nell'applicazione) e alla serie
@@ -365,16 +373,20 @@ const CALENDARIO_ORARI = {
     // rifatti; in ORARI_6_coloraLezioni alle voci di _orariNostri_ con il
     // contrassegno, dopo la sua guardia
     setColor:                { funzioni: ['_orariCalendario_', '_orariTaglia_', '_orariColoraLezioni_'],
-                               ricevente: { _orariCalendario_: ['cal', 'serie'], _orariTaglia_: ['nuova', 'singolo'],
+                               ricevente: { _orariCalendario_: ['cal', 'serie', 'nuovoColloquio'],
+                                            _orariTaglia_: ['nuova', 'singolo'],
                                             _orariColoraLezioni_: ['voce.serie', 'voce.evento'] } },
     // gli eventi del calendario: quelli di Campanella, e il pezzo appena
     // rifatto dal taglio, ritrovato per id all'ora della sua prima lezione
     getEvents:               { funzioni: ['_orariNostri_', '_orariRimettiContrassegniAlPezzo_'], ricevente: 'cal' },
     getEventSeries:          { funzioni: ['_orariNostri_', '_orariRimettiContrassegniAlPezzo_', '_orariEventoDelPezzo_'],
                                ricevente: 'ev' },
-    createEventSeries:       { funzioni: ['_orariCreaSerie_', '_orariSerieRifatta_'], ricevente: 'cal' },
-    // una lezione spostata a mano, rimessa dal taglio come evento singolo
-    createEvent:             { funzioni: ['_orariLezioneRifatta_'], ricevente: 'cal' },
+    // anche il ricevimento settimanale dei colloqui (_orariCreaColloquio_)
+    createEventSeries:       { funzioni: ['_orariCreaSerie_', '_orariSerieRifatta_', '_orariCreaColloquio_'],
+                               ricevente: 'cal' },
+    // una lezione spostata a mano, rimessa dal taglio come evento singolo, e
+    // una giornata di colloqui
+    createEvent:             { funzioni: ['_orariLezioneRifatta_', '_orariCreaColloquio_'], ricevente: 'cal' },
     getOwnedCalendarsByName: { funzioni: ['_orariTrovaCalendario_'], ricevente: 'CalendarApp' },
     // il fuso del calendario trovato: prende quello dello script, prima delle lezioni
     setTimeZone:             { funzioni: ['_orariSistemaFuso_'], ricevente: 'cal' },
@@ -387,7 +399,9 @@ const CALENDARIO_ORARI = {
                      nuova: 'var nuova = _orariSerieRifatta_(cal, r, fino);',
                      singolo: 'var singolo = _orariLezioneRifatta_(cal, r.spostate[m]);' },
     _orariAnnullaCalendario_: { nostri: 'var nostri = _orariNostri_(cal, inizio, fine);', voce: 'var voce = nostri[i];' },
-    _orariCalendario_: { serie: 'var serie = _orariCreaSerie_(cal, piano.serie[stato.fatti], c, d, doc);' },
+    _orariCalendario_: { serie: 'var serie = _orariCreaSerie_(cal, piano.serie[stato.fatti], c, d, doc);',
+                         nuovoColloquio: 'var nuovoColloquio = _orariCreaColloquio_(cal, ' +
+                           'piano.colloqui.voci[stato.colloquiFatti], doc);' },
     _orariRimettiContrassegno_: {
       nostri: 'var nostri = _orariNostri_(cal, _orariData_(tratto.dal), _orariFineGiornata_(_orariData_(tratto.al)));',
       voce: 'var voce = nostri[i];' },
@@ -404,7 +418,9 @@ const CALENDARIO_ORARI = {
   // le variabili che decidono che cosa e' nostro: si assegnano solo cosi'
   forme: {
     _orariNostri_: {
-      contrassegno: ['var contrassegno = false;', 'contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE);'],
+      // il contrassegno delle lezioni, o quello dei colloqui con le famiglie
+      contrassegno: ['var contrassegno = false;', 'contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE || ' +
+                     'ev.getTag(_ORARI_TAG) === _ORARI_TAG_COLLOQUIO);'],
       nostro: ['var nostro = contrassegno;',
                'nostro = String(ev.getDescription() || \'\').indexOf(\'[Campanella]\') === 0;']
     }
@@ -417,11 +433,11 @@ const CALENDARIO_ORARI = {
     _orariNostri_: {
       fuori: ['var fuori = [];', 'fuori.push(voce);',
               'fuori.push({ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: lezione.inizio, ' +
-                'fine: lezione.fine, ultimo: lezione.inizio });',
+                'fine: lezione.fine, ultimo: lezione.inizio, colloquio: _orariDiColloquio_(ev) });',
               'k < fuori.length;', 'fuori[k].serie', 'fuori[k], null, fuso', 'return fuori;'],
       perSerie: ['var perSerie = {};', 'var voce = perSerie[id];',
                  'voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), ' +
-                   'descrizione: descrizione, lezioni: [] };']
+                   'descrizione: descrizione, lezioni: [], colloquio: _orariDiColloquio_(serie) };']
     }
   },
   // la proprieta' contrassegno delle voci: solo in _orariNostri_, solo cosi';
@@ -431,13 +447,14 @@ const CALENDARIO_ORARI = {
   // i contrassegni: dichiarati una volta sola, cosi', e mai cambiati (con
   // _ORARI_TAG_VALORE = null ogni evento senza contrassegno ne avrebbe uno)
   costanti: { _ORARI_TAG: 'var _ORARI_TAG = \'campanella\';', _ORARI_TAG_VALORE: 'var _ORARI_TAG_VALORE = \'orario\';',
+              _ORARI_TAG_COLLOQUIO: 'var _ORARI_TAG_COLLOQUIO = \'colloquio\';',
               _ORARI_TAG_SOSTITUISCE: 'var _ORARI_TAG_SOSTITUISCE = \'campanella_sostituisce\';' },
   // le sole scritture su una proprieta' calcolata (x[k] = ...) in tutto il
   // file, ognuna solo nella sua funzione
   scrittureCalcolate: [
     { funzione: '_orariPrimaLezione_', istruzione: 'conta[f] = (conta[f] || 0) + 1;' },
     { funzione: '_orariNostri_', istruzione: 'voce = perSerie[id] = { serie: serie, contrassegno: false, ' +
-      'titolo: ev.getTitle(), descrizione: descrizione, lezioni: [] };' }
+      'titolo: ev.getTitle(), descrizione: descrizione, lezioni: [], colloquio: _orariDiColloquio_(serie) };' }
   ],
   // gli oggetti su cui si scrive con un nome calcolato: una dichiarazione
   // sola, scritta cosi' (un oggetto nuovo, non una voce), e mai riassegnati.
@@ -455,12 +472,13 @@ const CALENDARIO_ORARI = {
   // E quelle che creano la serie di un tratto, la serie e la lezione rifatte
   // dal taglio: il contrassegno va a quello che danno, che deve essere appena
   // creato (non un evento gia' sul calendario, trovato con _orariNostri_)
-  impronte: { _orariNostri_: '1a5c2151b4f6b3d1', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
-              _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba',
-              _orariRimettiContrassegniAlPezzo_: '69809ce4dac4f891', _orariEventoDelPezzo_: '66a159089aeeda43',
+  impronte: { _orariNostri_: 'dee10e93007afaeb', _orariRimettiContrassegno_: '8c0a73becd1adf5d',
+              _orariSerieDelTratto_: '0ea03cc2e1b522fd', _orariTrattoFatto_: 'f080b14debaeadba',
+              _orariRimettiContrassegniAlPezzo_: '013d760ff3ea9637', _orariEventoDelPezzo_: '66a159089aeeda43',
               _orariTogliBuco_: '9d0eeba55245a8ec', _orariSerieConId_: '95b32d0bab72b4e9',
               _orariCreaSerie_: 'bff3a5584343d4ae', _orariSerieRifatta_: '3d9ca1e38d93eb2c',
-              _orariLezioneRifatta_: '903ebd9813519d30' },
+              _orariLezioneRifatta_: '903ebd9813519d30', _orariCreaColloquio_: '2bbca2fdd571d86d', _orariColloquioFatto_: '945d975afe2e7e71',
+              _orariDiColloquio_: '493f0f37a6173eb1' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
     _orariNostri_: { guardia: 'if (!nostro) continue;', prima: ['getEventSeries', 'push'] },
@@ -491,6 +509,9 @@ const CALENDARIO_ORARI = {
         { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.shift();' },
         { funzione: '_orariCalendario_',
           istruzione: 'stato.daContrassegnare.push(_orariTrattoFatto_(piano.serie[stato.fatti], c, d, doc));' },
+        // il colloquio appena creato
+        { funzione: '_orariCalendario_',
+          istruzione: 'stato.daContrassegnare.push(_orariColloquioFatto_(piano.colloqui.voci[stato.colloquiFatti], doc));' },
         { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.pop();' },
         { funzione: '_orariAvvisoDaContrassegnare_', istruzione: 'stato && stato.daContrassegnare' },
         { funzione: '_orariAvvisoDaContrassegnare_',
@@ -506,9 +527,11 @@ const CALENDARIO_ORARI = {
         { funzione: '_orariTaglia_', istruzione: 'stato, stato.appenaCreato.inizio' },
         { funzione: '_orariTaglia_', istruzione: 'stato.appenaCreato = null;' },
         { funzione: '_orariTaglia_',
-          istruzione: 'stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };' },
+          istruzione: 'stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno, ' +
+            'colloquio: voce.colloquio };' },
         { funzione: '_orariTaglia_',
-          istruzione: 'stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };' },
+          istruzione: 'stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno, ' +
+            'colloquio: voce.colloquio };' },
         { funzione: '_orariPezzoAppenaRifatto_', istruzione: '!salvato || !salvato.appenaCreato' },
         { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'cal, salvato.appenaCreato' },
         { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'salvato.appenaCreato.inizio' },
@@ -523,7 +546,8 @@ const CALENDARIO_ORARI = {
   senzaAnnidate: ['_orariTaglia_', '_orariAnnullaCalendario_', '_orariNostri_', '_orariRimettiContrassegno_',
                   '_orariSerieDelTratto_', '_orariTrattoFatto_', '_orariTogliBuco_', '_orariSerieConId_',
                   '_orariRimettiContrassegniAlPezzo_', '_orariEventoDelPezzo_', '_orariPianoDelTaglio_',
-                  '_orariRifacimento_', '_orariSerieRifatta_', '_orariLezioneRifatta_', '_orariColoraLezioni_'],
+                  '_orariRifacimento_', '_orariSerieRifatta_', '_orariLezioneRifatta_', '_orariColoraLezioni_',
+                  '_orariCreaColloquio_', '_orariColloquioFatto_', '_orariDiColloquio_'],
   // non si nominano nemmeno: metodi degli eventi e dei calendari che nessuno
   // usa (setRecurrence: in Google non cambia niente), altre strade per
   // prendere un calendario o un evento, e le chiamate indirette (s[k].call(s, ...))
@@ -1654,7 +1678,7 @@ function provaDellaProva() {
   verifica('gli orari di oggi non chiamano setRecurrence (' + accorciaDiOggi + ' chiamate), e il controllo non trova niente',
     accorciaDiOggi === 0 && controlla('Orari.gs', orari).length === 0);
   const TAGLIA = 'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {';
-  const NOSTRI = 'try { contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE); } catch (e) { }';
+  const NOSTRI = 'contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE || ev.getTag(_ORARI_TAG) === _ORARI_TAG_COLLOQUIO);';
   const RIFATTA = 'stato.rifatte++;';
   deveFallire('Orari.gs', 'setRecurrence nel taglio, sulla serie con il contrassegno, al posto di rifarla, viene trovata',
     sostituisci(orari, RIFATTA, 'voce.serie.setRecurrence(CalendarApp.newRecurrence().addWeeklyRule().until(fino), ' +
@@ -1803,7 +1827,8 @@ function provaDellaProva() {
     sostituisci(orari, TAGLIA, 'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c, voce) {'),
     'in _orariTaglia_ voce non puo\' essere un parametro');
   deveFallire('Orari.gs', '(d) (getTag(...) === _ORARI_TAG_VALORE) || true dentro _orariNostri_ viene trovato',
-    sostituisci(orari, NOSTRI, 'try { contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE) || true; } catch (e) { }'),
+    sostituisci(orari, NOSTRI, 'contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE || ' +
+      'ev.getTag(_ORARI_TAG) === _ORARI_TAG_COLLOQUIO) || true;'),
     'in _orariNostri_ contrassegno si assegna solo cosi\'');
   deveFallire('Orari.gs', '  ...e una voce qualunque presa per nostra, nostro = true',
     sostituisci(orari, 'try { nostro = String(ev.getDescription() || \'\').indexOf(\'[Campanella]\') === 0; } catch (e2) { }',
@@ -2067,6 +2092,64 @@ function provaDellaProva() {
     inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  _orariCheNonCe_(e);'),
     'nominato ma non dichiarato qui: _orariCheNonCe_');
 
+  // i colloqui con le famiglie seguono le regole delle lezioni: si creano solo
+  // in _orariCreaColloquio_, e il loro contrassegno (con il valore dei
+  // colloqui) e il loro colore li riceve solo il colloquio appena creato, o
+  // quello ritrovato dopo la guardia; _orariNostri_ riconosce solo i due
+  // valori del contrassegno, che non si cambiano
+  const CREA_COLLOQUIO = 'function _orariCreaColloquio_(cal, voce, doc) {';
+  const NUOVO_COLLOQUIO = 'var nuovoColloquio = _orariCreaColloquio_(cal, piano.colloqui.voci[stato.colloquiFatti], doc);';
+  const TAG_COLLOQUIO = 'nuovoColloquio.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);';
+  const GIORNATA = 'return !!voce.evento && voce.colloquio === true && voce.titolo === tratto.titolo &&';
+  deveFallire('Orari.gs', 'un colloquio preso fra gli eventi gia\' sul calendario, invece di crearlo, viene trovato',
+    inserisci(orari, CREA_COLLOQUIO, '\n  var gia = _orariNostri_(cal, _orariData_(voce.dal), _orariData_(voce.al));\n' +
+      '  if (gia.length && gia[0].evento) return gia[0].evento;'),
+    'il testo di _orariCreaColloquio_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...o un "colloquio nuovo" che non e\' quello appena creato',
+    sostituisci(orari, NUOVO_COLLOQUIO, 'var nuovoColloquio = _orariNostri_(cal, periodo.inizio, periodo.fine)[0].serie;'),
+    'in _orariCalendario_ nuovoColloquio si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...o il contrassegno dei colloqui dato, nel loro ciclo, a una voce di _orariNostri_',
+    sostituisci(orari, TAG_COLLOQUIO, TAG_COLLOQUIO + ' var voce = _orariNostri_(cal, periodo.inizio, periodo.fine)[0]; ' +
+      'voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);'),
+    'setTag su "voce.serie": solo su serie o nuovoColloquio');
+  deveFallire('Orari.gs', '  ...o il colore dei colloqui a un evento qualunque',
+    sostituisci(orari, TAG_COLLOQUIO, TAG_COLLOQUIO + ' _orariNostri_(cal, periodo.inizio, periodo.fine)[0].evento' +
+      '.setColor(c.coloreColloqui);'),
+    'setColor su "(non un nome)": solo su cal o serie o nuovoColloquio');
+  deveFallire('Orari.gs', '  ...o dato fuori dal calendario, al colloquio creato da un\'altra funzione',
+    inserisci(orari, 'function ORARI_7_colloqui(e) {',
+      '\n  _orariCreaColloquio_(_orariTrovaCalendario_(\'Famiglia\'), {}, {}).setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);'),
+    'setTag fuori da');
+  deveFallire('Orari.gs', '  ...o un colloquio trovato messo fra quelli a cui rimettere il contrassegno',
+    inserisci(orari, VOCE_TAGLIO, '\n    stato.daContrassegnare.push({ titolo: voce.titolo, colloquio: true, singolo: true });'),
+    'daContrassegnare nominato fuori dalle istruzioni ammesse');
+  deveFallire('Orari.gs', '  ...o una giornata di colloqui ritrovata alla ripresa senza guardare se e\' un colloquio',
+    sostituisci(orari, GIORNATA, 'return !!voce.evento && true && voce.titolo === tratto.titolo &&'),
+    'il testo di _orariSerieDelTratto_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...e contrassegnata come evento singolo dove la guardia vuole la serie',
+    sostituisci(orari, 'else voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);',
+                'else nostri[0].evento.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);'),
+    'setTag su "(non un nome)": solo su voce.serie o voce.evento');
+  deveFallire('Orari.gs', 'in _orariNostri_ un contrassegno qualunque (anche di un altro programma) preso per quello dei ' +
+    'colloqui viene trovato',
+    sostituisci(orari, NOSTRI, 'contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE || !!ev.getTag(_ORARI_TAG));'),
+    'in _orariNostri_ contrassegno si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...e un colloquio riconosciuto da una funzione cambiata',
+    sostituisci(orari, 'return descrizione.indexOf(_ORARI_INIZIO_COLLOQUI) === 0;', 'return true;'),
+    'il testo di _orariDiColloquio_ non e\' quello controllato');
+  deveFallire('Orari.gs', 'il valore del contrassegno dei colloqui cambiato (_ORARI_TAG_COLLOQUIO = null) viene trovato',
+    sostituisci(orari, 'var _ORARI_TAG_COLLOQUIO = \'colloquio\';', 'var _ORARI_TAG_COLLOQUIO = null;'),
+    'la costante _ORARI_TAG_COLLOQUIO va dichiarata una volta sola');
+  deveFallire('Orari.gs', '  ...e anche riassegnato in una funzione',
+    inserisci(orari, PRIMA_LEZIONE, '\n  _ORARI_TAG_COLLOQUIO = null;'), 'la costante _ORARI_TAG_COLLOQUIO si cambia');
+  deveFallire('Orari.gs', '  ...o uguale a quello delle lezioni, che le farebbe prendere per colloqui',
+    sostituisci(orari, 'var _ORARI_TAG_COLLOQUIO = \'colloquio\';', 'var _ORARI_TAG_COLLOQUIO = _ORARI_TAG_VALORE;'),
+    'la costante _ORARI_TAG_COLLOQUIO va dichiarata una volta sola');
+  deveFallire('Orari.gs', 'nel taglio, un colloquio tolto prima della guardia del contrassegno viene trovato',
+    sostituisci(orari, 'if (stato.funzione === _ORARI_TRIGGER_COLLOQUI && !voce.colloquio) continue;',
+                'if (voce.colloquio) voce.serie.deleteEventSeries();'),
+    'in _orariTaglia_ deleteEventSeries viene prima della guardia');
+
   // Calendario.gs: la versione solo calendario, per un altro account
   const cal = sorgenti['Calendario.gs'];
   const QUATTRO = 'function ORARI_4_calendario(e) {';
@@ -2094,6 +2177,11 @@ function provaDellaProva() {
   deveFallire('Calendario.gs', '  ...e un evento creato fuori da _orariLezioneRifatta_',
     inserisci(cal, QUATTRO, '\n  _orariTrovaCalendario_(\'Orario\').createEvent(\'x\', new Date(), new Date());'),
     'createEvent fuori da _orariLezioneRifatta_');
+  deveFallire('Calendario.gs', '  ...e, come in Orari.gs, il contrassegno dei colloqui dato a una voce trovata',
+    sostituisci(cal, 'nuovoColloquio.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);',
+      'nuovoColloquio.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO); var voce = _orariNostri_(cal, periodo.inizio, ' +
+      'periodo.fine)[0]; voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);'),
+    'setTag su "voce.serie": solo su serie o nuovoColloquio');
 }
 
 // ---------------------------------------------------------------------------
