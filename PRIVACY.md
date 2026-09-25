@@ -37,7 +37,8 @@ git ls-files | grep -iE "\.(json|gs|xlsx|xls|csv|xml)$"
 Devono comparire solo i `.gs` di `src/risorse`, il `manifest.json`
 dell'estensione, la configurazione della firma in `installer/` e i file
 inventati di `test/`: `Configurazione_esempio.gs`, `DatiOrari_esempio.gs`,
-`tabellone_esempio.csv` e `filtri_gmail_esempio.xml`. Qualunque altro nome è
+`tabellone_esempio.csv`, `colloqui_esempio.csv`, `colloqui_esempio.xlsx` e
+`filtri_gmail_esempio.xml`. Qualunque altro nome è
 da controllare. Se un file con dati è già stato committato, non basta
 cancellarlo: resta nella storia. Va riscritta la storia
 (`git filter-repo`) oppure, molto più semplice, si ricomincia da un
@@ -83,7 +84,8 @@ Google» (Orari, passo 4), per esempio il tuo personale, incolli in un
 progetto di quell'account due file: `Calendario.gs`, lo script degli orari
 senza le email, e un `DatiOrari.gs` con soltanto il tuo orario (il tuo
 cognome come nel tabellone, le tue classi e le tue ore, i giorni senza
-lezione con il nome che hai scritto, il colore di ogni classe). Nessun dato
+lezione con il nome che hai scritto, il colore di ogni classe e i tuoi
+colloqui con i link del Meet). Nessun dato
 dei colleghi: né gli altri docenti del tabellone, né gli orari delle classi,
 né indirizzi. I giorni senza lezione sono testo libero e vanno anche lì: non
 scriverci il nome di un collega. Quello script chiede solo il permesso del
@@ -92,6 +94,17 @@ posta e non conosce il tuo indirizzo. Le email degli orari, se le vuoi,
 restano nell'account della scuola. È comunque il tuo orario di servizio in
 un account fuori da quello della scuola: segui le regole dell'istituto
 sull'uso degli account personali.
+
+**I tuoi colloqui con le famiglie.** Negli Orari (passo 4) puoi scrivere i
+tuoi colloqui, o importarli da un tuo file .csv o .xlsx: il ricevimento di
+ogni settimana, le giornate dei colloqui generali, i periodi senza
+colloqui, con il link della tua stanza di Google Meet. Vanno solo sul tuo
+calendario, con il link come luogo. Quei link sono di accesso: chi li ha
+entra nella stanza. Per questo il testo dei colloqui sta con i dati
+personali (con i dati nel Drive, non nel file accanto al programma), e il
+`DatiOrari.gs` che li contiene tienilo per te. Niente nomi di studenti o di
+genitori: le prenotazioni restano nel registro elettronico, e Campanella non
+le legge.
 
 **Le connessioni del programma.** Campanella si collega a internet solo
 quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a
@@ -110,9 +123,10 @@ dirigenza e segreteria e gli orari con i cognomi stanno in `campanella.json`
 accanto al programma, oppure — dalle Impostazioni, ed è la scelta
 consigliata — in `campanella-dati.json` dentro la cartella del Drive della
 scuola. Nel secondo caso restano nell'account istituzionale e nel file locale
-non ne resta traccia, nemmeno il nome del calendario degli orari o i giorni
+non ne resta traccia, nemmeno il nome del calendario degli orari, i giorni
 senza lezione che hai scritto (un testo libero, dove accanto alle feste può
-finire un permesso o il nome di un collega). Se poi sposti i dati in
+finire un permesso o il nome di un collega) o i tuoi colloqui con i link del
+Meet. Se poi sposti i dati in
 un'altra cartella del Drive o di nuovo accanto al programma, Campanella,
 dopo averlo chiesto, cancella il file che lasciano;
 se quel file non l'ha letto, o nel frattempo l'ha cambiato un altro

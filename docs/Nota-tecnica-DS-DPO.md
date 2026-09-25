@@ -55,7 +55,11 @@ Quattro funzioni, tutte facoltative e indipendenti:
    relativa griglia (per ritrovare l'orario di un collega cercandone il
    cognome in Gmail) e inserisce **il proprio** orario in Google Calendar,
    senza lezioni nei giorni senza lezione indicati dal docente e, quando
-   l'orario cambia, con l'orario nuovo da una data in poi. Di partenza il
+   l'orario cambia, con l'orario nuovo da una data in poi, insieme ai
+   **propri** colloqui con le famiglie (il ricevimento settimanale e le
+   giornate dei colloqui generali, con il link della stanza di Google Meet
+   del docente). Le prenotazioni dei genitori restano nel registro
+   elettronico: Campanella non le legge e non le gestisce. Di partenza il
    calendario è quello dell'account istituzionale; se il docente lo sceglie,
    è quello di un altro suo account Google (per esempio il personale), con
    uno script solo calendario che in quell'account riceve soltanto il suo
@@ -147,7 +151,8 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Indirizzi email degli studenti delle classi del docente (facoltativi, per le etichette delle classi) | incollati dal docente in Campanella, per esempio dall'elenco del corso in Classroom; Campanella toglie quelli del personale (con la spunta nell'elenco, dirigenza e segreteria) | solo nel file `Classe_….gs` di ogni classe, nel progetto Apps Script del docente (account istituzionale), dove servono solo alle ricerche dello smistamento; il file vale solo per l'etichetta per cui è stato copiato e dice il giorno della copia; con un'etichetta madre senza l'anno la finestra ricorda di ricopiarlo ogni anno scolastico, e anteprima, riordino e smistamento avvisano se è di un anno passato. Campanella non li conserva: non sono nel file delle impostazioni, nel file dei dati né nel file di configurazione dello script, dove la regola ha solo un segnaposto, e un indirizzo scritto fra le parole dell'oggetto viene scartato. Dal programma passano per gli appunti di Windows, esclusi dalla cronologia: restano negli appunti fino alla copia successiva, e chiudendo la finestra Campanella propone di svuotarli; non vengono mai scritti su un file del computer. Lo script non li scrive nel registro delle esecuzioni, nei riepiloghi né nei messaggi d'errore (al più quanti sono), e non li mette nei filtri nativi di Gmail, che per le classi cercano solo l'oggetto. L'anteprima elenca i file che nessuna regola usa. Per toglierli si cancella il file | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar, con il cognome scelto nella descrizione | solo il docente |
 | Giorni senza lezione del proprio orario (date e un nome, testo libero: servono le chiusure della scuola, ma il docente può scriverci altro) | il docente, dalla circolare sul calendario scolastico | nel file dati di Campanella, insieme ai dati personali (con i dati nel Drive, non nel file delle impostazioni sul computer); le righe riconosciute, con data e nome, nel file dei dati dello script | solo il docente |
-| Il proprio orario nel calendario di un altro account del docente (facoltativo, spento di partenza: il docente sceglie «in un altro account Google» al passo 4 degli Orari) | il tabellone e le scelte del passo 4 | in un progetto Apps Script di quell'account (per esempio il personale), con due file: lo script solo calendario (`Calendario.gs`) e i dati del solo docente (`DatiOrari.gs` «solo il tuo»: il suo cognome come nel tabellone, le sue classi e le sue ore, i giorni senza lezione con il nome scritto dal docente, il colore di ogni classe); gli eventi del suo orario nel calendario di quell'account. Nessun dato di colleghi: né gli altri docenti del tabellone, né gli orari delle classi, né indirizzi (`test/prova_orario.ps1` controlla, sul tabellone d'esempio, che il file non contenga i cognomi degli altri docenti). Il nome dei giorni senza lezione è testo libero e va anche lì: non va scritto il nome di un collega. Le email degli orari, se il docente le vuole, restano nell'account istituzionale. Se usare un account personale per il proprio orario di servizio è ammesso lo dicono le regole dell'istituto | solo il docente, e chi il docente fa accedere a quell'account o a quel calendario |
+| I propri colloqui con le famiglie (giorni, ore, un nome e il link della propria stanza di Google Meet; testo libero scritto dal docente o importato da un suo file .csv o .xlsx) | il docente | nel file dati di Campanella, insieme ai dati personali (con i dati nel Drive, non nel file delle impostazioni sul computer); le righe riconosciute, con date, ore, nome e link, nel file dei dati dello script; gli eventi dei colloqui nel proprio calendario, con il link come luogo e nella descrizione. I link del Meet sono di accesso (chi li ha entra nella stanza): stanno solo nel calendario del docente e nei suoi file. Nessun nome di studenti o genitori, nessuna prenotazione: quelle restano nel registro elettronico | solo il docente, e chi il docente fa accedere al suo calendario |
+| Il proprio orario nel calendario di un altro account del docente (facoltativo, spento di partenza: il docente sceglie «in un altro account Google» al passo 4 degli Orari) | il tabellone e le scelte del passo 4 | in un progetto Apps Script di quell'account (per esempio il personale), con due file: lo script solo calendario (`Calendario.gs`) e i dati del solo docente (`DatiOrari.gs` «solo il tuo»: il suo cognome come nel tabellone, le sue classi e le sue ore, i giorni senza lezione con il nome scritto dal docente, il colore di ogni classe, i suoi colloqui con i link del Meet); gli eventi del suo orario e dei suoi colloqui nel calendario di quell'account. Nessun dato di colleghi: né gli altri docenti del tabellone, né gli orari delle classi, né indirizzi (`test/prova_orario.ps1` controlla, sul tabellone d'esempio, che il file non contenga i cognomi degli altri docenti). Il nome dei giorni senza lezione è testo libero e va anche lì: non va scritto il nome di un collega. Le email degli orari, se il docente le vuole, restano nell'account istituzionale. Se usare un account personale per il proprio orario di servizio è ammesso lo dicono le regole dell'istituto | solo il docente, e chi il docente fa accedere a quell'account o a quel calendario |
 | Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne legge solo il numero e l'ora di arrivo (per ritrovarle nei fogli degli anni scorsi prima di un eventuale svuotamento) e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
 | Testi e file dati alla funzione Privacy | scelti dal docente | elaborati sul computer, senza rete, da rizzo-pii raggiunto solo a un indirizzo locale; le copie anonimizzate dove il docente le salva, mai sopra gli originali | solo il docente |
 
@@ -217,9 +222,18 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   eventi singoli alla loro ora e solo alla fine
   toglie la serie vecchia), o le toglie, se non hanno lezioni prima di
   quella data, e inserisce l'orario nuovo da quella data;
+  i colloqui con le famiglie, che `ORARI_4_calendario` inserisce dopo le
+  lezioni (il ricevimento settimanale come le lezioni, senza i giorni senza
+  lezione e quelli in cui il docente ha sospeso i colloqui; le giornate come
+  eventi singoli), con lo stesso contrassegno e un valore suo, il link della
+  stanza di Google Meet del docente come luogo e nella descrizione, e che
+  `ORARI_5_cambioOrario` tratta come le lezioni; `ORARI_7_colloqui`, che
+  quando cambiano solo i colloqui li aggiorna da quel giorno in poi con la
+  stessa tecnica del cambio d'orario, soltanto sugli eventi dei colloqui con
+  il contrassegno, senza toccare le lezioni né i colloqui dei giorni passati;
   `ORARI_6_coloraLezioni`, che cambia soltanto il colore degli eventi con
   il contrassegno nel periodo indicato, senza rifarli né spostarli, secondo
-  il colore scelto in Campanella per ogni classe (lo stesso che
+  il colore scelto in Campanella per ogni classe e per i colloqui (lo stesso che
   `ORARI_4_calendario` e `ORARI_5_cambioOrario` danno agli eventi che
   creano; nel file delle impostazioni e nei dati dello script ci sono solo
   nomi di classi e numeri da 1 a 11, i colori degli eventi di Google
@@ -240,7 +254,8 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   ripresa di un lavoro interrotto glielo rimette, o l'annullamento prima di
   toglierli: li ritrova per l'id preso da quelli appena creati, all'ora
   della loro prima lezione), e che il colore lo ricevano solo quelli appena
-  creati e, in `ORARI_6_coloraLezioni`, quelli con il contrassegno. Controlla
+  creati e, in `ORARI_6_coloraLezioni`, quelli con il contrassegno; i
+  colloqui seguono le stesse regole delle lezioni. Controlla
   anche che i due script, che stanno nello stesso progetto, non usino le
   funzioni l'uno dell'altro: quello della posta non arriva al calendario,
   quello degli orari non arriva agli indirizzi degli studenti delle classi.
@@ -386,11 +401,11 @@ eseguendo lo script il [data].]*
    (spegne i trigger: lo smistamento periodico, la ripresa del riordino e le
    riprese degli invii degli orari, `ORARI_2_invia` e
    `ORARI_3_inviaOrariClassi`, e del calendario, `ORARI_4_calendario`,
-   `ORARI_5_cambioOrario` e `ORARI_6_coloraLezioni`), `ANNULLA_etichettatura` (toglie dai messaggi
+   `ORARI_5_cambioOrario`, `ORARI_6_coloraLezioni` e `ORARI_7_colloqui`), `ANNULLA_etichettatura` (toglie dai messaggi
    le etichette create dallo script; `ANNULLA_etichettaturaCompleta` per
    quelle nate con versioni precedenti o con lo stesso nome di etichette del
    docente, come spiegato al punto 5), `ORARI_ANNULLA_calendario` (toglie
-   gli eventi del periodo indicato nei dati degli orari e dimentica un
+   gli eventi del periodo indicato nei dati degli orari, lezioni e colloqui, e dimentica un
    lavoro a metà sul calendario, anche sui colori, con le sue riprese; se si ferma per il
    tempo massimo o per i limiti di Google, lo dice e va rieseguito).
 2. Se il docente ha creato i filtri nativi di Gmail (passo facoltativo),

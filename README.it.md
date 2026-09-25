@@ -10,7 +10,7 @@ runtime da installare.
 |-----------|---------|
 | **Posta** | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura, con i colori che scegli; se vuoi, un'etichetta per ogni tua classe |
 | **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico e ci copia i modelli; per i moduli Google, che dal PC non si possono copiare, scrive lo script che ogni anno dà al modulo il suo foglio delle risposte |
-| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar (quello dell'account della scuola, o quello di un altro account, come il tuo personale), senza lezioni nei giorni senza lezione che scrivi tu e, quando l'orario cambia, con quello nuovo da una data in poi |
+| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar (quello dell'account della scuola, o quello di un altro account, come il tuo personale), senza lezioni nei giorni senza lezione che scrivi tu e, quando l'orario cambia, con quello nuovo da una data in poi, e i tuoi colloqui con le famiglie con il link del Meet (le prenotazioni restano nel registro elettronico) |
 | **Privacy** | le regole su dati della scuola e IA, gli strumenti per togliere i dati personali prima di darli a un assistente, e i documenti per dirigenza e DPO |
 
 L'applicazione **non tocca mai la posta, il calendario né il Drive da sola**:
@@ -131,6 +131,7 @@ src/
   Testo.cs            file di testo letti in UTF-8 o in ANSI (Windows-1252)
   Orario.cs           riconoscimento del tabellone, blocchi per il calendario
   Calendario.cs       giorni senza lezione, feste nazionali, piano delle serie del calendario
+  Colloqui.cs         colloqui con le famiglie: le righe del passo 4, l'import da .csv/.xlsx, il loro piano e la parte di DatiOrari.gs
   SoloCalendario.cs   Calendario.gs, Orari.gs solo calendario per un altro account Google
   risorse/            i file .gs e .js incorporati nell'eseguibile
 src-installer/        l'installer in C#, per utente, senza UAC (solo compilazioni locali)
@@ -171,7 +172,7 @@ pubblicare:
 
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
-node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: fuso orario, giorni senza lezione, ripresa, cambio d'orario; accanto alla Posta e al file di una classe
+node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: fuso orario, giorni senza lezione, ripresa, cambio d'orario, colloqui e ORARI_7_colloqui; accanto alla Posta e al file di una classe
 node test\collaudo\prova_locale.js # il collaudo del calendario con il finto calendario di mock_orari.js: tutto OK, NO se Google o Orari.gs sbagliano, pulizia sempre
 node test\prova_solo_calendario.js # Calendario.gs per un altro account: niente servizi di posta, Gmail o indirizzo, solo le funzioni del calendario, il banco del calendario con i dati di un docente solo
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
@@ -180,7 +181,7 @@ node test\prova_gemelli.js        # le funzioni gemelle dei due script dei modul
 node test\mutazioni_pannello.js   # mutazioni del motore del foglio di controllo: il banco deve accorgersene
 node test\nomi_funzioni.js        # ogni funzione degli script citata da app e documenti esiste
 node test\invarianti_script.js    # script di posta e orari: niente posta ad altri, niente servizi esterni, solo le cancellazioni ammesse, sul calendario solo gli eventi di Campanella, serie rifatte e lezioni tolte solo nel cambio d'orario, setRecurrence mai, gli studenti delle classi solo nelle ricerche, nessuno dei due usa le funzioni dell'altro; le stesse regole del calendario su Calendario.gs, senza posta e senza niente di non dichiarato
-.\test\prova_orario.ps1           # legge un tabellone, controlla la griglia, i giorni senza lezione e il DatiOrari.gs generato, stesso piano del calendario dello script; Calendario.gs e il DatiOrari.gs del solo docente dall'app, senza gli altri docenti
+.\test\prova_orario.ps1           # legge un tabellone, controlla la griglia, i giorni senza lezione, i colloqui (anche importati da test\colloqui_esempio.csv e .xlsx) e il DatiOrari.gs generato, stesso piano del calendario dello script; Calendario.gs e il DatiOrari.gs del solo docente dall'app, senza gli altri docenti
 .\test\prova_xlsx.ps1             # il lettore .xlsx e i CSV in ANSI, UTF-8 e UTF-16
 .\test\prova_moduli.ps1           # genera i due script dei moduli e li fa girare nei banchi
 .\test\prova_personale.ps1        # elenco del personale: formati da incollare, ruoli nelle cinque categorie
