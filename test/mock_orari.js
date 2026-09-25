@@ -132,9 +132,13 @@ const ScriptApp = {
 // calendario). Per non dipenderne lo script riprende il calendario dopo
 // setTimeZone e ne controlla il fuso, e prova la prima serie che passa un
 // cambio dell'ora; fusoDiGoogle simula gli altri due casi: 'setTimeZone
-// senza effetto' (il fuso resta quello di prima) e 'serie nel fuso di
-// nascita' (getTimeZone dice il fuso nuovo, ma le serie nuove si ripetono
-// ancora in quello con cui il calendario e' nato). setTime su una lezione di una serie sposta solo quella,
+// senza effetto' (per Google il fuso resta quello di prima: lo dicono il
+// calendario ripreso e le serie nuove; solo l'oggetto su cui e' stato
+// chiamato setTimeZone dice quello nuovo, come se se lo ricordasse) e 'serie
+// nel fuso di nascita' (getTimeZone dice il fuso nuovo, ma le serie nuove si
+// ripetono ancora in quello con cui il calendario e' nato). Come Google,
+// getOwnedCalendarsByName da' ogni volta un oggetto nuovo (involucro) che
+// legge e cambia lo stesso calendario. setTime su una lezione di una serie sposta solo quella,
 // come dall'interfaccia di Google. Gli eventi singoli (createEvent) hanno la
 // descrizione e il luogo delle opzioni, un id e i contrassegni.
 // Una lezione di una serie si puo' spostare o cancellare a mano (sposta,
@@ -304,6 +308,8 @@ class Calendario {
   getTimeZone() { return this.fuso; }
   setTimeZone(f) {
     operazione('setTimeZone');
+    // senza effetto: per Google resta il fuso di prima (l'oggetto dello
+    // script, un involucro, si ricorda quello nuovo)
     if (fusoDiGoogle !== 'setTimeZone senza effetto') this.fuso = f;
     return this;
   }
@@ -354,12 +360,38 @@ class Calendario {
   }
 }
 
+/**
+ * Un calendario come lo da' getOwnedCalendarsByName: ogni volta un oggetto
+ * nuovo, che legge e cambia il calendario vero (cal, uno di calendari). Con
+ * fusoDiGoogle 'setTimeZone senza effetto' Google tiene il fuso di prima, e
+ * solo questo oggetto, dopo setTimeZone, dice quello nuovo: lo script vede
+ * il fuso vero solo se riprende il calendario.
+ */
+function involucro(cal) {
+  let fusoRicordato = '';
+  const o = {
+    getName: () => cal.getName(),
+    setColor: c => { cal.setColor(c); return o; },
+    getTimeZone: () => fusoRicordato || cal.getTimeZone(),
+    setTimeZone: f => {
+      cal.setTimeZone(f);
+      if (fusoDiGoogle === 'setTimeZone senza effetto') fusoRicordato = f;
+      return o;
+    },
+    createEventSeries: (titolo, inizio, fine, ricorrenza, opzioni) =>
+      cal.createEventSeries(titolo, inizio, fine, ricorrenza, opzioni),
+    createEvent: (titolo, inizio, fine, opzioni) => cal.createEvent(titolo, inizio, fine, opzioni),
+    getEvents: (da, a) => cal.getEvents(da, a)
+  };
+  return o;
+}
+
 const stessoNome = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 const CalendarApp = {
   Color: { BLUE: '#4285f4', GREEN: '#0f9d58', RED: '#db4437' },
   // come Google: senza badare alle maiuscole, e anche i calendari a cui sei iscritto
-  getCalendarsByName: nome => calendari.filter(c => stessoNome(c.nome, nome)),
-  getOwnedCalendarsByName: nome => calendari.filter(c => c.proprio && stessoNome(c.nome, nome)),
+  getCalendarsByName: nome => calendari.filter(c => stessoNome(c.nome, nome)).map(involucro),
+  getOwnedCalendarsByName: nome => calendari.filter(c => c.proprio && stessoNome(c.nome, nome)).map(involucro),
   createCalendar: (nome, opzioni) => { const c = new Calendario(nome, opzioni); calendari.push(c); return c; },
   newRecurrence: () => ({
     addWeeklyRule: () => ({ until: d => ({ weekly: true, until: new Date(d.getTime()) }) })
@@ -992,8 +1024,11 @@ if (conCalendario) {
       passa('2026-11-02', '2027-03-29') && !passa('2026-10-26', '2026-10-26'));
   }
   // e se Google facesse altrimenti (setTimeZone non e' provato dal vivo):
-  // (1) setTimeZone senza effetto: il calendario ripreso dice ancora UTC, e
-  // lo script si ferma prima di mettere lezioni, con il rimedio
+  // (1) setTimeZone senza effetto: l'oggetto su cui lo script l'ha chiamato
+  // dice Europe/Rome, ma il calendario ripreso da Google dice ancora UTC, e
+  // lo script si ferma prima di mettere lezioni, con il rimedio. Uno script
+  // che guardasse lo stesso oggetto invece di riprendere il calendario
+  // metterebbe le lezioni in UTC, e questa prova fallirebbe
   azzeraCalendario();
   fusoDiGoogle = 'setTimeZone senza effetto';
   const calFermo = CalendarApp.createCalendar(c.nome);
