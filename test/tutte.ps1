@@ -32,6 +32,7 @@ $elenco = @(
     'mock_apps_script.js'
     'mock_orari.js'
     'collaudo\prova_locale.js'
+    'prova_solo_calendario.js'
     'mock_moduli.js'
     'mock_pannello.js'
     'prova_gemelli.js'

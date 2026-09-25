@@ -23,6 +23,16 @@
  *
  * Ogni sezione e' obbligatoria: se i dati non hanno le classi o il
  * calendario, la prova fallisce invece di saltarle.
+ *
+ *   node test/mock_orari.js --solo-calendario Calendario.gs DatiOrari.gs
+ *
+ * fa girare le sezioni del calendario su Calendario.gs, la versione solo
+ * calendario di Orari.gs per un altro account (test/solo_calendario.js), con
+ * il DatiOrari.gs del solo docente: nel progetto non ci sono ne' MailApp ne'
+ * GmailApp, e Session da' soltanto il fuso orario. Al posto delle sezioni
+ * delle email e della Posta ci sono l'anteprima di Calendario.gs e le sue
+ * prove da solo. Lo lanciano test/prova_solo_calendario.js e, con i file
+ * dell'applicazione, test/prova_orario.ps1.
  */
 
 'use strict';
@@ -36,8 +46,14 @@ const path = require('path');
 const vm = require('vm');
 
 const radice = path.join(__dirname, '..');
-const codice = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Orari.gs'), 'utf8');
-const percorsoDati = process.argv[2] || path.join(__dirname, 'DatiOrari_esempio.gs');
+// con --solo-calendario: Calendario.gs e il DatiOrari.gs del solo docente
+const SOLO_CALENDARIO = process.argv[2] === '--solo-calendario';
+if (SOLO_CALENDARIO && !(process.argv[3] && process.argv[4])) {
+  console.log('Uso: node test/mock_orari.js --solo-calendario Calendario.gs DatiOrari.gs');
+  process.exit(1);
+}
+const codice = fs.readFileSync(SOLO_CALENDARIO ? process.argv[3] : path.join(radice, 'src', 'risorse', 'Orari.gs'), 'utf8');
+const percorsoDati = (SOLO_CALENDARIO ? process.argv[4] : process.argv[2]) || path.join(__dirname, 'DatiOrari_esempio.gs');
 const dati = fs.readFileSync(percorsoDati, 'utf8');
 const IO = 'io@scuola-esempio.edu.it';
 
@@ -496,13 +512,19 @@ const DateFinta = new Proxy(Date, {
   construct(target, args) { return new target(...args); }
 });
 
-const contesto = vm.createContext({
+const contesto = vm.createContext(SOLO_CALENDARIO ? {
+  // Calendario.gs, da solo nel progetto dell'altro account: niente email, e
+  // di Session solo il fuso orario (un altro uso fallirebbe)
+  CalendarApp, PropertiesService, LockService, ScriptApp, Session: { getScriptTimeZone: Session.getScriptTimeZone },
+  Logger, Utilities, Date: DateFinta, JSON, Math, String, Number, Object, Array, RegExp, Error,
+  isNaN, console
+} : {
   MailApp, GmailApp, CalendarApp, PropertiesService, LockService, ScriptApp, Session, Logger,
   Utilities, Date: DateFinta, JSON, Math, String, Number, Object, Array, RegExp, Error,
   isNaN, console
 });
 vm.runInContext(dati, contesto, { filename: 'DatiOrari.gs' });
-vm.runInContext(codice, contesto, { filename: 'Orari.gs' });
+vm.runInContext(codice, contesto, { filename: SOLO_CALENDARIO ? 'Calendario.gs' : 'Orari.gs' });
 
 // ---------------------------------------------------------------------------
 //  PROVE
@@ -517,10 +539,12 @@ function intestazione(t) {
   sezioniFatte.push(t);
   console.log('\n' + '='.repeat(70) + '\n  ' + t + '\n' + '='.repeat(70));
 }
-const SEZIONI = [
+const SEZIONI_EMAIL = [
   'ANTEPRIMA', 'INVIO: tutto a me stesso', 'ETICHETTA DEGLI ORARI E PREFISSO DELLA POSTA',
   'QUOTA GIORNALIERA', 'TEMPO MASSIMO DI ESECUZIONE', 'BLOCCO DI ESECUZIONE', 'ANNULLA INVIO',
-  'ORARI DELLE CLASSI', 'CLASSI: QUOTA E RIPRESA', 'INDIRIZZO: RIPIEGO SULL\'UTENTE EFFETTIVO',
+  'ORARI DELLE CLASSI', 'CLASSI: QUOTA E RIPRESA', 'INDIRIZZO: RIPIEGO SULL\'UTENTE EFFETTIVO'
+];
+const SEZIONI_CALENDARIO = [
   'GOOGLE CALENDAR', 'CALENDARIO: dati mancanti o sbagliati', 'CALENDARIO: SOLO I TUOI, CON IL NOME ESATTO',
   'CALENDARIO: IL FUSO ORARIO', 'GIORNI SENZA LEZIONE',
   'CALENDARIO: RIPRESA PER IL TEMPO MASSIMO', 'CALENDARIO: RIPRESA PER I LIMITI DI GOOGLE',
@@ -531,9 +555,13 @@ const SEZIONI = [
   'COLORI DELLE CLASSI', 'COLORI NEL CAMBIO D\'ORARIO', 'ORARI_6_COLORALEZIONI',
   'ORARI_6_COLORALEZIONI: RIPRESA, LIMITI DI GOOGLE E BLOCCO',
   'ORARI_6_COLORALEZIONI CON UN LAVORO DEL CALENDARIO A META\'',
-  'ANNULLA CALENDARIO DOPO UN LAVORO A META\'', 'ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE',
-  'CONVIVENZA CON LA POSTA', 'ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA'
+  'ANNULLA CALENDARIO DOPO UN LAVORO A META\'', 'ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE'
 ];
+// con --solo-calendario, al posto delle email e della Posta, le prove di Calendario.gs
+const SEZIONI = SOLO_CALENDARIO
+  ? ['ANTEPRIMA DI CALENDARIO.GS'].concat(SEZIONI_CALENDARIO, ['CALENDARIO.GS DA SOLO, SENZA LA POSTA'])
+  : SEZIONI_EMAIL.concat(SEZIONI_CALENDARIO,
+      ['CONVIVENZA CON LA POSTA', 'ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA']);
 // gli attrezzi del calendario, per le prove che stanno dopo la Posta
 let attrezziCalendario = null;
 const PROGRESSO_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';
@@ -552,228 +580,268 @@ console.log('Dati: ' + D.docenti.length + ' docenti (' + conOre + ' con ore), ' 
             (D.classi ? D.classi.length : 0) + ' classi, ' +
             D.giorni.length + ' giorni x ' + D.ore + ' ore');
 
-intestazione('ANTEPRIMA');
-const anteprima = contesto.ORARI_1_anteprima();
-console.log(anteprima.split('\n').slice(0, 20).join('\n'));
-verifica('l\'anteprima non manda niente', mandate.length === 0);
-verifica('mostra un esempio di messaggio', anteprima.indexOf('Oggetto:') > 0);
-verifica('la tabella ha i giorni', anteprima.indexOf(D.giorni[0]) > 0);
-verifica('dice che il destinatario sei tu', anteprima.indexOf(IO) > 0);
-verifica('dice la versione dello script', /Orari\.gs versione \d+\.\d+\.\d+/.test(anteprima));
-verifica('dice il fuso orario dello script, e con Europe/Rome non avvisa di niente',
-  /Fuso orario dello script: Europe\/Rome\n/.test(anteprima) && !/ATTENZIONE/.test(anteprima));
-fusoScript = 'UTC';
-const anteprimaUtc = contesto.ORARI_1_anteprima();
-fusoScript = FUSO_BANCO;
-verifica('con lo script in un altro fuso (UTC) avvisa, e dice dove cambiarlo',
-  /Fuso orario dello script: UTC\n/.test(anteprimaUtc) && /ATTENZIONE: il fuso orario dello script non e' quello dell'Italia/.test(anteprimaUtc) &&
-  /Impostazioni progetto/.test(anteprimaUtc) && /Fuso orario -> quello con Roma/.test(anteprimaUtc));
-verifica('senza la Posta nel progetto l\'etichetta e\' "Orari"', anteprima.indexOf('"Orari"') > 0);
-verifica('parla del calendario', !!D.calendario && anteprima.indexOf(D.calendario.nome) > 0);
-{
-  // solo quelli che toccano il periodo
-  const quanteSosp = ((D.calendario && D.calendario.sospensioni) || [])
-    .filter(s => (s.al || s.dal) >= D.calendario.inizio && s.dal <= D.calendario.fine).length;
-  verifica('dice quanti giorni o periodi senza lezione ci sono nel periodo (' + quanteSosp + ')',
-    new RegExp('Giorni senza lezione: ' + quanteSosp + ' ').test(anteprima));
-  verifica('dice quante serie mettera\' ORARI_4_calendario e quante lezioni salta',
-    /Serie settimanali da creare con ORARI_4_calendario: \d+/.test(anteprima) &&
-    /Lezioni saltate nei giorni senza lezione: \d+/.test(anteprima));
-  verifica('con una data di cambio dice che il cambio si fa con ORARI_5_cambioOrario',
-    !!D.calendario && !!D.calendario.validoDal && anteprima.indexOf('dal ' + D.calendario.validoDal) > 0 &&
-    /ORARI_5_cambioOrario/.test(anteprima));
-}
+if (!SOLO_CALENDARIO) {
+  intestazione('ANTEPRIMA');
+  const anteprima = contesto.ORARI_1_anteprima();
+  console.log(anteprima.split('\n').slice(0, 20).join('\n'));
+  verifica('l\'anteprima non manda niente', mandate.length === 0);
+  verifica('mostra un esempio di messaggio', anteprima.indexOf('Oggetto:') > 0);
+  verifica('la tabella ha i giorni', anteprima.indexOf(D.giorni[0]) > 0);
+  verifica('dice che il destinatario sei tu', anteprima.indexOf(IO) > 0);
+  verifica('dice la versione dello script', /Orari\.gs versione \d+\.\d+\.\d+/.test(anteprima));
+  verifica('dice il fuso orario dello script, e con Europe/Rome non avvisa di niente',
+    /Fuso orario dello script: Europe\/Rome\n/.test(anteprima) && !/ATTENZIONE/.test(anteprima));
+  fusoScript = 'UTC';
+  const anteprimaUtc = contesto.ORARI_1_anteprima();
+  fusoScript = FUSO_BANCO;
+  verifica('con lo script in un altro fuso (UTC) avvisa, e dice dove cambiarlo',
+    /Fuso orario dello script: UTC\n/.test(anteprimaUtc) && /ATTENZIONE: il fuso orario dello script non e' quello dell'Italia/.test(anteprimaUtc) &&
+    /Impostazioni progetto/.test(anteprimaUtc) && /Fuso orario -> quello con Roma/.test(anteprimaUtc));
+  verifica('senza la Posta nel progetto l\'etichetta e\' "Orari"', anteprima.indexOf('"Orari"') > 0);
+  verifica('parla del calendario', !!D.calendario && anteprima.indexOf(D.calendario.nome) > 0);
+  {
+    // solo quelli che toccano il periodo
+    const quanteSosp = ((D.calendario && D.calendario.sospensioni) || [])
+      .filter(s => (s.al || s.dal) >= D.calendario.inizio && s.dal <= D.calendario.fine).length;
+    verifica('dice quanti giorni o periodi senza lezione ci sono nel periodo (' + quanteSosp + ')',
+      new RegExp('Giorni senza lezione: ' + quanteSosp + ' ').test(anteprima));
+    verifica('dice quante serie mettera\' ORARI_4_calendario e quante lezioni salta',
+      /Serie settimanali da creare con ORARI_4_calendario: \d+/.test(anteprima) &&
+      /Lezioni saltate nei giorni senza lezione: \d+/.test(anteprima));
+    verifica('con una data di cambio dice che il cambio si fa con ORARI_5_cambioOrario',
+      !!D.calendario && !!D.calendario.validoDal && anteprima.indexOf('dal ' + D.calendario.validoDal) > 0 &&
+      /ORARI_5_cambioOrario/.test(anteprima));
+  }
 
-intestazione('INVIO: tutto a me stesso');
-quota = 1000;
-console.log(contesto.ORARI_2_invia());
-verifica('manda un messaggio per docente con almeno una casella (' + conOre + ')',
-  mandate.length === conOre);
-verifica('arrivano tutti a me', mandate.every(m => m.to === IO));
-verifica('nessuna copia ad altri', mandate.every(m => !m.cc && !m.bcc));
-verifica('l\'oggetto contiene il cognome',
-  mandate.every(m => D.docenti.some(d => m.subject.indexOf(d.nome) >= 0)));
-verifica('il corpo html ha una tabella', mandate[0].htmlBody.indexOf('<table') > 0);
-verifica('le ore "D" diventano leggibili',
-  !mandate.some(m => /<td[^>]*>D<\/td>/.test(m.htmlBody)));
-verifica('un docente senza ore non genera email',
-  !mandate.some(m => m.subject.indexOf('GIALLI') >= 0));
-verifica('il progresso e\' stato azzerato', !proprieta.has(PROGRESSO));
-verifica('cerca i messaggi appena mandati a me', ricerche.some(q => /^to:me from:me subject:"Orario"/.test(q)));
-verifica('e ci mette l\'etichetta "Orari"', etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Orari');
-
-intestazione('ETICHETTA DEGLI ORARI E PREFISSO DELLA POSTA');
-// Posta e Orari stanno nello stesso progetto: la Configurazione.gs d'esempio,
-// con il prefisso "Scuola", va nello stesso contesto
-vm.runInContext(fs.readFileSync(path.join(__dirname, 'Configurazione_esempio.gs'), 'utf8'),
-  contesto, { filename: 'Configurazione.gs' });
-function inviaPerEtichetta() {
-  mandate.length = 0; proprieta.clear(); quota = 1000;
-  etichetteCercate.length = 0; etichetteMesse.length = 0;
-  contesto.ORARI_2_invia();
-}
-verifica('la configurazione d\'esempio ha il prefisso "Scuola"',
-  !!contesto.CONFIG && contesto.CONFIG.prefissoEtichette === 'Scuola');
-inviaPerEtichetta();
-verifica('con il prefisso "Scuola" l\'etichetta e\' "Scuola/Orari"',
-  etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Scuola/Orari');
-verifica('e l\'anteprima lo dice', contesto.ORARI_1_anteprima().indexOf('"Scuola/Orari"') > 0);
-contesto.CONFIG.prefissoEtichette = '';
-inviaPerEtichetta();
-verifica('con il prefisso vuoto l\'etichetta e\' "Orari"',
-  etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Orari');
-contesto.CONFIG.prefissoEtichette = 'Scuola/';
-inviaPerEtichetta();
-verifica('una barra in fondo al prefisso non conta', etichetteCercate[0] === 'Scuola/Orari');
-etichetteEsistenti.clear();
-registro.length = 0;
-inviaPerEtichetta();
-verifica('se l\'etichetta non c\'e\' non la crea, e lo scrive nel registro',
-  etichetteMesse.length === 0 && registro.some(r => /Non c'e' l'etichetta "Scuola\/Orari"/.test(r)));
-etichetteEsistenti.add('Orari');
-etichetteEsistenti.add('Scuola/Orari');
-contesto.CONFIG.prefissoEtichette = 'Scuola';
-
-intestazione('QUOTA GIORNALIERA');
-mandate.length = 0;
-proprieta.clear();
-quota = 2;
-const parziale = contesto.ORARI_2_invia();
-verifica('si ferma quando finisce la quota', mandate.length === 2);
-verifica('lo dice chiaramente', /quota/i.test(parziale) && /ORARI_2_invia domani/.test(parziale));
-verifica('si ricorda dove era arrivato', proprieta.has(PROGRESSO));
-quota = 1000;
-contesto.ORARI_2_invia();
-verifica('il giorno dopo finisce il lavoro', mandate.length === conOre);
-verifica('nessun doppione', new Set(mandate.map(m => m.subject)).size === mandate.length);
-
-intestazione('TEMPO MASSIMO DI ESECUZIONE');
-mandate.length = 0;
-proprieta.clear();
-trigger.length = 0;
-quota = 1000;
-orologio = 0;
-sogliaInterruzione = 2;
-contesto.ORARI_2_invia();
-verifica('si ferma dopo il tempo massimo', mandate.length < conOre);
-verifica('programma la ripresa automatica', trigger.some(t => t.fn === 'ORARI_2_invia'));
-sogliaInterruzione = Infinity;
-orologio = 0;
-let giri = 0;
-while (proprieta.has(PROGRESSO) && giri < 30) { contesto.ORARI_2_invia({ triggerUid: 'ripresa' }); giri++; }
-verifica('riprendendo arriva in fondo (' + giri + ' riprese)', mandate.length === conOre);
-verifica('toglie il trigger a lavoro finito', !trigger.some(t => t.fn === 'ORARI_2_invia'));
-// una ripresa rimasta programmata dopo la fine non deve ricominciare da capo
-const primaDelTriggerRimasto = mandate.length;
-trigger.push({ fn: 'ORARI_2_invia', ms: 60000 });
-const niente = contesto.ORARI_2_invia({ triggerUid: 'rimasto' });
-verifica('una ripresa che non trova niente da riprendere non manda niente',
-  mandate.length === primaDelTriggerRimasto && /Niente da riprendere/.test(niente));
-verifica('e toglie il trigger rimasto', !trigger.some(t => t.fn === 'ORARI_2_invia'));
-
-intestazione('BLOCCO DI ESECUZIONE');
-mandate.length = 0;
-proprieta.clear();
-trigger.length = 0;
-lockOccupato = true;
-const occupato = contesto.ORARI_2_invia();
-verifica('se un\'altra esecuzione e\' in corso non manda niente', mandate.length === 0);
-verifica('e lo dice, nominando anche il calendario fra chi puo\' tenere il blocco',
-  /in corso/i.test(occupato) && /calendario/.test(occupato));
-verifica('senza un invio a meta\' non programma riprese', trigger.length === 0);
-// una ripresa che trova il lock preso (per esempio dal riordino della posta)
-proprieta.set(PROGRESSO, '{"i":2,"mandati":2}');
-const rinviata = contesto.ORARI_2_invia({ triggerUid: 'ripresa' });
-verifica('una ripresa con il lock occupato si riprogramma invece di fermarsi',
-  mandate.length === 0 && trigger.filter(t => t.fn === 'ORARI_2_invia').length === 1);
-verifica('e lo dice', /fra un minuto/.test(rinviata));
-verifica('il punto a cui era arrivato resta', proprieta.get(PROGRESSO) === '{"i":2,"mandati":2}');
-const annullaOccupato = contesto.ORARI_ANNULLA_invio();
-verifica('con il lock occupato ORARI_ANNULLA_invio non dimentica niente, e lo dice (anche del calendario)',
-  proprieta.has(PROGRESSO) && /in corso/.test(annullaOccupato) && /calendario/.test(annullaOccupato));
-lockOccupato = false;
-contesto.ORARI_2_invia({ triggerUid: 'ripresa' });
-verifica('liberato il lock, la ripresa finisce da dove era arrivata (' + mandate.length + ' email)',
-  mandate.length === Math.max(0, conOre - 2) && !proprieta.has(PROGRESSO));
-verifica('e toglie il trigger', !trigger.some(t => t.fn === 'ORARI_2_invia'));
-
-intestazione('ANNULLA INVIO');
-proprieta.set(PROGRESSO, '{"i":3,"mandati":3}');
-proprieta.set(PROGRESSO_CLASSI, '{"i":1,"mandati":1}');
-trigger.length = 0;
-proprieta.set(PROGRESSO_CALENDARIO, '{"funzione":"ORARI_4_calendario"}');
-trigger.push({ fn: 'ORARI_2_invia' }, { fn: 'ORARI_3_inviaOrariClassi' }, { fn: 'PASSO_4_automatico' },
-             { fn: 'ORARI_4_calendario' });
-contesto.ORARI_ANNULLA_invio();
-verifica('dimentica il punto dei docenti e quello delle classi',
-  !proprieta.has(PROGRESSO) && !proprieta.has(PROGRESSO_CLASSI));
-verifica('toglie le riprese degli invii e lascia gli altri trigger, anche quello del calendario',
-  trigger.length === 2 && trigger[0].fn === 'PASSO_4_automatico' && trigger[1].fn === 'ORARI_4_calendario');
-verifica('e non tocca il lavoro a meta\' del calendario', proprieta.has(PROGRESSO_CALENDARIO));
-proprieta.delete(PROGRESSO_CALENDARIO);
-trigger.length = 0;
-
-intestazione('ORARI DELLE CLASSI');
-const conClassi = !!(D.classi && D.classi.length);
-verifica('i dati hanno gli orari delle classi (servono a questa sezione e alla prossima)', conClassi);
-if (conClassi) {
-  mandate.length = 0;
+  intestazione('INVIO: tutto a me stesso');
   quota = 1000;
-  etichetteMesse.length = 0;
-  console.log(contesto.ORARI_3_inviaOrariClassi());
-  verifica('un messaggio per classe', mandate.length === D.classi.length);
-  verifica('arrivano solo a me', mandate.every(m => m.to === IO && !m.cc && !m.bcc));
-  verifica('l\'oggetto contiene la classe', mandate[0].subject.indexOf(D.classi[0].nome) >= 0);
-  verifica('nel corpo ci sono i cognomi dei docenti',
-    D.classi[0].celle.filter(Boolean).every(c =>
-      mandate[0].htmlBody.indexOf(c.split(' + ')[0]) > 0));
-  verifica('anche questi prendono l\'etichetta degli orari',
-    etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Scuola/Orari');
-  verifica('il progresso delle classi e\' azzerato', !proprieta.has(PROGRESSO_CLASSI));
+  console.log(contesto.ORARI_2_invia());
+  verifica('manda un messaggio per docente con almeno una casella (' + conOre + ')',
+    mandate.length === conOre);
+  verifica('arrivano tutti a me', mandate.every(m => m.to === IO));
+  verifica('nessuna copia ad altri', mandate.every(m => !m.cc && !m.bcc));
+  verifica('l\'oggetto contiene il cognome',
+    mandate.every(m => D.docenti.some(d => m.subject.indexOf(d.nome) >= 0)));
+  verifica('il corpo html ha una tabella', mandate[0].htmlBody.indexOf('<table') > 0);
+  verifica('le ore "D" diventano leggibili',
+    !mandate.some(m => /<td[^>]*>D<\/td>/.test(m.htmlBody)));
+  verifica('un docente senza ore non genera email',
+    !mandate.some(m => m.subject.indexOf('GIALLI') >= 0));
+  verifica('il progresso e\' stato azzerato', !proprieta.has(PROGRESSO));
+  verifica('cerca i messaggi appena mandati a me', ricerche.some(q => /^to:me from:me subject:"Orario"/.test(q)));
+  verifica('e ci mette l\'etichetta "Orari"', etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Orari');
 
-  intestazione('CLASSI: QUOTA E RIPRESA');
+  intestazione('ETICHETTA DEGLI ORARI E PREFISSO DELLA POSTA');
+  // Posta e Orari stanno nello stesso progetto: la Configurazione.gs d'esempio,
+  // con il prefisso "Scuola", va nello stesso contesto
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'Configurazione_esempio.gs'), 'utf8'),
+    contesto, { filename: 'Configurazione.gs' });
+  function inviaPerEtichetta() {
+    mandate.length = 0; proprieta.clear(); quota = 1000;
+    etichetteCercate.length = 0; etichetteMesse.length = 0;
+    contesto.ORARI_2_invia();
+  }
+  verifica('la configurazione d\'esempio ha il prefisso "Scuola"',
+    !!contesto.CONFIG && contesto.CONFIG.prefissoEtichette === 'Scuola');
+  inviaPerEtichetta();
+  verifica('con il prefisso "Scuola" l\'etichetta e\' "Scuola/Orari"',
+    etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Scuola/Orari');
+  verifica('e l\'anteprima lo dice', contesto.ORARI_1_anteprima().indexOf('"Scuola/Orari"') > 0);
+  contesto.CONFIG.prefissoEtichette = '';
+  inviaPerEtichetta();
+  verifica('con il prefisso vuoto l\'etichetta e\' "Orari"',
+    etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Orari');
+  contesto.CONFIG.prefissoEtichette = 'Scuola/';
+  inviaPerEtichetta();
+  verifica('una barra in fondo al prefisso non conta', etichetteCercate[0] === 'Scuola/Orari');
+  etichetteEsistenti.clear();
+  registro.length = 0;
+  inviaPerEtichetta();
+  verifica('se l\'etichetta non c\'e\' non la crea, e lo scrive nel registro',
+    etichetteMesse.length === 0 && registro.some(r => /Non c'e' l'etichetta "Scuola\/Orari"/.test(r)));
+  etichetteEsistenti.add('Orari');
+  etichetteEsistenti.add('Scuola/Orari');
+  contesto.CONFIG.prefissoEtichette = 'Scuola';
+
+  intestazione('QUOTA GIORNALIERA');
+  mandate.length = 0;
+  proprieta.clear();
+  quota = 2;
+  const parziale = contesto.ORARI_2_invia();
+  verifica('si ferma quando finisce la quota', mandate.length === 2);
+  verifica('lo dice chiaramente', /quota/i.test(parziale) && /ORARI_2_invia domani/.test(parziale));
+  verifica('si ricorda dove era arrivato', proprieta.has(PROGRESSO));
+  quota = 1000;
+  contesto.ORARI_2_invia();
+  verifica('il giorno dopo finisce il lavoro', mandate.length === conOre);
+  verifica('nessun doppione', new Set(mandate.map(m => m.subject)).size === mandate.length);
+
+  intestazione('TEMPO MASSIMO DI ESECUZIONE');
   mandate.length = 0;
   proprieta.clear();
   trigger.length = 0;
-  quota = 1;
-  const fermo = contesto.ORARI_3_inviaOrariClassi();
-  verifica('a quota finita si ferma e dice di rieseguire domani',
-    mandate.length === 1 && /ORARI_3_inviaOrariClassi domani/.test(fermo));
-  verifica('si ricorda dove era arrivato', proprieta.has(PROGRESSO_CLASSI));
-  verifica('senza toccare il punto dei docenti', !proprieta.has(PROGRESSO));
   quota = 1000;
   orologio = 0;
   sogliaInterruzione = 2;
-  contesto.ORARI_3_inviaOrariClassi();
-  verifica('a tempo finito programma la ripresa delle classi',
-    trigger.some(t => t.fn === 'ORARI_3_inviaOrariClassi') && !trigger.some(t => t.fn === 'ORARI_2_invia'));
+  contesto.ORARI_2_invia();
+  verifica('si ferma dopo il tempo massimo', mandate.length < conOre);
+  verifica('programma la ripresa automatica', trigger.some(t => t.fn === 'ORARI_2_invia'));
   sogliaInterruzione = Infinity;
   orologio = 0;
-  let giriClassi = 0;
-  while (proprieta.has(PROGRESSO_CLASSI) && giriClassi < 30) {
-    contesto.ORARI_3_inviaOrariClassi({ triggerUid: 'classi' });
-    giriClassi++;
-  }
-  verifica('riprendendo arriva in fondo, senza doppioni (' + giriClassi + ' riprese)',
-    mandate.length === D.classi.length && new Set(mandate.map(m => m.subject)).size === mandate.length);
-  verifica('e toglie il trigger', !trigger.some(t => t.fn === 'ORARI_3_inviaOrariClassi'));
-}
+  let giri = 0;
+  while (proprieta.has(PROGRESSO) && giri < 30) { contesto.ORARI_2_invia({ triggerUid: 'ripresa' }); giri++; }
+  verifica('riprendendo arriva in fondo (' + giri + ' riprese)', mandate.length === conOre);
+  verifica('toglie il trigger a lavoro finito', !trigger.some(t => t.fn === 'ORARI_2_invia'));
+  // una ripresa rimasta programmata dopo la fine non deve ricominciare da capo
+  const primaDelTriggerRimasto = mandate.length;
+  trigger.push({ fn: 'ORARI_2_invia', ms: 60000 });
+  const niente = contesto.ORARI_2_invia({ triggerUid: 'rimasto' });
+  verifica('una ripresa che non trova niente da riprendere non manda niente',
+    mandate.length === primaDelTriggerRimasto && /Niente da riprendere/.test(niente));
+  verifica('e toglie il trigger rimasto', !trigger.some(t => t.fn === 'ORARI_2_invia'));
 
-intestazione('INDIRIZZO: RIPIEGO SULL\'UTENTE EFFETTIVO');
-indirizzoAttivo = '';
-mandate.length = 0;
-proprieta.clear();
-quota = 1000;
-verifica('se getActiveUser e\' vuoto, il destinatario e\' l\'utente effettivo',
-  contesto.ORARI_1_anteprima().indexOf(IO) > 0);
-contesto.ORARI_2_invia();
-verifica('e le email arrivano comunque solo a me', mandate.length === conOre && mandate.every(m => m.to === IO));
-indirizzoEffettivo = '';
-let senzaIndirizzo = '';
-try { contesto.ORARI_1_anteprima(); } catch (e) { senzaIndirizzo = e.message; }
-verifica('senza nessun indirizzo si ferma e lo dice', /indirizzo/.test(senzaIndirizzo));
-indirizzoAttivo = IO;
-indirizzoEffettivo = IO;
+  intestazione('BLOCCO DI ESECUZIONE');
+  mandate.length = 0;
+  proprieta.clear();
+  trigger.length = 0;
+  lockOccupato = true;
+  const occupato = contesto.ORARI_2_invia();
+  verifica('se un\'altra esecuzione e\' in corso non manda niente', mandate.length === 0);
+  verifica('e lo dice, nominando anche il calendario fra chi puo\' tenere il blocco',
+    /in corso/i.test(occupato) && /calendario/.test(occupato));
+  verifica('senza un invio a meta\' non programma riprese', trigger.length === 0);
+  // una ripresa che trova il lock preso (per esempio dal riordino della posta)
+  proprieta.set(PROGRESSO, '{"i":2,"mandati":2}');
+  const rinviata = contesto.ORARI_2_invia({ triggerUid: 'ripresa' });
+  verifica('una ripresa con il lock occupato si riprogramma invece di fermarsi',
+    mandate.length === 0 && trigger.filter(t => t.fn === 'ORARI_2_invia').length === 1);
+  verifica('e lo dice', /fra un minuto/.test(rinviata));
+  verifica('il punto a cui era arrivato resta', proprieta.get(PROGRESSO) === '{"i":2,"mandati":2}');
+  const annullaOccupato = contesto.ORARI_ANNULLA_invio();
+  verifica('con il lock occupato ORARI_ANNULLA_invio non dimentica niente, e lo dice (anche del calendario)',
+    proprieta.has(PROGRESSO) && /in corso/.test(annullaOccupato) && /calendario/.test(annullaOccupato));
+  lockOccupato = false;
+  contesto.ORARI_2_invia({ triggerUid: 'ripresa' });
+  verifica('liberato il lock, la ripresa finisce da dove era arrivata (' + mandate.length + ' email)',
+    mandate.length === Math.max(0, conOre - 2) && !proprieta.has(PROGRESSO));
+  verifica('e toglie il trigger', !trigger.some(t => t.fn === 'ORARI_2_invia'));
+
+  intestazione('ANNULLA INVIO');
+  proprieta.set(PROGRESSO, '{"i":3,"mandati":3}');
+  proprieta.set(PROGRESSO_CLASSI, '{"i":1,"mandati":1}');
+  trigger.length = 0;
+  proprieta.set(PROGRESSO_CALENDARIO, '{"funzione":"ORARI_4_calendario"}');
+  trigger.push({ fn: 'ORARI_2_invia' }, { fn: 'ORARI_3_inviaOrariClassi' }, { fn: 'PASSO_4_automatico' },
+               { fn: 'ORARI_4_calendario' });
+  contesto.ORARI_ANNULLA_invio();
+  verifica('dimentica il punto dei docenti e quello delle classi',
+    !proprieta.has(PROGRESSO) && !proprieta.has(PROGRESSO_CLASSI));
+  verifica('toglie le riprese degli invii e lascia gli altri trigger, anche quello del calendario',
+    trigger.length === 2 && trigger[0].fn === 'PASSO_4_automatico' && trigger[1].fn === 'ORARI_4_calendario');
+  verifica('e non tocca il lavoro a meta\' del calendario', proprieta.has(PROGRESSO_CALENDARIO));
+  proprieta.delete(PROGRESSO_CALENDARIO);
+  trigger.length = 0;
+
+  intestazione('ORARI DELLE CLASSI');
+  const conClassi = !!(D.classi && D.classi.length);
+  verifica('i dati hanno gli orari delle classi (servono a questa sezione e alla prossima)', conClassi);
+  if (conClassi) {
+    mandate.length = 0;
+    quota = 1000;
+    etichetteMesse.length = 0;
+    console.log(contesto.ORARI_3_inviaOrariClassi());
+    verifica('un messaggio per classe', mandate.length === D.classi.length);
+    verifica('arrivano solo a me', mandate.every(m => m.to === IO && !m.cc && !m.bcc));
+    verifica('l\'oggetto contiene la classe', mandate[0].subject.indexOf(D.classi[0].nome) >= 0);
+    verifica('nel corpo ci sono i cognomi dei docenti',
+      D.classi[0].celle.filter(Boolean).every(c =>
+        mandate[0].htmlBody.indexOf(c.split(' + ')[0]) > 0));
+    verifica('anche questi prendono l\'etichetta degli orari',
+      etichetteMesse.length === 1 && etichetteMesse[0].nome === 'Scuola/Orari');
+    verifica('il progresso delle classi e\' azzerato', !proprieta.has(PROGRESSO_CLASSI));
+
+    intestazione('CLASSI: QUOTA E RIPRESA');
+    mandate.length = 0;
+    proprieta.clear();
+    trigger.length = 0;
+    quota = 1;
+    const fermo = contesto.ORARI_3_inviaOrariClassi();
+    verifica('a quota finita si ferma e dice di rieseguire domani',
+      mandate.length === 1 && /ORARI_3_inviaOrariClassi domani/.test(fermo));
+    verifica('si ricorda dove era arrivato', proprieta.has(PROGRESSO_CLASSI));
+    verifica('senza toccare il punto dei docenti', !proprieta.has(PROGRESSO));
+    quota = 1000;
+    orologio = 0;
+    sogliaInterruzione = 2;
+    contesto.ORARI_3_inviaOrariClassi();
+    verifica('a tempo finito programma la ripresa delle classi',
+      trigger.some(t => t.fn === 'ORARI_3_inviaOrariClassi') && !trigger.some(t => t.fn === 'ORARI_2_invia'));
+    sogliaInterruzione = Infinity;
+    orologio = 0;
+    let giriClassi = 0;
+    while (proprieta.has(PROGRESSO_CLASSI) && giriClassi < 30) {
+      contesto.ORARI_3_inviaOrariClassi({ triggerUid: 'classi' });
+      giriClassi++;
+    }
+    verifica('riprendendo arriva in fondo, senza doppioni (' + giriClassi + ' riprese)',
+      mandate.length === D.classi.length && new Set(mandate.map(m => m.subject)).size === mandate.length);
+    verifica('e toglie il trigger', !trigger.some(t => t.fn === 'ORARI_3_inviaOrariClassi'));
+  }
+
+  intestazione('INDIRIZZO: RIPIEGO SULL\'UTENTE EFFETTIVO');
+  indirizzoAttivo = '';
+  mandate.length = 0;
+  proprieta.clear();
+  quota = 1000;
+  verifica('se getActiveUser e\' vuoto, il destinatario e\' l\'utente effettivo',
+    contesto.ORARI_1_anteprima().indexOf(IO) > 0);
+  contesto.ORARI_2_invia();
+  verifica('e le email arrivano comunque solo a me', mandate.length === conOre && mandate.every(m => m.to === IO));
+  indirizzoEffettivo = '';
+  let senzaIndirizzo = '';
+  try { contesto.ORARI_1_anteprima(); } catch (e) { senzaIndirizzo = e.message; }
+  verifica('senza nessun indirizzo si ferma e lo dice', /indirizzo/.test(senzaIndirizzo));
+  indirizzoAttivo = IO;
+  indirizzoEffettivo = IO;
+} else {
+  // Calendario.gs: l'anteprima dice il calendario, e niente delle email
+  intestazione('ANTEPRIMA DI CALENDARIO.GS');
+  const anteprima = contesto.ORARI_1_anteprima();
+  console.log(anteprima.split('\n').slice(0, 20).join('\n'));
+  verifica('dice che sul calendario non mette niente, e la versione di Calendario.gs',
+    /^ANTEPRIMA - sul calendario non viene messo niente\.$/m.test(anteprima) &&
+    /^Calendario\.gs versione \d+\.\d+\.\d+$/m.test(anteprima) && !/Orari\.gs versione/.test(anteprima));
+  verifica('non parla di email, destinatari, etichette o quote, e non dice il tuo indirizzo',
+    !/Destinatario|Email da mandare|Etichetta|disponibili oggi|Esempio del primo messaggio|Oggetto:/.test(anteprima) &&
+    anteprima.indexOf(IO) < 0 && anteprima.indexOf('@') < 0 && mandate.length === 0);
+  verifica('dice il fuso orario dello script, e con Europe/Rome non avvisa di niente',
+    /Fuso orario dello script: Europe\/Rome\n/.test(anteprima) && !/ATTENZIONE/.test(anteprima));
+  fusoScript = 'UTC';
+  const anteprimaUtc = contesto.ORARI_1_anteprima();
+  fusoScript = FUSO_BANCO;
+  verifica('con lo script in un altro fuso (UTC) avvisa, e dice dove cambiarlo',
+    /ATTENZIONE: il fuso orario dello script non e' quello dell'Italia/.test(anteprimaUtc) &&
+    /Impostazioni progetto/.test(anteprimaUtc) && /Fuso orario -> quello con Roma/.test(anteprimaUtc));
+  verifica('i dati hanno un docente solo, quello del calendario (' + D.docenti.map(x => x.nome).join(', ') + ')',
+    !!D.calendario && D.docenti.length === 1 && D.docenti[0].nome === D.calendario.docente &&
+    /Docenti nel file: 1\n/.test(anteprima));
+  verifica('e niente orari delle classi, oggetti o nota delle email, titolo del tabellone',
+    !('classi' in D) && !('oggettoDocente' in D) && !('oggettoClasse' in D) && !('nota' in D) && !('titolo' in D));
+  verifica('parla del calendario', anteprima.indexOf(D.calendario.nome) > 0 &&
+    /Serie settimanali da creare con ORARI_4_calendario: \d+/.test(anteprima) &&
+    /Lezioni saltate nei giorni senza lezione: \d+/.test(anteprima));
+  verifica('con una data di cambio dice che il cambio si fa con ORARI_5_cambioOrario',
+    !!D.calendario.validoDal && anteprima.indexOf('dal ' + D.calendario.validoDal) > 0 && /ORARI_5_cambioOrario/.test(anteprima));
+  verifica('le funzioni delle email non ci sono',
+    ['ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_ANNULLA_invio', '_daMandare_', '_mioIndirizzoOrari_',
+     '_etichettaInviati_', '_orariInvia_'].every(n => typeof contesto[n] === 'undefined'));
+  const senzaCal = contesto.ORARI.calendario;
+  contesto.ORARI.calendario = null;
+  const anteprimaSenza = contesto.ORARI_1_anteprima();
+  contesto.ORARI.calendario = senzaCal;
+  verifica('senza la parte del calendario lo dice, e dice dove si sceglie il tuo nome',
+    /Calendario: nessuno\. Per mettere il tuo orario su Google Calendar/.test(anteprimaSenza) && /passo 4/.test(anteprimaSenza));
+}
 
 intestazione('GOOGLE CALENDAR');
 const conCalendario = !!(D.calendario && D.calendario.docente);
@@ -3063,222 +3131,250 @@ if (conCalendario) {
                          daRicolorare, coloriAMeta, salvatoColori, coloriSbagliati, conColori, coloriDati, calendarioDati };
 }
 
-intestazione('CONVIVENZA CON LA POSTA');
-// Posta e Orari si incollano nello stesso progetto: nessun nome globale in comune
-function nomiGlobali(testo) {
-  const nomi = new Set();
-  const re = /^(?:function\s+([A-Za-z_$][\w$]*)|var\s+([A-Za-z_$][\w$]*))/gm;
-  let m;
-  while ((m = re.exec(testo))) nomi.add(m[1] || m[2]);
-  return nomi;
-}
-const nomiOrari = nomiGlobali(codice);
-const posta = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Organizzazione_Gmail.gs'), 'utf8');
-const comuni = [...nomiGlobali(posta)].filter(n => nomiOrari.has(n));
-verifica('Orari.gs e Organizzazione_Gmail.gs non hanno nomi globali in comune' +
-  (comuni.length ? ' (' + comuni.join(', ') + ')' : ''), comuni.length === 0);
-verifica('Orari.gs non ridefinisce CONFIG', !nomiOrari.has('CONFIG'));
-// per Apps Script una funzione che finisce con "_" e' privata: non compare
-// nel menu Esegui, dove si lancerebbe senza il lock
-const interneVisibili = [...nomiOrari].filter(n =>
-  typeof contesto[n] === 'function' && !/^ORARI_/.test(n) && !/_$/.test(n));
-verifica('le funzioni interne finiscono con "_"' +
-  (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''), interneVisibili.length === 0);
-['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
- 'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
-  verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));
-// ANNULLA_automazione della Posta spegne tutto il progetto, dicono documenti e
-// nota per il DPO: anche ogni ripresa degli orari (var _ORARI_TRIGGER...). Se
-// Orari.gs ne aggiunge una, qui ci se ne accorge.
-const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]);
-verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + '), anche quelle del calendario e dei colori',
-  riprese.length >= 5 && riprese.every(n => typeof contesto[n] === 'function') &&
-  riprese.indexOf('ORARI_4_calendario') >= 0 && riprese.indexOf('ORARI_5_cambioOrario') >= 0 &&
-  riprese.indexOf('ORARI_6_coloraLezioni') >= 0);
-vm.runInContext(posta, contesto, { filename: 'Organizzazione_Gmail.gs' });
-trigger.length = 0;
-riprese.forEach(fn => trigger.push({ fn, ms: 60000 }));
-const spenta = contesto.ANNULLA_automazione();
-verifica('ANNULLA_automazione della Posta le toglie tutte' +
-  (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
-verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
-{
-  // Un invio degli orari delle classi sta lavorando e tiene il blocco: al
-  // tempo massimo riprogramma la sua ripresa e lo lascia. ANNULLA_automazione
-  // deve aspettarlo e togliere anche quella ripresa, non toglierla prima.
-  trigger.length = 0;
-  let inCorso = true;
-  const finisceLInvio = () => {
-    if (!inCorso) return;
-    inCorso = false;
-    trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
-  };
-  const bloccoVero = LockService.getUserLock;
-  // chi aspetta il blocco (tryLock con un'attesa) lo trova libero quando l'invio finisce
-  LockService.getUserLock = () => ({
-    tryLock: ms => { if (inCorso && ms > 0) finisceLInvio(); return !inCorso; },
-    releaseLock: () => {}
-  });
-  contesto.ANNULLA_automazione();
-  finisceLInvio();   // se nessuno ha aspettato il blocco, l'invio finisce adesso
-  LockService.getUserLock = bloccoVero;
-  verifica('ANNULLA_automazione aspetta l\'invio in corso e toglie anche la ripresa che ha appena programmato' +
-    (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
-
-  // l'invio non finisce entro l'attesa: niente di tolto, e lo dice
-  trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
-  lockOccupato = true;
-  const occupata = contesto.ANNULLA_automazione();
-  lockOccupato = false;
-  verifica('con un invio che non finisce, ANNULLA_automazione non toglie niente e dice di riprovare',
-    trigger.length === 1 && /riprova fra un minuto/.test(occupata) && !/spenta|Fermata/.test(occupata));
-  trigger.length = 0;
-}
-{
-  // Un file Classe_3B.gs nel progetto, come lo copia "Le mie classi..." della
-  // Posta: un terzo file, con il suo nome globale CLASSI_STUDENTI, che nessuno
-  // dei due script dichiara. La posta lo legge; gli orari, accanto, non
-  // scrivono gli studenti da nessuna parte (registro, email, calendario).
-  verifica('ne\' Orari.gs ne\' Organizzazione_Gmail.gs dichiarano CLASSI_STUDENTI, il nome dei file delle classi',
-    !nomiOrari.has('CLASSI_STUDENTI') && !nomiGlobali(posta).has('CLASSI_STUDENTI'));
-  const studenti = [];
-  for (let i = 0; i < 25; i++) studenti.push('studente' + i + '.terzab@studenti.scuola-esempio.edu.it');
-  vm.runInContext('var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
-    'CLASSI_STUDENTI["3B"] = {\n  etichetta: "Classi 2026-27/3B",\n  copiato: "2026-09-20",\n  indirizzi: ' +
-    JSON.stringify(studenti) + '\n};\n', contesto, { filename: 'Classe_3B.gs' });
-  const file = contesto._fileDellaClasse_('3B');
-  verifica('la posta, nello stesso progetto degli orari, trova il file della classe',
-    contesto._classiNeiFile_().join() === '3B' && !!file && file.etichetta === 'Classi 2026-27/3B');
-  const dalRegistro = registro.length;
-  mandate.length = 0; proprieta.clear(); trigger.length = 0; quota = 1000;
-  const detti = [contesto.ORARI_1_anteprima(), contesto.ORARI_2_invia(), contesto.ORARI_3_inviaOrariClassi()];
-  let descrizioni = [];
-  if (attrezziCalendario) {
-    attrezziCalendario.azzeraCalendario();
-    detti.push(contesto.ORARI_4_calendario());
-    descrizioni = calendari.reduce((tutte, cal) => tutte.concat(cal.serie.map(s => s.titolo + ' ' + s.descrizione)), []);
-    attrezziCalendario.azzeraCalendario();
+if (!SOLO_CALENDARIO) {
+  intestazione('CONVIVENZA CON LA POSTA');
+  // Posta e Orari si incollano nello stesso progetto: nessun nome globale in comune
+  function nomiGlobali(testo) {
+    const nomi = new Set();
+    const re = /^(?:function\s+([A-Za-z_$][\w$]*)|var\s+([A-Za-z_$][\w$]*))/gm;
+    let m;
+    while ((m = re.exec(testo))) nomi.add(m[1] || m[2]);
+    return nomi;
   }
-  detti.push(contesto.ANNULLA_automazione());
-  const scritto = detti.concat(registro.slice(dalRegistro), descrizioni,
-    mandate.map(m => [m.to, m.subject, m.body, m.htmlBody].join(' '))).join('\n');
-  verifica('con il file della classe nel progetto gli orari lavorano come prima (' + mandate.length + ' email, ' +
-    descrizioni.length + ' serie)', mandate.length > 0 && descrizioni.length > 0 && mandate.every(m => m.to === IO));
-  verifica('e gli studenti non finiscono ne\' nel registro, ne\' nelle email, ne\' nel calendario',
-    !/terzab@/.test(scritto));
-  mandate.length = 0; proprieta.clear(); trigger.length = 0;
-}
-
-// Una ripresa del calendario scattata un attimo prima di ANNULLA_automazione
-// aspetta il blocco: quando lo prende, il suo trigger e' gia' stato tolto, ma
-// il punto salvato c'e' ancora. Non deve lavorare e riprogrammarsi: il punto
-// dice che il lavoro e' stato fermato. Rieseguito a mano, riparte.
-intestazione('ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA');
-if (attrezziCalendario) {
-  const { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo } = attrezziCalendario;
-  azzeraCalendario();
-  sogliaCalendario = 5;
-  contesto.ORARI_4_calendario();
-  sogliaCalendario = Infinity;
-  const calF = calendari[0];
+  const nomiOrari = nomiGlobali(codice);
+  const posta = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Organizzazione_Gmail.gs'), 'utf8');
+  const comuni = [...nomiGlobali(posta)].filter(n => nomiOrari.has(n));
+  verifica('Orari.gs e Organizzazione_Gmail.gs non hanno nomi globali in comune' +
+    (comuni.length ? ' (' + comuni.join(', ') + ')' : ''), comuni.length === 0);
+  verifica('Orari.gs non ridefinisce CONFIG', !nomiOrari.has('CONFIG'));
+  // per Apps Script una funzione che finisce con "_" e' privata: non compare
+  // nel menu Esegui, dove si lancerebbe senza il lock
+  const interneVisibili = [...nomiOrari].filter(n =>
+    typeof contesto[n] === 'function' && !/^ORARI_/.test(n) && !/_$/.test(n));
+  verifica('le funzioni interne finiscono con "_"' +
+    (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''), interneVisibili.length === 0);
+  ['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
+   'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
+    verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));
+  // ANNULLA_automazione della Posta spegne tutto il progetto, dicono documenti e
+  // nota per il DPO: anche ogni ripresa degli orari (var _ORARI_TRIGGER...). Se
+  // Orari.gs ne aggiunge una, qui ci se ne accorge.
+  const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]);
+  verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + '), anche quelle del calendario e dei colori',
+    riprese.length >= 5 && riprese.every(n => typeof contesto[n] === 'function') &&
+    riprese.indexOf('ORARI_4_calendario') >= 0 && riprese.indexOf('ORARI_5_cambioOrario') >= 0 &&
+    riprese.indexOf('ORARI_6_coloraLezioni') >= 0);
+  vm.runInContext(posta, contesto, { filename: 'Organizzazione_Gmail.gs' });
+  trigger.length = 0;
+  riprese.forEach(fn => trigger.push({ fn, ms: 60000 }));
   const spenta = contesto.ANNULLA_automazione();
-  verifica('ANNULLA_automazione toglie la ripresa del calendario e segna fermato il lavoro a meta\'',
-    ripresaDi('ORARI_4_calendario').length === 0 && !!salvato() && salvato().fermato === true &&
-    /calendario/.test(spenta));
-  const partita = contesto.ORARI_4_calendario({ triggerUid: 'gia partita' });
-  verifica('la ripresa gia\' partita, preso il blocco, non lavora e non si riprogramma',
-    vive(calF).length === 5 && ripresaDi('ORARI_4_calendario').length === 0 && /ANNULLA_automazione/.test(partita));
-  lockOccupato = true;
-  contesto.ORARI_4_calendario({ triggerUid: 'gia partita, blocco preso' });
-  lockOccupato = false;
-  verifica('e se trova il blocco preso non si riprogramma lo stesso', ripresaDi('ORARI_4_calendario').length === 0);
-  verifica('il punto resta, per chi vuole finire', !!salvato() && salvato().fatti === 5);
-  // l'altra funzione del calendario, eseguita a mano, non dice che il lavoro
-  // fermato riprende da solo: dice di rieseguirlo
-  const altraAMano = errore(() => contesto.ORARI_5_cambioOrario());
-  verifica('ORARI_5_cambioOrario a mano con l\'orario fermato a meta\' dice che non riprende da solo, che l\'ha ' +
-    'fermato ANNULLA_automazione e di rieseguire ORARI_4_calendario (invece: ' + altraAMano.slice(0, 90) + ')',
-    /non riprende da solo/.test(altraAMano) && /ANNULLA_automazione/.test(altraAMano) &&
-    /ORARI_4_calendario/.test(altraAMano) && /rieseguilo/.test(altraAMano) && !/fra poco/.test(altraAMano) &&
-    !!salvato() && salvato().fatti === 5 && vive(calF).length === 5);
-  contesto.ORARI_4_calendario();
-  verifica('rieseguito a mano, finisce il lavoro da dove era arrivato',
-    vive(calF).length === piano.tratti.length && !salvato() && ripresaDi('ORARI_4_calendario').length === 0);
+  verifica('ANNULLA_automazione della Posta le toglie tutte' +
+    (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
+  verifica('e le nomina tutte', riprese.every(n => spenta.indexOf(n) >= 0));
+  {
+    // Un invio degli orari delle classi sta lavorando e tiene il blocco: al
+    // tempo massimo riprogramma la sua ripresa e lo lascia. ANNULLA_automazione
+    // deve aspettarlo e togliere anche quella ripresa, non toglierla prima.
+    trigger.length = 0;
+    let inCorso = true;
+    const finisceLInvio = () => {
+      if (!inCorso) return;
+      inCorso = false;
+      trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
+    };
+    const bloccoVero = LockService.getUserLock;
+    // chi aspetta il blocco (tryLock con un'attesa) lo trova libero quando l'invio finisce
+    LockService.getUserLock = () => ({
+      tryLock: ms => { if (inCorso && ms > 0) finisceLInvio(); return !inCorso; },
+      releaseLock: () => {}
+    });
+    contesto.ANNULLA_automazione();
+    finisceLInvio();   // se nessuno ha aspettato il blocco, l'invio finisce adesso
+    LockService.getUserLock = bloccoVero;
+    verifica('ANNULLA_automazione aspetta l\'invio in corso e toglie anche la ripresa che ha appena programmato' +
+      (trigger.length ? ' (restano: ' + trigger.map(t => t.fn).join(', ') + ')' : ''), trigger.length === 0);
 
-  // e al contrario: un cambio d'orario fermato, e ORARI_4_calendario a mano
-  sogliaCalendario = 4;
-  contesto.ORARI_5_cambioOrario();
-  sogliaCalendario = Infinity;
-  contesto.ANNULLA_automazione();
-  const cambioFermato = salvato();
-  const quattroAMano = errore(() => contesto.ORARI_4_calendario());
-  verifica('ORARI_4_calendario a mano con il cambio d\'orario fermato a meta\' dice di rieseguire ORARI_5_cambioOrario, ' +
-    'non che riprende da solo', !!cambioFermato && cambioFermato.funzione === 'ORARI_5_cambioOrario' &&
-    cambioFermato.fermato === true && /non riprende da solo/.test(quattroAMano) &&
-    /ANNULLA_automazione/.test(quattroAMano) && /ORARI_5_cambioOrario/.test(quattroAMano) && !/fra poco/.test(quattroAMano));
-  contesto.ORARI_5_cambioOrario();
-  verifica('  ...e rieseguito a mano, il cambio finisce', !salvato() && ripresaDi('ORARI_5_cambioOrario').length === 0);
+    // l'invio non finisce entro l'attesa: niente di tolto, e lo dice
+    trigger.push({ fn: 'ORARI_3_inviaOrariClassi', ms: 60000 });
+    lockOccupato = true;
+    const occupata = contesto.ANNULLA_automazione();
+    lockOccupato = false;
+    verifica('con un invio che non finisce, ANNULLA_automazione non toglie niente e dice di riprovare',
+      trigger.length === 1 && /riprova fra un minuto/.test(occupata) && !/spenta|Fermata/.test(occupata));
+    trigger.length = 0;
+  }
+  {
+    // Un file Classe_3B.gs nel progetto, come lo copia "Le mie classi..." della
+    // Posta: un terzo file, con il suo nome globale CLASSI_STUDENTI, che nessuno
+    // dei due script dichiara. La posta lo legge; gli orari, accanto, non
+    // scrivono gli studenti da nessuna parte (registro, email, calendario).
+    verifica('ne\' Orari.gs ne\' Organizzazione_Gmail.gs dichiarano CLASSI_STUDENTI, il nome dei file delle classi',
+      !nomiOrari.has('CLASSI_STUDENTI') && !nomiGlobali(posta).has('CLASSI_STUDENTI'));
+    const studenti = [];
+    for (let i = 0; i < 25; i++) studenti.push('studente' + i + '.terzab@studenti.scuola-esempio.edu.it');
+    vm.runInContext('var CLASSI_STUDENTI = (typeof CLASSI_STUDENTI !== \'undefined\' && CLASSI_STUDENTI) || {};\n' +
+      'CLASSI_STUDENTI["3B"] = {\n  etichetta: "Classi 2026-27/3B",\n  copiato: "2026-09-20",\n  indirizzi: ' +
+      JSON.stringify(studenti) + '\n};\n', contesto, { filename: 'Classe_3B.gs' });
+    const file = contesto._fileDellaClasse_('3B');
+    verifica('la posta, nello stesso progetto degli orari, trova il file della classe',
+      contesto._classiNeiFile_().join() === '3B' && !!file && file.etichetta === 'Classi 2026-27/3B');
+    const dalRegistro = registro.length;
+    mandate.length = 0; proprieta.clear(); trigger.length = 0; quota = 1000;
+    const detti = [contesto.ORARI_1_anteprima(), contesto.ORARI_2_invia(), contesto.ORARI_3_inviaOrariClassi()];
+    let descrizioni = [];
+    if (attrezziCalendario) {
+      attrezziCalendario.azzeraCalendario();
+      detti.push(contesto.ORARI_4_calendario());
+      descrizioni = calendari.reduce((tutte, cal) => tutte.concat(cal.serie.map(s => s.titolo + ' ' + s.descrizione)), []);
+      attrezziCalendario.azzeraCalendario();
+    }
+    detti.push(contesto.ANNULLA_automazione());
+    const scritto = detti.concat(registro.slice(dalRegistro), descrizioni,
+      mandate.map(m => [m.to, m.subject, m.body, m.htmlBody].join(' '))).join('\n');
+    verifica('con il file della classe nel progetto gli orari lavorano come prima (' + mandate.length + ' email, ' +
+      descrizioni.length + ' serie)', mandate.length > 0 && descrizioni.length > 0 && mandate.every(m => m.to === IO));
+    verifica('e gli studenti non finiscono ne\' nel registro, ne\' nelle email, ne\' nel calendario',
+      !/terzab@/.test(scritto));
+    mandate.length = 0; proprieta.clear(); trigger.length = 0;
+  }
 
-  // anche il limite di Google della giornata toglie la ripresa: il lavoro va
-  // rieseguito, e l'altra funzione lo dice senza nominare ANNULLA_automazione
-  azzeraCalendario();
-  guasti([{ op: 'createEventSeries', alla: 3, messaggio: 'Service invoked too many times for one day: calendar.' }]);
-  contesto.ORARI_4_calendario();
-  guasti([]);
-  const dopoIlGiorno = errore(() => contesto.ORARI_5_cambioOrario());
-  verifica('con il lavoro fermato dal limite della giornata, l\'altra funzione dice che non riprende da solo',
-    !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 && /non riprende da solo/.test(dopoIlGiorno) &&
-    /rieseguilo/.test(dopoIlGiorno) && !/ANNULLA_automazione/.test(dopoIlGiorno) && !/fra poco/.test(dopoIlGiorno));
-  // con la ripresa programmata, invece, riprende da solo davvero
-  azzeraCalendario();
-  sogliaCalendario = 5;
-  contesto.ORARI_4_calendario();
-  sogliaCalendario = Infinity;
-  const conRipresa = errore(() => contesto.ORARI_5_cambioOrario());
-  verifica('  ...mentre con la ripresa programmata dice che riprende da solo fra poco',
-    ripresaDi('ORARI_4_calendario').length === 1 && /riprende da solo fra poco/.test(conRipresa));
-  // la ripresa parte e finisce con un errore che non e' un limite di Google:
-  // il suo trigger, gia' scattato, resta fra quelli del progetto (come in
-  // Google) ma non e' piu' una ripresa programmata. L'altra funzione non deve
-  // dire che il lavoro riprende da solo
-  guasti([{ op: 'createEventSeries', alla: 1, messaggio: 'Errore interno di prova' }]);
-  const ripresaRotta = errore(() => contesto.ORARI_4_calendario({ triggerUid: 'ripresa rotta' }));
-  guasti([]);
-  const dopoLaRotta = errore(() => contesto.ORARI_5_cambioOrario());
-  verifica('una ripresa finita con un altro errore toglie il suo trigger, e l\'altra funzione dice di rieseguire il ' +
-    'lavoro (invece: ' + dopoLaRotta.slice(0, 90) + ')',
-    /Errore interno di prova/.test(ripresaRotta) && !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 &&
-    /non riprende da solo/.test(dopoLaRotta) && /rieseguilo/.test(dopoLaRotta) && !/fra poco/.test(dopoLaRotta));
-  contesto.ORARI_4_calendario();
-  verifica('  ...e rieseguito a mano finisce da dove era arrivato',
-    !salvato() && ripresaDi('ORARI_4_calendario').length === 0 && vive(calendari[0]).length === piano.tratti.length);
+  // Una ripresa del calendario scattata un attimo prima di ANNULLA_automazione
+  // aspetta il blocco: quando lo prende, il suo trigger e' gia' stato tolto, ma
+  // il punto salvato c'e' ancora. Non deve lavorare e riprogrammarsi: il punto
+  // dice che il lavoro e' stato fermato. Rieseguito a mano, riparte.
+  intestazione('ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA');
+  if (attrezziCalendario) {
+    const { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo } = attrezziCalendario;
+    azzeraCalendario();
+    sogliaCalendario = 5;
+    contesto.ORARI_4_calendario();
+    sogliaCalendario = Infinity;
+    const calF = calendari[0];
+    const spenta = contesto.ANNULLA_automazione();
+    verifica('ANNULLA_automazione toglie la ripresa del calendario e segna fermato il lavoro a meta\'',
+      ripresaDi('ORARI_4_calendario').length === 0 && !!salvato() && salvato().fermato === true &&
+      /calendario/.test(spenta));
+    const partita = contesto.ORARI_4_calendario({ triggerUid: 'gia partita' });
+    verifica('la ripresa gia\' partita, preso il blocco, non lavora e non si riprogramma',
+      vive(calF).length === 5 && ripresaDi('ORARI_4_calendario').length === 0 && /ANNULLA_automazione/.test(partita));
+    lockOccupato = true;
+    contesto.ORARI_4_calendario({ triggerUid: 'gia partita, blocco preso' });
+    lockOccupato = false;
+    verifica('e se trova il blocco preso non si riprogramma lo stesso', ripresaDi('ORARI_4_calendario').length === 0);
+    verifica('il punto resta, per chi vuole finire', !!salvato() && salvato().fatti === 5);
+    // l'altra funzione del calendario, eseguita a mano, non dice che il lavoro
+    // fermato riprende da solo: dice di rieseguirlo
+    const altraAMano = errore(() => contesto.ORARI_5_cambioOrario());
+    verifica('ORARI_5_cambioOrario a mano con l\'orario fermato a meta\' dice che non riprende da solo, che l\'ha ' +
+      'fermato ANNULLA_automazione e di rieseguire ORARI_4_calendario (invece: ' + altraAMano.slice(0, 90) + ')',
+      /non riprende da solo/.test(altraAMano) && /ANNULLA_automazione/.test(altraAMano) &&
+      /ORARI_4_calendario/.test(altraAMano) && /rieseguilo/.test(altraAMano) && !/fra poco/.test(altraAMano) &&
+      !!salvato() && salvato().fatti === 5 && vive(calF).length === 5);
+    contesto.ORARI_4_calendario();
+    verifica('rieseguito a mano, finisce il lavoro da dove era arrivato',
+      vive(calF).length === piano.tratti.length && !salvato() && ripresaDi('ORARI_4_calendario').length === 0);
 
-  // lo stesso per ORARI_6_coloraLezioni a meta': ANNULLA_automazione ne toglie
-  // la ripresa e segna fermato il suo lavoro; una ripresa gia' partita non lo
-  // riprende, rieseguita a mano lo finisce
-  const { daRicolorare, coloriAMeta, salvatoColori, coloriSbagliati, conColori, coloriDati, calendarioDati } = attrezziCalendario;
-  const giro = daRicolorare();
-  coloriAMeta(2);
-  const spenta6 = contesto.ANNULLA_automazione();
-  verifica('ANNULLA_automazione toglie la ripresa di ORARI_6_coloraLezioni, segna fermato il suo lavoro e lo dice',
-    ripresaDi('ORARI_6_coloraLezioni').length === 0 && !!salvatoColori() && salvatoColori().fermato === true &&
-    /ORARI_6_coloraLezioni/.test(spenta6));
-  const primaDellaPartita = chiamate.setColor || 0;
-  const partita6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'gia partita' });
-  verifica('  ...una sua ripresa gia\' partita non colora niente e non si riprogramma',
-    /ANNULLA_automazione/.test(partita6) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
-    (chiamate.setColor || 0) === primaDellaPartita && !!salvatoColori() && salvatoColori().colorate === 2);
-  contesto.ORARI_6_coloraLezioni();
-  verifica('  ...e rieseguita a mano finisce', !salvatoColori() && coloriSbagliati(calendari[0], giro).length === 0);
-  conColori(coloriDati);
-  contesto.ORARI.calendario = calendarioDati;
-  azzeraCalendario();
+    // e al contrario: un cambio d'orario fermato, e ORARI_4_calendario a mano
+    sogliaCalendario = 4;
+    contesto.ORARI_5_cambioOrario();
+    sogliaCalendario = Infinity;
+    contesto.ANNULLA_automazione();
+    const cambioFermato = salvato();
+    const quattroAMano = errore(() => contesto.ORARI_4_calendario());
+    verifica('ORARI_4_calendario a mano con il cambio d\'orario fermato a meta\' dice di rieseguire ORARI_5_cambioOrario, ' +
+      'non che riprende da solo', !!cambioFermato && cambioFermato.funzione === 'ORARI_5_cambioOrario' &&
+      cambioFermato.fermato === true && /non riprende da solo/.test(quattroAMano) &&
+      /ANNULLA_automazione/.test(quattroAMano) && /ORARI_5_cambioOrario/.test(quattroAMano) && !/fra poco/.test(quattroAMano));
+    contesto.ORARI_5_cambioOrario();
+    verifica('  ...e rieseguito a mano, il cambio finisce', !salvato() && ripresaDi('ORARI_5_cambioOrario').length === 0);
+
+    // anche il limite di Google della giornata toglie la ripresa: il lavoro va
+    // rieseguito, e l'altra funzione lo dice senza nominare ANNULLA_automazione
+    azzeraCalendario();
+    guasti([{ op: 'createEventSeries', alla: 3, messaggio: 'Service invoked too many times for one day: calendar.' }]);
+    contesto.ORARI_4_calendario();
+    guasti([]);
+    const dopoIlGiorno = errore(() => contesto.ORARI_5_cambioOrario());
+    verifica('con il lavoro fermato dal limite della giornata, l\'altra funzione dice che non riprende da solo',
+      !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 && /non riprende da solo/.test(dopoIlGiorno) &&
+      /rieseguilo/.test(dopoIlGiorno) && !/ANNULLA_automazione/.test(dopoIlGiorno) && !/fra poco/.test(dopoIlGiorno));
+    // con la ripresa programmata, invece, riprende da solo davvero
+    azzeraCalendario();
+    sogliaCalendario = 5;
+    contesto.ORARI_4_calendario();
+    sogliaCalendario = Infinity;
+    const conRipresa = errore(() => contesto.ORARI_5_cambioOrario());
+    verifica('  ...mentre con la ripresa programmata dice che riprende da solo fra poco',
+      ripresaDi('ORARI_4_calendario').length === 1 && /riprende da solo fra poco/.test(conRipresa));
+    // la ripresa parte e finisce con un errore che non e' un limite di Google:
+    // il suo trigger, gia' scattato, resta fra quelli del progetto (come in
+    // Google) ma non e' piu' una ripresa programmata. L'altra funzione non deve
+    // dire che il lavoro riprende da solo
+    guasti([{ op: 'createEventSeries', alla: 1, messaggio: 'Errore interno di prova' }]);
+    const ripresaRotta = errore(() => contesto.ORARI_4_calendario({ triggerUid: 'ripresa rotta' }));
+    guasti([]);
+    const dopoLaRotta = errore(() => contesto.ORARI_5_cambioOrario());
+    verifica('una ripresa finita con un altro errore toglie il suo trigger, e l\'altra funzione dice di rieseguire il ' +
+      'lavoro (invece: ' + dopoLaRotta.slice(0, 90) + ')',
+      /Errore interno di prova/.test(ripresaRotta) && !!salvato() && ripresaDi('ORARI_4_calendario').length === 0 &&
+      /non riprende da solo/.test(dopoLaRotta) && /rieseguilo/.test(dopoLaRotta) && !/fra poco/.test(dopoLaRotta));
+    contesto.ORARI_4_calendario();
+    verifica('  ...e rieseguito a mano finisce da dove era arrivato',
+      !salvato() && ripresaDi('ORARI_4_calendario').length === 0 && vive(calendari[0]).length === piano.tratti.length);
+
+    // lo stesso per ORARI_6_coloraLezioni a meta': ANNULLA_automazione ne toglie
+    // la ripresa e segna fermato il suo lavoro; una ripresa gia' partita non lo
+    // riprende, rieseguita a mano lo finisce
+    const { daRicolorare, coloriAMeta, salvatoColori, coloriSbagliati, conColori, coloriDati, calendarioDati } = attrezziCalendario;
+    const giro = daRicolorare();
+    coloriAMeta(2);
+    const spenta6 = contesto.ANNULLA_automazione();
+    verifica('ANNULLA_automazione toglie la ripresa di ORARI_6_coloraLezioni, segna fermato il suo lavoro e lo dice',
+      ripresaDi('ORARI_6_coloraLezioni').length === 0 && !!salvatoColori() && salvatoColori().fermato === true &&
+      /ORARI_6_coloraLezioni/.test(spenta6));
+    const primaDellaPartita = chiamate.setColor || 0;
+    const partita6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'gia partita' });
+    verifica('  ...una sua ripresa gia\' partita non colora niente e non si riprogramma',
+      /ANNULLA_automazione/.test(partita6) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
+      (chiamate.setColor || 0) === primaDellaPartita && !!salvatoColori() && salvatoColori().colorate === 2);
+    contesto.ORARI_6_coloraLezioni();
+    verifica('  ...e rieseguita a mano finisce', !salvatoColori() && coloriSbagliati(calendari[0], giro).length === 0);
+    conColori(coloriDati);
+    contesto.ORARI.calendario = calendarioDati;
+    azzeraCalendario();
+  } else {
+    verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);
+  }
 } else {
-  verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);
+  // Calendario.gs sta in un progetto tutto suo, nell'altro account: niente
+  // Posta, niente email. MailApp e GmailApp qui non ci sono (un loro uso
+  // sarebbe gia' fallito), e Session da' soltanto il fuso orario
+  intestazione('CALENDARIO.GS DA SOLO, SENZA LA POSTA');
+  const nomi = new Set([...codice.matchAll(/^(?:function\s+([A-Za-z_$][\w$]*)|var\s+([A-Za-z_$][\w$]*))/gm)]
+    .map(m => m[1] || m[2]));
+  const pubbliche = [...nomi].filter(n => /^ORARI_/.test(n) && typeof contesto[n] === 'function').sort();
+  verifica('le funzioni pubbliche sono quelle del calendario, con i nomi di Orari.gs (' + pubbliche.join(', ') + ')',
+    pubbliche.join() === 'ORARI_1_anteprima,ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni,ORARI_ANNULLA_calendario');
+  const interneVisibili = [...nomi].filter(n => typeof contesto[n] === 'function' && !/^ORARI_/.test(n) && !/_$/.test(n));
+  verifica('le funzioni interne finiscono con "_"' + (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''),
+    interneVisibili.length === 0);
+  const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]).sort();
+  verifica('le sue riprese sono quelle del calendario, e ognuna e\' una sua funzione (' + riprese.join(', ') + ')',
+    riprese.join() === 'ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni' &&
+    riprese.every(n => typeof contesto[n] === 'function'));
+  verifica('nel progetto non ci sono ne\' MailApp ne\' GmailApp, e in tutte le prove nessuna email e\' partita',
+    typeof contesto.MailApp === 'undefined' && typeof contesto.GmailApp === 'undefined' && mandate.length === 0 &&
+    etichetteCercate.length === 0 && ricerche.length === 0);
+  // il blocco lo puo' tenere solo un'altra funzione del calendario: il messaggio non parla della posta
+  lockOccupato = true;
+  const occupato = contesto.ORARI_ANNULLA_calendario();
+  lockOccupato = false;
+  verifica('con il blocco occupato dice che e\' in corso il calendario, non la posta (' + occupato + ')',
+    /in corso/.test(occupato) && /\(il calendario\)/.test(occupato) && !/posta|invio/.test(occupato));
 }
 
 intestazione('RISULTATO');
-verifica('in tutte le prove Orari.gs non ha mai chiamato setRecurrence, che in Google non cambia niente' +
+verifica('in tutte le prove ' + (SOLO_CALENDARIO ? 'Calendario.gs' : 'Orari.gs') + ' non ha mai chiamato setRecurrence, che in Google non cambia niente' +
   (conSetRecurrence.length ? ' (chiamata ' + conSetRecurrence.length + ' volte)' : ''), conSetRecurrence.length === 0);
 const saltate = SEZIONI.filter(s => sezioniFatte.indexOf(s) < 0);
 verifica('tutte le sezioni sono state provate' + (saltate.length ? ' (saltate: ' + saltate.join(', ') + ')' : ''),
