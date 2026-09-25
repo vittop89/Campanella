@@ -72,6 +72,8 @@ namespace Campanella
         CheckBox chkValidoDal;
         NumericUpDown numMinuti;
         Label lblCalRiepilogo;
+        Button btnColori;                 // "Colori delle classi..."
+        RiepilogoColori riepilogoColori;  // accanto, i colori di ogni classe
         // quello che sta sotto il riepilogo, che cambia altezza: si sposta con
         // lui, alla stessa distanza dal suo fondo
         List<Control> sottoRiepilogo = new List<Control>();
@@ -509,7 +511,8 @@ namespace Campanella
             sb.AppendLine("    Google chiede le autorizzazioni per tutto il progetto: con il file");
             sb.AppendLine("    Orari dentro, anche per il Calendario, pure se usi solo le email.");
             sb.AppendLine("    Il calendario lo toccano soltanto ORARI_4_calendario,");
-            sb.AppendLine("    ORARI_5_cambioOrario e ORARI_ANNULLA_calendario, e solo se li esegui tu.");
+            sb.AppendLine("    ORARI_5_cambioOrario, ORARI_6_coloraLezioni e ORARI_ANNULLA_calendario,");
+            sb.AppendLine("    e solo se li esegui tu.");
             sb.AppendLine();
             sb.AppendLine("5.  Scegli  ORARI_2_invia  ed Esegui.");
             sb.AppendLine("    Le email arrivano tutte a te: una per docente.");
@@ -598,7 +601,8 @@ namespace Campanella
                 "Se un calendario con quel nome esiste gia' lo usa, altrimenti lo crea.\r\n\r\n" +
                 "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
                 "ORARI_ANNULLA_calendario, senza toccare il resto del calendario, e " +
-                "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.");
+                "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.\r\n\r\n" +
+                "Ogni classe ha il suo colore: lo scegli con \"Colori delle classi...\".");
             y += 40;
 
             p.Controls.Add(Tema.Testo1("Il tuo nome, come nel tabellone", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
@@ -678,6 +682,25 @@ namespace Campanella
             cmbColore.SelectedIndexChanged += delegate { if (!zitto4) AggiornaCalendario(); };
             p.Controls.Add(cmbColore);
             y += 78;
+
+            // --- i colori delle classi ------------------------------------------
+            btnColori = Tema.Bottone("Colori delle classi...", 0, y, 190, delegate { ScegliColori(); });
+            p.Controls.Add(btnColori);
+            p.Controls.Add(Tema.Aiuto(198, y + 7, "I colori delle classi",
+                "Ogni lezione sul calendario prende il colore della sua classe: la 2B di un colore, la 3B di un " +
+                "altro, sempre nello stesso calendario. Sono i colori degli eventi di Google Calendar, con i loro " +
+                "nomi (Pomodoro, Mirtillo, Basilico...).\r\n\r\n" +
+                "Di partenza ogni classe del tuo orario ne ha uno diverso, e poi lo tiene: una classe nuova prende " +
+                "un colore che le altre non hanno. Le ore a disposizione sono grigie (Grafite). Un colore che " +
+                "scegli tu resta; \"Colori di partenza\" rimette quelli di Campanella. Con \"colore del calendario\" " +
+                "le lezioni di quella classe hanno il colore del calendario (Colore, qui sopra).\r\n\r\n" +
+                "I colori vanno in DatiOrari.gs: ORARI_4_calendario e ORARI_5_cambioOrario li danno alle lezioni " +
+                "che mettono. Per le lezioni gia' sul calendario rigenera e incolla DatiOrari.gs, poi esegui " +
+                "ORARI_6_coloraLezioni: cambia solo il colore, senza rifare ne' spostare niente. Le lezioni di una " +
+                "classe a cui togli il colore restano come sono: il colore lo togli da Google Calendar."));
+            riepilogoColori = new RiepilogoColori(228, y + 5, 652, 2 * (Tema.Normale.Height + 4));
+            p.Controls.Add(riepilogoColori);
+            y += 52;
 
             // --- i giorni senza lezione -----------------------------------------
             Tema.RigaAiuto(p, "Giorni senza lezione", 0, y, Tema.Grassetto, Ruolo.Normale,
@@ -977,6 +1000,7 @@ namespace Campanella
             AggiornaLette();
 
             string docente = orario.TrovaDocente(S.CalDocente);
+            AggiornaColori(docente);
             if (orario.Lezioni.Count == 0)
             {
                 lblCalRiepilogo.Text = "Nessun orario caricato: torna al passo 1 e scegli il file.";
@@ -1082,6 +1106,44 @@ namespace Campanella
             }
         }
 
+        /// <summary>
+        /// Il riepilogo dei colori delle classi del docente: quelle che non ne
+        /// hanno ancora uno lo prendono adesso (ColoriLezioni.Completa), e lo
+        /// tengono.
+        /// </summary>
+        void AggiornaColori(string docente)
+        {
+            if (riepilogoColori == null) return;
+            List<string> classi = AnalisiOrario.ClassiDelCalendario(orario, docente);
+            if (classi.Count > 0) ColoriLezioni.Completa(S.CalColori, S.CalColoriAMano, classi);
+            riepilogoColori.Mostra(classi, S.CalColori, orario.Lezioni.Count == 0
+                ? "Carica l'orario al passo 1: ogni classe del tuo orario avra' il suo colore."
+                : "Scegli il tuo nome: ogni classe del tuo orario avra' il suo colore.");
+        }
+
+        /// <summary>"Colori delle classi...": la finestra con un colore per classe.</summary>
+        void ScegliColori()
+        {
+            RaccogliCalendario();
+            List<string> classi = AnalisiOrario.ClassiDelCalendario(orario, orario.TrovaDocente(S.CalDocente));
+            if (classi.Count == 0)
+            {
+                Guscio.Stato1(orario.Lezioni.Count == 0
+                    ? "Prima carica l'orario (passo 1) e scegli il tuo nome: i colori vanno alle classi del tuo orario."
+                    : "Prima scegli il tuo nome: i colori vanno alle classi del tuo orario.", Tema.Ambra);
+                return;
+            }
+            using (FormColoriClassi f = new FormColoriClassi(classi, S.CalColori, S.CalColoriAMano))
+            {
+                if (f.ShowDialog(this) != DialogResult.OK) return;
+                S.CalColori = new Dictionary<string, string>(f.Colori);
+                S.CalColoriAMano = new List<string>(f.AMano);
+            }
+            AggiornaCalendario();
+            Guscio.Stato1("Colori delle classi scelti: rigenera DatiOrari.gs e incollalo. Per le lezioni gia' sul " +
+                          "calendario esegui ORARI_6_coloraLezioni.");
+        }
+
         string IstruzioniCalendario()
         {
             StringBuilder sb = new StringBuilder();
@@ -1125,8 +1187,8 @@ namespace Campanella
             sb.AppendLine("    nome al calendario: ORARI_4_calendario ne crea uno nuovo.");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
-            sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");
-            sb.AppendLine("    anche dal telefono.");
+            sb.AppendLine("    con l'orario, e ogni classe ha il suo colore. Puoi accenderlo e");
+            sb.AppendLine("    spegnerlo, cambiargli colore, vederlo anche dal telefono.");
             sb.AppendLine();
             sb.AppendLine("GIORNI SENZA LEZIONE");
             sb.AppendLine("--------------------");
@@ -1155,6 +1217,21 @@ namespace Campanella
             sb.AppendLine("\"L'orario e' cambiato\" con la data da cui vale e usa ORARI_5_cambioOrario,");
             sb.AppendLine("anche se l'orario e' lo stesso.");
             sb.AppendLine();
+            sb.AppendLine("I COLORI DELLE CLASSI");
+            sb.AppendLine("---------------------");
+            sb.AppendLine("Ogni lezione prende il colore della sua classe (la 2B di un colore, la 3B");
+            sb.AppendLine("di un altro), sempre nello stesso calendario: sono i colori degli eventi");
+            sb.AppendLine("di Google Calendar. Di partenza ogni classe del tuo orario ne ha uno");
+            sb.AppendLine("diverso, e poi lo tiene; le ore a disposizione sono grigie (Grafite).");
+            sb.AppendLine("Per cambiarli c'e' \"Colori delle classi...\" qui sopra: un colore scelto");
+            sb.AppendLine("da te resta, e \"colore del calendario\" lascia a quella classe il colore");
+            sb.AppendLine("del calendario. ORARI_4_calendario e ORARI_5_cambioOrario danno i colori");
+            sb.AppendLine("alle lezioni che mettono. Per quelle gia' sul calendario rigenera e");
+            sb.AppendLine("incolla DatiOrari.gs, poi esegui  ORARI_6_coloraLezioni: cambia solo il");
+            sb.AppendLine("colore delle lezioni di Campanella, senza rifarle ne' spostarle, e");
+            sb.AppendLine("riprende da sola se si ferma. Le lezioni di una classe a cui togli il");
+            sb.AppendLine("colore restano come sono: quel colore lo togli da Google Calendar.");
+            sb.AppendLine();
             sb.AppendLine("SE L'ORARIO CAMBIA");
             sb.AppendLine("------------------");
             sb.AppendLine("1.  Carica il nuovo tabellone al passo 1. Qui sopra spunta \"L'orario e'");
@@ -1169,11 +1246,13 @@ namespace Campanella
             sb.AppendLine("    anche le lezioni spostate o cancellate a mano, e da quel giorno c'e'");
             sb.AppendLine("    l'orario nuovo. Google non lascia accorciare una serie: quelle");
             sb.AppendLine("    dell'orario di prima le rifa' fino al giorno prima (le lezioni");
-            sb.AppendLine("    spostate a mano, o con il titolo, la descrizione o il luogo cambiati");
-            sb.AppendLine("    solo per loro, tornano come eventi singoli, alla loro ora e come");
-            sb.AppendLine("    sono) e toglie le vecchie. Altre modifiche fatte a mano a una serie,");
-            sb.AppendLine("    come il colore, non passano a quella rifatta. Rieseguita con la stessa");
-            sb.AppendLine("    data da' lo stesso risultato, e anche lei riprende da sola se si ferma.");
+            sb.AppendLine("    spostate a mano, o con il titolo, la descrizione, il luogo o il colore");
+            sb.AppendLine("    cambiati solo per loro, tornano come eventi singoli, alla loro ora e");
+            sb.AppendLine("    come sono) e toglie le vecchie. La serie rifatta ha il colore della");
+            sb.AppendLine("    sua classe (se la classe non ne ha uno, quello che aveva); altre");
+            sb.AppendLine("    modifiche fatte a mano a una serie, come un promemoria, non passano a");
+            sb.AppendLine("    quella rifatta. Rieseguita con la stessa data da' lo stesso");
+            sb.AppendLine("    risultato, e anche lei riprende da sola se si ferma.");
             sb.AppendLine("    Tocca solo gli eventi con il contrassegno: una copia fatta a mano di una");
             sb.AppendLine("    lezione la lascia e te la nomina.");
             sb.AppendLine();

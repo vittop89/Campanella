@@ -1993,4 +1993,353 @@ namespace Campanella
             return lunga;
         }
     }
+
+    /// <summary>
+    /// Un colore degli eventi di Google Calendar (ColoriLezioni) in un
+    /// quadratino: pieno del colore, con un filo intorno; "" (il colore del
+    /// calendario) e' un quadratino vuoto tratteggiato. Deriva da Control, non
+    /// da Panel o Label, cosi' Tema.Applica non gli rifa' i colori.
+    /// </summary>
+    class QuadratoColore : Control
+    {
+        string valore = "";
+
+        public QuadratoColore(int x, int y, int lato)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Location = new Point(x, y);
+            Size = new Size(lato, lato);
+            TabStop = false;
+            AccessibleRole = AccessibleRole.Graphic;
+            AccessibleName = ColoriLezioni.Nome("");
+        }
+
+        /// <summary>Il colore: da "1" a "11", oppure "" per il colore del calendario.</summary>
+        public string Valore
+        {
+            get { return valore; }
+            set
+            {
+                valore = ColoriLezioni.Valido(value ?? "") ? (value ?? "") : "";
+                AccessibleName = ColoriLezioni.Nome(valore);
+                Invalidate();
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Disegna(e.Graphics, new Rectangle(0, 0, Width - 1, Height - 1), valore);
+        }
+
+        /// <summary>Il quadratino di un colore nel rettangolo r: lo usano anche le tendine e il riepilogo dei colori.</summary>
+        public static void Disegna(Graphics g, Rectangle r, string valore)
+        {
+            string esadecimale = ColoriLezioni.Esadecimale(valore);
+            if (esadecimale == "")
+            {
+                using (Pen p = new Pen(Tema.Tenue))
+                {
+                    p.DashStyle = DashStyle.Dash;
+                    g.DrawRectangle(p, r);
+                }
+                return;
+            }
+            using (SolidBrush b = new SolidBrush(ColorTranslator.FromHtml(esadecimale))) g.FillRectangle(b, r);
+            using (Pen p = new Pen(Tema.Tenue)) g.DrawRectangle(p, r);
+        }
+    }
+
+    /// <summary>
+    /// Il riepilogo dei colori delle classi accanto al bottone "Colori delle
+    /// classi..." (Orari, passo 4): per ogni classe il quadratino del colore e
+    /// il nome, su una riga o piu', quante ne stanno nella sua altezza; quelle
+    /// che non ci stanno diventano "e altre N". Senza classi, una frase. Text
+    /// dice tutto a parole (per chi legge lo schermo, e per le prove).
+    /// </summary>
+    class RiepilogoColori : Control
+    {
+        List<string> classi = new List<string>();
+        Dictionary<string, string> colori = new Dictionary<string, string>();
+        string messaggio = "";
+
+        public RiepilogoColori(int x, int y, int w, int h)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Location = new Point(x, y);
+            Size = new Size(w, h);
+            Font = Tema.Normale;
+            TabStop = false;
+            AccessibleRole = AccessibleRole.StaticText;
+        }
+
+        /// <summary>Mostra i colori di queste classi, oppure, se non ce ne sono, il messaggio.</summary>
+        public void Mostra(List<string> classi, Dictionary<string, string> colori, string messaggio)
+        {
+            this.classi = ColoriLezioni.Ordinate(classi);
+            this.colori = new Dictionary<string, string>(colori ?? new Dictionary<string, string>());
+            this.messaggio = messaggio ?? "";
+            Text = (this.classi.Count > 0) ? "Colori: " + ColoriLezioni.Riassunto(this.colori, this.classi) : this.messaggio;
+            AccessibleName = Text;
+            Invalidate();
+        }
+
+        /// <summary>Quante classi si vedono: le altre sono in "e altre N".</summary>
+        public int Visibili
+        {
+            get { string resto; return Posti(out resto).Count; }
+        }
+
+        int AltezzaRiga { get { return Font.Height + 4; } }
+
+        /// <summary>
+        /// Dove va ogni classe che ci sta, riga per riga; resto e' "e altre N"
+        /// se non ci stanno tutte (sull'ultima riga c'e' sempre il posto per lui).
+        /// </summary>
+        List<Rectangle> Posti(out string resto)
+        {
+            List<Rectangle> fuori = new List<Rectangle>();
+            resto = "";
+            int alta = AltezzaRiga, lato = Font.Height - 5;
+            int righe = Math.Max(1, Height / alta);
+            int x = 0, r = 0;
+            for (int i = 0; i < classi.Count; i++)
+            {
+                int w = lato + 5 + TextRenderer.MeasureText(classi[i], Font).Width + 10;
+                if (x > 0 && x + w > Width) { r++; x = 0; }
+                string dopo = (i < classi.Count - 1) ? "e altre " + (classi.Count - 1 - i) : "";
+                int spazioDopo = (dopo == "") ? 0 : TextRenderer.MeasureText(dopo, Font).Width;
+                if (r >= righe || (r == righe - 1 && x + w + spazioDopo > Width))
+                {
+                    resto = "e altre " + (classi.Count - i);
+                    break;
+                }
+                fuori.Add(new Rectangle(x, r * alta, w, alta));
+                x += w;
+            }
+            return fuori;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            if (classi.Count == 0)
+            {
+                TextRenderer.DrawText(g, messaggio, Font, ClientRectangle, Tema.Tenue,
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                return;
+            }
+            string resto;
+            List<Rectangle> posti = Posti(out resto);
+            int lato = Font.Height - 5;
+            for (int i = 0; i < posti.Count; i++)
+            {
+                Rectangle p = posti[i];
+                string v;
+                if (!colori.TryGetValue(classi[i], out v)) v = "";
+                QuadratoColore.Disegna(g, new Rectangle(p.X, p.Y + (p.Height - lato) / 2, lato, lato), v);
+                TextRenderer.DrawText(g, classi[i], Font, new Rectangle(p.X + lato + 5, p.Y, p.Width - lato - 5, p.Height),
+                    Tema.Testo, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
+                    TextFormatFlags.NoPrefix);
+            }
+            if (resto != "")
+            {
+                Rectangle ultimo = posti.Count > 0 ? posti[posti.Count - 1] : new Rectangle(0, 0, 0, AltezzaRiga);
+                TextRenderer.DrawText(g, resto, Font, new Point(ultimo.Right, ultimo.Top + (ultimo.Height - Font.Height) / 2),
+                    Tema.Tenue, TextFormatFlags.NoPrefix);
+            }
+        }
+    }
+
+    /// <summary>
+    /// "Colori delle classi..." (Orari, passo 4): una riga per ogni classe
+    /// dell'orario del docente, con il quadratino del colore e la tendina dei
+    /// colori degli eventi di Google Calendar, piu' "colore del calendario".
+    /// Un colore cambiato qui e' scelto a mano, e resta; "Colori di partenza"
+    /// rimette quelli che Campanella da' da sola. Lavora su una copia: con
+    /// Annulla non cambia niente.
+    /// </summary>
+    class FormColoriClassi : Form
+    {
+        /// <summary>I colori delle classi (una copia), con quelli scelti qui.</summary>
+        public readonly Dictionary<string, string> Colori;
+        /// <summary>Le classi con il colore scelto a mano (una copia).</summary>
+        public readonly List<string> AMano;
+        /// <summary>Le classi della finestra, in ordine.</summary>
+        public readonly List<string> Classi;
+
+        readonly Dictionary<string, ComboBox> tendine = new Dictionary<string, ComboBox>();
+        readonly Dictionary<string, QuadratoColore> quadrati = new Dictionary<string, QuadratoColore>();
+        readonly Dictionary<string, Label> note = new Dictionary<string, Label>();
+        readonly Panel righe;
+        bool riempiendo = false;
+        const int Larga = 560;
+        const int AltaRiga = 34;
+        const int MassimoRighe = 12;         // oltre, le righe scorrono
+
+        /// <summary>Una voce della tendina: il valore del colore, e il suo nome.</summary>
+        class VoceColore
+        {
+            public string Valore = "";
+            public override string ToString() { return ColoriLezioni.Nome(Valore); }
+        }
+
+        public FormColoriClassi(List<string> classi, Dictionary<string, string> colori, List<string> aMano)
+        {
+            Classi = ColoriLezioni.Ordinate(classi);
+            Colori = new Dictionary<string, string>(colori ?? new Dictionary<string, string>());
+            AMano = new List<string>(aMano ?? new List<string>());
+            ColoriLezioni.Completa(Colori, AMano, Classi);
+
+            Text = "Colori delle classi";
+            StartPosition = FormStartPosition.CenterParent;
+            Font = Tema.Normale;
+            MinimizeBox = false;
+            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            ShowInTaskbar = false;
+
+            int y = 14;
+            Label spiega = Tema.Testo1(
+                "Ogni lezione sul calendario prende il colore della sua classe, nello stesso calendario. Sono i " +
+                "colori degli eventi di Google Calendar, con i loro nomi. Di partenza ogni classe ne ha uno diverso, " +
+                "sempre lo stesso; \"colore del calendario\" lascia alle sue lezioni quello del calendario.",
+                16, y, Larga, Tema.Normale, Ruolo.Tenue);
+            Controls.Add(spiega);
+            y += spiega.Height + 10;
+
+            // le righe stanno in un riquadro, che scorre se le classi sono tante
+            righe = new Panel();
+            righe.Location = new Point(16, y);
+            righe.Size = new Size(Larga, Math.Max(1, Math.Min(Classi.Count, MassimoRighe)) * AltaRiga);
+            righe.AutoScroll = Classi.Count > MassimoRighe;
+            Controls.Add(righe);
+            int larghezzaNota = Larga - 450 - (righe.AutoScroll ? SystemInformation.VerticalScrollBarWidth + 4 : 0);
+            int yr = 0;
+            foreach (string k in Classi)
+            {
+                QuadratoColore q = new QuadratoColore(0, yr + 8, 18);
+                righe.Controls.Add(q);
+                Label nome = Tema.Testo1(k, 28, yr + 7, 190, Tema.Grassetto, Ruolo.Normale);
+                nome.AutoEllipsis = true;
+                nome.Height = Math.Min(nome.Height, AltaRiga - 8);
+                righe.Controls.Add(nome);
+                ComboBox cb = new ComboBox();
+                cb.Location = new Point(226, yr + 3);
+                cb.Width = 212;
+                cb.DropDownStyle = ComboBoxStyle.DropDownList;
+                cb.DrawMode = DrawMode.OwnerDrawFixed;
+                cb.Font = Tema.Normale;
+                cb.ItemHeight = Tema.Normale.Height + 5;
+                cb.MaxDropDownItems = 12;
+                cb.Items.Add(new VoceColore());
+                for (int i = 0; i < ColoriLezioni.Tavolozza.GetLength(0); i++)
+                {
+                    VoceColore v = new VoceColore();
+                    v.Valore = ColoriLezioni.Tavolozza[i, 0];
+                    cb.Items.Add(v);
+                }
+                cb.DrawItem += DisegnaVoce;
+                string classe = k;
+                cb.SelectedIndexChanged += delegate { if (!riempiendo) Scegli(classe, ValoreDi(cb)); };
+                cb.AccessibleName = "Colore di " + k;
+                righe.Controls.Add(cb);
+                Label nota = Tema.Testo1("", 450, yr + 9, larghezzaNota, Tema.Piccolo, Ruolo.Tenue);
+                nota.Height = Tema.AltezzaTesto("scelto da te", Tema.Piccolo, larghezzaNota);
+                righe.Controls.Add(nota);
+                quadrati[k] = q;
+                tendine[k] = cb;
+                note[k] = nota;
+                yr += AltaRiga;
+            }
+            y += righe.Height + 10;
+
+            Label dopo = Tema.Testo1(
+                "Poi rigenera DatiOrari.gs e incollalo: ORARI_4_calendario e ORARI_5_cambioOrario danno i colori " +
+                "alle lezioni che mettono, ORARI_6_coloraLezioni a quelle gia' sul calendario.",
+                16, y, Larga, Tema.Normale, Ruolo.Tenue);
+            Controls.Add(dopo);
+            y += dopo.Height + 12;
+
+            Controls.Add(Tema.Bottone("Colori di partenza", 16, y + 2, 170, delegate { DiPartenza(); }));
+            Button ok = Tema.BottonePrincipale("Usa questi colori", 16 + Larga - 180, y, 180, null);
+            ok.DialogResult = DialogResult.OK;
+            Controls.Add(ok);
+            Button ann = Tema.Bottone("Annulla", 16 + Larga - 180 - 98, y + 2, 90, null);
+            ann.DialogResult = DialogResult.Cancel;
+            Controls.Add(ann);
+            CancelButton = ann;
+            ClientSize = new Size(16 + Larga + 16, y + 34 + 16);
+
+            Aggiorna();
+            Tema.Applica(this);
+        }
+
+        /// <summary>Il riquadro delle righe (per le prove).</summary>
+        public Panel Righe { get { return righe; } }
+
+        static string ValoreDi(ComboBox cb)
+        {
+            VoceColore v = cb.SelectedItem as VoceColore;
+            return (v != null) ? v.Valore : "";
+        }
+
+        /// <summary>Sceglie a mano il colore di una classe ("" = il colore del calendario).</summary>
+        public void Scegli(string classe, string valore)
+        {
+            string v = valore ?? "";
+            if (!Classi.Contains(classe) || !ColoriLezioni.Valido(v)) return;
+            Colori[classe] = v;
+            if (!AMano.Contains(classe)) AMano.Add(classe);
+            Aggiorna();
+        }
+
+        /// <summary>"Colori di partenza": tutte le classi tornano ai colori che Campanella da' da sola.</summary>
+        public void DiPartenza()
+        {
+            ColoriLezioni.DiPartenza(Colori, AMano, Classi);
+            Aggiorna();
+        }
+
+        void Aggiorna()
+        {
+            riempiendo = true;
+            try
+            {
+                foreach (string k in Classi)
+                {
+                    string v;
+                    if (!Colori.TryGetValue(k, out v)) v = "";
+                    quadrati[k].Valore = v;
+                    ComboBox cb = tendine[k];
+                    for (int i = 0; i < cb.Items.Count; i++)
+                        if (((VoceColore)cb.Items[i]).Valore == v) { cb.SelectedIndex = i; break; }
+                    note[k].Text = AMano.Contains(k) ? "scelto da te" : "";
+                }
+            }
+            finally { riempiendo = false; }
+        }
+
+        /// <summary>Una voce della tendina: il quadratino del colore e il nome.</summary>
+        static void DisegnaVoce(object o, DrawItemEventArgs e)
+        {
+            ComboBox cb = o as ComboBox;
+            if (cb == null || e.Index < 0 || e.Index >= cb.Items.Count) return;
+            VoceColore v = (VoceColore)cb.Items[e.Index];
+            bool evidenziata = (e.State & DrawItemState.Selected) != 0 && (e.State & DrawItemState.ComboBoxEdit) == 0;
+            using (SolidBrush fondo = new SolidBrush(evidenziata ? Tema.AccentoSfondo : Tema.Campo))
+                e.Graphics.FillRectangle(fondo, e.Bounds);
+            int lato = Math.Max(8, e.Bounds.Height - 8);
+            QuadratoColore.Disegna(e.Graphics, new Rectangle(e.Bounds.X + 4, e.Bounds.Y + (e.Bounds.Height - lato) / 2, lato, lato),
+                                   v.Valore);
+            Rectangle testo = new Rectangle(e.Bounds.X + lato + 12, e.Bounds.Y, Math.Max(1, e.Bounds.Width - lato - 12),
+                                            e.Bounds.Height);
+            TextRenderer.DrawText(e.Graphics, v.ToString(), cb.Font, testo, Tema.Testo,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine |
+                TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+        }
+    }
 }
