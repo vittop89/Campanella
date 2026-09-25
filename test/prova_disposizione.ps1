@@ -878,6 +878,60 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
     }
     ControllaPannello $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
     ControllaAiuti $pannelloOrari 'Orari / 4 con giorni senza lezione e cambio d''orario'
+    # dove metti l'orario: di partenza nell'account della scuola, con i dati di
+    # tutto il tabellone; in un altro account il menu da' Calendario.gs e i dati
+    # del solo docente, con le istruzioni per quell'account, e la pagina sta in
+    # piedi lo stesso. La scelta va nelle impostazioni
+    $campoScuola = $tPO.GetField('rbScuola', $FIp)
+    $campoAltro = $tPO.GetField('rbAltroAccount', $FIp)
+    $rbScuola = if ($null -ne $campoScuola) { $campoScuola.GetValue($orari) } else { $null }
+    $rbAltro = if ($null -ne $campoAltro) { $campoAltro.GetValue($orari) } else { $null }
+    $cmb4 = $tPO.GetField('cmbCosaVedere4', $FIp).GetValue($orari)
+    $txt4 = $tPO.GetField('txtAnteprima4', $FIp).GetValue($orari)
+    $cmbNome4 = $tPO.GetField('cmbDocente', $FIp).GetValue($orari)
+    function Voci4 { @($cmb4.Items | ForEach-Object { [string]$_ }) }
+    Verifica "il passo 4 chiede dove metti l'orario: di partenza nell'account della scuola, con i dati di tutto il tabellone ($((Voci4) -join ' | '))" (
+        $null -ne $rbScuola -and $null -ne $rbAltro -and $rbScuola.Visible -and $rbAltro.Visible -and $rbScuola.Checked -and
+        -not $rbAltro.Checked -and $rbScuola.Text -match "nell'account della scuola, nello stesso progetto della Posta" -and
+        $rbAltro.Text -match 'in un altro account Google, per esempio il tuo personale' -and
+        (Voci4).Count -eq 2 -and (Voci4)[0] -match 'DatiOrari\.gs' -and $rbAltro.Bottom -le $cmbNome4.Top - 20)
+    if ($null -ne $rbAltro) {
+        $rbAltro.Checked = $true
+        [System.Windows.Forms.Application]::DoEvents()
+        $voci = Voci4
+        Verifica "con un altro account il menu da' il codice solo calendario, i dati del solo docente e le istruzioni, e la scelta va nelle impostazioni ($($voci -join ' | '))" (
+            [bool]$tStato.GetField('CalAltroAccount', $FI).GetValue($stato) -and $voci.Count -eq 3 -and
+            $voci[0] -eq '1. Codice solo calendario (Calendario.gs)' -and $voci[1] -eq '2. Dati del tuo orario (DatiOrari.gs, solo il tuo)' -and
+            $voci[2] -eq '3. Cosa fare, passo per passo' -and $cmb4.SelectedIndex -eq 2)
+        $larghe = @($voci | Where-Object { [System.Windows.Forms.TextRenderer]::MeasureText($_, $cmb4.Font).Width -gt $cmb4.Width - 24 })
+        Verifica "  ...ogni voce ci sta nel menu$(if ($larghe.Count) { ' (non ci sta: ' + ($larghe -join ', ') + ')' })" ($larghe.Count -eq 0)
+        $guida = ($txt4.Text -replace '\s+', ' ')
+        Verifica "  ...le istruzioni sono quelle per l'altro account" (
+            $guida -match 'IN UN ALTRO ACCOUNT' -and $guida -match "Apri script\.google\.com CON QUELL'ACCOUNT" -and $guida -match 'Nuovo progetto')
+        $cmb4.SelectedIndex = 0
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "  ...la prima voce mostra Calendario.gs, senza le email" (
+            $txt4.Text.StartsWith('/**') -and $txt4.Text -match 'Calendario\.gs versione' -and $txt4.Text -notmatch 'MailApp|GmailApp|ORARI_2_invia')
+        $cmb4.SelectedIndex = 1
+        [System.Windows.Forms.Application]::DoEvents()
+        $altriDoc = @($tPO.GetField('orario', $FIp).GetValue($orari).Docenti() | Where-Object { $_ -ne 'ROSSI' })
+        $conAltri = @($altriDoc | Where-Object { $txt4.Text -cmatch ('(?<![A-Za-z])' + [regex]::Escape($_) + '(?![A-Za-z])') })
+        Verifica "  ...la seconda i dati del solo docente: ROSSI, nessuno degli altri $($altriDoc.Count) docenti del tabellone$(if ($conAltri.Count) { ' (ci sono: ' + ($conAltri -join ', ') + ')' })" (
+            $txt4.Text -match 'DATI DEL TUO ORARIO' -and $txt4.Text -cmatch '"ROSSI"' -and $altriDoc.Count -ge 4 -and $conAltri.Count -eq 0)
+        ControllaPannello $pannelloOrari 'Orari / 4 con l''orario in un altro account'
+        ControllaAiuti $pannelloOrari 'Orari / 4 con l''orario in un altro account'
+        if ($Immagini) {
+            $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
+            $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
+            $bmp.Save((Join-Path $cartella '37-Orari-4-altro-account.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
+        $rbScuola.Checked = $true
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "tornato all'account della scuola, il menu e le istruzioni tornano com'erano" (
+            -not [bool]$tStato.GetField('CalAltroAccount', $FI).GetValue($stato) -and (Voci4).Count -eq 2 -and $cmb4.SelectedIndex -eq 1 -and
+            $txt4.Text -notmatch 'IN UN ALTRO ACCOUNT' -and $txt4.Text -match 'PASSO PER PASSO')
+    }
     # i colori delle classi: il bottone, e accanto le classi di ROSSI con il loro
     # colore, che restano nelle impostazioni
     $campoBtnColori = $tPO.GetField('btnColori', $FIp)

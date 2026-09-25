@@ -11,6 +11,11 @@
     Poi prova il generatore di DatiOrari.gs con tabelloni inventati, scritti
     in una cartella temporanea che alla fine viene tolta (anche i colori delle
     classi: quelli di partenza, che restano gli stessi, e quelli scelti a mano).
+
+    In fondo il calendario in un altro account: Calendario.gs e il DatiOrari.gs
+    del solo docente, generati dall'applicazione, passano per
+    test\prova_solo_calendario.js (con il banco del calendario) e per
+    test\invarianti_script.js --calendario.
 #>
 param(
     [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv'),
@@ -204,6 +209,17 @@ console.log(JSON.stringify({
         $r = ($esito | Select-Object -Last 1) | ConvertFrom-Json
         Verifica "caso $n`: nel contesto nasce soltanto ORARI ($(@($r.nomi) -join ', '))" ((@($r.nomi) -join ',') -eq 'ORARI')
         Verifica "caso $n`: il periodo resta intatto nei dati" ($r.periodo -eq $true)
+        # e nel DatiOrari.gs del solo docente, per il calendario in un altro account
+        $b = New-Object 'object[]' 2
+        $b[0] = $o.PSObject.BaseObject
+        $b[1] = $s.PSObject.BaseObject
+        $metodoSolo = $tAn.GetMethod('GeneraDatiDelDocenteGs', $FS)
+        if ($null -eq $metodoSolo) { Verifica "caso $n`: c'e' AnalisiOrario.GeneraDatiDelDocenteGs" $false; continue }
+        [System.IO.File]::WriteAllText($fileGs, [string]$metodoSolo.Invoke($null, $b), $utf8)
+        $esito = & node $verificaVm $fileGs $fileAtteso
+        $r = if ($LASTEXITCODE -eq 0 -and $esito) { ($esito | Select-Object -Last 1) | ConvertFrom-Json } else { $null }
+        Verifica "caso $n`: anche nei dati del solo docente nasce soltanto ORARI, con il periodo intatto" (
+            $null -ne $r -and (@($r.nomi) -join ',') -eq 'ORARI' -and $r.periodo -eq $true)
     }
 
     # --- le lezioni sotto il giorno giusto, anche dopo un riavvio (A-59, A-64)
@@ -1096,6 +1112,107 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
         $pCambio = PianoCs $s.CalValidoDal
         Verifica "e anche dal cambio d'orario ($($pCambio.Serie.Count) e $nSerieCambioJs serie, $($pCambio.Saltate) e $nSaltateCambioJs saltate)" (
             $pCambio.Serie.Count -eq $nSerieCambioJs -and $pCambio.Saltate -eq $nSaltateCambioJs)
+    }
+
+    # --- il calendario in un altro account ----------------------------------
+    # Chi usa il Google Calendar di un altro account (il personale, per
+    # esempio) incolla in un progetto di quell'account Calendario.gs, la
+    # versione solo calendario di Orari.gs, e un DatiOrari.gs con il solo suo
+    # orario. Qui li genera l'applicazione vera, con lo stesso tabellone e le
+    # stesse scelte del banco qui sopra: Calendario.gs non nomina i servizi
+    # delle email o dell'indirizzo (Google ne chiederebbe il permesso), i dati
+    # non hanno i cognomi degli altri docenti, e i due file passano i
+    # controlli e il banco del calendario (test\prova_solo_calendario.js) e le
+    # regole degli script (test\invarianti_script.js --calendario)
+    Write-Host "`nIL CALENDARIO IN UN ALTRO ACCOUNT: CALENDARIO.GS E I DATI DEL SOLO DOCENTE" -ForegroundColor Cyan
+    $tSC = $asm.GetType('Campanella.SoloCalendario')
+    $mSolo = $tAn.GetMethod('GeneraDatiDelDocenteGs', $FS)
+    Verifica "c'e' SoloCalendario, con Codice e Genera, e AnalisiOrario.GeneraDatiDelDocenteGs" (
+        $null -ne $tSC -and $null -ne $tSC.GetMethod('Codice', $FS) -and $null -ne $tSC.GetMethod('Genera', $FS) -and $null -ne $mSolo)
+    if ($null -ne $tSC -and $null -ne $mSolo) {
+        $radiceProve = Split-Path -Parent $qui
+        $calendarioGs = [string]$tSC.GetMethod('Codice', $FS).Invoke($null, @())
+        $fileCal = Join-Path $tmp 'Calendario.gs'
+        [System.IO.File]::WriteAllText($fileCal, $calendarioGs, $utf8)
+        $vietati = @('MailApp', 'GmailApp', 'Session.getActiveUser', 'getEffectiveUser', 'UrlFetchApp', 'DriveApp',
+                     'DocumentApp', 'SpreadsheetApp', 'FormApp', 'sendEmail')
+        $nominati = @($vietati | Where-Object { $calendarioGs.Contains($_) })
+        Verifica "Calendario.gs dell'applicazione non contiene $($vietati -join ', ')$(if ($nominati.Count) { ' (contiene: ' + ($nominati -join ', ') + ')' })" (
+            $nominati.Count -eq 0 -and $calendarioGs.StartsWith('/**'))
+        $delCalendario = @('ORARI_1_anteprima', 'ORARI_4_calendario', 'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_ANNULLA_calendario')
+        $mancano = @($delCalendario | Where-Object { $calendarioGs -notmatch ('(?m)^function ' + $_ + '\(') })
+        $delleEmail = @(@('ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_ANNULLA_invio') | Where-Object { $calendarioGs.Contains($_) })
+        Verifica "  ...ha le funzioni del calendario, con i nomi di Orari.gs, e nessuna delle email$(if ($mancano.Count + $delleEmail.Count) { ' (mancano: ' + ($mancano -join ', ') + '; ci sono: ' + ($delleEmail -join ', ') + ')' })" (
+            $mancano.Count -eq 0 -and $delleEmail.Count -eq 0)
+        $vOrariGs = [regex]::Match([IO.File]::ReadAllText((Join-Path $radiceProve 'src\risorse\Orari.gs')),
+                                   "var _ORARI_VERSIONE\s*=\s*'([0-9.]+)'").Groups[1].Value
+        Verifica "  ...e l'intestazione sua, con la versione di Orari.gs ($vOrariGs)" (
+            $calendarioGs.Contains("Calendario.gs versione $vOrariGs") -and $calendarioGs -notmatch 'Orari\.gs versione')
+
+        # Genera si ferma, e l'applicazione non da' un Calendario.gs che chiederebbe altri permessi
+        $orariGs = [IO.File]::ReadAllText((Join-Path $radiceProve 'src\risorse\Orari.gs')).Replace("`r`n", "`n")
+        $testaCal = [IO.File]::ReadAllText((Join-Path $radiceProve 'src\risorse\Calendario_intestazione.txt'))
+        function GeneraCal([string]$da) {
+            try { [void]$tSC.GetMethod('Genera', $FS).Invoke($null, @($da, $testaCal)); return '' }
+            catch { return [string]$_.Exception.InnerException.Message }
+        }
+        $quattro = 'function ORARI_4_calendario(e) {'
+        Verifica "Genera va con l'Orari.gs di adesso" ((GeneraCal $orariGs) -eq '')
+        $conMail = GeneraCal ($orariGs.Replace($quattro, $quattro + "`n  MailApp.getRemainingDailyQuota();"))
+        Verifica "  ...e si ferma se Calendario.gs nominerebbe MailApp ($conMail)" ($conMail -match 'nominerebbe MailApp')
+        $conDrive = GeneraCal ($orariGs.Replace($quattro, $quattro + "`n  // DriveApp.getFiles();"))
+        Verifica "  ...anche solo in un commento, come DriveApp ($conDrive)" ($conDrive -match 'nominerebbe DriveApp')
+        $aperto = GeneraCal ([regex]::Replace($orariGs, '// \[FINE SOLO EMAIL\][^\n]*\n(?=\n\n// =+\n//  4 - GOOGLE CALENDAR)', ''))
+        Verifica "  ...e se un blocco delle email non si chiude ($aperto)" ($aperto -match 'non si chiude|dentro un altro blocco')
+        $senzaCommento = GeneraCal ($orariGs.Replace('// var _ORARI_ALTRE_ESECUZIONI = ', 'var _ORARI_ALTRE_ESECUZIONI = '))
+        Verifica "  ...e se una riga solo calendario non comincia con // ($senzaCommento)" ($senzaCommento -match 'manca')
+
+        # i dati del solo docente, con le scelte del banco qui sopra
+        $b = New-Object 'object[]' 2
+        $b[0] = $o.PSObject.BaseObject
+        $b[1] = $s.PSObject.BaseObject
+        $datiSolo = [string]$mSolo.Invoke($null, $b)
+        $fileSolo = Join-Path $tmp 'DatiOrari_solo.gs'
+        [System.IO.File]::WriteAllText($fileSolo, $datiSolo, $utf8)
+        $altri = @($o.Docenti() | Where-Object { $_ -ne $s.CalDocente })
+        $trovati = @($altri | Where-Object { $datiSolo -match ('(?<![A-Za-z])' + [regex]::Escape($_) + '(?![A-Za-z])') })
+        Verifica "i dati del solo docente ($($s.CalDocente)) non hanno i cognomi degli altri $($altri.Count) docenti del tabellone$(if ($trovati.Count) { ' (hanno: ' + ($trovati -join ', ') + ')' })" (
+            $altri.Count -ge 4 -and $trovati.Count -eq 0 -and $datiSolo.Contains('"' + $s.CalDocente + '"'))
+        Verifica "  ...ne' gli orari delle classi, gli oggetti e la nota delle email, il titolo del tabellone" (
+            $datiSolo -notmatch 'classi:\s*\[' -and $datiSolo -notmatch 'oggettoDocente|oggettoClasse' -and
+            $datiSolo -notmatch '(?m)^\s*(nota|titolo):' -and -not $datiSolo.Contains($s.NotaOrari))
+        $testaSolo = ($datiSolo.Split(@('*/'), 2, [StringSplitOptions]::None)[0] -replace '\s+', ' ')
+        Verifica "  ...e la sua intestazione dice che c'e' soltanto il tuo orario, nessun collega" (
+            $testaSolo -match 'soltanto il TUO orario' -and $testaSolo -match 'Nessun collega' -and $testaSolo -match 'Calendario\.gs')
+        $sNessuno = NuovoStato
+        $b[1] = $sNessuno.PSObject.BaseObject
+        $senzaNome = [string]$mSolo.Invoke($null, $b)
+        Verifica "senza il tuo nome niente dati, e dice di sceglierlo" ($senzaNome -notmatch 'var ORARI' -and $senzaNome -match 'manca il tuo nome')
+
+        # i due file dell'applicazione: i controlli e il banco del calendario, e le regole degli script
+        $uscita = & node (Join-Path $qui 'prova_solo_calendario.js') $fileCal $fileSolo
+        $esitoSolo = $LASTEXITCODE
+        $uscita | Where-Object { $_ -match 'FALLITO|PROVE FALLITE' } | ForEach-Object { Write-Host "          $_" }
+        Verifica "test\prova_solo_calendario.js passa con i file dell'applicazione ($(@($uscita | Where-Object { $_ -match '^\s+OK ' }).Count) controlli, il banco del calendario compreso)" (
+            $esitoSolo -eq 0 -and @($uscita | Where-Object { $_ -match "il Calendario.gs dell'applicazione e' quello di test/solo_calendario.js" }).Count -eq 1)
+        $uscita = & node (Join-Path $qui 'invarianti_script.js') --calendario $fileCal
+        $esitoInv = $LASTEXITCODE
+        $uscita | Where-Object { $_ -match 'FALLITO|^\s{8}\S' } | ForEach-Object { Write-Host "          $_" }
+        Verifica "test\invarianti_script.js --calendario: il Calendario.gs dell'applicazione rispetta le regole degli script" ($esitoInv -eq 0)
+
+        # la guida del passo 4 per l'altro account
+        $mGuida = $asm.GetType('Campanella.PaginaOrari').GetMethod('GuidaCalendario', [System.Reflection.BindingFlags]'NonPublic,Static')
+        $guidaAltro = if ($null -ne $mGuida) { ([string]$mGuida.Invoke($null, @($true)) -replace '\s+', ' ') } else { '' }
+        Verifica "la guida per l'altro account: script.google.com con quell'account, nuovo progetto, fuso di Roma, i due file, ORARI_4_calendario, solo il Calendario" (
+            $guidaAltro -match "Apri script\.google\.com CON QUELL'ACCOUNT" -and $guidaAltro -match 'Nuovo progetto' -and
+            $guidaAltro -match 'Impostazioni progetto .*-> Fuso orario: scegli quello con Roma' -and
+            $guidaAltro -match 'Codice solo calendario" \(voce 1' -and $guidaAltro -match 'DatiOrari\. Incolla dentro i "Dati del tuo orario" \(voce 2' -and
+            $guidaAltro -match 'ORARI_4_calendario ed Esegui' -and $guidaAltro -match 'Chiede solo il Calendario' -and
+            $guidaAltro -match "Calendario\.gs versione $([regex]::Escape($vOrariGs))" -and $guidaAltro -match 'reincolla il codice' -and
+            $guidaAltro -match 'restano, se le vuoi, nel progetto della scuola' -and $guidaAltro -match 'Rigenera i "Dati del tuo orario" \(voce 2')
+        $guidaScuola = if ($null -ne $mGuida) { [string]$mGuida.Invoke($null, @($false)) } else { '' }
+        Verifica "  ...e quella dell'account della scuola resta com'era (Orari.gs nel progetto della Posta)" (
+            $guidaScuola -eq $guida4 -and $guidaScuola -match 'Orari\.gs versione' -and $guidaScuola -notmatch 'Calendario\.gs')
     }
 }
 finally { Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue }

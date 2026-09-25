@@ -740,6 +740,8 @@ static class ProvaStato
     // dati, e campanella.json non li ha (lo promettono PRIVACY.md e la nota per
     // il DPO). La data del cambio d'orario e' solo una data: resta nelle
     // impostazioni. Si rileggono uguali (a capo compresi) e di partenza sono vuoti.
+    // Anche dove va l'orario (l'account della scuola, di partenza, o un altro,
+    // con Calendario.gs) e' solo una scelta: sta nelle impostazioni e si rilegge.
     static void CalendarioAndataERitorno()
     {
         string c = Cartella("Campanella");
@@ -748,9 +750,11 @@ static class ProvaStato
         Stato s = Carica();
         Verifica("di partenza niente giorni senza lezione e nessun cambio d'orario",
             Testo(s, "CalSospensioni") == "" && Testo(s, "CalValidoDal") == "");
+        Verifica("di partenza l'orario va nell'account della scuola", Testo(s, "CalAltroAccount") == "False");
         string sospensioni = "01/11/2026 Tutti i Santi\r\n23/12/2026-06/01/2027 Vacanze di \"Natale\"\r\n" +
                              "12/03/2027 permesso di BIANCHI\r\n# una nota\r\n";
-        if (!Metti(s, "CalSospensioni", sospensioni) || !Metti(s, "CalValidoDal", "2026-10-05")) return;
+        if (!Metti(s, "CalSospensioni", sospensioni) || !Metti(s, "CalValidoDal", "2026-10-05") ||
+            !Metti(s, "CalAltroAccount", true)) return;
         s.Salva();
         Verifica("Salva riesce", s.UltimoErrore == "");
         Dictionary<string, object> imp = Json(Impostazioni());
@@ -760,12 +764,18 @@ static class ProvaStato
         Verifica("e campanella.json non li ha (ha solo la data del cambio)",
             !imp.ContainsKey("calSospensioni") && Str(imp, "calValidoDal") == "2026-10-05" &&
             File.ReadAllText(Impostazioni()).IndexOf("BIANCHI") < 0);
+        Verifica("l'orario in un altro account sta nelle impostazioni, non nel file dei dati",
+            imp.ContainsKey("calAltroAccount") && imp["calAltroAccount"] is bool && (bool)imp["calAltroAccount"] &&
+            !dati.ContainsKey("calAltroAccount"));
         Stato t = Carica();
         Verifica("si rileggono uguali, a capo compresi",
             Testo(t, "CalSospensioni") == sospensioni && Testo(t, "CalValidoDal") == "2026-10-05");
+        Verifica("e l'orario resta in un altro account", Testo(t, "CalAltroAccount") == "True");
         Metti(t, "CalValidoDal", "");
+        Metti(t, "CalAltroAccount", false);
         t.Salva();
         Verifica("la spunta del cambio tolta resta tolta", Testo(Carica(), "CalValidoDal") == "");
+        Verifica("e tornato all'account della scuola ci resta", Testo(Carica(), "CalAltroAccount") == "False");
         string errore;
         t.SpostaDati(false, "", out errore);
         Verifica("riportati i dati accanto al programma, vanno con loro in campanella.json",
