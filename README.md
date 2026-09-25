@@ -13,7 +13,7 @@ for the open-source audience.
 |------|--------------|
 | **Posta** (mail) | sorts the Gmail mailbox into labels (management, secretariat, circulars, colleagues, students…), past and future mail, in the colours you pick; optionally a label for each of your classes |
 | **Cartelle** (folders) | builds the school-year folder tree in Drive and copies the templates into it; for Google Forms, which cannot be copied from a PC, it writes the script that gives each form its response sheet for the year |
-| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar, with no lessons on the days you list as holidays and, when the timetable changes, the new one from a date on |
+| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar (the school account's, or another account's such as your personal one), with no lessons on the days you list as holidays and, when the timetable changes, the new one from a date on |
 | **Privacy** | the rules on school data and AI, tools to strip personal data before pasting into an assistant, and the documents for the principal and the DPO |
 
 The application **never touches mail, calendar or Drive on its own**: it
@@ -134,6 +134,7 @@ src/
   Testo.cs            text files read as UTF-8 or ANSI (Windows-1252)
   Orario.cs           timetable recognition, calendar blocks
   Calendario.cs       days without lessons, national holidays, the plan of calendar series
+  SoloCalendario.cs   Calendario.gs, the calendar-only Orari.gs for another Google account
   risorse/            the .gs and .js files embedded in the executable
 src-installer/        the C# installer, per-user, no UAC (local builds only)
 installer/            Inno Setup script (the published installer, it/en), terms, SignPath artifact config
@@ -172,13 +173,14 @@ on every push and pull request, and the release workflow before publishing:
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
 node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: time zone, days without lessons, resume, timetable change; next to the mail script and a class file
 node test\collaudo\prova_locale.js # the calendar acceptance test on the fake calendar of mock_orari.js: all OK, NO when Google or Orari.gs get it wrong, always cleans up
+node test\prova_solo_calendario.js # Calendario.gs for another account: no mail, Gmail or address services, the calendar functions only, the calendar bench on it with one teacher's data
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
 node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical
 node test\mutazioni_pannello.js   # mutations of the control-sheet engine: the bench must catch each one
 node test\nomi_funzioni.js        # every script function named by the app and the documents exists
-node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions, on the calendar only Campanella's events, series redone and lessons removed only in the timetable change, never setRecurrence, class students only in searches, neither script uses the other's functions
-.\test\prova_orario.ps1           # reads a timetable, checks the grid, the days without lessons and the generated DatiOrari.gs, same calendar plan as the script
+node test\invarianti_script.js    # mail and timetable scripts: no mail to others, no external calls, only allowed deletions, on the calendar only Campanella's events, series redone and lessons removed only in the timetable change, never setRecurrence, class students only in searches, neither script uses the other's functions; the same calendar rules on Calendario.gs, with no mail and nothing left undeclared
+.\test\prova_orario.ps1           # reads a timetable, checks the grid, the days without lessons and the generated DatiOrari.gs, same calendar plan as the script; Calendario.gs and the one-teacher DatiOrari.gs from the app, without the other teachers
 .\test\prova_xlsx.ps1             # the .xlsx reader and CSV files in ANSI, UTF-8 and UTF-16
 .\test\prova_moduli.ps1           # generates both forms scripts and runs them in the benches
 .\test\prova_personale.ps1        # staff list: paste formats, roles grouped into five categories
@@ -278,9 +280,15 @@ found, by its arrival time, in an earlier sheet.
   asks for its permissions all at once: Gmail, sending to yourself
   (`MailApp`), your own address (`Session`), triggers and, as soon as the
   timetable file is in the project, Calendar, even if only the emails are
-  used. The forms scripts are separate projects with their own permissions;
-  for the per-form script a variant without Drive can be generated for
-  schools that block it.
+  used. To put the timetable on the Google Calendar of another account
+  (your personal one, for example), step 4 of Orari gives `Calendario.gs`,
+  the timetable script without the emails (the parts of `Orari.gs` between
+  `// [SOLO EMAIL]` and `// [FINE SOLO EMAIL]` are left out, and the
+  functions keep their names), and a `DatiOrari.gs` with only your own
+  timetable, for a new project of that account: there Google asks only for
+  Calendar and triggers. The forms scripts are separate projects with their
+  own permissions; for the per-form script a variant without Drive can be
+  generated for schools that block it.
 
 ## Code signing policy
 

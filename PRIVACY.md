@@ -68,12 +68,30 @@ del GDPR non copre l'attività professionale, quindi ti muovi dentro il
 perimetro della scuola e delle sue istruzioni.
 
 **Dove finiscono i dati.** In nessun posto nuovo: restano nell'account Google
-che stai già usando. Campanella non li manda a nessun servizio terzo, e
-nemmeno a chi l'ha scritta. Lo script scrive email soltanto al tuo stesso
-indirizzo. «Scrivere a un gruppo» (Posta, passo 3) non manda niente: mette
-negli appunti gli indirizzi di una categoria di colleghi e apre in Gmail un
-messaggio vuoto, che scrivi e invii tu con gli indirizzi in Ccn. Gli
-indirizzi non passano dal collegamento aperto nel browser.
+che stai già usando (solo il tuo orario, se lo scegli tu, va nel calendario
+di un altro tuo account: vedi qui sotto). Campanella non li manda a nessun
+servizio terzo, e nemmeno a chi l'ha scritta. Lo script scrive email
+soltanto al tuo stesso indirizzo. «Scrivere a un gruppo» (Posta, passo 3)
+non manda niente: mette negli appunti gli indirizzi di una categoria di
+colleghi e apre in Gmail un messaggio vuoto, che scrivi e invii tu con gli
+indirizzi in Ccn. Gli indirizzi non passano dal collegamento aperto nel
+browser.
+
+**Il tuo orario in un altro account.** Di partenza il tuo orario va nel
+Google Calendar dell'account della scuola. Se scegli «in un altro account
+Google» (Orari, passo 4), per esempio il tuo personale, incolli in un
+progetto di quell'account due file: `Calendario.gs`, lo script degli orari
+senza le email, e un `DatiOrari.gs` con soltanto il tuo orario (il tuo
+cognome come nel tabellone, le tue classi e le tue ore, i giorni senza
+lezione con il nome che hai scritto, il colore di ogni classe). Nessun dato
+dei colleghi: né gli altri docenti del tabellone, né gli orari delle classi,
+né indirizzi. I giorni senza lezione sono testo libero e vanno anche lì: non
+scriverci il nome di un collega. Quello script chiede solo il permesso del
+Calendario e quello di riprendere da solo un lavoro lungo; non tocca la
+posta e non conosce il tuo indirizzo. Le email degli orari, se le vuoi,
+restano nell'account della scuola. È comunque il tuo orario di servizio in
+un account fuori da quello della scuola: segui le regole dell'istituto
+sull'uso degli account personali.
 
 **Le connessioni del programma.** Campanella si collega a internet solo
 quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a

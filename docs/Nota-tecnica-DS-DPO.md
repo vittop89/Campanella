@@ -55,7 +55,11 @@ Quattro funzioni, tutte facoltative e indipendenti:
    relativa griglia (per ritrovare l'orario di un collega cercandone il
    cognome in Gmail) e inserisce **il proprio** orario in Google Calendar,
    senza lezioni nei giorni senza lezione indicati dal docente e, quando
-   l'orario cambia, con l'orario nuovo da una data in poi.
+   l'orario cambia, con l'orario nuovo da una data in poi. Di partenza il
+   calendario è quello dell'account istituzionale; se il docente lo sceglie,
+   è quello di un altro suo account Google (per esempio il personale), con
+   uno script solo calendario che in quell'account riceve soltanto il suo
+   orario (punti 3 e 4).
 4. **Privacy** — toglie i dati personali da testi e file prima di darli a un
    assistente di intelligenza artificiale, usando rizzo-pii, un modello
    open source che gira sul computer del docente senza collegamento in rete.
@@ -143,6 +147,7 @@ Quattro funzioni, tutte facoltative e indipendenti:
 | Indirizzi email degli studenti delle classi del docente (facoltativi, per le etichette delle classi) | incollati dal docente in Campanella, per esempio dall'elenco del corso in Classroom; Campanella toglie quelli del personale (con la spunta nell'elenco, dirigenza e segreteria) | solo nel file `Classe_….gs` di ogni classe, nel progetto Apps Script del docente (account istituzionale), dove servono solo alle ricerche dello smistamento; il file vale solo per l'etichetta per cui è stato copiato e dice il giorno della copia; con un'etichetta madre senza l'anno la finestra ricorda di ricopiarlo ogni anno scolastico, e anteprima, riordino e smistamento avvisano se è di un anno passato. Campanella non li conserva: non sono nel file delle impostazioni, nel file dei dati né nel file di configurazione dello script, dove la regola ha solo un segnaposto, e un indirizzo scritto fra le parole dell'oggetto viene scartato. Dal programma passano per gli appunti di Windows, esclusi dalla cronologia: restano negli appunti fino alla copia successiva, e chiudendo la finestra Campanella propone di svuotarli; non vengono mai scritti su un file del computer. Lo script non li scrive nel registro delle esecuzioni, nei riepiloghi né nei messaggi d'errore (al più quanti sono), e non li mette nei filtri nativi di Gmail, che per le classi cercano solo l'oggetto. L'anteprima elenca i file che nessuna regola usa. Per toglierli si cancella il file | solo il docente |
 | Tabellone orario (cognomi, classi, ore) | file distribuito dalla scuola | nel file dei dati dello script e nel file dati di Campanella; le email con gli orari nella casella del docente; gli eventi del proprio orario in Google Calendar, con il cognome scelto nella descrizione | solo il docente |
 | Giorni senza lezione del proprio orario (date e un nome, testo libero: servono le chiusure della scuola, ma il docente può scriverci altro) | il docente, dalla circolare sul calendario scolastico | nel file dati di Campanella, insieme ai dati personali (con i dati nel Drive, non nel file delle impostazioni sul computer); le righe riconosciute, con data e nome, nel file dei dati dello script | solo il docente |
+| Il proprio orario nel calendario di un altro account del docente (facoltativo, spento di partenza: il docente sceglie «in un altro account Google» al passo 4 degli Orari) | il tabellone e le scelte del passo 4 | in un progetto Apps Script di quell'account (per esempio il personale), con due file: lo script solo calendario (`Calendario.gs`) e i dati del solo docente (`DatiOrari.gs` «solo il tuo»: il suo cognome come nel tabellone, le sue classi e le sue ore, i giorni senza lezione con il nome scritto dal docente, il colore di ogni classe); gli eventi del suo orario nel calendario di quell'account. Nessun dato di colleghi: né gli altri docenti del tabellone, né gli orari delle classi, né indirizzi (`test/prova_orario.ps1` controlla, sul tabellone d'esempio, che il file non contenga i cognomi degli altri docenti). Il nome dei giorni senza lezione è testo libero e va anche lì: non va scritto il nome di un collega. Le email degli orari, se il docente le vuole, restano nell'account istituzionale. Se usare un account personale per il proprio orario di servizio è ammesso lo dicono le regole dell'istituto | solo il docente, e chi il docente fa accedere a quell'account o a quel calendario |
 | Risposte ai moduli Google del docente (per esempio iscrizioni ai recuperi) | compilate da studenti o famiglie nel modulo del docente | nel modulo e nel foglio Google delle risposte, dentro il Drive istituzionale del docente; lo script ne legge solo il numero e l'ora di arrivo (per ritrovarle nei fogli degli anni scorsi prima di un eventuale svuotamento) e collega i fogli, non ne legge il contenuto | il docente, e chi il docente decide di far accedere al foglio |
 | Testi e file dati alla funzione Privacy | scelti dal docente | elaborati sul computer, senza rete, da rizzo-pii raggiunto solo a un indirizzo locale; le copie anonimizzate dove il docente le salva, mai sopra gli originali | solo il docente |
 
@@ -247,6 +252,34 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
 
 Questo script non richiede: accesso al Drive, accesso a servizi esterni,
 accesso a dati di altri utenti del dominio.
+
+Lo **script solo calendario** (`Calendario.gs`), usato solo se il docente
+sceglie di mettere il proprio orario nel Google Calendar di un altro suo
+account, è un progetto Apps Script separato in quell'account, con soltanto
+lo script e i dati del solo docente (punto 3). È lo script degli orari senza
+la parte delle email: l'applicazione lo ricava da quello degli orari
+togliendo le parti segnate come «solo email», con le stesse funzioni del
+calendario, gli stessi nomi e le stesse regole descritte sopra, e si rifiuta
+di prepararlo se il risultato nominasse, anche solo in un commento, i servizi
+delle email o dell'indirizzo, o servizi che Campanella non usa (Drive,
+fogli, documenti, moduli, servizi esterni). Alla prima esecuzione Google
+chiede soltanto:
+
+- **Google Calendar** (`CalendarApp`): come sopra, solo il calendario del
+  docente con il nome scelto e, dentro, solo gli eventi con il contrassegno;
+- **Trigger** (`ScriptApp`): le riprese del calendario, un minuto dopo,
+  quando un lavoro supera il tempo massimo o Google chiede di rallentare.
+  Lì non c'è `ANNULLA_automazione`: le toglie `ORARI_ANNULLA_calendario`.
+
+Non chiede Gmail, l'invio di email né l'indirizzo del docente (di `Session`
+usa solo il fuso orario dello script, che non richiede permessi), e non usa
+Drive, fogli, documenti, moduli o servizi esterni.
+`test/invarianti_script.js` controlla sul codice di questa versione le stesse
+regole del calendario, e che non usi i servizi delle email né nomini funzioni
+o costanti tolte; `test/prova_solo_calendario.js` e `test/prova_orario.ps1`
+controllano che la versione generata dall'applicazione non nomini quei
+servizi e fanno girare il banco del calendario su di essa, con i dati del
+solo docente.
 
 Lo **script dei moduli** è un progetto Apps Script separato, legato al singolo
 modulo Google in cui viene incollato, con autorizzazioni proprie che non si
@@ -382,7 +415,10 @@ eseguendo lo script il [data].]*
    concesso agli script dei moduli. Con il progetto spariscono anche i file
    `Classe_….gs` con gli indirizzi degli studenti, che non stanno altrove
    (nemmeno nei filtri nativi di Gmail); per toglierli prima basta cancellare
-   quei file.
+   quei file. Se il docente ha messo l'orario nel calendario di un altro suo
+   account (`Calendario.gs`), lo stesso in quell'account: eseguire
+   `ORARI_ANNULLA_calendario` (toglie gli eventi e le riprese), poi
+   eliminare quel progetto e revocarne l'accesso.
 5. Disinstallare Campanella dalle Impostazioni di Windows (App installate) e,
    se si vuole, cancellare il file dei dati (`campanella-dati.json`) dalla
    cartella del Drive.
