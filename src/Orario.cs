@@ -521,6 +521,30 @@ namespace Campanella
             return ColoriLezioni.Ordinate(fuori);
         }
 
+        /// <summary>
+        /// Chi prende un colore sul calendario: le classi del docente
+        /// (ClassiDelCalendario) e, se ci sono colloqui che vanno sul calendario,
+        /// i colloqui (ColoriLezioni.Colloqui), dopo tutte: di partenza prendono un
+        /// colore che le classi non usano.
+        /// </summary>
+        public static List<string> VociDeiColori(RisultatoOrario o, Stato s, string docente)
+        {
+            List<string> fuori = ClassiDelCalendario(o, docente);
+            if (fuori.Count == 0 || s == null) return fuori;
+            if (Colloqui.CeNe(s.CalColloqui, InizioDelPeriodo(s))) fuori.Add(ColoriLezioni.Colloqui);
+            return ColoriLezioni.Ordinate(fuori);
+        }
+
+        /// <summary>Il primo giorno del periodo del calendario (Stato.CalInizio); oggi se non e' scritto.</summary>
+        public static DateTime InizioDelPeriodo(Stato s)
+        {
+            DateTime inizio;
+            if (s == null || !DateTime.TryParseExact(s.CalInizio ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                                     DateTimeStyles.None, out inizio))
+                inizio = DateTime.Today;
+            return inizio;
+        }
+
         // ===================================================================
         //  GENERAZIONE DEI DATI PER APPS SCRIPT
         // ===================================================================
@@ -534,8 +558,9 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
             sb.AppendLine("   tabellone, e per il calendario i giorni senza lezione, con il nome che");
-            sb.AppendLine("   hai scritto, e il colore di ogni classe. Niente indirizzi: le email");
-            sb.AppendLine("   arrivano tutte a te.");
+            sb.AppendLine("   hai scritto, il colore di ogni classe e i tuoi colloqui con le famiglie,");
+            sb.AppendLine("   con i link del Meet: quei link aprono le tue stanze, tieni il file per");
+            sb.AppendLine("   te. Niente indirizzi: le email arrivano tutte a te.");
             sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
             sb.AppendLine("   dall'applicazione.");
             sb.AppendLine("   ========================================================================= */");
@@ -621,8 +646,10 @@ namespace Campanella
             sb.AppendLine("   Per Calendario.gs, nel progetto di un altro account Google (per esempio");
             sb.AppendLine("   il tuo personale). Contiene soltanto il TUO orario: il tuo cognome come");
             sb.AppendLine("   nel tabellone, le tue classi e le tue ore, e per il calendario i giorni");
-            sb.AppendLine("   senza lezione, con il nome che hai scritto, e il colore di ogni classe.");
-            sb.AppendLine("   Nessun collega, nessun orario delle classi, nessun indirizzo.");
+            sb.AppendLine("   senza lezione, con il nome che hai scritto, il colore di ogni classe e");
+            sb.AppendLine("   i tuoi colloqui con le famiglie, con i link del Meet (aprono le tue");
+            sb.AppendLine("   stanze: tieni il file per te). Nessun collega, nessun orario delle");
+            sb.AppendLine("   classi, nessun indirizzo.");
             sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
             sb.AppendLine("   dall'applicazione (Orari, passo 4).");
             sb.AppendLine("   ========================================================================= */");
@@ -655,6 +682,7 @@ namespace Campanella
         {
             List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
             sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario; se cambia, ORARI_5_cambioOrario)");
+            sb.AppendLine("  // e i tuoi colloqui con le famiglie (se cambiano solo loro, ORARI_7_colloqui)");
             sb.AppendLine("  calendario: {");
             sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
             sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
@@ -671,12 +699,14 @@ namespace Campanella
             // restano nelle impostazioni quando il file esce da Campanella
             // (DatiOrariUsciti), non a ogni anteprima. Solo le classi con un
             // colore: le altre hanno quello del calendario
-            List<string> classiCal = ClassiDelCalendario(o, docenteCal);
+            // (i colloqui, se ci sono, prendono il loro con le classi: VociDeiColori)
+            List<string> classiCal = VociDeiColori(o, s, docenteCal);
             Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
             StringBuilder colori = new StringBuilder();
             foreach (string k in classiCal)
             {
                 string v;
+                if (k == ColoriLezioni.Colloqui) continue;
                 if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
                 colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
             }
@@ -705,6 +735,13 @@ namespace Campanella
                 }
                 sb.AppendLine("    ],");
             }
+            // i colloqui con le famiglie e il loro colore (Colloqui.cs)
+            Colloqui.ScriviDatiGs(sb, s.CalColloqui, inizioPeriodo);
+            string coloreColloqui;
+            if (!classiCal.Contains(ColoriLezioni.Colloqui) || !coloriCal.TryGetValue(ColoriLezioni.Colloqui, out coloreColloqui))
+                coloreColloqui = "";
+            sb.AppendLine("    coloreColloqui: \"" + Js(coloreColloqui) + "\",   " +
+                          "// il colore dei colloqui (Google Calendar, da 1 a 11); vuoto = quello del calendario");
             DateTime validoDal;
             string cambio = DateTime.TryParseExact(s.CalValidoDal ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
                                                    DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
@@ -724,7 +761,7 @@ namespace Campanella
             if (o == null || s == null) return;
             string docente = o.TrovaDocente(s.CalDocente);
             if (docente == "") return;
-            ColoriLezioni.Ricorda(s, ClassiDelCalendario(o, docente));
+            ColoriLezioni.Ricorda(s, VociDeiColori(o, s, docente));
         }
 
         /// <summary>La griglia diventa un array piatto: prima tutte le ore del giorno 1.</summary>

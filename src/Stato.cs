@@ -334,6 +334,10 @@ namespace Campanella
         public string CalOreInizio = "";         // facoltativo: "08:00, 09:00, 10:10, ..." una per ora
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
         public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo libero: segue i dati personali)
+        // i colloqui con le famiglie, una riga per voce: il ricevimento, le
+        // giornate, i periodi senza colloqui (Colloqui.cs). Testo libero con i
+        // link del Meet, che sono di accesso: segue i dati personali
+        public string CalColloqui = "";
         public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
         // dove va l'orario: falso = nel Google Calendar dell'account della scuola,
         // con Orari.gs nel progetto della Posta; vero = in quello di un altro
@@ -570,8 +574,8 @@ namespace Campanella
         /// chiave nuova in cima a Dati()); la 1.5.2 riscrivendo i file li
         /// perderebbe, e i filtri li lascerebbe in campanella.json anche con i
         /// dati nel Drive.
-        /// Formato 3 (1.6.0): i giorni senza lezione degli Orari
-        /// ("calSospensioni", testo libero, una chiave nuova in cima a Dati()),
+        /// Formato 3 (1.6.0): i giorni senza lezione e i colloqui degli Orari
+        /// ("calSospensioni" e "calColloqui", testo libero, chiavi nuove in cima a Dati()),
         /// "unoQualsiasi" dentro le regole (le regole delle classi: l'oggetto
         /// oppure gli studenti) e le etichette madri delle classi ("madriClassi",
         /// solo nomi, anche questa in cima a Dati()); la 1.5.3 riscrivendo i file
@@ -1003,6 +1007,8 @@ namespace Campanella
             // testo libero: accanto alle feste ci si scrive facilmente un permesso
             // o il nome di un collega, quindi segue anche lui i dati personali
             r["calSospensioni"] = CalSospensioni;
+            // i colloqui: testo libero, con i link del Meet (di accesso)
+            r["calColloqui"] = CalColloqui;
 
             List<object> pers = new List<object>();
             foreach (Persona p in Personale)
@@ -1304,6 +1310,7 @@ namespace Campanella
             // c'e', resta quello letto dalle impostazioni
             CalNome = Str(r, "calNome", CalNome);
             CalSospensioni = Str(r, "calSospensioni", CalSospensioni);
+            CalColloqui = Str(r, "calColloqui", CalColloqui);
 
             object[] pers = r.ContainsKey("personale") ? r["personale"] as object[] : null;
             if (pers != null)
@@ -2378,6 +2385,12 @@ namespace Campanella
         public const string Disposizione = "A disposizione";
         /// <summary>Grafite: il colore di partenza delle ore a disposizione.</summary>
         public const string Grafite = "8";
+        /// <summary>
+        /// I colloqui con le famiglie (Orari, passo 4): hanno un colore loro, che
+        /// sta con quelli delle classi e viene dopo tutte, anche dopo le ore a
+        /// disposizione. Di partenza prendono un colore che le classi non usano.
+        /// </summary>
+        public const string Colloqui = "Colloqui";
 
         /// <summary>
         /// I colori nell'ordine del menu di Google Calendar: il valore
@@ -2446,7 +2459,7 @@ namespace Campanella
         /// <summary>
         /// Le classi in ordine, una volta sola: prima il numero ("2B" prima di
         /// "10A"), poi il resto; "A disposizione" in fondo. Lo stesso ordine
-        /// dello script (_orariOrdineClassi_).
+        /// dello script (_orariOrdineClassi_). I colloqui, se ci sono, dopo tutte.
         /// </summary>
         public static List<string> Ordinate(List<string> classi)
         {
@@ -2460,7 +2473,8 @@ namespace Campanella
         public static int Confronta(string a, string b)
         {
             string x = a ?? "", y = b ?? "";
-            int dx = (x == Disposizione) ? 1 : 0, dy = (y == Disposizione) ? 1 : 0;
+            int dx = (x == Colloqui) ? 2 : (x == Disposizione) ? 1 : 0;
+            int dy = (y == Colloqui) ? 2 : (y == Disposizione) ? 1 : 0;
             if (dx != dy) return dx - dy;
             Match nx = Regex.Match(x, "^[0-9]+"), ny = Regex.Match(y, "^[0-9]+");
             if (nx.Success && ny.Success)
