@@ -16,6 +16,8 @@
 //
 //  In fondo c'e' la generazione di DatiOrari.gs: i dati che lo script
 //  dentro Google usa per le email (tutte a te stesso) e per il calendario.
+//  Per il calendario in un altro account (Calendario.gs, SoloCalendario.cs)
+//  c'e' anche quello con il solo docente del calendario.
 // ===========================================================================
 
 using System;
@@ -580,66 +582,7 @@ namespace Campanella
 
             string docenteCal = o.TrovaDocente(s.CalDocente);
             sb.AppendLine();
-            if (docenteCal != "")
-            {
-                List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
-                sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario; se cambia, ORARI_5_cambioOrario)");
-                sb.AppendLine("  calendario: {");
-                sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
-                sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
-                sb.AppendLine("    inizio:    \"" + Js(s.CalInizio) + "\",     // primo giorno, aaaa-mm-gg");
-                sb.AppendLine("    fine:      \"" + Js(s.CalFine) + "\",     // ultimo giorno compreso");
-                sb.AppendLine("    minutiOra: " + Math.Max(5, s.CalMinutiOra) + ",");
-                sb.Append("    inizioOre: [");
-                for (int i = 0; i < inizi.Count; i++) sb.Append((i > 0 ? ", " : "") + "\"" + inizi[i] + "\"");
-                sb.AppendLine("],   // quando comincia ogni ora di lezione");
-                sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\",     // vuoto = colore scelto da Google");
-
-                // il colore delle lezioni di ogni classe: quelle che non l'hanno
-                // ancora lo prendono qui (ColoriLezioni.Completa), su una copia:
-                // restano nelle impostazioni quando il file esce da Campanella
-                // (DatiOrariUsciti), non a ogni anteprima. Solo le classi con un
-                // colore: le altre hanno quello del calendario
-                List<string> classiCal = ClassiDelCalendario(o, docenteCal);
-                Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
-                StringBuilder colori = new StringBuilder();
-                foreach (string k in classiCal)
-                {
-                    string v;
-                    if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
-                    colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
-                }
-                sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
-                              "// il colore delle lezioni di ogni classe (Google Calendar, da 1 a 11); le altre, quello del calendario");
-
-                // i giorni senza lezione: solo le righe capite, con le date
-                // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)
-                DateTime inizioPeriodo;
-                if (!DateTime.TryParseExact(s.CalInizio ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                                            DateTimeStyles.None, out inizioPeriodo))
-                    inizioPeriodo = DateTime.Today;
-                List<string> nonCapite;
-                List<Sospensione> sospensioni = Calendario.Leggi(s.CalSospensioni, inizioPeriodo, out nonCapite);
-                sb.AppendLine("    // i giorni senza lezione: in quei giorni sul calendario non c'e' nessuna lezione");
-                if (sospensioni.Count == 0) sb.AppendLine("    sospensioni: [],");
-                else
-                {
-                    sb.AppendLine("    sospensioni: [");
-                    for (int i = 0; i < sospensioni.Count; i++)
-                    {
-                        Sospensione x = sospensioni[i];
-                        sb.AppendLine("      { dal: \"" + x.Dal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
-                                      "\", al: \"" + x.Al.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
-                                      "\", nome: \"" + Js(x.Nome) + "\" }" + (i < sospensioni.Count - 1 ? "," : ""));
-                    }
-                    sb.AppendLine("    ],");
-                }
-                DateTime validoDal;
-                string cambio = DateTime.TryParseExact(s.CalValidoDal ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                                                       DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
-                sb.AppendLine("    validoDal: \"" + cambio + "\"   // l'orario cambiato vale da qui (ORARI_5_cambioOrario); vuoto = nessun cambio");
-                sb.AppendLine("  }");
-            }
+            if (docenteCal != "") ScriviCalendario(sb, o, s, docenteCal);
             else
             {
                 sb.AppendLine("  // calendario: nessun nome scelto nel passo 4 dell'applicazione");
@@ -648,6 +591,125 @@ namespace Campanella
 
             sb.AppendLine("};");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// DatiOrari.gs per Calendario.gs, nel progetto di un altro account
+        /// Google (SoloCalendario): soltanto il docente del calendario, con la
+        /// sua riga del tabellone, i giorni, le ore e la parte del calendario.
+        /// Niente altri docenti, niente orari delle classi, niente oggetti e
+        /// nota delle email, niente titolo del tabellone. Il nome della
+        /// variabile resta ORARI: Calendario.gs e' Orari.gs senza le email.
+        /// Senza il docente del calendario, solo un commento che dice di sceglierlo.
+        /// </summary>
+        public static string GeneraDatiDelDocenteGs(RisultatoOrario o, Stato s)
+        {
+            StringBuilder sb = new StringBuilder();
+            string docente = o.TrovaDocente(s.CalDocente);
+            if (docente == "")
+            {
+                sb.AppendLine("/* DATI DEL TUO ORARIO: manca il tuo nome.");
+                sb.AppendLine("   Nell'applicazione, pagina Orari, passo 4: scegli il tuo nome, come nel");
+                sb.AppendLine("   tabellone, e rigenera questo file. */");
+                return sb.ToString();
+            }
+            string periodo = TestoCommento(o.Periodo);
+            sb.AppendLine("/* =========================================================================");
+            sb.AppendLine("   DATI DEL TUO ORARIO - generati il " + DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
+            sb.AppendLine("   " + (periodo != "" ? periodo : "periodo non indicato"));
+            sb.AppendLine();
+            sb.AppendLine("   Per Calendario.gs, nel progetto di un altro account Google (per esempio");
+            sb.AppendLine("   il tuo personale). Contiene soltanto il TUO orario: il tuo cognome come");
+            sb.AppendLine("   nel tabellone, le tue classi e le tue ore, e per il calendario i giorni");
+            sb.AppendLine("   senza lezione, con il nome che hai scritto, e il colore di ogni classe.");
+            sb.AppendLine("   Nessun collega, nessun orario delle classi, nessun indirizzo.");
+            sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
+            sb.AppendLine("   dall'applicazione (Orari, passo 4).");
+            sb.AppendLine("   ========================================================================= */");
+            sb.AppendLine();
+            sb.AppendLine("var ORARI = {");
+            sb.AppendLine("  periodo:  \"" + Js(o.Periodo) + "\",");
+            sb.AppendLine("  ore:      " + o.OrePerGiorno + ",");
+            sb.Append("  giorni:   [");
+            for (int i = 0; i < o.Giorni.Count; i++)
+                sb.Append((i > 0 ? ", " : "") + "\"" + Js(o.Giorni[i]) + "\"");
+            sb.AppendLine("],");
+            sb.AppendLine();
+            sb.AppendLine("  // soltanto il tuo orario");
+            sb.AppendLine("  docenti: [");
+            sb.AppendLine("    { nome: \"" + Js(docente) + "\",");
+            sb.AppendLine("      celle: " + CelleJs(o.GrigliaDocente(docente), o) + " }");
+            sb.AppendLine("  ],");
+            sb.AppendLine();
+            ScriviCalendario(sb, o, s, docente);
+            sb.AppendLine("};");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// La parte "calendario" di DatiOrari.gs, per il docente trovato nel
+        /// tabellone: la stessa in quello di tutto il tabellone e in quello del
+        /// solo docente.
+        /// </summary>
+        static void ScriviCalendario(StringBuilder sb, RisultatoOrario o, Stato s, string docenteCal)
+        {
+            List<string> inizi = InizioOre(s.CalOreInizio, s.CalPrimaOra, s.CalMinutiOra, o.OrePerGiorno);
+            sb.AppendLine("  // il tuo orario da mettere su Google Calendar (ORARI_4_calendario; se cambia, ORARI_5_cambioOrario)");
+            sb.AppendLine("  calendario: {");
+            sb.AppendLine("    docente:   \"" + Js(docenteCal) + "\",");
+            sb.AppendLine("    nome:      \"" + Js(s.CalNome != "" ? s.CalNome : "Orario " + docenteCal) + "\",");
+            sb.AppendLine("    inizio:    \"" + Js(s.CalInizio) + "\",     // primo giorno, aaaa-mm-gg");
+            sb.AppendLine("    fine:      \"" + Js(s.CalFine) + "\",     // ultimo giorno compreso");
+            sb.AppendLine("    minutiOra: " + Math.Max(5, s.CalMinutiOra) + ",");
+            sb.Append("    inizioOre: [");
+            for (int i = 0; i < inizi.Count; i++) sb.Append((i > 0 ? ", " : "") + "\"" + inizi[i] + "\"");
+            sb.AppendLine("],   // quando comincia ogni ora di lezione");
+            sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\",     // vuoto = colore scelto da Google");
+
+            // il colore delle lezioni di ogni classe: quelle che non l'hanno
+            // ancora lo prendono qui (ColoriLezioni.Completa), su una copia:
+            // restano nelle impostazioni quando il file esce da Campanella
+            // (DatiOrariUsciti), non a ogni anteprima. Solo le classi con un
+            // colore: le altre hanno quello del calendario
+            List<string> classiCal = ClassiDelCalendario(o, docenteCal);
+            Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
+            StringBuilder colori = new StringBuilder();
+            foreach (string k in classiCal)
+            {
+                string v;
+                if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
+                colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
+            }
+            sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
+                          "// il colore delle lezioni di ogni classe (Google Calendar, da 1 a 11); le altre, quello del calendario");
+
+            // i giorni senza lezione: solo le righe capite, con le date
+            // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)
+            DateTime inizioPeriodo;
+            if (!DateTime.TryParseExact(s.CalInizio ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                        DateTimeStyles.None, out inizioPeriodo))
+                inizioPeriodo = DateTime.Today;
+            List<string> nonCapite;
+            List<Sospensione> sospensioni = Calendario.Leggi(s.CalSospensioni, inizioPeriodo, out nonCapite);
+            sb.AppendLine("    // i giorni senza lezione: in quei giorni sul calendario non c'e' nessuna lezione");
+            if (sospensioni.Count == 0) sb.AppendLine("    sospensioni: [],");
+            else
+            {
+                sb.AppendLine("    sospensioni: [");
+                for (int i = 0; i < sospensioni.Count; i++)
+                {
+                    Sospensione x = sospensioni[i];
+                    sb.AppendLine("      { dal: \"" + x.Dal.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
+                                  "\", al: \"" + x.Al.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) +
+                                  "\", nome: \"" + Js(x.Nome) + "\" }" + (i < sospensioni.Count - 1 ? "," : ""));
+                }
+                sb.AppendLine("    ],");
+            }
+            DateTime validoDal;
+            string cambio = DateTime.TryParseExact(s.CalValidoDal ?? "", "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                                   DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
+            sb.AppendLine("    validoDal: \"" + cambio + "\"   // l'orario cambiato vale da qui (ORARI_5_cambioOrario); vuoto = nessun cambio");
+            sb.AppendLine("  }");
         }
 
         /// <summary>
