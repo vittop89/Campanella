@@ -171,6 +171,7 @@ on every push and pull request, and the release workflow before publishing:
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
 node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: time zone, days without lessons, resume, timetable change; next to the mail script and a class file
+node test\collaudo\prova_locale.js # the calendar acceptance test on the fake calendar of mock_orari.js: all OK, NO when Google or Orari.gs get it wrong, always cleans up
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
 node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical
@@ -203,6 +204,10 @@ it would touch the real installation and Start menu: run it with a Windows
 user that never had Campanella. `prova_versioni.ps1` only reads: run it
 before tagging a release. `genera_dati_prova.ps1` is not a test: it writes a
 `DatiOrari_prova.gs` into `%TEMP%` from a timetable.
+The timetable calendar is also tested live, on Google:
+`test\collaudo\Collaudo_calendario.gs` goes with `Orari.gs` into a test Apps
+Script project, and its `COLLAUDO` function writes one OK or NO line per
+check to the log (how to use it: at the top of the file).
 
 To change the terms of use, edit `installer\CONDIZIONI-it.txt`,
 `installer\CONDIZIONI-en.txt` and `Consenso.Testo` in `src\Consenso.cs`
