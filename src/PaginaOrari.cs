@@ -4,7 +4,10 @@
 //  Quattro passi: si carica il file, si controlla che l'orario sia stato
 //  letto bene, si preparano le email (tutte a te stesso: una per docente,
 //  per ritrovare l'orario di un collega cercando il cognome in Gmail), e si
-//  mette il tuo orario su Google Calendar.
+//  mette il tuo orario su Google Calendar: quello dell'account della scuola
+//  (Orari.gs, nel progetto della Posta) o quello di un altro account, per
+//  esempio il personale (Calendario.gs e un DatiOrari.gs con il solo tuo
+//  orario, in un progetto di quell'account: SoloCalendario.cs).
 //
 //  E' uno strumento personale: non manda niente a nessun altro, e nei dati
 //  che genera non c'e' nessun indirizzo. L'invio e il calendario li fa uno
@@ -65,7 +68,13 @@ namespace Campanella
         TextBox txtAnteprima;
 
         // passo 4
+        RadioButton rbScuola, rbAltroAccount;   // dove va l'orario (Stato.CalAltroAccount)
         ComboBox cmbDocente, cmbColore, cmbCosaVedere4;
+        // le voci del menu del passo 4: con l'account della scuola i dati di
+        // tutto il tabellone e le istruzioni; con un altro account il codice
+        // solo calendario, i dati del solo docente e le istruzioni per quello
+        const int VoceDati = 0, VoceIstruzioni = 1, VoceCodiceCalendario = 2, VoceDatiDelDocente = 3;
+        List<int> vociMenu4 = new List<int>();
         TextBox txtCalNome, txtPrimaOra, txtOreInizio, txtAnteprima4, txtSospensioni;
         ListBox lstLette;           // come e' stata letta ogni riga dei giorni senza lezione
         DateTimePicker dtInizio, dtFine, dtValidoDal;
@@ -581,26 +590,29 @@ namespace Campanella
             txtAnteprima.Select(0, 0);
         }
 
+        /// <summary>"Salva su file..." del passo 3: una delle tre voci del suo menu.</summary>
         void SalvaSuFile(int voce)
         {
-            string nome;
-            switch (voce)
-            {
-                case 0: nome = "Orari.gs"; break;
-                case 1: nome = "DatiOrari.gs"; break;
-                case 2: nome = "orari - cosa fare.txt"; break;
-                default: nome = "calendario - cosa fare.txt"; break;
-            }
+            string nome = (voce == 0) ? "Orari.gs" : (voce == 1) ? "DatiOrari.gs" : "orari - cosa fare.txt";
+            SalvaTesto(nome, delegate { return TestoCorrente(voce); }, voce == 1);
+        }
+
+        /// <summary>
+        /// Salva su file un testo, preso dopo che il file e' stato scelto.
+        /// datiOrari: e' un DatiOrari.gs, e i colori delle classi che ha restano
+        /// nelle impostazioni (AnalisiOrario.DatiOrariUsciti).
+        /// </summary>
+        void SalvaTesto(string nome, Func<string> testo, bool datiOrari)
+        {
             using (SaveFileDialog d = new SaveFileDialog())
             {
                 d.FileName = nome;
                 d.Filter = "Tutti i file (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
-                string testo = (voce == 3) ? IstruzioniCalendario() : TestoCorrente(voce);
-                if (Guscio.SalvaFile(this, d.FileName, testo, new UTF8Encoding(false)))
+                if (Guscio.SalvaFile(this, d.FileName, testo(), new UTF8Encoding(false)))
                 {
                     // DatiOrari.gs e' uscito: i colori delle classi che ha restano
-                    if (voce == 1) AnalisiOrario.DatiOrariUsciti(orario, S);
+                    if (datiOrari) AnalisiOrario.DatiOrariUsciti(orario, S);
                     Guscio.Stato1("Salvato: " + d.FileName);
                 }
             }
@@ -626,6 +638,25 @@ namespace Campanella
                 "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.\r\n\r\n" +
                 "Ogni classe ha il suo colore: lo scegli con \"Colori delle classi...\".");
             y += 40;
+
+            // --- dove va l'orario: nell'account della scuola o in un altro ------
+            Tema.TitoloAiuto(p, "Dove metti l'orario", 0, y, "Dove metti l'orario",
+                "Nell'account della scuola (la scelta di partenza): il codice degli orari (Orari.gs) sta nello " +
+                "stesso progetto della Posta, e mette l'orario nel Google Calendar dell'account della scuola.\r\n\r\n" +
+                "In un altro account Google, per esempio il tuo personale, se e' il calendario che usi sempre: " +
+                "l'orario lo mette uno script dentro QUELL'account, in un progetto tutto suo, con due file che " +
+                "prepari qui sotto. Il codice solo calendario (Calendario.gs) e' quello degli orari senza le " +
+                "email: Google gli chiede solo il permesso del Calendario e quello di riprendere da solo un " +
+                "lavoro lungo. I dati del tuo orario (DatiOrari.gs, solo il tuo) hanno soltanto il tuo orario: " +
+                "nessun collega, nessun orario delle classi.\r\n\r\n" +
+                "Le email degli orari, se le vuoi, restano nel progetto della scuola (passo 3).");
+            y += 26;
+            rbScuola = SceltaAccount("nell'account della scuola, nello stesso progetto della Posta", y);
+            p.Controls.Add(rbScuola);
+            y += 26;
+            rbAltroAccount = SceltaAccount("in un altro account Google, per esempio il tuo personale", y);
+            p.Controls.Add(rbAltroAccount);
+            y += 38;
 
             p.Controls.Add(Tema.Testo1("Il tuo nome, come nel tabellone", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
             cmbDocente = new ComboBox();
@@ -816,22 +847,13 @@ namespace Campanella
             cmbCosaVedere4.Width = 340;
             cmbCosaVedere4.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbCosaVedere4.Font = Tema.Normale;
-            cmbCosaVedere4.Items.AddRange(new object[]
-            {
-                "1. Dati dell'orario  ->  file DatiOrari.gs",
-                "2. Cosa fare, passo per passo"
-            });
-            cmbCosaVedere4.SelectedIndex = 1;
-            cmbCosaVedere4.SelectedIndexChanged += delegate { AggiornaCalendario(); };
+            RiempiMenu4();
+            cmbCosaVedere4.SelectedIndexChanged += delegate { if (!zitto4) AggiornaCalendario(); };
             p.Controls.Add(cmbCosaVedere4);
 
-            Button copia4 = Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
-            {
-                Guscio.Copia(cmbCosaVedere4.SelectedIndex == 0 ? DatiOrariDaDare() : IstruzioniCalendario(), "Copiato.");
-            });
+            Button copia4 = Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate { CopiaPasso4(); });
             p.Controls.Add(copia4);
-            Button salva4 = Tema.Bottone("Salva su file...", 542, y, 130,
-                delegate { SalvaSuFile(cmbCosaVedere4.SelectedIndex == 0 ? 1 : 3); });
+            Button salva4 = Tema.Bottone("Salva su file...", 542, y, 130, delegate { SalvaPasso4(); });
             p.Controls.Add(salva4);
             Button apri4 = Tema.Bottone("Apri Google Calendar", 682, y, 198,
                 delegate { Guscio.Apri("https://calendar.google.com/"); });
@@ -850,6 +872,159 @@ namespace Campanella
 
             MostraCalendario();
             return p;
+        }
+
+        /// <summary>Una delle due scelte di "Dove metti l'orario".</summary>
+        RadioButton SceltaAccount(string testo, int y)
+        {
+            RadioButton r = new RadioButton();
+            r.Text = testo;
+            r.Location = new Point(0, y);
+            r.AutoSize = true;
+            r.Font = Tema.Normale;
+            r.Tag = Ruolo.Normale;
+            r.Cursor = Cursors.Hand;
+            r.CheckedChanged += delegate
+            {
+                if (zitto4 || !r.Checked) return;
+                RiempiMenu4();
+                AggiornaCalendario();
+            };
+            return r;
+        }
+
+        /// <summary>
+        /// Il menu del passo 4, secondo dove va l'orario: nell'account della
+        /// scuola i dati di tutto il tabellone e le istruzioni; in un altro
+        /// account il codice solo calendario, i dati del solo docente e le
+        /// istruzioni per quell'account. Di partenza, le istruzioni.
+        /// </summary>
+        void RiempiMenu4()
+        {
+            bool prima = zitto4;
+            zitto4 = true;
+            cmbCosaVedere4.Items.Clear();
+            vociMenu4.Clear();
+            if (rbAltroAccount != null && rbAltroAccount.Checked)
+            {
+                cmbCosaVedere4.Items.Add("1. Codice solo calendario (Calendario.gs)");
+                vociMenu4.Add(VoceCodiceCalendario);
+                cmbCosaVedere4.Items.Add("2. Dati del tuo orario (DatiOrari.gs, solo il tuo)");
+                vociMenu4.Add(VoceDatiDelDocente);
+                cmbCosaVedere4.Items.Add("3. Cosa fare, passo per passo");
+                vociMenu4.Add(VoceIstruzioni);
+            }
+            else
+            {
+                cmbCosaVedere4.Items.Add("1. Dati dell'orario  ->  file DatiOrari.gs");
+                vociMenu4.Add(VoceDati);
+                cmbCosaVedere4.Items.Add("2. Cosa fare, passo per passo");
+                vociMenu4.Add(VoceIstruzioni);
+            }
+            cmbCosaVedere4.SelectedIndex = vociMenu4.IndexOf(VoceIstruzioni);
+            zitto4 = prima;
+        }
+
+        /// <summary>La voce scelta nel menu del passo 4 (VoceDati, VoceIstruzioni...).</summary>
+        int Voce4()
+        {
+            int i = cmbCosaVedere4.SelectedIndex;
+            return (i >= 0 && i < vociMenu4.Count) ? vociMenu4[i] : VoceIstruzioni;
+        }
+
+        /// <summary>
+        /// Il testo di una voce del passo 4. daDare: esce da Campanella (copiato
+        /// o salvato), e i colori delle classi dei dati restano nelle impostazioni.
+        /// </summary>
+        string TestoPasso4(int voce, bool daDare)
+        {
+            switch (voce)
+            {
+                case VoceDati:
+                    if (daDare) return DatiOrariDaDare();
+                    return orario.Lezioni.Count == 0 ? "Nessun orario caricato." : DatiOrari();
+                case VoceDatiDelDocente:
+                    if (daDare) return DatiDelDocenteDaDare();
+                    return orario.Lezioni.Count == 0 ? "Nessun orario caricato." : DatiDelDocente();
+                case VoceCodiceCalendario:
+                    return SoloCalendario.Codice();
+                default:
+                    return IstruzioniCalendario();
+            }
+        }
+
+        /// <summary>DatiOrari.gs per l'altro account: soltanto il docente del calendario.</summary>
+        string DatiDelDocente()
+        {
+            Esce();
+            return AnalisiOrario.GeneraDatiDelDocenteGs(orario, S);
+        }
+
+        /// <summary>Lo stesso, da copiare o da salvare: i suoi colori delle classi restano, come per DatiOrari.gs.</summary>
+        string DatiDelDocenteDaDare()
+        {
+            string testo = DatiDelDocente();
+            AnalisiOrario.DatiOrariUsciti(orario, S);
+            return testo;
+        }
+
+        /// <summary>
+        /// I dati del solo docente servono solo con il suo nome: senza, niente da
+        /// copiare o salvare, e la barra in basso dice perche'.
+        /// </summary>
+        bool DocenteScelto()
+        {
+            RaccogliCalendario();
+            if (orario.Lezioni.Count == 0)
+            {
+                Guscio.Stato1("Prima carica l'orario (passo 1) e scegli il tuo nome.", Tema.Ambra);
+                return false;
+            }
+            if (orario.TrovaDocente(S.CalDocente) == "")
+            {
+                Guscio.Stato1("Prima scegli il tuo nome: i dati per l'altro account contengono solo il tuo orario.",
+                              Tema.Ambra);
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Calendario.gs si prepara? Se no (una risorsa che manca, un Orari.gs
+        /// con un segno rimasto aperto), niente da copiare o salvare, e la barra
+        /// in basso dice perche'.
+        /// </summary>
+        bool CalendarioPronto()
+        {
+            string codice = SoloCalendario.Codice();
+            if (!codice.StartsWith("//", StringComparison.Ordinal)) return true;
+            Guscio.Stato1(codice.Split('\n')[0].TrimStart('/', ' '), Tema.Ambra);
+            return false;
+        }
+
+        void CopiaPasso4()
+        {
+            int voce = Voce4();
+            if (voce == VoceDatiDelDocente && !DocenteScelto()) return;
+            if (voce == VoceCodiceCalendario && !CalendarioPronto()) return;
+            Guscio.Copia(TestoPasso4(voce, true), "Copiato.");
+        }
+
+        void SalvaPasso4()
+        {
+            int voce = Voce4();
+            if (voce == VoceDatiDelDocente && !DocenteScelto()) return;
+            if (voce == VoceCodiceCalendario && !CalendarioPronto()) return;
+            string nome;
+            switch (voce)
+            {
+                case VoceDati:
+                case VoceDatiDelDocente: nome = "DatiOrari.gs"; break;
+                case VoceCodiceCalendario: nome = SoloCalendario.NomeFile; break;
+                default: nome = "calendario - cosa fare.txt"; break;
+            }
+            SalvaTesto(nome, delegate { return TestoPasso4(voce, false); },
+                       voce == VoceDati || voce == VoceDatiDelDocente);
         }
 
         /// <summary>Una riga della lista sotto i giorni senza lezione: il testo, e se va guardata (in ambra).</summary>
@@ -947,6 +1122,9 @@ namespace Campanella
         void MostraCalendario()
         {
             zitto4 = true;
+            rbAltroAccount.Checked = S.CalAltroAccount;
+            rbScuola.Checked = !S.CalAltroAccount;
+            RiempiMenu4();
             cmbDocente.Text = S.CalDocente;
             txtCalNome.Text = S.CalNome;
             DateTime inizio, fine;
@@ -971,6 +1149,7 @@ namespace Campanella
         void RaccogliCalendario()
         {
             if (cmbDocente == null) return;
+            S.CalAltroAccount = rbAltroAccount.Checked;
             S.CalDocente = cmbDocente.Text.Trim();
             S.CalNome = txtCalNome.Text.Trim();
             S.CalInizio = dtInizio.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -1121,9 +1300,7 @@ namespace Campanella
 
             if (txtAnteprima4 != null)
             {
-                string testo = (cmbCosaVedere4.SelectedIndex == 0)
-                    ? (orario.Lezioni.Count == 0 ? "Nessun orario caricato." : DatiOrari())
-                    : IstruzioniCalendario();
+                string testo = TestoPasso4(Voce4(), false);
                 txtAnteprima4.Text = testo.Replace("\r\n", "\n").Replace("\n", "\r\n");
                 txtAnteprima4.Select(0, 0);
             }
@@ -1168,13 +1345,95 @@ namespace Campanella
                           "calendario esegui ORARI_6_coloraLezioni.");
         }
 
+        /// <summary>"Cosa fare, passo per passo" del passo 4, per l'account scelto in "Dove metti l'orario".</summary>
         string IstruzioniCalendario()
         {
+            return GuidaCalendario(Guscio != null && S != null && S.CalAltroAccount);
+        }
+
+        /// <summary>
+        /// La guida del passo 4. altroAccount: l'orario va nel Google Calendar
+        /// di un altro account, con Calendario.gs e i dati del solo docente in un
+        /// progetto di quell'account; se no nell'account della scuola, con
+        /// Orari.gs nel progetto della Posta. Il resto (giorni senza lezione,
+        /// colori, cambio d'orario) e' uguale: le funzioni hanno gli stessi nomi.
+        /// </summary>
+        static string GuidaCalendario(bool altroAccount)
+        {
             StringBuilder sb = new StringBuilder();
+            string versione = Guscio.VersioneScript("Orari.gs");
+            // la voce del menu con i dati, e dove si incollano
+            string voceDati = altroAccount
+                ? "i \"Dati del tuo orario\" (voce 2 del menu) e incollali nel file"
+                : "i \"Dati dell'orario\" (voce 1 del menu) e incollali nel file";
+            if (altroAccount) GuidaAltroAccount(sb, versione);
+            else GuidaScuola(sb, versione);
+            GuidaComune(sb, voceDati);
+            return sb.ToString();
+        }
+
+        /// <summary>I primi passi, con l'orario in un altro account (Calendario.gs).</summary>
+        static void GuidaAltroAccount(StringBuilder sb, string versione)
+        {
+            sb.AppendLine("L'ORARIO SU GOOGLE CALENDAR IN UN ALTRO ACCOUNT, PASSO PER PASSO");
+            sb.AppendLine("================================================================");
+            sb.AppendLine();
+            sb.AppendLine("L'orario va nel Google Calendar di un altro account Google, per esempio");
+            sb.AppendLine("il tuo personale. Lo mette uno script dentro QUELL'account, in un");
+            sb.AppendLine("progetto tutto suo, con due file che prepari qui: il codice solo");
+            sb.AppendLine("calendario (Calendario.gs, senza le email) e i dati del tuo orario");
+            sb.AppendLine("(DatiOrari.gs, solo il tuo: nessun collega, nessun orario delle classi).");
+            sb.AppendLine();
+            sb.AppendLine("1.  Apri script.google.com CON QUELL'ACCOUNT. Se nel browser sei entrato");
+            sb.AppendLine("    con piu' account Google, guarda in alto a destra quale stai usando");
+            sb.AppendLine("    (o apri una finestra in incognito ed entra solo con quello).");
+            sb.AppendLine();
+            sb.AppendLine("2.  Nuovo progetto. Dagli un nome, per esempio  Orario sul calendario.");
+            sb.AppendLine();
+            sb.AppendLine("3.  Impostazioni progetto (l'ingranaggio a sinistra) -> Fuso orario:");
+            sb.AppendLine("    scegli quello con Roma. Il calendario nasce con il fuso dello script:");
+            sb.AppendLine("    con un altro, le lezioni comparirebbero a un'altra ora.");
+            sb.AppendLine();
+            sb.AppendLine("4.  Torna all'editor (le parentesi < > a sinistra). Nel file  Codice.gs");
+            sb.AppendLine("    cancella tutto e incolla il \"Codice solo calendario\" (voce 1 del");
+            sb.AppendLine("    menu qui sopra). Se vuoi, rinominalo  Calendario.");
+            sb.AppendLine();
+            sb.AppendLine("5.  Crea un altro file: \"+\" accanto a File -> Script -> chiamalo");
+            sb.AppendLine("    DatiOrari. Incolla dentro i \"Dati del tuo orario\" (voce 2 del menu).");
+            sb.AppendLine("    Salva. Sono due file in tutto: non servono ne' la Posta ne' Orari.gs.");
+            sb.AppendLine();
+            sb.AppendLine("6.  Scegli la funzione  ORARI_4_calendario  ed Esegui. La prima volta");
+            sb.AppendLine("    Google chiede di autorizzare lo script: Rivedi autorizzazioni, scegli");
+            sb.AppendLine("    l'account, Avanzate -> Apri ... (non sicura) -> Consenti. Chiede solo");
+            sb.AppendLine("    il Calendario e di poter riprendere da solo un lavoro lungo quando non");
+            sb.AppendLine("    ci sei (i trigger): niente posta, niente email, niente Drive.");
+            sb.AppendLine("    Con tante lezioni ci mette qualche minuto. Se finisce il tempo di");
+            sb.AppendLine("    un'esecuzione, o se Google chiede di rallentare, si ferma e riprende");
+            sb.AppendLine("    da solo dopo un minuto, da dove era arrivato: non devi fare niente.");
+            sb.AppendLine("    Prima, se vuoi, ORARI_1_anteprima dice quante serie mettera' e il");
+            sb.AppendLine("    fuso orario dello script (deve essere Europe/Rome), senza mettere");
+            sb.AppendLine("    niente. Se non scrive  \"Calendario.gs versione " + versione + "\",");
+            sb.AppendLine("    reincolla il codice, al posto di quello che c'era: quello di prima");
+            sb.AppendLine("    non fa le stesse cose di questa versione di Campanella.");
+            sb.AppendLine();
+            sb.AppendLine("7.  Apri calendar.google.com con quell'account: nella colonna di sinistra");
+            sb.AppendLine("    c'e' il calendario con l'orario, e ogni classe ha il suo colore.");
+            sb.AppendLine();
+            sb.AppendLine("LE EMAIL DEGLI ORARI");
+            sb.AppendLine("--------------------");
+            sb.AppendLine("Restano, se le vuoi, nel progetto della scuola: Orari.gs e il DatiOrari.gs");
+            sb.AppendLine("di tutto il tabellone (passo 3). Li' non eseguire ORARI_4_calendario:");
+            sb.AppendLine("l'orario finirebbe anche nel calendario della scuola. Quando l'orario");
+            sb.AppendLine("cambia, rigenera e incolla i dati in tutti e due i progetti.");
+            sb.AppendLine();
+        }
+
+        /// <summary>I primi passi, con l'orario nell'account della scuola (Orari.gs con la Posta).</summary>
+        static void GuidaScuola(StringBuilder sb, string versione)
+        {
             sb.AppendLine("L'ORARIO SU GOOGLE CALENDAR, PASSO PER PASSO");
             sb.AppendLine("===========================================");
             sb.AppendLine();
-            string versione = Guscio.VersioneScript("Orari.gs");
             sb.AppendLine("1.  Metti nel progetto Apps Script il file  Orari  con il \"Codice degli");
             sb.AppendLine("    orari\" (passo 3, voce 1 del menu). Se c'e' gia' (per gli orari via");
             sb.AppendLine("    email), esegui  ORARI_1_anteprima: se non scrive  \"Orari.gs versione " +
@@ -1214,6 +1473,14 @@ namespace Campanella
             sb.AppendLine("    con l'orario, e ogni classe ha il suo colore. Puoi accenderlo e");
             sb.AppendLine("    spegnerlo, cambiargli colore, vederlo anche dal telefono.");
             sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Il resto della guida, uguale per tutti e due gli account. voceDati:
+        /// quale voce del menu da' i dati da incollare in DatiOrari.
+        /// </summary>
+        static void GuidaComune(StringBuilder sb, string voceDati)
+        {
             sb.AppendLine("GIORNI SENZA LEZIONE");
             sb.AppendLine("--------------------");
             sb.AppendLine("Nei giorni scritti qui sopra in \"Giorni senza lezione\" sul calendario");
@@ -1263,7 +1530,7 @@ namespace Campanella
             sb.AppendLine("    Il periodo (\"Dal\" e \"al\") resta quello con cui hai messo l'orario:");
             sb.AppendLine("    la data del cambio va solo nella spunta.");
             sb.AppendLine();
-            sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (voce 1 del menu) e incollali nel file");
+            sb.AppendLine("2.  Rigenera " + voceDati);
             sb.AppendLine("    DatiOrari, al posto di quello che c'era. Salva.");
             sb.AppendLine();
             sb.AppendLine("3.  Esegui  ORARI_5_cambioOrario. Le settimane passate restano come sono,");
@@ -1296,7 +1563,6 @@ namespace Campanella
             sb.AppendLine("esempio 10:00-12:00). Il titolo e' la classe; \"D\" diventa");
             sb.AppendLine("\"A disposizione\". Gli orari delle ore sono quelli scritti qui sopra:");
             sb.AppendLine("se la scuola ha un intervallo, scrivi l'inizio di ogni ora.");
-            return sb.ToString();
         }
     }
 }

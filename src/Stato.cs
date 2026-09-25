@@ -335,6 +335,11 @@ namespace Campanella
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
         public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo libero: segue i dati personali)
         public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
+        // dove va l'orario: falso = nel Google Calendar dell'account della scuola,
+        // con Orari.gs nel progetto della Posta; vero = in quello di un altro
+        // account (il personale, per esempio), con Calendario.gs e il DatiOrari.gs
+        // del solo docente (SoloCalendario). Solo una scelta: sta nelle impostazioni
+        public bool CalAltroAccount = false;
         // il colore delle lezioni di ogni classe sul calendario (la classe come
         // nel tabellone, "A disposizione" per le ore a disposizione): il valore
         // di CalendarApp.EventColor, da "1" a "11", oppure "" = il colore del
@@ -959,6 +964,7 @@ namespace Campanella
             r["calOreInizio"] = CalOreInizio;
             r["calColore"] = CalColore;
             r["calValidoDal"] = CalValidoDal;    // solo una data; i giorni senza lezione stanno in Dati()
+            r["calAltroAccount"] = CalAltroAccount;
             // i colori delle classi: nomi di classi e numeri, niente di personale
             Dictionary<string, object> colori = new Dictionary<string, object>();
             if (CalColori != null)
@@ -1117,6 +1123,7 @@ namespace Campanella
                 s.CalOreInizio = Str(r, "calOreInizio", "");
                 s.CalColore = Str(r, "calColore", "");
                 s.CalValidoDal = Str(r, "calValidoDal", "");
+                s.CalAltroAccount = Bool(r, "calAltroAccount", false);
                 s.CalColori = ColoriLezioni.Letti(r, "calColori");
                 s.CalColoriAMano = new List<string>();
                 // scelta a mano solo una classe che ha un colore (anche "")
