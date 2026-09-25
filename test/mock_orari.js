@@ -128,10 +128,13 @@ const ScriptApp = {
 // create, che restano nel fuso in cui sono nate (quelle create dopo prendono
 // il fuso nuovo); setTime su una lezione di una serie sposta solo quella,
 // come dall'interfaccia di Google. Gli eventi singoli (createEvent) hanno la
-// descrizione delle opzioni, un id e i contrassegni.
+// descrizione e il luogo delle opzioni, un id e i contrassegni.
 // Una lezione di una serie si puo' spostare o cancellare a mano (sposta,
 // cancella), come dall'interfaccia di Google: getEvents la da' all'ora
-// nuova, o non la da'. I calendari sono tuoi o condivisi con te (iscritto):
+// nuova, o non la da'. Le si possono cambiare solo per lei anche il titolo
+// (rinomina), la descrizione o il luogo (annota), come con "Solo questo
+// evento": getEvents la da' con i suoi, le altre con quelli della serie
+// (getDescription, getLocation). I calendari sono tuoi o condivisi con te (iscritto):
 // getCalendarsByName li da' tutti, getOwnedCalendarsByName solo i tuoi, e
 // tutti e due senza badare alle maiuscole. I limiti di Google si simulano con
 // guasti(): alla n-esima chiamata di un'operazione parte l'errore scelto. Il
@@ -177,6 +180,7 @@ class Serie {
     this.inizio = new Date(inizio.getTime()); this.fine = new Date(fine.getTime());
     this.ricorrenza = ricorrenza; this.opzioni = opzioni || {};
     this.tag = {}; this.descrizione = (opzioni && opzioni.description) || ''; this.cancellata = false;
+    this.luogo = (opzioni && opzioni.location) || '';
     this.inizioOriginale = new Date(inizio.getTime());
     this.eccezioni = new Map();      // inizio originale (ms) -> { inizio, fine } spostata, o null cancellata
   }
@@ -186,6 +190,7 @@ class Serie {
   getTag(k) { return this.tag[k] || null; }
   setDescription(d) { this.descrizione = d; return this; }
   getDescription() { return this.descrizione; }
+  getLocation() { return this.luogo; }
   isRecurringEvent() { return true; }
   deleteEventSeries() { operazione('deleteEventSeries'); this.cancellata = true; }
   /** come in Google (provato dal vivo): non cambia niente */
@@ -219,6 +224,12 @@ class Serie {
     const t = this.passo(n);
     this.eccezioni.set(t.getTime(), { inizio: t, fine: new Date(t.getTime() + (this.fine - this.inizio)), titolo });
   }
+  /** a mano: la descrizione o il luogo della lezione n cambiati (solo lei, "solo questo evento"), alla sua ora */
+  annota(n, cosa) {
+    const t = this.passo(n);
+    this.eccezioni.set(t.getTime(), { inizio: t, fine: new Date(t.getTime() + (this.fine - this.inizio)),
+                                      descrizione: cosa.descrizione, luogo: cosa.luogo });
+  }
   /**
    * le lezioni come le vede chi guarda il calendario: con quelle spostate,
    * senza quelle cancellate; chiave e' l'inizio che la lezione ha nella regola
@@ -230,7 +241,8 @@ class Serie {
       const chiave = t.getTime();
       if (!this.eccezioni.has(chiave)) { fuori.push({ inizio: t, fine: new Date(t.getTime() + durata), chiave }); continue; }
       const x = this.eccezioni.get(chiave);
-      if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()), chiave, titolo: x.titolo });
+      if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()), chiave, titolo: x.titolo,
+                          descrizione: x.descrizione, luogo: x.luogo });
     }
     return fuori;
   }
@@ -243,11 +255,13 @@ class Evento {                                   // un evento singolo
     this.tag = {}; this.cancellato = false;
     // quelli delle prove, senza opzioni, sono riunioni: non di Campanella
     this.descrizione = (opzioni && opzioni.description !== undefined) ? opzioni.description : 'riunione';
+    this.luogo = (opzioni && opzioni.location) || '';
   }
   getId() { return this.id; }
   getTag(k) { return this.tag[k] || null; }
   setTag(k, v) { operazione('setTag'); this.tag[k] = v; return this; }
   getDescription() { return this.descrizione; }
+  getLocation() { return this.luogo; }
   /** come in Google: anche un evento singolo ha la sua "serie", che non e' mai null */
   getEventSeries() {
     const ev = this;
@@ -300,10 +314,13 @@ class Calendario {
         if (l.inizio < da || l.inizio > a) continue;
         const inizio = new Date(l.inizio.getTime()), fine = new Date(l.fine.getTime()), chiave = l.chiave;
         const titolo = l.titolo || s.titolo;
+        // la descrizione e il luogo della lezione: i suoi, se cambiati solo per lei, se no quelli della serie
+        const descrizione = l.descrizione, luogo = l.luogo;
         fuori.push({
           getId: () => s.getId(),
           getTag: k => s.getTag(k),
-          getDescription: () => s.getDescription(),
+          getDescription: () => (descrizione !== undefined ? descrizione : s.getDescription()),
+          getLocation: () => (luogo !== undefined ? luogo : s.getLocation()),
           getEventSeries: () => s,
           isRecurringEvent: () => true,
           // come in Google: toglie solo questa lezione, la serie resta
@@ -1764,6 +1781,60 @@ if (conCalendario) {
           primaR.some(l => / verifica$/.test(l)) && !!nuovaR && nuovaR.titolo === sR.titolo &&
           calR.eventi.some(e => !e.cancellato && e.titolo === sR.titolo + ' verifica' && sostituisce(e)) &&
           numero(/rimesse come eventi singoli alla loro ora: (\d+)/, esitoR) === 1);
+        docOriginale.celle = celleOriginali.slice();
+      }
+
+      // una lezione con una nota scritta a mano solo per lei ("Solo questo
+      // evento": la descrizione), e in un'altra serie, con un luogo messo a
+      // tutta la serie, una lezione con un luogo suo: restano com'erano, come
+      // eventi singoli, e la serie rifatta ha la descrizione e il luogo della
+      // serie. Il cambio si usa anche solo per aggiungere un giorno senza lezione
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calN = calendari[0];
+        const [sN, sL] = vive(calN).filter(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sN.annota(1, { descrizione: sN.descrizione + '\nVERIFICA: capitoli 3 e 4' });
+        sL.luogo = 'Aula 12';
+        sL.annota(2, { luogo: 'Laboratorio di chimica' });
+        /** Le lezioni di Campanella prima del cambio, con descrizione e luogo. */
+        const conNote = calX => calX.getEvents(settimanaPrima, new Date(giornoPrima.getFullYear(), giornoPrima.getMonth(),
+          giornoPrima.getDate(), 23, 59, 59)).filter(nostro)
+          .map(e => chiave(e.getStartTime()) + ' ' + ora(minutiDi(e.getStartTime())) + ' ' + e.getTitle() + ' | ' +
+                    e.getDescription() + ' | ' + e.getLocation()).sort();
+        const primaN = conNote(calN);
+        docOriginale.celle = ruotata(celleOriginali);
+        const esitoN = contesto.ORARI_5_cambioOrario();
+        const dopoN = conNote(calN);
+        const nuovaL = vive(calN).find(x => sostituisce(x).indexOf(sL.id + '|') === 0);
+        const nuovaN = vive(calN).find(x => sostituisce(x).indexOf(sN.id + '|') === 0);
+        verifica('una lezione con una nota scritta a mano solo per lei, e una con un luogo suo, restano com\'erano ' +
+          '(descrizione e luogo di ogni lezione prima del cambio, ' + primaN.length + ')' + (uguali(dopoN, primaN) ? '' :
+          ' (sparite: ' + primaN.filter(x => dopoN.indexOf(x) < 0).join(' ;; ') + ')'),
+          primaN.some(l => /VERIFICA/.test(l)) && primaN.some(l => /Laboratorio di chimica$/.test(l)) && uguali(dopoN, primaN));
+        verifica('  ...come eventi singoli, e le serie rifatte hanno la descrizione e il luogo della serie',
+          !!nuovaN && !!nuovaL && nuovaN.getDescription() === sN.descrizione && nuovaL.getLocation() === 'Aula 12' &&
+          calN.eventi.filter(e => !e.cancellato && sostituisce(e)).length === 2 &&
+          numero(/rimesse come eventi singoli alla loro ora: (\d+)/, esitoN) === 2 && /annotate/.test(esitoN));
+        docOriginale.celle = celleOriginali.slice();
+      }
+      // se Google desse la descrizione di ogni lezione scritta in un altro modo
+      // da quella della serie (nessuno l'ha provato dal vivo), le lezioni
+      // restano regolari: conta la descrizione piu' frequente fra le lezioni
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calF = calendari[0];
+        const sF = vive(calF).find(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sF.inizi(ultimoGiorno).forEach((t, n) => sF.annota(n, { descrizione: '<p>' + sF.descrizione + '</p>' }));
+        docOriginale.celle = ruotata(celleOriginali);
+        const esitoF = contesto.ORARI_5_cambioOrario();
+        const nuovaF = vive(calF).find(x => sostituisce(x).indexOf(sF.id + '|') === 0);
+        verifica('con la descrizione di ogni lezione scritta in un altro modo da quella della serie, la serie si rifa\' ' +
+          'lo stesso, senza eventi singoli', !!nuovaF && nuovaF.lezioni(giornoPrima).length === sF.inizi(giornoPrima).length &&
+          calF.eventi.filter(e => !e.cancellato && sostituisce(e)).length === 0 && !/rimesse come eventi singoli/.test(esitoF));
         docOriginale.celle = celleOriginali.slice();
       }
 

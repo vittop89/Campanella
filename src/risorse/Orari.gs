@@ -354,10 +354,11 @@ function ORARI_4_calendario(e) {
 //  L'orario nuovo vale da calendario.validoDal. Google non lascia accorciare
 //  una serie (setRecurrence, provata dal vivo, non cambia niente), quindi le
 //  serie gia' messe con lezioni prima di quel giorno e dopo si rifanno: una
-//  serie nuova uguale (titolo e descrizione) fino al giorno prima, senza le
-//  settimane in cui la vecchia non aveva la lezione (cancellata o spostata a
-//  mano), un evento singolo per ogni lezione spostata a mano, alla sua ora,
-//  e solo alla fine si toglie la vecchia. Le serie senza lezioni prima di
+//  serie nuova uguale (titolo, descrizione e luogo) fino al giorno prima,
+//  senza le settimane in cui la vecchia non aveva la lezione (cancellata o
+//  spostata a mano, o cambiata solo lei), un evento singolo per ogni lezione
+//  spostata, rinominata o annotata a mano, alla sua ora e com'e', e solo alla
+//  fine si toglie la vecchia. Le serie senza lezioni prima di
 //  quel giorno si tolgono, come gli eventi singoli da quel giorno in poi, e
 //  dal validoDal si mette l'orario nuovo. Le settimane prima restano come
 //  sono. Rieseguito con la stessa data, o ripreso dopo un'interruzione, da'
@@ -633,13 +634,14 @@ function _orariCalendario_(funzione, e) {
  * (setRecurrence, provata dal vivo, non cambia niente): una serie con il
  * contrassegno che ha lezioni prima del validoDal e dal validoDal in poi si
  * rifa' per le settimane prima (_orariRifacimento_). (1) Una serie nuova,
- * con lo stesso titolo e la stessa descrizione, dalla prima lezione regolare
- * ogni settimana fino al giorno prima del validoDal, con il contrassegno e con
- * quello che dice quale serie sostituisce (_ORARI_TAG_SOSTITUISCE: l'id della
- * vecchia e il giorno prima del cambio); (2) dalla serie nuova si tolgono le
- * lezioni delle settimane in cui la vecchia non aveva la lezione regolare
- * (cancellata o spostata a mano); (3) ogni lezione spostata a mano torna come
- * evento singolo, alla sua ora, con i due contrassegni; (4) solo alla fine si
+ * con lo stesso titolo, la stessa descrizione e lo stesso luogo, dalla prima
+ * lezione regolare ogni settimana fino al giorno prima del validoDal, con il
+ * contrassegno e con quello che dice quale serie sostituisce
+ * (_ORARI_TAG_SOSTITUISCE: l'id della vecchia e il giorno prima del cambio);
+ * (2) dalla serie nuova si tolgono le lezioni delle settimane in cui la
+ * vecchia non aveva la lezione regolare (cancellata, spostata o cambiata solo
+ * lei a mano); (3) ogni lezione spostata, rinominata o annotata a mano torna
+ * come evento singolo, alla sua ora, con i due contrassegni; (4) solo alla fine si
  * toglie la serie vecchia. Le serie con il contrassegno senza lezioni prima
  * del validoDal, e gli eventi singoli dal validoDal in poi, si tolgono. Le
  * trova solo _orariNostri_; quelle che riconosce solo dalla descrizione
@@ -811,27 +813,42 @@ function _orariPianoDelTaglio_(nostri, periodo, validoDal, fino, fuso) {
  * Come rifare fino al giorno prima del cambio (fino) una serie con lezioni
  * prima del validoDal e dopo. prima: quante lezioni ha prima del validoDal,
  * come le vede chi guarda il calendario. Quelle regolari (con la forma della
- * serie, voce.forma di _orariPrimaLezione_, e con il titolo della serie)
- * fanno la serie nuova, con il titolo e la descrizione della vecchia: dalla
- * prima (inizio, fine) ogni settimana alla stessa ora nel fuso dello script,
- * come la ripete Google in un calendario con quel fuso. buchi: le settimane
- * della serie nuova in cui la vecchia non ha una lezione regolare
- * (cancellata, spostata o rinominata a mano), da togliere. spostate: le
- * lezioni prima del validoDal non regolari (spostate, o con il titolo
- * cambiato a mano, o una seconda alla stessa ora), da rimettere come eventi
- * singoli alla loro ora, come sono (titolo e descrizione loro).
+ * serie, voce.forma di _orariPrimaLezione_, con il titolo della serie e con
+ * la descrizione e il luogo piu' frequenti fra le sue lezioni, come la
+ * forma) fanno la serie nuova, con il titolo, la descrizione e il luogo della
+ * vecchia: dalla prima (inizio, fine) ogni settimana alla stessa ora nel fuso
+ * dello script, come la ripete Google in un calendario con quel fuso. buchi:
+ * le settimane della serie nuova in cui la vecchia non ha una lezione
+ * regolare (cancellata, spostata, rinominata o annotata a mano), da togliere.
+ * spostate: le lezioni prima del validoDal non regolari (spostate, o con il
+ * titolo, la descrizione o il luogo cambiati a mano solo per loro, come una
+ * nota "VERIFICA", o una seconda alla stessa ora), da rimettere come eventi
+ * singoli alla loro ora, come sono (titolo, descrizione e luogo loro).
  */
 function _orariRifacimento_(voce, validoDal, fino, fuso) {
   var titolo = voce.titolo;
   try { titolo = String(voce.serie.getTitle() || '') || voce.titolo; } catch (e) { titolo = voce.titolo; }
-  var r = { prima: 0, inizio: null, fine: null, titolo: titolo, descrizione: voce.descrizione,
+  var luogo = '';
+  try { luogo = String(voce.serie.getLocation() || ''); } catch (e2) { luogo = ''; }
+  var r = { prima: 0, inizio: null, fine: null, titolo: titolo, descrizione: voce.descrizione, luogo: luogo,
             buchi: [], spostate: [], idNuova: '', segno: '' };
+  // la descrizione e il luogo di tutta la serie: i piu' frequenti fra le sue
+  // lezioni (non quelli di getDescription della serie, che potrebbero essere
+  // scritti in un altro modo e farebbero di ogni lezione un evento singolo)
+  var descrizioni = [], luoghi = [];
+  for (var h = 0; h < voce.lezioni.length; h++) {
+    descrizioni.push(_orariDescrizioneDi_(voce.lezioni[h]));
+    luoghi.push(_orariLuogoDi_(voce.lezioni[h]));
+  }
+  var descrizioneDiTutte = _orariPiuFrequente_(descrizioni, voce.descrizione);
+  var luogoDiTutte = _orariPiuFrequente_(luoghi, luogo);
   var regolari = [];
   for (var i = 0; i < voce.lezioni.length; i++) {
     var l = voce.lezioni[i];
     if (l.inizio >= validoDal) continue;
     r.prima++;
-    if (_orariForma_(l, fuso) === voce.forma && _orariTitoloDi_(l) === r.titolo) regolari.push(l);
+    if (_orariForma_(l, fuso) === voce.forma && _orariTitoloDi_(l) === r.titolo &&
+        descrizioni[i] === descrizioneDiTutte && luoghi[i] === luogoDiTutte) regolari.push(l);
     else r.spostate.push(l);
   }
   if (!regolari.length) return r;
@@ -903,16 +920,42 @@ function _orariDescrizioneDi_(lezione) {
   try { return String(lezione.evento.getDescription() || ''); } catch (e) { return ''; }
 }
 
-/** (1) del taglio: la serie nuova, come la vecchia (titolo e descrizione), dalla prima lezione regolare a fino. */
-function _orariSerieRifatta_(cal, r, fino) {
-  var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fino);
-  return cal.createEventSeries(r.titolo, r.inizio, r.fine, ricorrenza, { description: r.descrizione });
+/** Il luogo di una lezione di _orariNostri_ ('' se non c'e'): Campanella non lo mette, il docente si'. */
+function _orariLuogoDi_(lezione) {
+  try { return String(lezione.evento.getLocation() || ''); } catch (e) { return ''; }
 }
 
-/** (3) del taglio: una lezione spostata o rinominata a mano, come evento singolo alla sua ora, con titolo e descrizione. */
+/** Il testo piu' frequente di un elenco; a parita' il preferito, se c'e' fra quelli, se no il primo. */
+function _orariPiuFrequente_(valori, preferito) {
+  var scelto = '', quante = 0;
+  for (var i = 0; i < valori.length; i++) {
+    var n = 0;
+    for (var j = 0; j < valori.length; j++) if (valori[j] === valori[i]) n++;
+    if (n > quante || (n === quante && valori[i] === preferito && scelto !== preferito)) {
+      scelto = valori[i];
+      quante = n;
+    }
+  }
+  return scelto;
+}
+
+/** (1) del taglio: la serie nuova, come la vecchia (titolo, descrizione e luogo), dalla prima lezione regolare a fino. */
+function _orariSerieRifatta_(cal, r, fino) {
+  var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fino);
+  var opzioni = { description: r.descrizione };
+  if (r.luogo) opzioni.location = r.luogo;
+  return cal.createEventSeries(r.titolo, r.inizio, r.fine, ricorrenza, opzioni);
+}
+
+/**
+ * (3) del taglio: una lezione spostata, rinominata o annotata a mano, come
+ * evento singolo alla sua ora, con titolo, descrizione e luogo.
+ */
 function _orariLezioneRifatta_(cal, lezione) {
-  return cal.createEvent(_orariTitoloDi_(lezione), lezione.inizio, lezione.fine,
-                         { description: _orariDescrizioneDi_(lezione) });
+  var opzioni = { description: _orariDescrizioneDi_(lezione) };
+  var luogo = _orariLuogoDi_(lezione);
+  if (luogo) opzioni.location = luogo;
+  return cal.createEvent(_orariTitoloDi_(lezione), lezione.inizio, lezione.fine, opzioni);
 }
 
 /**
@@ -1169,7 +1212,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     'Serie dell\'orario di prima rifatte fino al ' + giornoPrima + ', con le lezioni come erano: ' + stato.rifatte + '\n' +
     'Serie dell\'orario di prima tolte (nessuna lezione prima del ' + dal + '): ' + stato.tolte + '\n' +
     (stato.eventiTolti ? 'Eventi singoli tolti (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' : '') +
-    (rimesse ? 'Lezioni spostate o rinominate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
+    (rimesse ? 'Lezioni spostate, rinominate o annotate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
                stato.spostate.join('; ') + (rimesse > stato.spostate.length ? '; ...' : '') + '\n' : '') +
     'Serie dell\'orario nuovo create: ' + piano.serie.length + ' (' + piano.lezioni + ' lezioni, fino al ' +
     c.fine + ')\n' +
@@ -1183,9 +1226,9 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
               'eseguito su questo calendario. L\'orario nuovo c\'e\' lo stesso, dal ' + dal + '.\n' : '') +
     '\nLe settimane prima del ' + dal + ' restano come erano, con le lezioni spostate o cancellate a mano. ' +
     'Google non lascia accorciare una serie: quelle con lezioni prima del cambio le ho rifatte fino al ' +
-    giornoPrima + ' (le lezioni spostate o rinominate a mano come eventi singoli) e poi ho tolto le vecchie. ' +
-    'Altre modifiche fatte a mano a una serie vecchia, come il colore o un promemoria, non sono passate a quella ' +
-    'rifatta: se ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
+    giornoPrima + ' (le lezioni spostate a mano, o con il titolo, la descrizione o il luogo cambiati solo per loro, ' +
+    'come eventi singoli) e poi ho tolto le vecchie. Altre modifiche fatte a mano a una serie vecchia, come il ' +
+    'colore o un promemoria, non sono passate a quella rifatta: se ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
     'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
 }
 
