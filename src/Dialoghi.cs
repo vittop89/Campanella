@@ -2211,7 +2211,11 @@ namespace Campanella
             Label spiega = Tema.Testo1(
                 "Ogni lezione sul calendario prende il colore della sua classe, nello stesso calendario. Sono i " +
                 "colori degli eventi di Google Calendar, con i loro nomi. Di partenza ogni classe ne ha uno diverso, " +
-                "sempre lo stesso; \"colore del calendario\" lascia alle sue lezioni quello del calendario.",
+                "sempre lo stesso; \"colore del calendario\" lascia alle sue lezioni quello del calendario." +
+                (Classi.Contains(ColoriLezioni.Colloqui)
+                    ? " I colloqui con le famiglie hanno il loro, nella riga Colloqui: di partenza uno che le classi " +
+                      "non usano."
+                    : ""),
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(spiega);
             y += spiega.Height + 10;

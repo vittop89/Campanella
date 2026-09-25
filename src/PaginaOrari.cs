@@ -77,6 +77,8 @@ namespace Campanella
         List<int> vociMenu4 = new List<int>();
         TextBox txtCalNome, txtPrimaOra, txtOreInizio, txtAnteprima4, txtSospensioni;
         ListBox lstLette;           // come e' stata letta ogni riga dei giorni senza lezione
+        TextBox txtColloqui;        // i colloqui con le famiglie, una riga per voce (Colloqui.cs)
+        ListBox lstColloqui;        // come e' stata letta ogni riga dei colloqui
         DateTimePicker dtInizio, dtFine, dtValidoDal;
         CheckBox chkValidoDal;
         NumericUpDown numMinuti;
@@ -532,8 +534,8 @@ namespace Campanella
             sb.AppendLine("    Google chiede le autorizzazioni per tutto il progetto: con il file");
             sb.AppendLine("    Orari dentro, anche per il Calendario, pure se usi solo le email.");
             sb.AppendLine("    Il calendario lo toccano soltanto ORARI_4_calendario,");
-            sb.AppendLine("    ORARI_5_cambioOrario, ORARI_6_coloraLezioni e ORARI_ANNULLA_calendario,");
-            sb.AppendLine("    e solo se li esegui tu.");
+            sb.AppendLine("    ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_7_colloqui e");
+            sb.AppendLine("    ORARI_ANNULLA_calendario, e solo se li esegui tu.");
             sb.AppendLine();
             sb.AppendLine("5.  Scegli  ORARI_2_invia  ed Esegui.");
             sb.AppendLine("    Le email arrivano tutte a te: una per docente.");
@@ -636,7 +638,9 @@ namespace Campanella
                 "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
                 "ORARI_ANNULLA_calendario, senza toccare il resto del calendario, e " +
                 "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.\r\n\r\n" +
-                "Ogni classe ha il suo colore: lo scegli con \"Colori delle classi...\".");
+                "Ogni classe ha il suo colore: lo scegli con \"Colori delle classi...\".\r\n\r\n" +
+                "Con l'orario mette anche i tuoi colloqui con le famiglie (\"Colloqui con le famiglie\", qui " +
+                "sotto), con il link del Meet.");
             y += 40;
 
             // --- dove va l'orario: nell'account della scuola o in un altro ------
@@ -751,7 +755,9 @@ namespace Campanella
                 "I colori vanno in DatiOrari.gs: ORARI_4_calendario e ORARI_5_cambioOrario li danno alle lezioni " +
                 "che mettono. Per le lezioni gia' sul calendario rigenera e incolla DatiOrari.gs, poi esegui " +
                 "ORARI_6_coloraLezioni: cambia solo il colore, senza rifare ne' spostare niente. Le lezioni di una " +
-                "classe a cui togli il colore restano come sono: il colore lo togli da Google Calendar."));
+                "classe a cui togli il colore restano come sono: il colore lo togli da Google Calendar.\r\n\r\n" +
+                "Se hai scritto dei colloqui con le famiglie, anche loro hanno un colore: la riga Colloqui, dopo le " +
+                "classi. Di partenza e' uno che le classi non usano."));
             riepilogoColori = new RiepilogoColori(228, y + 5, 652, 2 * (Tema.Normale.Height + 4));
             p.Controls.Add(riepilogoColori);
             y += 52;
@@ -815,6 +821,59 @@ namespace Campanella
             lstLette.AccessibleName = "Come ho letto i giorni senza lezione";
             p.Controls.Add(lstLette);
             y += 20 + lstLette.Height + 14;
+
+            // --- i colloqui con le famiglie -------------------------------------
+            Tema.RigaAiuto(p, "Colloqui con le famiglie", 0, y, Tema.Grassetto, Ruolo.Normale,
+                "Colloqui con le famiglie",
+                "Sul calendario vanno anche i tuoi colloqui con le famiglie, con il link del Meet: il ricevimento " +
+                "di ogni settimana, le giornate dei colloqui generali e i periodi senza colloqui. Una riga per " +
+                "voce:\r\n" +
+                "     ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij\r\n" +
+                "     dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento\r\n" +
+                "     15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/abc-defg-hij\r\n" +
+                "     niente colloqui dal 14/12/2026 al 09/01/2027\r\n\r\n" +
+                "L'ora si scrive anche \"dalle 15 alle 18\" o \"15-18\", le date come nei giorni senza lezione. Il " +
+                "link e' il primo indirizzo https:// della riga e sul calendario diventa il luogo dell'evento; il " +
+                "resto e' il nome (di partenza \"Ricevimento\" per quello di ogni settimana, \"Colloqui\" per una " +
+                "giornata). Senza date, il ricevimento vale per tutto il periodo e, come le lezioni, salta i giorni " +
+                "senza lezione e quelli senza colloqui. Una giornata scritta a parte c'e' anche in un periodo senza " +
+                "colloqui: i colloqui generali di solito cadono proprio li'.\r\n\r\n" +
+                "\"Importa da un file...\" legge un .csv o un .xlsx con le colonne data (o giorno), dalle, alle, " +
+                "cosa (o descrizione) e link, e aggiunge le sue righe qui: la casella resta l'unica fonte.\r\n\r\n" +
+                "Sotto c'e' come ho letto ogni riga. In ambra quelle da guardare: non capite, senza ora o con la " +
+                "fine prima dell'inizio (restano qui, ma sul calendario non vanno), in un giorno che non e' " +
+                "nell'orario, fuori dal periodo, o con un link che non e' di Google Meet (vale lo stesso).\r\n\r\n" +
+                "I colloqui vanno sul calendario con ORARI_4_calendario, insieme all'orario; se cambiano solo loro, " +
+                "ORARI_7_colloqui li aggiorna da oggi in poi, senza toccare le lezioni. Hanno un colore loro: la riga " +
+                "Colloqui in \"Colori delle classi...\".\r\n\r\n" +
+                "I link del Meet aprono le tue stanze: stanno con i dati personali, e vanno solo nel tuo calendario. " +
+                "Le prenotazioni dei genitori restano nel registro elettronico: Campanella non le tocca.");
+            txtColloqui = Tema.CasellaMulti(0, y + 24, 620, 90,
+                                            "ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/...");
+            txtColloqui.TextChanged += delegate { if (!zitto4) AggiornaCalendario(); };
+            p.Controls.Add(txtColloqui);
+            p.Controls.Add(Tema.Bottone("Importa da un file...", 640, y + 24, 240, delegate { ImportaColloqui(); }));
+            p.Controls.Add(Tema.Testo1(
+                "Le prenotazioni dei genitori restano nel registro elettronico.", 640, y + 62, 240, Tema.Piccolo,
+                Ruolo.Tenue));
+            y += 24 + 90 + 6;
+
+            p.Controls.Add(Tema.Testo1("Come ho letto i colloqui, riga per riga (in ambra quelli da guardare):",
+                                       0, y, 880, Tema.Piccolo, Ruolo.Tenue));
+            lstColloqui = new ListBox();
+            lstColloqui.Location = new Point(0, y + 20);
+            lstColloqui.Font = Tema.Piccolo;
+            lstColloqui.IntegralHeight = false;
+            lstColloqui.SelectionMode = SelectionMode.None;
+            lstColloqui.HorizontalScrollbar = true;
+            lstColloqui.DrawMode = DrawMode.OwnerDrawFixed;
+            lstColloqui.ItemHeight = Tema.Piccolo.Height + 3;
+            lstColloqui.Size = new Size(880, 4 * lstColloqui.ItemHeight + 4);     // quattro righe
+            lstColloqui.DrawItem += DisegnaLetta;
+            lstColloqui.TabStop = false;
+            lstColloqui.AccessibleName = "Come ho letto i colloqui";
+            p.Controls.Add(lstColloqui);
+            y += 20 + lstColloqui.Height + 14;
 
             // --- il cambio d'orario --------------------------------------------
             chkValidoDal = Tema.Spunta("L'orario e' cambiato: il nuovo vale dal", 0, y + 3, Ruolo.Normale);
@@ -1043,48 +1102,131 @@ namespace Campanella
         {
             if (lstLette == null) return;
             DateTime inizio = dtInizio.Value.Date, fine = dtFine.Value.Date;
-            List<RigaLetta> lette = Calendario.LeggiRighe(txtSospensioni.Text, inizio);
-            lstLette.BeginUpdate();
-            try
+            List<RigaVista> viste = new List<RigaVista>();
+            List<int> numeri = new List<int>();
+            foreach (RigaLetta r in Calendario.LeggiRighe(txtSospensioni.Text, inizio))
             {
-                lstLette.Items.Clear();
-                int larga = 0;
-                foreach (RigaLetta r in lette)
-                {
-                    RigaVista v = new RigaVista();
-                    v.Testo = Calendario.Descrivi(r, inizio, fine);
-                    v.DaGuardare = Calendario.DaGuardare(r, inizio, fine);
-                    lstLette.Items.Add(v);
-                    larga = Math.Max(larga, TextRenderer.MeasureText(v.Testo, lstLette.Font).Width);
-                }
-                if (lette.Count == 0)
-                {
-                    RigaVista vuota = new RigaVista();
-                    vuota.Testo = "Nessuna riga: scrivi un giorno o un periodo per riga, per esempio 01/11/2026 Tutti i Santi.";
-                    lstLette.Items.Add(vuota);
-                }
-                lstLette.HorizontalExtent = larga + 8;
-                // si vede la riga dove si sta scrivendo (o l'ultima aggiunta dal bottone delle feste)
-                string testo = txtSospensioni.Text;
-                int qui = Calendario.NumeroDiRiga(testo, Math.Min(txtSospensioni.SelectionStart, testo.Length));
-                int indice = 0;
-                for (int i = 0; i < lette.Count; i++) if (lette[i].Numero <= qui) indice = i;
-                int visibili = Math.Max(1, lstLette.ClientSize.Height / lstLette.ItemHeight);
-                if (indice < lstLette.TopIndex) lstLette.TopIndex = indice;
-                else if (indice >= lstLette.TopIndex + visibili) lstLette.TopIndex = indice - visibili + 1;
+                RigaVista v = new RigaVista();
+                v.Testo = Calendario.Descrivi(r, inizio, fine);
+                v.DaGuardare = Calendario.DaGuardare(r, inizio, fine);
+                viste.Add(v);
+                numeri.Add(r.Numero);
             }
-            finally { lstLette.EndUpdate(); }
+            RiempiLista(lstLette, viste, numeri, txtSospensioni,
+                        "Nessuna riga: scrivi un giorno o un periodo per riga, per esempio 01/11/2026 Tutti i Santi.");
         }
 
-        /// <summary>Una riga della lista: in ambra quelle da guardare, le altre come il testo.</summary>
-        void DisegnaLetta(object o, DrawItemEventArgs e)
+        /// <summary>
+        /// La lista sotto i colloqui: come e' stata letta ogni riga
+        /// (Colloqui.LeggiRighe e Descrivi), con il periodo e i giorni dell'orario.
+        /// </summary>
+        void AggiornaLetteColloqui()
         {
-            if (e.Index < 0 || e.Index >= lstLette.Items.Count) return;
-            RigaVista v = lstLette.Items[e.Index] as RigaVista;
-            using (SolidBrush fondo = new SolidBrush(lstLette.BackColor)) e.Graphics.FillRectangle(fondo, e.Bounds);
+            if (lstColloqui == null) return;
+            DateTime inizio = dtInizio.Value.Date, fine = dtFine.Value.Date;
+            List<RigaVista> viste = new List<RigaVista>();
+            List<int> numeri = new List<int>();
+            foreach (RigaColloquio r in Colloqui.LeggiRighe(txtColloqui.Text, inizio, orario.IndiciGiorni))
+            {
+                RigaVista v = new RigaVista();
+                v.Testo = Colloqui.Descrivi(r, inizio, fine);
+                v.DaGuardare = Colloqui.DaGuardare(r, inizio, fine);
+                viste.Add(v);
+                numeri.Add(r.Numero);
+            }
+            RiempiLista(lstColloqui, viste, numeri, txtColloqui,
+                        "Nessun colloquio: scrivi una riga per voce, per esempio ogni giovedi 10:10-11:10 Ricevimento.");
+        }
+
+        /// <summary>
+        /// Riempie una lista di righe lette (numeri: la riga del testo di ognuna),
+        /// o con la frase di quando non ce n'e' nessuna, e la fa scorrere fino alla
+        /// riga dove si sta scrivendo nella casella (o all'ultima aggiunta).
+        /// </summary>
+        static void RiempiLista(ListBox lista, List<RigaVista> viste, List<int> numeri, TextBox casella, string vuota)
+        {
+            lista.BeginUpdate();
+            try
+            {
+                lista.Items.Clear();
+                int larga = 0;
+                foreach (RigaVista v in viste)
+                {
+                    lista.Items.Add(v);
+                    larga = Math.Max(larga, TextRenderer.MeasureText(v.Testo, lista.Font).Width);
+                }
+                if (viste.Count == 0)
+                {
+                    RigaVista niente = new RigaVista();
+                    niente.Testo = vuota;
+                    lista.Items.Add(niente);
+                }
+                lista.HorizontalExtent = larga + 8;
+                string testo = casella.Text;
+                int qui = Calendario.NumeroDiRiga(testo, Math.Min(casella.SelectionStart, testo.Length));
+                int indice = 0;
+                for (int i = 0; i < numeri.Count; i++) if (numeri[i] <= qui) indice = i;
+                int visibili = Math.Max(1, lista.ClientSize.Height / lista.ItemHeight);
+                if (indice < lista.TopIndex) lista.TopIndex = indice;
+                else if (indice >= lista.TopIndex + visibili) lista.TopIndex = indice - visibili + 1;
+            }
+            finally { lista.EndUpdate(); }
+        }
+
+        /// <summary>Una riga di una delle due liste: in ambra quelle da guardare, le altre come il testo.</summary>
+        static void DisegnaLetta(object o, DrawItemEventArgs e)
+        {
+            ListBox lista = o as ListBox;
+            if (lista == null || e.Index < 0 || e.Index >= lista.Items.Count) return;
+            RigaVista v = lista.Items[e.Index] as RigaVista;
+            using (SolidBrush fondo = new SolidBrush(lista.BackColor)) e.Graphics.FillRectangle(fondo, e.Bounds);
             Color colore = (v != null && v.DaGuardare) ? Tema.Ambra : Tema.Testo;
-            TextRenderer.DrawText(e.Graphics, lstLette.Items[e.Index].ToString(), lstLette.Font, e.Bounds, colore,
+            TextRenderer.DrawText(e.Graphics, lista.Items[e.Index].ToString(), lista.Font, e.Bounds, colore,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        }
+
+        /// <summary>"Importa da un file...": i colloqui di un .csv o di un .xlsx, in fondo alla casella.</summary>
+        void ImportaColloqui()
+        {
+            using (OpenFileDialog d = new OpenFileDialog())
+            {
+                d.Title = "Importa i colloqui da un file";
+                d.Filter = "Fogli con i colloqui (*.xlsx;*.csv)|*.xlsx;*.csv|Tutti i file (*.*)|*.*";
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+                int saltate;
+                string errore;
+                List<string> righe = Colloqui.Importa(d.FileName, dtInizio.Value.Date, out saltate, out errore);
+                if (errore != "") { Guscio.Stato1(errore, Tema.Ambra); return; }
+                AggiungiColloqui(righe, Path.GetFileName(d.FileName), saltate);
+            }
+        }
+
+        /// <summary>
+        /// Aggiunge in fondo alla casella dei colloqui le righe importate da un
+        /// file (daDove), e lo dice nella barra in basso, con quelle saltate
+        /// perche' senza data ne' giorno.
+        /// </summary>
+        void AggiungiColloqui(List<string> righe, string daDove, int saltate)
+        {
+            if (righe.Count == 0)
+            {
+                Guscio.Stato1("In " + daDove + " non ci sono colloqui: ogni riga vuole una data o un giorno della " +
+                              "settimana.", Tema.Ambra);
+                return;
+            }
+            string prima = txtColloqui.Text.TrimEnd();
+            string nuove = string.Join("\r\n", righe.ToArray());
+            txtColloqui.Text = (prima == "") ? nuove : prima + "\r\n" + nuove;
+            txtColloqui.SelectionStart = txtColloqui.TextLength;
+            txtColloqui.ScrollToCaret();
+            AggiornaCalendario();
+            string detto = (righe.Count == 1 ? "Importata una riga" : "Importate " + righe.Count + " righe") + " da " +
+                           daDove + ": guarda qui sotto come le ho lette.";
+            if (saltate > 0)
+                Guscio.Stato1(detto + " " + (saltate == 1 ? "Una riga, senza data ne' giorno, e' saltata."
+                                                          : saltate + " righe, senza data ne' giorno, sono saltate."),
+                              Tema.Ambra);
+            else Guscio.Stato1(detto);
         }
 
         /// <summary>Il riepilogo alto quanto il suo testo, e quello che sta sotto alla stessa distanza.</summary>
@@ -1138,6 +1280,7 @@ namespace Campanella
             for (int i = 0; i < Colori.GetLength(0); i++)
                 if (Colori[i, 1] == S.CalColore) { cmbColore.SelectedIndex = i; break; }
             txtSospensioni.Text = S.CalSospensioni;
+            txtColloqui.Text = S.CalColloqui;
             DateTime cambio;
             bool conCambio = LeggiData(S.CalValidoDal, out cambio);
             chkValidoDal.Checked = conCambio;
@@ -1160,6 +1303,7 @@ namespace Campanella
             int c = cmbColore.SelectedIndex;
             S.CalColore = (c >= 0 && c < Colori.GetLength(0)) ? Colori[c, 1] : "";
             S.CalSospensioni = txtSospensioni.Text;
+            S.CalColloqui = txtColloqui.Text;
             // spunta tolta = nessun cambio d'orario
             S.CalValidoDal = chkValidoDal.Checked
                 ? dtValidoDal.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
@@ -1200,6 +1344,7 @@ namespace Campanella
             if (lblCalRiepilogo == null) return;
             RaccogliCalendario();
             AggiornaLette();
+            AggiornaLetteColloqui();
 
             string docente = orario.TrovaDocente(S.CalDocente);
             AggiornaColori(docente);
@@ -1268,6 +1413,24 @@ namespace Campanella
                     }
                 }
                 r.Append("\nOre: " + string.Join("  ", inizi.ToArray()) + "  (durata " + S.CalMinutiOra + " minuti).");
+                // i colloqui: quanti vanno sul calendario, e le righe da guardare
+                List<RigaColloquio> colloqui = Colloqui.LeggiRighe(S.CalColloqui, inizio, orario.IndiciGiorni);
+                if (colloqui.Count > 0)
+                {
+                    PianoColloqui pc = Colloqui.Piano(colloqui, inizio, fine, sospensioni);
+                    int daGuardare = 0;
+                    foreach (RigaColloquio rc in colloqui) if (Colloqui.DaGuardare(rc, inizio, fine)) daGuardare++;
+                    r.Append("\nColloqui con le famiglie: " + Colloqui.Riassunto(pc) +
+                             (pc.Saltati > 0 ? "; " + pc.Saltati + " incontri saltati nei giorni senza lezione o " +
+                                               "senza colloqui" : "") + ".");
+                    if (daGuardare > 0)
+                    {
+                        r.Append(" " + (daGuardare == 1 ? "Una riga dei colloqui e' da guardare"
+                                                        : daGuardare + " righe dei colloqui sono da guardare") +
+                                 ": in ambra, qui sopra.");
+                        ruolo = Ruolo.Avviso;
+                    }
+                }
                 if (nonCapite.Count > 0)
                 {
                     string esempio = nonCapite[0].Length > 40 ? nonCapite[0].Substring(0, 37) + "..." : nonCapite[0];
@@ -1316,7 +1479,8 @@ namespace Campanella
         void AggiornaColori(string docente)
         {
             if (riepilogoColori == null) return;
-            List<string> classi = AnalisiOrario.ClassiDelCalendario(orario, docente);
+            // con le classi, i colloqui (se ci sono): hanno un colore loro
+            List<string> classi = AnalisiOrario.VociDeiColori(orario, S, docente);
             riepilogoColori.Mostra(classi, ColoriLezioni.DelCalendario(S, classi), orario.Lezioni.Count == 0
                 ? "Carica l'orario al passo 1: ogni classe del tuo orario avra' il suo colore."
                 : "Scegli il tuo nome: ogni classe del tuo orario avra' il suo colore.");
@@ -1326,7 +1490,7 @@ namespace Campanella
         void ScegliColori()
         {
             RaccogliCalendario();
-            List<string> classi = AnalisiOrario.ClassiDelCalendario(orario, orario.TrovaDocente(S.CalDocente));
+            List<string> classi = AnalisiOrario.VociDeiColori(orario, S, orario.TrovaDocente(S.CalDocente));
             if (classi.Count == 0)
             {
                 Guscio.Stato1(orario.Lezioni.Count == 0
@@ -1440,7 +1604,8 @@ namespace Campanella
                           versione + "\",");
             sb.AppendLine("    reincolla il codice, al posto di quello che c'era. Quello di prima");
             sb.AppendLine("    non conosce i giorni senza lezione, che finirebbero sul calendario");
-            sb.AppendLine("    come giorni di lezione, ne' ORARI_5_cambioOrario.");
+            sb.AppendLine("    come giorni di lezione, ne' ORARI_5_cambioOrario, ne' i colloqui");
+            sb.AppendLine("    (ORARI_7_colloqui).");
             sb.AppendLine();
             sb.AppendLine("2.  Rigenera i \"Dati dell'orario\" (qui, voce 1 del menu) e incollali nel");
             sb.AppendLine("    file  DatiOrari, al posto di quello che c'era. Adesso contengono anche");
@@ -1522,6 +1687,27 @@ namespace Campanella
             sb.AppendLine("colore delle lezioni di Campanella, senza rifarle ne' spostarle, e");
             sb.AppendLine("riprende da sola se si ferma. Le lezioni di una classe a cui togli il");
             sb.AppendLine("colore restano come sono: quel colore lo togli da Google Calendar.");
+            sb.AppendLine();
+            sb.AppendLine("I COLLOQUI CON LE FAMIGLIE");
+            sb.AppendLine("--------------------------");
+            sb.AppendLine("Scrivili qui sopra in \"Colloqui con le famiglie\", una riga per voce, o");
+            sb.AppendLine("importali da un file .csv o .xlsx (\"Importa da un file...\", con le");
+            sb.AppendLine("colonne data o giorno, dalle, alle, cosa e link):");
+            sb.AppendLine("    ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/...");
+            sb.AppendLine("    dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento");
+            sb.AppendLine("    15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/...");
+            sb.AppendLine("    niente colloqui dal 14/12/2026 al 09/01/2027");
+            sb.AppendLine("ORARI_4_calendario li mette con l'orario: il ricevimento di ogni");
+            sb.AppendLine("settimana come le lezioni (niente nei giorni senza lezione e in quelli");
+            sb.AppendLine("senza colloqui), le giornate come eventi singoli. Il titolo e' il nome,");
+            sb.AppendLine("il luogo il link del Meet, e hanno il colore dei colloqui (la riga");
+            sb.AppendLine("Colloqui in \"Colori delle classi...\"). Se cambiano solo i colloqui,");
+            sb.AppendLine("rigenera e incolla DatiOrari.gs ed esegui  ORARI_7_colloqui: li aggiorna");
+            sb.AppendLine("da oggi in poi, senza toccare le lezioni; quelli passati restano come");
+            sb.AppendLine("sono. ORARI_5_cambioOrario li tratta come le lezioni, e");
+            sb.AppendLine("ORARI_ANNULLA_calendario li toglie con loro. Le prenotazioni dei");
+            sb.AppendLine("genitori restano nel registro elettronico: Campanella non le tocca. I");
+            sb.AppendLine("link del Meet aprono le tue stanze: tieni DatiOrari.gs per te.");
             sb.AppendLine();
             sb.AppendLine("SE L'ORARIO CAMBIA");
             sb.AppendLine("------------------");
