@@ -74,7 +74,8 @@
  * di nuovo nei filtri veri di Gmail, setRecurrence in qualunque punto, un
  * evento creato, una lezione tolta o un contrassegno dato fuori dal posto
  * suo o a una voce che non e' quella appena creata o riconosciuta dalla sua
- * guardia, una serie presa senza guardare il contrassegno (anche
+ * guardia, una funzione che crea che da' invece un evento gia' sul
+ * calendario, una serie presa senza guardare il contrassegno (anche
  * per le strade trovate dalla revisione: s[k].call(s, ...), una funzione
  * d'appoggio con getEvents, le serie passate dal chiamante, "|| true"
  * accanto al contrassegno, una funzione che toglie creata nel taglio,
@@ -299,7 +300,9 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      "sostituisce") solo la serie e gli eventi singoli appena rifatti, e alla
 //      ripresa lo stesso pezzo ritrovato con l'id che il punto salvato ha preso
 //      proprio da quello appena creato (appenaCreato). Anche queste funzioni
-//      hanno un'impronta;
+//      hanno un'impronta, e cosi' quelle che creano (_orariCreaSerie_,
+//      _orariSerieRifatta_, _orariLezioneRifatta_): danno solo quello che
+//      hanno appena creato, non un evento trovato sul calendario;
 //    - dal taglio una lezione di una serie (deleteEvent sulla lezione) si
 //      toglie solo in _orariTogliBuco_, dalla serie nuova ritrovata per id e
 //      con il contrassegno, dopo la sua guardia;
@@ -416,11 +419,16 @@ const CALENDARIO_ORARI = {
   // di aggiornare l'impronta (sha256 del testo senza commenti, spazi ridotti)
   // E cosi' le funzioni che rimettono il contrassegno a una serie a cui Google
   // non l'ha salvato, o a un pezzo del taglio, e quella che toglie una lezione
-  // dalla serie nuova: quali serie lo ricevono, e da che cosa le si riconosce
+  // dalla serie nuova: quali serie lo ricevono, e da che cosa le si riconosce.
+  // E quelle che creano la serie di un tratto, la serie e la lezione rifatte
+  // dal taglio: il contrassegno va a quello che danno, che deve essere appena
+  // creato (non un evento gia' sul calendario, trovato con _orariNostri_)
   impronte: { _orariNostri_: '1a5c2151b4f6b3d1', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
               _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba',
               _orariRimettiContrassegniAlPezzo_: 'ca368d820da8655a', _orariVoceConId_: 'e68138d4acbf6278',
-              _orariTogliBuco_: '9d0eeba55245a8ec', _orariSerieConId_: '95b32d0bab72b4e9' },
+              _orariTogliBuco_: '9d0eeba55245a8ec', _orariSerieConId_: '95b32d0bab72b4e9',
+              _orariCreaSerie_: 'bff3a5584343d4ae', _orariSerieRifatta_: '3d9ca1e38d93eb2c',
+              _orariLezioneRifatta_: '903ebd9813519d30' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
     _orariNostri_: { guardia: 'if (!nostro) continue;', prima: ['getEventSeries', 'push'] },
@@ -668,8 +676,8 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
       const trovata = impronta(testoDellaFunzione(codice, nudo, corpo));
       if (trovata !== k.impronte[f]) {
         fuori.push('il testo di ' + f + ' non e\' quello controllato (impronta ' + trovata + ' invece di ' +
-                   (k.impronte[f] || 'nessuna') + '): decide quali eventi sono di Campanella, o a quali si rimette ' +
-                   'il contrassegno. Se ' +
+                   (k.impronte[f] || 'nessuna') + '): decide quali eventi sono di Campanella, a quali si rimette ' +
+                   'il contrassegno, o crea quelli che lo ricevono. Se ' +
                    'l\'hai cambiata apposta, rileggila con le regole di CALENDARIO_ORARI e aggiorna l\'impronta');
       }
     }
@@ -1601,6 +1609,23 @@ function provaDellaProva() {
   deveFallire('Orari.gs', '  ...e una serie creata fuori da _orariCreaSerie_ e _orariSerieRifatta_',
     inserisci(orari, TAGLIA, '\n  cal.createEventSeries(\'x\', new Date(), new Date(), CalendarApp.newRecurrence(), {});'),
     'createEventSeries fuori da _orariCreaSerie_ e _orariSerieRifatta_');
+  // le funzioni che creano danno quello che hanno appena creato, e il
+  // contrassegno va a quello: una che desse un evento gia' sul calendario (una
+  // copia fatta a mano, trovata con _orariNostri_) glielo farebbe dare
+  deveFallire('Orari.gs', 'la serie rifatta presa fra quelle gia\' sul calendario, invece di crearla, viene trovata',
+    inserisci(orari, 'function _orariSerieRifatta_(cal, r, fino) {',
+      '\n  var gia = _orariNostri_(cal, r.inizio, r.fine);\n  for (var i = 0; i < gia.length; i++) ' +
+      'if (gia[i].serie && !gia[i].contrassegno && gia[i].titolo === r.titolo) return gia[i].serie;'),
+    'il testo di _orariSerieRifatta_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...e cosi\' la lezione rifatta',
+    inserisci(orari, 'function _orariLezioneRifatta_(cal, lezione) {',
+      '\n  var gia = _orariNostri_(cal, lezione.inizio, lezione.fine);\n  if (gia.length && gia[0].evento) return gia[0].evento;'),
+    'il testo di _orariLezioneRifatta_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...e la serie di un tratto dell\'orario',
+    inserisci(orari, 'function _orariCreaSerie_(cal, voce, c, d, doc) {',
+      '\n  var gia = _orariNostri_(cal, _orariData_(voce.dal), _orariData_(voce.al));\n  if (gia.length && gia[0].serie) ' +
+      'return gia[0].serie;'),
+    'il testo di _orariCreaSerie_ non e\' quello controllato');
   deveFallire('Orari.gs', 'una lezione di una serie tolta nel taglio, fuori da _orariTogliBuco_, viene trovata',
     sostituisci(orari, RIFATTA, RIFATTA + ' var lezione = voce.lezioni[0]; lezione.evento.deleteEvent();'),
     'deleteEvent su "lezione.evento": solo su voce.evento');
