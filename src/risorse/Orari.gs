@@ -1454,18 +1454,20 @@ function _orariPrimoGiornoDellaDescrizione_(descrizione, prima) {
 }
 
 /**
- * Giorno della settimana (1 = lunedi' ... 7 = domenica), ora e durata di una
+ * Giorno della settimana (come getDay: 0 = domenica), ora e durata di una
  * lezione, nel fuso dato (quello del calendario; senza, quello dello script):
- * in una serie sono uguali, se nessuno le ha cambiate.
+ * in una serie sono uguali, se nessuno le ha cambiate. Il giorno viene dalla
+ * data scritta in quel fuso, contata come un giorno qualunque.
  */
 function _orariForma_(lezione, fuso) {
-  return Utilities.formatDate(lezione.inizio, fuso || Session.getScriptTimeZone(), 'u HH:mm') + ' ' +
-         (lezione.fine - lezione.inizio);
+  var s = Utilities.formatDate(lezione.inizio, fuso || Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  var giorno = new Date(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))).getDay();
+  return giorno + ' ' + s.slice(11) + ' ' + (lezione.fine - lezione.inizio);
 }
 
 /** Il giorno della settimana di una forma di _orariForma_, come getDay: 0 = domenica. */
 function _orariGiornoDellaForma_(forma) {
-  return Number(String(forma).split(' ')[0]) % 7;
+  return Number(String(forma).split(' ')[0]);
 }
 
 /** "1A, lunedi' 09:00, dal 2026-09-14": una serie (o un evento) nei messaggi. */
