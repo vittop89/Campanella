@@ -539,8 +539,10 @@ function ORARI_5_cambioOrario(e) {
 //  ancora uno di prima). Con tante serie puo' finire il tempo, o Google puo'
 //  chiedere di rallentare: si ricorda quelle gia' fatte e riprende da sola
 //  fra un minuto, come le altre, con lo stesso lock. Con il lavoro di
-//  ORARI_4_calendario o di ORARI_5_cambioOrario a meta' non colora niente e
-//  dice di finirlo prima.
+//  ORARI_4_calendario, di ORARI_5_cambioOrario o di ORARI_7_colloqui a meta'
+//  non colora niente e dice di finirlo prima; una sua ripresa, se quel
+//  lavoro riprende da solo, lo aspetta e riprova fra un minuto (se no, lo
+//  dice il messaggio finale di quella funzione).
 // ===========================================================================
 function ORARI_6_coloraLezioni(e) {
   // una ripresa toglie subito il proprio trigger (vedi _orariCalendarioConLock_)
@@ -967,11 +969,25 @@ function _orariCalendario_(funzione, e) {
 
   prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
   _togliTriggerOrari_(funzione);
-  var testo = cambio ? _orariFineCambio_(c, doc, piano, stato, validoDal)
+  var testo = (cambio ? _orariFineCambio_(c, doc, piano, stato, validoDal)
             : soloColloqui ? _orariFineColloqui_(c, doc, piano, stato, validoDal)
-            : _orariFineCalendario_(c, doc, periodo, piano, stato);
+            : _orariFineCalendario_(c, doc, periodo, piano, stato)) + _orariAvvisoColoriAMeta_();
   Logger.log(testo);
   return testo;
+}
+
+/**
+ * In fondo ai messaggi di ORARI_4_calendario, ORARI_5_cambioOrario e
+ * ORARI_7_colloqui: il lavoro di ORARI_6_coloraLezioni a meta' che non
+ * riprende da solo (la sua ripresa ha trovato il lavoro del calendario a
+ * meta', che non riprendeva da solo, o e' stato fermato con
+ * ANNULLA_automazione). '' se non c'e', o se la sua ripresa e' programmata.
+ */
+function _orariAvvisoColoriAMeta_() {
+  var colori = _orariLavoroColori_();
+  if (!colori || (!colori.fermato && _orariRipresaProgrammata_(_ORARI_TRIGGER_COLORI))) return '';
+  return '\n\nORARI_6_coloraLezioni e\' ancora a meta\' e non riprende da sola: rieseguila per finire di colorare ' +
+    'le lezioni (non ricolora quelle gia\' fatte).';
 }
 
 /**
@@ -1938,7 +1954,20 @@ function _orariColori_(e) {
   // singoli con il loro: colorare adesso la serie vecchia o quegli eventi
   // farebbe perdere il colore scelto a mano, o la lezione
   var lavoro = _orariLavoroCalendario_();
-  if (lavoro) throw new Error(_orariCalendarioAMeta_(lavoro));
+  if (lavoro) {
+    // una ripresa dei colori davanti al lavoro del calendario, che riprende da
+    // solo: aspetta che finisca e riprova fra un minuto. Il suo trigger l'ha
+    // gia' tolto ORARI_6_coloraLezioni: senza rimetterlo, il lavoro dei colori
+    // resterebbe a meta' senza che nessun messaggio lo dica
+    if (ripresa && !lavoro.fermato && !lavoro.fusoSbagliato && _orariRipresaProgrammata_(lavoro.funzione)) {
+      _programmaRipresaOrari_(_ORARI_TRIGGER_COLORI);
+      var aspetto = 'I colori delle lezioni aspettano il lavoro sul calendario a meta\' (' + lavoro.funzione + '), ' +
+        'che riprende da solo: riprovo fra un minuto, da dove ero arrivato. Non ho toccato niente.';
+      Logger.log(aspetto);
+      return aspetto;
+    }
+    throw new Error(_orariCalendarioAMeta_(lavoro));
+  }
 
   // prima di toccare il calendario: dati e date, controllati
   var d = _orariDati_();

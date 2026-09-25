@@ -622,8 +622,10 @@ ORARI - le email a te e il calendario
    mettono. Per le lezioni gia' sul calendario rigenera e incolla
    DatiOrari.gs ed esegui ORARI_6_coloraLezioni: cambia solo il colore
    delle lezioni messe dallo script (con il contrassegno), senza rifarle
-   ne' spostarle, e riprende da sola se si ferma. Con ORARI_4_calendario
-   o ORARI_5_cambioOrario a meta' non colora niente: finiscili prima. Le
+   ne' spostarle, e riprende da sola se si ferma. Con ORARI_4_calendario,
+   ORARI_5_cambioOrario o ORARI_7_colloqui a meta' non colora niente:
+   finiscili prima (se si era fermata e riprende da sola, li aspetta; se
+   no, il loro messaggio finale ti dice di rieseguirla). Le
    lezioni di una classe a cui togli il colore restano come sono: quel
    colore lo togli da Google Calendar. Restano come sono anche le lezioni
    colorate a mano solo loro che il cambio d'orario ha rimesso come eventi

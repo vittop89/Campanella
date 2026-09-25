@@ -3117,8 +3117,11 @@ if (conCalendario) {
       !proprieta.has(PROGRESSO_CALENDARIO) && vive(calendari[0]).length === piano.tratti.length &&
       coloriSbagliati(calendari[0], coloriProva).length === 0);
     // una ripresa di ORARI_6_coloraLezioni che trova un cambio d'orario a meta'
-    // (eseguito mentre lei aspettava): si ferma, e il suo lavoro resta per dopo
-    daRicolorare();
+    // (eseguito mentre lei aspettava), che riprende da solo: non colora niente,
+    // lo aspetta e riprova fra un minuto; finito il cambio, finisce da sola.
+    // Senza rimettere la sua ripresa, il lavoro dei colori restava a meta' e
+    // nessun messaggio lo diceva
+    const giroR = daRicolorare();
     coloriAMeta(2);
     const coloriSalvati = proprieta.get(PROGRESSO_COLORI);
     docOriginale.celle = ruotata(celleOriginali);
@@ -3127,15 +3130,44 @@ if (conCalendario) {
     sogliaCalendario = Infinity;
     orologio = 0;
     const scritteR = scritture;
-    const ripresa6 = errore(() => contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa dei colori' }));
-    verifica('una ripresa di ORARI_6_coloraLezioni con un cambio d\'orario a meta\' si ferma senza colorare, e il ' +
-      'suo lavoro resta per quando il cambio e\' finito',
-      /cambio d'orario a meta'/.test(ripresa6) && scritture === scritteR && proprieta.get(PROGRESSO_COLORI) === coloriSalvati &&
-      ripresaDi('ORARI_6_coloraLezioni').length === 0 && proprieta.has(PROGRESSO_CALENDARIO));
+    let ripresa6 = '';
+    const erroreR = errore(() => { ripresa6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa dei colori' }); });
+    verifica('una ripresa di ORARI_6_coloraLezioni con un cambio d\'orario a meta\' che riprende da solo non colora ' +
+      'niente, lo dice e riprova fra un minuto, e il suo lavoro resta (' + (erroreR || ripresa6) + ')',
+      erroreR === '' && /aspettano il lavoro sul calendario a meta'/.test(ripresa6) && /ORARI_5_cambioOrario/.test(ripresa6) &&
+      scritture === scritteR && proprieta.get(PROGRESSO_COLORI) === coloriSalvati &&
+      ripresaDi('ORARI_6_coloraLezioni').length === 1 && proprieta.has(PROGRESSO_CALENDARIO));
     riprendiFinoInFondo('ORARI_5_cambioOrario');
-    contesto.ORARI_6_coloraLezioni();
-    verifica('  ...e finito il cambio, rieseguita finisce il suo lavoro',
+    const fineCambioR = registro[registro.length - 1];
+    contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa dei colori, dopo il cambio' });
+    verifica('  ...e finito il cambio (che non nomina i colori: riprendono da soli), la sua ripresa finisce il lavoro',
+      !/ORARI_6_coloraLezioni e' ancora a meta'/.test(fineCambioR) &&
       !proprieta.has(PROGRESSO_CALENDARIO) && !proprieta.has(PROGRESSO_COLORI) &&
+      ripresaDi('ORARI_6_coloraLezioni').length === 0 && coloriSbagliati(calendari[0], giroR).length === 0 &&
+      uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio));
+    // lo stesso, con il cambio che non riprende da solo (la sua ripresa e'
+    // finita con un altro errore): la ripresa dei colori si ferma, e il
+    // messaggio finale del cambio, rieseguito a mano, dice di rieseguire ORARI_6
+    docOriginale.celle = celleOriginali.slice();
+    const giroS = daRicolorare();
+    coloriAMeta(2);
+    docOriginale.celle = ruotata(celleOriginali);
+    sogliaCalendario = 5;
+    contesto.ORARI_5_cambioOrario();
+    sogliaCalendario = Infinity;
+    orologio = 0;
+    for (let i = trigger.length - 1; i >= 0; i--) if (trigger[i].fn === 'ORARI_5_cambioOrario') trigger.splice(i, 1);
+    const fermoS = errore(() => contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa dei colori' }));
+    verifica('con il cambio a meta\' che non riprende da solo, la ripresa dei colori si ferma e lo dice, senza riprogrammarsi',
+      /cambio d'orario a meta'/.test(fermoS) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
+      proprieta.has(PROGRESSO_COLORI));
+    const fineS = contesto.ORARI_5_cambioOrario();
+    verifica('  ...e il cambio, rieseguito e finito, dice che ORARI_6_coloraLezioni e\' a meta\' e va rieseguita',
+      /ORARI_6_coloraLezioni e' ancora a meta' e non riprende da sola: rieseguila/.test(fineS));
+    contesto.ORARI_6_coloraLezioni();
+    verifica('  ...e rieseguita finisce il suo lavoro',
+      !proprieta.has(PROGRESSO_CALENDARIO) && !proprieta.has(PROGRESSO_COLORI) &&
+      coloriSbagliati(calendari[0], giroS).length === 0 &&
       uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio));
     docOriginale.celle = celleOriginali.slice();
   }
