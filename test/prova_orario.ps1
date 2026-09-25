@@ -961,6 +961,84 @@ console.log(JSON.stringify({
         Verifica "un file senza l'intestazione dei colloqui: niente righe, e dice quali colonne ci vogliono ($($senzaIntestazione.Errore))" (
             $senzaIntestazione.Righe.Count -eq 0 -and $senzaIntestazione.Errore -match 'intestazione' -and
             $senzaIntestazione.Errore -match '"data"')
+
+        # un elenco di prenotazioni (nomi inventati): non si importa, e dice
+        # che le prenotazioni restano nel registro. Anche con la sola colonna
+        # "Nome" (che non e' piu' il titolo) o con la classe
+        $campoRegistro = $tCol.GetField('RestanoNelRegistro', $FS)
+        $restanoNelRegistro = if ($null -ne $campoRegistro) { [string]$campoRegistro.GetValue($null) } else { '(manca Colloqui.RestanoNelRegistro)' }
+        $prenotazioni = @(
+            @('prenotazioni.csv', @('Data;Dalle;Alle;Cognome;Nome;Classe;Genitore',
+                                    '15/12/2026;15:00;15:10;Verdi;Giulia;2B;Verdi Mario',
+                                    '15/12/2026;15:10;15:20;Neri;Luca;3C;Neri Anna')),
+            @('nome_classe.csv', @('Data;Inizio;Fine;Nome;Classe', '15/12/2026;15:00;15:10;Giulia;2B')),
+            @('solo_nome.csv', @('Data;Inizio;Fine;Nome', '15/12/2026;15:00;15:10;Giulia')),
+            @('email.csv', @('Giorno;Dalle;Alle;Cosa;E-mail genitore', 'giovedi;10:10;11:10;Ricevimento;x@esempio.it'))
+        )
+        foreach ($p in $prenotazioni) {
+            $imp = Importa (ScriviCsv $p[0] $p[1])
+            Verifica "un file con le persone ($($p[1][0])) non si importa: nessuna riga, e dice perche' ($($imp.Errore))" (
+                $imp.Righe.Count -eq 0 -and $imp.Errore -match 'colonne con le persone' -and
+                $imp.Errore.Contains($restanoNelRegistro) -and $imp.Errore -notmatch 'Giulia|Luca|Verdi|esempio')
+        }
+        # la data con il giorno della settimana, nella colonna giorno o in quella
+        # data: una giornata (con il giorno, cosi' la casella dice se torna),
+        # mai un ricevimento per tutto l'anno. "ogni" solo con il giorno da solo;
+        # una cella che non si capisce resta nella riga, in ambra. Dal e al: le
+        # date del ricevimento
+        $conGiorno = Importa (ScriviCsv 'giorno_con_data.csv' @(
+            'Giorno;Dalle;Alle;Cosa;Link',
+            "gioved$ie 17/12/2026;15:00;18:00;Colloqui generali;https://meet.google.com/kmn-pqrs-tuv",
+            'mar 15 dic 2026;15:00;18:00;Colloqui generali;',
+            "gioved$ie;10:10;11:10;Ricevimento;",
+            'boh;10:10;11:10;Ricevimento;'))
+        Verifica "nella colonna giorno una data con il giorno della settimana e' una giornata; il giorno da solo un ricevimento ($($conGiorno.Righe -join ' | '))" (
+            $conGiorno.Errore -eq '' -and $conGiorno.Saltate -eq 0 -and ($conGiorno.Righe -join '|') -eq (
+                "gioved$ie 17/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv|" +
+                'mar 15/12/2026 15:00-18:00 Colloqui generali|ogni giovedi 10:10-11:10 Ricevimento|boh 10:10-11:10 Ricevimento'))
+        $letteGiorno = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @(($conGiorno.Righe -join "`r`n"), $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+        Verifica "  ...e la casella le legge cosi': due giornate, un ricevimento, e quella che non si capisce in ambra" (
+            $letteGiorno.Count -eq 4 -and $letteGiorno[0].Voce.Tipo.ToString() -eq 'Giornata' -and
+            $letteGiorno[1].Voce.Tipo.ToString() -eq 'Giornata' -and $letteGiorno[2].Voce.Tipo.ToString() -eq 'Settimanale' -and
+            $null -eq $letteGiorno[3].Voce)
+        $conData = Importa (ScriviCsv 'data_con_giorno.csv' @(
+            'Data;Giorno;Dalle;Alle;Cosa',
+            "marted$ie 15/12/2026;;15:00;18:00;Colloqui generali",
+            '22/12/2026 martedi;;15:00;18:00;Colloqui generali',
+            "16/12/2026;marted$ie;15:00;18:00;Colloqui generali"))
+        Verifica "nella colonna data, con il giorno della settimana davanti, dopo o nella colonna giorno: giornate ($($conData.Righe -join ' | '))" (
+            $conData.Errore -eq '' -and $conData.Saltate -eq 0 -and ($conData.Righe -join '|') -eq (
+                "marted$ie 15/12/2026 15:00-18:00 Colloqui generali|22/12/2026 martedi 15:00-18:00 Colloqui generali|" +
+                "marted$ie 16/12/2026 15:00-18:00 Colloqui generali"))
+        $letteData = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @(($conData.Righe -join "`r`n"), $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+        Verifica "  ...e il 16/12/2026, che e' mercoledi', e' in ambra" (
+            $letteData.Count -eq 3 -and $letteData[0].Buona -and $letteData[0].Avvisi.Count -eq 0 -and $letteData[1].Avvisi.Count -eq 0 -and
+            $letteData[2].Avvisi.Count -eq 1 -and $letteData[2].Avvisi[0] -match "e' mercoledi', non martedi'")
+        $conDalAl = Importa (ScriviCsv 'dal_al.csv' @(
+            'Giorno;Dal;Al;Dalle;Alle;Cosa;Link',
+            'giovedi;12/10/2026;22/05/2027;10:10;11:10;Ricevimento;https://meet.google.com/abc-defg-hij'))
+        Verifica "con le colonne dal e al, le date del ricevimento ($($conDalAl.Righe -join ' | '))" (
+            $conDalAl.Errore -eq '' -and ($conDalAl.Righe -join '|') -eq
+                'dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij')
+        # importato di nuovo, lo stesso file non aggiunge niente (e nemmeno una riga gia' scritta a mano)
+        $scritte = "ogni  giovedi 10:10-11:10 RICEVIMENTO https://meet.google.com/abc-defg-hij`r`nuna riga mia"
+        $mSenza = $tCol.GetMethod('SenzaQuelleGiaScritte', $FS)
+        Verifica "c'e' Colloqui.SenzaQuelleGiaScritte, per l'import" ($null -ne $mSenza)
+        if ($null -ne $mSenza) {
+            $aArg = New-Object 'object[]' 3
+            $aArg[0] = (($dalCsv.Righe) -join "`r`n")
+            $aArg[1] = [System.Collections.Generic.List[string]]$dalCsv.Righe
+            $aArg[2] = 0
+            $dinuovo = @($mSenza.Invoke($null, $aArg))
+            $aArg2 = New-Object 'object[]' 3
+            $aArg2[0] = $scritte
+            $aArg2[1] = [System.Collections.Generic.List[string]]$dalCsv.Righe
+            $aArg2[2] = 0
+            $nuove = @($mSenza.Invoke($null, $aArg2))
+            Verifica "lo stesso file importato di nuovo non aggiunge niente ($($dinuovo.Count) righe, $($aArg[2]) gia' scritte); una riga gia' scritta a mano (con altri spazi e maiuscole) nemmeno ($($nuove.Count), $($aArg2[2]))" (
+                $dinuovo.Count -eq 0 -and [int]$aArg[2] -eq $dalCsv.Righe.Count -and $nuove.Count -eq ($dalCsv.Righe.Count - 1) -and
+                [int]$aArg2[2] -eq 1)
+        }
     }
 
     # --- DatiOrari.gs porta i giorni senza lezione e la data del cambio -----

@@ -17,7 +17,8 @@
 //  ricevimento settimanale a tratti come le lezioni, senza i giorni senza
 //  lezione e quelli senza colloqui, e le giornate come eventi singoli, con il
 //  link come luogo. Le prenotazioni dei genitori restano nel registro
-//  elettronico: qui c'e' solo quando e dove.
+//  elettronico: qui c'e' solo quando e dove, e l'import rifiuta un file con
+//  i nomi delle persone (un elenco di prenotazioni).
 //
 //  Le date si leggono come quelle dei giorni senza lezione (Calendario.cs):
 //  qui non c'e' un altro lettore di date. Il piano (quante serie e quanti
@@ -776,6 +777,8 @@ namespace Campanella
         /// <summary>
         /// Le righe dei colloqui di un file .csv o .xlsx (il primo foglio con
         /// l'intestazione giusta), da aggiungere alla casella: vedi RigheDaFoglio.
+        /// Un foglio con i nomi delle persone (un elenco di prenotazioni) non si
+        /// importa, e l'errore lo dice anche se un altro foglio non ha l'intestazione.
         /// </summary>
         public static List<string> Importa(string percorso, DateTime inizioPeriodo, out int saltate, out string errore)
         {
@@ -795,31 +798,58 @@ namespace Campanella
                 string e;
                 List<string> righe = RigheDaFoglio(f, inizioPeriodo, out s, out e);
                 if (e == "") { saltate = s; return righe; }
-                if (primo == "") primo = e;
+                if (primo == "" || e.IndexOf(RestanoNelRegistro, StringComparison.Ordinal) >= 0) primo = e;
             }
             errore = (primo != "") ? primo : "Il file non ha fogli.";
             return new List<string>();
         }
 
+        /// <summary>Nell'errore di un file con i nomi delle persone: le prenotazioni non passano da Campanella.</summary>
+        public const string RestanoNelRegistro = "le prenotazioni restano nel registro elettronico";
+
+        /// <summary>
+        /// Una colonna di persone, dall'intestazione (solo lettere minuscole):
+        /// cognome, nome, alunno, studente, genitore, famiglia, email, telefono,
+        /// classe... Un foglio che ce l'ha e' un elenco di prenotazioni.
+        /// </summary>
+        static bool DiPersone(string k)
+        {
+            if (k == "nome" || k == "tel" || k == "cell") return true;
+            string[] parti = { "cognom", "nominativ", "alunn", "student", "genitor", "famigli", "tutore", "mail",
+                               "telefon", "cellular", "classe" };
+            foreach (string p in parti) if (k.Contains(p)) return true;
+            return false;
+        }
+
         /// <summary>
         /// Le righe dei colloqui di un foglio. Le colonne si riconoscono
         /// dall'intestazione, in una delle prime dieci righe: "data" oppure
-        /// "giorno" (una data o un giorno della settimana), "dalle" e "alle" (o
-        /// inizio e fine), "cosa" o "descrizione" (il nome), "link". Una riga con
-        /// una data diventa una giornata, una con un giorno della settimana un
-        /// ricevimento settimanale ("ogni giovedi ..."); le altre si saltano
-        /// (saltate). Date e ore di Excel scritte come numeri (46371, 0,4236)
-        /// valgono. Senza l'intestazione, errore dice quali colonne ci vogliono.
+        /// "giorno" (una data, anche con il giorno della settimana, o un giorno
+        /// della settimana da solo), "dalle" e "alle" (o inizio e fine), "cosa",
+        /// "descrizione" o "titolo" (il nome), "link", e per un ricevimento
+        /// "dal" e "al" (le sue date). Una riga con una data diventa una
+        /// giornata ("martedi 15/12/2026 ...", con il giorno della settimana se
+        /// c'e', cosi' la casella dice se torna), una con il solo giorno della
+        /// settimana un ricevimento settimanale ("ogni giovedi ..."); una data
+        /// che non si capisce resta com'e', e la casella la mostra fra quelle da
+        /// guardare. Si saltano (saltate) solo le righe senza data ne' giorno.
+        /// Date e ore di Excel scritte come numeri (46371, 0,4236) valgono.
+        /// Senza l'intestazione, errore dice quali colonne ci vogliono. Un
+        /// foglio con colonne di persone (cognome, nome, classe, genitore,
+        /// email...) non si importa: e' un elenco di prenotazioni, e i nomi
+        /// degli studenti e dei genitori sul calendario non vanno.
         /// </summary>
         public static List<string> RigheDaFoglio(FoglioExcel f, DateTime inizioPeriodo, out int saltate, out string errore)
         {
             List<string> fuori = new List<string>();
             saltate = 0;
             errore = "";
-            int riga = -1, cData = -1, cGiorno = -1, cDalle = -1, cAlle = -1, cCosa = -1, cLink = -1;
+            int riga = -1, cData = -1, cGiorno = -1, cDalle = -1, cAlle = -1, cCosa = -1, cLink = -1, cDal = -1, cAl = -1;
+            List<string> persone = new List<string>();
             for (int i = 0; i < Math.Min(10, f.NumeroRighe) && riga < 0; i++)
             {
-                int d = -1, g = -1, da = -1, a = -1, c = -1, l = -1;
+                int d = -1, g = -1, da = -1, a = -1, c = -1, l = -1, dal = -1, al = -1;
+                List<string> diPersone = new List<string>();
                 for (int j = 0; j < f.Colonne; j++)
                 {
                     string k = Regex.Replace(f.Cella(i, j).ToLowerInvariant(), @"[^a-z]", "");
@@ -827,12 +857,16 @@ namespace Campanella
                     else if ((k == "giorno" || k == "giornodellasettimana" || k == "giornosettimana") && g < 0) g = j;
                     else if ((k == "dalle" || k == "inizio" || k == "orainizio" || k == "dallora") && da < 0) da = j;
                     else if ((k == "alle" || k == "fine" || k == "orafine" || k == "allora") && a < 0) a = j;
-                    else if ((k == "cosa" || k == "descrizione" || k == "nome" || k == "titolo") && c < 0) c = j;
+                    else if ((k == "cosa" || k == "descrizione" || k == "titolo") && c < 0) c = j;
                     else if ((k == "link" || k == "meet" || k == "linkmeet" || k == "linkdelmeet" || k == "collegamento") && l < 0) l = j;
+                    else if (k == "dal" && dal < 0) dal = j;
+                    else if (k == "al" && al < 0) al = j;
+                    else if (DiPersone(k)) diPersone.Add(f.Cella(i, j).Trim());
                 }
-                if ((d >= 0 || g >= 0) && (da >= 0 || c >= 0 || l >= 0))
+                if ((d >= 0 || g >= 0) && (da >= 0 || c >= 0 || l >= 0 || diPersone.Count > 0))
                 {
-                    riga = i; cData = d; cGiorno = g; cDalle = da; cAlle = a; cCosa = c; cLink = l;
+                    riga = i; cData = d; cGiorno = g; cDalle = da; cAlle = a; cCosa = c; cLink = l; cDal = dal; cAl = al;
+                    persone = diPersone;
                 }
             }
             if (riga < 0)
@@ -841,35 +875,91 @@ namespace Campanella
                          "e almeno una fra \"dalle\", \"alle\", \"cosa\" (o \"descrizione\") e \"link\".";
                 return fuori;
             }
+            if (persone.Count > 0)
+            {
+                // un elenco di prenotazioni: le righe con i nomi delle persone non si leggono nemmeno
+                errore = "Il file ha colonne con le persone (\"" + string.Join("\", \"", persone.ToArray()) + "\"): sembra " +
+                         "un elenco di prenotazioni, e non lo importo. Sul calendario vanno solo quando e dove, e " +
+                         RestanoNelRegistro + ". Importa un file con le sole colonne data (o giorno), dalle, alle, cosa " +
+                         "e link.";
+                return fuori;
+            }
             for (int i = riga + 1; i < f.NumeroRighe; i++)
             {
                 string data = Cella(f, i, cData), giorno = Cella(f, i, cGiorno);
                 string dalle = OraDellaCella(Cella(f, i, cDalle)), alle = OraDellaCella(Cella(f, i, cAlle));
-                string nome = Regex.Replace(Cella(f, i, cCosa), @"\s+", " ").Trim();
-                string link = Cella(f, i, cLink).Trim();
-                if (data == "" && giorno == "" && dalle == "" && alle == "" && nome == "" && link == "") continue;
-                string quando = DataDellaCella(data, inizioPeriodo);
-                if (quando == "") quando = DataDellaCella(giorno, inizioPeriodo);
-                if (quando == "")
-                {
-                    Match mg = GiornoDavanti.Match(giorno.Trim());
-                    if (mg.Success) quando = "ogni " + NomiGiorni[IndiceGiorno(mg.Groups["g"].Value)];
-                }
+                string nome = Cella(f, i, cCosa);
+                string link = Cella(f, i, cLink);
+                string dal = Cella(f, i, cDal), al = Cella(f, i, cAl);
+                if (data == "" && giorno == "" && dalle == "" && alle == "" && nome == "" && link == "" && dal == "" &&
+                    al == "") continue;
+                string quando = QuandoDelleCelle(data, giorno, inizioPeriodo);
                 if (quando == "") { saltate++; continue; }
+                // le date del ricevimento, davanti come nella casella; una che manca
+                // o che non si capisce la mostra la casella, fra quelle da guardare
+                if (dal != "" || al != "")
+                    quando = "dal " + (dal != "" ? DataOCella(dal, inizioPeriodo) : "?") + " al " +
+                             (al != "" ? DataOCella(al, inizioPeriodo) : "?") + " " + quando;
                 fuori.Add(RigaDi(quando, dalle, alle, nome, link));
             }
             return fuori;
         }
 
+        /// <summary>Una cella del foglio, con gli spazi (e gli a capo) ridotti a uno.</summary>
         static string Cella(FoglioExcel f, int riga, int colonna)
         {
-            return (colonna < 0) ? "" : (f.Cella(riga, colonna) ?? "").Trim();
+            return (colonna < 0) ? "" : Regex.Replace(f.Cella(riga, colonna) ?? "", @"\s+", " ").Trim();
+        }
+
+        /// <summary>
+        /// Il "quando" di una riga del foglio, dalla colonna data e da quella
+        /// giorno: vedi QuandoDellaCella. Con una data in una e il giorno della
+        /// settimana nell'altra, tutti e due ("martedi 15/12/2026"): la casella
+        /// dice se tornano. "" se le due celle sono vuote.
+        /// </summary>
+        static string QuandoDelleCelle(string data, string giorno, DateTime inizioPeriodo)
+        {
+            if (data == "" && giorno == "") return "";
+            string quando = QuandoDellaCella(data != "" ? data : giorno, inizioPeriodo);
+            Match mg = GiornoDavanti.Match(giorno);
+            if (data != "" && mg.Success && mg.Length == giorno.Length &&
+                Regex.IsMatch(quando, @"^[0-9]{2}/[0-9]{2}/[0-9]{4}$"))
+                quando = giorno.TrimEnd(',', ' ') + " " + quando;
+            return quando;
+        }
+
+        /// <summary>
+        /// Il "quando" di una cella, come lo scrive la casella: una data (15/12/2026,
+        /// anche come numero di Excel), con il giorno della settimana davanti o
+        /// dopo se c'e' ("giovedi 17/12/2026"), oppure "ogni giovedi" se la cella
+        /// ha soltanto il giorno della settimana. Altrimenti la cella com'e': la
+        /// riga non si capira', e la casella la mostra fra quelle da guardare
+        /// (una data con il giorno della settimana non diventa un ricevimento).
+        /// </summary>
+        static string QuandoDellaCella(string v, DateTime inizioPeriodo)
+        {
+            if (v == "") return "";
+            string data = DataDellaCella(v, inizioPeriodo);
+            if (data != "") return data;
+            Match mg = GiornoDavanti.Match(v);
+            if (!mg.Success) return v;
+            if (mg.Length == v.Length) return "ogni " + NomiGiorni[IndiceGiorno(mg.Groups["g"].Value)];
+            data = DataDellaCella(v.Substring(mg.Length), inizioPeriodo);
+            return (data != "") ? v.Substring(0, mg.Length).TrimEnd(',', ' ') + " " + data : v;
+        }
+
+        /// <summary>La data di una cella (DataDellaCella), o la cella com'e' se non si capisce.</summary>
+        static string DataOCella(string v, DateTime inizioPeriodo)
+        {
+            string data = DataDellaCella(v, inizioPeriodo);
+            return (data != "") ? data : v;
         }
 
         /// <summary>
         /// Una data di una cella come la scrive la casella (15/12/2026): scritta
-        /// come nei giorni senza lezione, o come numero di Excel (46371). "" se
-        /// non e' una data.
+        /// come nei giorni senza lezione, o come numero di Excel (46371), da sola
+        /// o con dopo il giorno della settimana ("15/12/2026 martedi", che resta).
+        /// "" se non e' una data, o se dopo c'e' altro.
         /// </summary>
         static string DataDellaCella(string v, DateTime inizioPeriodo)
         {
@@ -880,9 +970,36 @@ namespace Campanella
             DateTime d;
             int l;
             string perche;
-            if (Calendario.DataAllInizio(v, inizioPeriodo, out d, out l, out perche))
-                return d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-            return "";
+            if (!Calendario.DataAllInizio(v, inizioPeriodo, out d, out l, out perche)) return "";
+            string scritta = d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            string dopo = v.Substring(l).Trim().TrimStart(',', ';').Trim();
+            if (dopo == "") return scritta;
+            Match mg = GiornoDavanti.Match(dopo);
+            return (mg.Success && mg.Length == dopo.Length) ? scritta + " " + dopo.TrimEnd(',', ' ') : "";
+        }
+
+        /// <summary>
+        /// Le righe importate che nella casella non ci sono gia' (come testo, senza
+        /// badare a maiuscole e spazi), senza doppioni fra loro: il file importato
+        /// di nuovo non raddoppia i colloqui. gia: quante sono rimaste fuori.
+        /// </summary>
+        public static List<string> SenzaQuelleGiaScritte(string testo, List<string> righe, out int gia)
+        {
+            gia = 0;
+            HashSet<string> scritte = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string r in Calendario.Righe(testo)) scritte.Add(Normale(r));
+            List<string> fuori = new List<string>();
+            foreach (string r in righe)
+            {
+                if (!scritte.Add(Normale(r))) { gia++; continue; }
+                fuori.Add(r);
+            }
+            return fuori;
+        }
+
+        static string Normale(string riga)
+        {
+            return Regex.Replace(riga ?? "", @"\s+", " ").Trim().ToLowerInvariant();
         }
 
         /// <summary>

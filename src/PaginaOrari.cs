@@ -842,7 +842,9 @@ namespace Campanella
                 "per riga: un'altra data, un altro giorno della settimana o un'altra ora nel nome non li capisco, " +
                 "invece di metterli nel titolo.\r\n\r\n" +
                 "\"Importa da un file...\" legge un .csv o un .xlsx con le colonne data (o giorno), dalle, alle, " +
-                "cosa (o descrizione) e link, e aggiunge le sue righe qui: la casella resta l'unica fonte.\r\n\r\n" +
+                "cosa (o descrizione) e link, e per un ricevimento dal e al, e aggiunge qui le righe che non ci sono " +
+                "gia': la casella resta l'unica fonte. Un file con i nomi delle persone (cognome, nome, classe, " +
+                "genitore, email...) non lo importo: e' un elenco di prenotazioni.\r\n\r\n" +
                 "Sotto c'e' come ho letto ogni riga. In ambra quelle da guardare: non capite, senza ora o con la " +
                 "fine prima dell'inizio, uguali a una di sopra (restano qui, ma sul calendario non vanno), in un " +
                 "giorno che non e' nell'orario, fuori dal periodo, con una cadenza come \"a settimane alterne\" " +
@@ -1208,8 +1210,9 @@ namespace Campanella
 
         /// <summary>
         /// Aggiunge in fondo alla casella dei colloqui le righe importate da un
-        /// file (daDove), e lo dice nella barra in basso, con quelle saltate
-        /// perche' senza data ne' giorno.
+        /// file (daDove), senza quelle che ci sono gia' (lo stesso file importato
+        /// di nuovo non raddoppia i colloqui), e lo dice nella barra in basso,
+        /// con quelle saltate perche' senza data ne' giorno.
         /// </summary>
         void AggiungiColloqui(List<string> righe, string daDove, int saltate)
         {
@@ -1219,14 +1222,23 @@ namespace Campanella
                               "settimana.", Tema.Ambra);
                 return;
             }
+            int gia;
+            List<string> nuoveRighe = Colloqui.SenzaQuelleGiaScritte(txtColloqui.Text, righe, out gia);
+            string giaDette = (gia == 1 ? "Una riga era gia' nella casella, e non l'ho aggiunta di nuovo."
+                                        : gia + " righe erano gia' nella casella, e non le ho aggiunte di nuovo.");
+            if (nuoveRighe.Count == 0)
+            {
+                Guscio.Stato1("Le righe di " + daDove + " sono gia' tutte nella casella: non ho aggiunto niente.");
+                return;
+            }
             string prima = txtColloqui.Text.TrimEnd();
-            string nuove = string.Join("\r\n", righe.ToArray());
+            string nuove = string.Join("\r\n", nuoveRighe.ToArray());
             txtColloqui.Text = (prima == "") ? nuove : prima + "\r\n" + nuove;
             txtColloqui.SelectionStart = txtColloqui.TextLength;
             txtColloqui.ScrollToCaret();
             AggiornaCalendario();
-            string detto = (righe.Count == 1 ? "Importata una riga" : "Importate " + righe.Count + " righe") + " da " +
-                           daDove + ": guarda qui sotto come le ho lette.";
+            string detto = (nuoveRighe.Count == 1 ? "Importata una riga" : "Importate " + nuoveRighe.Count + " righe") +
+                           " da " + daDove + ": guarda qui sotto come le ho lette." + (gia > 0 ? " " + giaDette : "");
             if (saltate > 0)
                 Guscio.Stato1(detto + " " + (saltate == 1 ? "Una riga, senza data ne' giorno, e' saltata."
                                                           : saltate + " righe, senza data ne' giorno, sono saltate."),
@@ -1702,6 +1714,10 @@ namespace Campanella
             sb.AppendLine("    dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento");
             sb.AppendLine("    15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/...");
             sb.AppendLine("    niente colloqui dal 14/12/2026 al 09/01/2027");
+            sb.AppendLine("Una voce per riga: un'altra data, un altro giorno o un'altra ora nel nome");
+            sb.AppendLine("non li capisco (restano qui, in ambra). L'import aggiunge solo le righe che");
+            sb.AppendLine("non ci sono gia', e un file con i nomi delle persone (un elenco di");
+            sb.AppendLine("prenotazioni) non lo importa.");
             sb.AppendLine("ORARI_4_calendario li mette con l'orario: il ricevimento di ogni");
             sb.AppendLine("settimana come le lezioni (niente nei giorni senza lezione e in quelli");
             sb.AppendLine("senza colloqui), le giornate come eventi singoli. Il titolo e' il nome,");

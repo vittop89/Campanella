@@ -1081,10 +1081,18 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
         $righeImp = $tCollK.GetMethod('Importa', $FS).Invoke($null, $argImp)
         $tPO.GetMethod('AggiungiColloqui', $FIp).Invoke($orari, @($righeImp, [string]'colloqui_esempio.csv', [int]$argImp[2])) | Out-Null
         [System.Windows.Forms.Application]::DoEvents()
-        Verifica "importate le righe di test\colloqui_esempio.csv in fondo alla casella, e la barra dice quante e quella saltata ($($lblStato.Text))" (
+        # due righe del file (il ricevimento del giovedi' e la giornata del 15/12) sono gia' nella casella
+        Verifica "importate le righe di test\colloqui_esempio.csv in fondo alla casella, senza quelle che c'erano gia', e la barra dice quante, quelle gia' scritte e quella saltata ($($lblStato.Text))" (
             $txtColl.Text.StartsWith($collProva) -and $txtColl.Text.EndsWith('ogni martedi 15:00-16:00 Ricevimento pomeridiano') -and
-            $lblStato.Text -match 'Importate 4 righe da colloqui_esempio\.csv' -and $lblStato.Text -match 'saltata' -and
-            @($lstColl.Items).Count -eq 10)
+            $lblStato.Text -match 'Importate 2 righe da colloqui_esempio\.csv' -and
+            $lblStato.Text -match "2 righe erano gia' nella casella" -and $lblStato.Text -match 'saltata' -and
+            @($lstColl.Items).Count -eq 8)
+        $primaDiNuovo = $txtColl.Text
+        $tPO.GetMethod('AggiungiColloqui', $FIp).Invoke($orari, @($righeImp, [string]'colloqui_esempio.csv', [int]$argImp[2])) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "importato di nuovo, lo stesso file non aggiunge niente, e la barra lo dice ($($lblStato.Text))" (
+            $txtColl.Text -eq $primaDiNuovo -and $lblStato.Text -match "sono gia' tutte nella casella" -and
+            @($lstColl.Items).Count -eq 8)
         ControllaPannello $pannelloOrari 'Orari / 4 con i colloqui importati'
         if ($Immagini) {
             $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
