@@ -2,7 +2,8 @@
 //  Colloqui.cs - i colloqui con le famiglie sul calendario (Orari, passo 4)
 //
 //  Il docente scrive i suoi colloqui, una riga per voce, o li importa da un
-//  file (.csv o .xlsx, con le colonne data o giorno, dalle, alle, cosa, link):
+//  file (.csv o .xlsx, con le colonne data o giorno, dalle e alle o ora,
+//  cosa, link):
 //
 //      ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij
 //      dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento
@@ -20,7 +21,8 @@
 //  lezione e quelli senza colloqui, e le giornate come eventi singoli, con il
 //  link come luogo. Le prenotazioni dei genitori restano nel registro
 //  elettronico: qui c'e' solo quando e dove, e l'import rifiuta un file con
-//  i nomi delle persone (un elenco di prenotazioni).
+//  i nomi delle persone (un elenco di prenotazioni) o con la colonna dei
+//  docenti (l'orario di ricevimento della scuola, con i link dei colleghi).
 //
 //  Le date si leggono come quelle dei giorni senza lezione (Calendario.cs):
 //  qui non c'e' un altro lettore di date. Il piano (quante serie e quanti
@@ -890,8 +892,10 @@ namespace Campanella
         /// <summary>
         /// Le righe dei colloqui di un file .csv o .xlsx (il primo foglio con
         /// l'intestazione giusta), da aggiungere alla casella: vedi RigheDaFoglio.
-        /// Un foglio con i nomi delle persone (un elenco di prenotazioni) non si
-        /// importa, e l'errore lo dice anche se un altro foglio non ha l'intestazione.
+        /// Un foglio con i nomi delle persone (un elenco di prenotazioni) o con
+        /// la colonna dei docenti (l'orario di ricevimento di tutta la scuola)
+        /// non si importa, e l'errore lo dice anche se un altro foglio non ha
+        /// l'intestazione.
         /// </summary>
         public static List<string> Importa(string percorso, DateTime inizioPeriodo, out int saltate, out string errore)
         {
@@ -905,13 +909,17 @@ namespace Campanella
                 return new List<string>();
             }
             string primo = "";
+            int pesoPrimo = -1;
             foreach (FoglioExcel f in fogli)
             {
                 int s;
                 string e;
                 List<string> righe = RigheDaFoglio(f, inizioPeriodo, out s, out e);
                 if (e == "") { saltate = s; return righe; }
-                if (primo == "" || e.IndexOf(RestanoNelRegistro, StringComparison.Ordinal) >= 0) primo = e;
+                // l'errore da dire: quello delle persone, poi quello dei docenti, poi il primo
+                int peso = e.IndexOf(RestanoNelRegistro, StringComparison.Ordinal) >= 0 ? 2
+                         : e.IndexOf(DiPiuDocenti, StringComparison.Ordinal) >= 0 ? 1 : 0;
+                if (peso > pesoPrimo) { primo = e; pesoPrimo = peso; }
             }
             errore = (primo != "") ? primo : "Il file non ha fogli.";
             return new List<string>();
@@ -919,17 +927,36 @@ namespace Campanella
 
         /// <summary>Nell'errore di un file con i nomi delle persone: le prenotazioni non passano da Campanella.</summary>
         public const string RestanoNelRegistro = "le prenotazioni restano nel registro elettronico";
+        /// <summary>Nell'errore di un file con la colonna dei docenti: e' l'orario di ricevimento della scuola.</summary>
+        public const string DiPiuDocenti = "l'orario di ricevimento di piu' docenti";
 
         /// <summary>
         /// Una colonna di persone, dall'intestazione (solo lettere minuscole):
-        /// cognome, nome, alunno, studente, genitore, famiglia, email, telefono,
-        /// classe... Un foglio che ce l'ha e' un elenco di prenotazioni.
+        /// cognome, nome, alunno, studente, genitore, madre, padre, famiglia,
+        /// email, telefono, prenotato da, richiedente, partecipante, utente...
+        /// Un foglio che ce l'ha e' un elenco di prenotazioni. La classe da sola
+        /// no: e' di un calendario dei colloqui generali ("prime").
         /// </summary>
         static bool DiPersone(string k)
         {
             if (k == "nome" || k == "tel" || k == "cell") return true;
-            string[] parti = { "cognom", "nominativ", "alunn", "student", "genitor", "famigli", "tutore", "mail",
-                               "telefon", "cellular", "classe" };
+            string[] parti = { "cognom", "nominativ", "alunn", "student", "genitor", "madre", "padre", "famigli", "tutore",
+                               "mail", "telefon", "cellular", "prenotat", "prenotant", "richiedent", "partecipant",
+                               "utent" };
+            foreach (string p in parti) if (k.Contains(p)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Una colonna di docenti, dall'intestazione (solo lettere minuscole):
+        /// docente, insegnante, prof., professore, referente, coordinatore. Un
+        /// foglio che ce l'ha e' l'orario di ricevimento di tutta la scuola, con
+        /// i ricevimenti e i link dei colleghi.
+        /// </summary>
+        static bool DiDocenti(string k)
+        {
+            if (k.StartsWith("prof", StringComparison.Ordinal)) return true;
+            string[] parti = { "docent", "insegnant", "referent", "coordinator" };
             foreach (string p in parti) if (k.Contains(p)) return true;
             return false;
         }
@@ -938,9 +965,11 @@ namespace Campanella
         /// Le righe dei colloqui di un foglio. Le colonne si riconoscono
         /// dall'intestazione, in una delle prime dieci righe: "data" oppure
         /// "giorno" (una data, anche con il giorno della settimana, o un giorno
-        /// della settimana da solo), "dalle" e "alle" (o inizio e fine), "cosa",
-        /// "descrizione" o "titolo" (il nome), "link", e per un ricevimento
-        /// "dal" e "al" (le sue date). Una riga con una data diventa una
+        /// della settimana da solo), "dalle" e "alle" (o inizio e fine), oppure
+        /// "ora" o "orario" con la fascia (15:00-18:00), "cosa", "descrizione" o
+        /// "titolo" (il nome), "link" (anche senza https://), "classe" o
+        /// "classi" (va nel nome, fra parentesi), e per un ricevimento "dal" e
+        /// "al" (le sue date). Una riga con una data diventa una
         /// giornata ("martedi 15/12/2026 ...", con il giorno della settimana se
         /// c'e', cosi' la casella dice se torna), una con il solo giorno della
         /// settimana un ricevimento settimanale ("ogni giovedi ..."); una data
@@ -948,44 +977,57 @@ namespace Campanella
         /// guardare. Si saltano (saltate) solo le righe senza data ne' giorno.
         /// Date e ore di Excel scritte come numeri (46371, 0,4236) valgono.
         /// Senza l'intestazione, errore dice quali colonne ci vogliono. Un
-        /// foglio con colonne di persone (cognome, nome, classe, genitore,
-        /// email...) non si importa: e' un elenco di prenotazioni, e i nomi
-        /// degli studenti e dei genitori sul calendario non vanno.
+        /// foglio con colonne di persone (cognome, nome, genitore, email,
+        /// prenotato da...) non si importa: e' un elenco di prenotazioni, e i
+        /// nomi degli studenti e dei genitori sul calendario non vanno. Nemmeno
+        /// uno con la colonna dei docenti (docente, prof...): e' l'orario di
+        /// ricevimento della scuola, e sul calendario andrebbero anche i
+        /// ricevimenti e i link dei colleghi. I nomi scritti dentro la colonna
+        /// cosa non si riconoscono.
         /// </summary>
         public static List<string> RigheDaFoglio(FoglioExcel f, DateTime inizioPeriodo, out int saltate, out string errore)
         {
             List<string> fuori = new List<string>();
             saltate = 0;
             errore = "";
-            int riga = -1, cData = -1, cGiorno = -1, cDalle = -1, cAlle = -1, cCosa = -1, cLink = -1, cDal = -1, cAl = -1;
-            List<string> persone = new List<string>();
+            int riga = -1, cData = -1, cGiorno = -1, cDalle = -1, cAlle = -1, cOra = -1, cCosa = -1, cLink = -1, cDal = -1,
+                cAl = -1, cClasse = -1;
+            List<string> persone = new List<string>(), docenti = new List<string>();
             for (int i = 0; i < Math.Min(10, f.NumeroRighe) && riga < 0; i++)
             {
-                int d = -1, g = -1, da = -1, a = -1, c = -1, l = -1, dal = -1, al = -1;
-                List<string> diPersone = new List<string>();
+                int d = -1, g = -1, da = -1, a = -1, o = -1, c = -1, l = -1, dal = -1, al = -1, cl = -1;
+                List<string> diPersone = new List<string>(), diDocenti = new List<string>();
                 for (int j = 0; j < f.Colonne; j++)
                 {
                     string k = Regex.Replace(f.Cella(i, j).ToLowerInvariant(), @"[^a-z]", "");
                     if (k == "data" && d < 0) d = j;
                     else if ((k == "giorno" || k == "giornodellasettimana" || k == "giornosettimana") && g < 0) g = j;
-                    else if ((k == "dalle" || k == "inizio" || k == "orainizio" || k == "dallora") && da < 0) da = j;
-                    else if ((k == "alle" || k == "fine" || k == "orafine" || k == "allora") && a < 0) a = j;
+                    else if ((k == "dalle" || k == "inizio" || k == "orainizio" || k == "oradiinizio" || k == "dallora") &&
+                             da < 0) da = j;
+                    else if ((k == "alle" || k == "fine" || k == "orafine" || k == "oradifine" || k == "allora") && a < 0) a = j;
+                    else if ((k == "ora" || k == "ore" || k == "orario" || k == "fascia" || k == "fasciaoraria") && o < 0) o = j;
                     else if ((k == "cosa" || k == "descrizione" || k == "titolo") && c < 0) c = j;
                     else if ((k == "link" || k == "meet" || k == "linkmeet" || k == "linkdelmeet" || k == "collegamento") && l < 0) l = j;
                     else if (k == "dal" && dal < 0) dal = j;
                     else if (k == "al" && al < 0) al = j;
+                    else if (DiDocenti(k)) diDocenti.Add(f.Cella(i, j).Trim());
                     else if (DiPersone(k)) diPersone.Add(f.Cella(i, j).Trim());
+                    else if (k.StartsWith("class", StringComparison.Ordinal) && cl < 0) cl = j;
                 }
-                if ((d >= 0 || g >= 0) && (da >= 0 || c >= 0 || l >= 0 || diPersone.Count > 0))
+                if ((d >= 0 || g >= 0) && (da >= 0 || o >= 0 || c >= 0 || l >= 0 || diPersone.Count > 0 || diDocenti.Count > 0))
                 {
-                    riga = i; cData = d; cGiorno = g; cDalle = da; cAlle = a; cCosa = c; cLink = l; cDal = dal; cAl = al;
+                    riga = i; cData = d; cGiorno = g; cDalle = da; cAlle = a; cOra = o; cCosa = c; cLink = l; cDal = dal;
+                    cAl = al; cClasse = cl;
                     persone = diPersone;
+                    docenti = diDocenti;
+                    // con le persone la classe e' quella dello studente
+                    if (persone.Count > 0 && cl >= 0) persone.Add(f.Cella(i, cl).Trim());
                 }
             }
             if (riga < 0)
             {
                 errore = "Nel file non trovo l'intestazione dei colloqui: ci vuole una riga con \"data\" (o \"giorno\") " +
-                         "e almeno una fra \"dalle\", \"alle\", \"cosa\" (o \"descrizione\") e \"link\".";
+                         "e almeno una fra \"dalle\", \"alle\", \"ora\", \"cosa\" (o \"descrizione\") e \"link\".";
                 return fuori;
             }
             if (persone.Count > 0)
@@ -997,17 +1039,35 @@ namespace Campanella
                          "e link.";
                 return fuori;
             }
+            if (docenti.Count > 0)
+            {
+                // l'orario di ricevimento della scuola: i ricevimenti e i link dei colleghi non vanno sul tuo calendario
+                errore = "Il file ha la colonna dei docenti (\"" + string.Join("\", \"", docenti.ToArray()) + "\"): sembra " +
+                         DiPiuDocenti + ", e non lo importo: sul tuo calendario andrebbero anche i ricevimenti e i link " +
+                         "dei colleghi. Scrivi il tuo ricevimento nella casella (ogni giovedi 10:10-11:10 Ricevimento " +
+                         "https://meet.google.com/...), o importa un file con le sole tue righe, senza la colonna dei docenti.";
+                return fuori;
+            }
             for (int i = riga + 1; i < f.NumeroRighe; i++)
             {
                 string data = Cella(f, i, cData), giorno = Cella(f, i, cGiorno);
                 string dalle = OraDellaCella(Cella(f, i, cDalle)), alle = OraDellaCella(Cella(f, i, cAlle));
+                // la fascia in una colonna sola ("15:00-18:00", "dalle 15 alle 18"): com'e', la legge la casella
+                if (dalle == "" && alle == "") dalle = OraDellaCella(Cella(f, i, cOra));
                 string nome = Cella(f, i, cCosa);
-                string link = Cella(f, i, cLink);
+                // il link del Meet anche senza https://, come lo mostrano Calendar e Meet
+                string link = MeetSenzaSchema.Replace(Cella(f, i, cLink), "https://meet.google.com/");
                 string dal = Cella(f, i, cDal), al = Cella(f, i, cAl);
+                string classe = Cella(f, i, cClasse);
                 if (data == "" && giorno == "" && dalle == "" && alle == "" && nome == "" && link == "" && dal == "" &&
-                    al == "") continue;
+                    al == "" && classe == "") continue;
                 string quando = QuandoDelleCelle(data, giorno, inizioPeriodo);
                 if (quando == "") { saltate++; continue; }
+                // le classi dei colloqui generali ("prime"): nel nome, fra parentesi
+                if (classe != "")
+                    nome = (nome != "" ? nome : quando.StartsWith("ogni ", StringComparison.Ordinal) ? NomeSettimanale
+                                                                                                     : NomeGiornata) +
+                           " (" + classe + ")";
                 // le date del ricevimento, davanti come nella casella; una che manca
                 // o che non si capisce la mostra la casella, fra quelle da guardare
                 if (dal != "" || al != "")

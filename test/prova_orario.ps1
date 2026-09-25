@@ -1032,7 +1032,8 @@ console.log(JSON.stringify({
 
         # un elenco di prenotazioni (nomi inventati): non si importa, e dice
         # che le prenotazioni restano nel registro. Anche con la sola colonna
-        # "Nome" (che non e' piu' il titolo) o con la classe
+        # "Nome" (che non e' piu' il titolo), con la classe accanto ai nomi, o
+        # con chi ha prenotato (prenotato da, partecipante, richiedente)
         $campoRegistro = $tCol.GetField('RestanoNelRegistro', $FS)
         $restanoNelRegistro = if ($null -ne $campoRegistro) { [string]$campoRegistro.GetValue($null) } else { '(manca Colloqui.RestanoNelRegistro)' }
         $prenotazioni = @(
@@ -1041,13 +1042,55 @@ console.log(JSON.stringify({
                                     '15/12/2026;15:10;15:20;Neri;Luca;3C;Neri Anna')),
             @('nome_classe.csv', @('Data;Inizio;Fine;Nome;Classe', '15/12/2026;15:00;15:10;Giulia;2B')),
             @('solo_nome.csv', @('Data;Inizio;Fine;Nome', '15/12/2026;15:00;15:10;Giulia')),
-            @('email.csv', @('Giorno;Dalle;Alle;Cosa;E-mail genitore', 'giovedi;10:10;11:10;Ricevimento;x@esempio.it'))
+            @('email.csv', @('Giorno;Dalle;Alle;Cosa;E-mail genitore', 'giovedi;10:10;11:10;Ricevimento;x@esempio.it')),
+            @('prenotato.csv', @('Data;Dalle;Alle;Cosa;Link;Prenotato da',
+                                 '15/12/2026;15:00;15:10;Colloquio;https://meet.google.com/kmn-pqrs-tuv;Verdi Mario')),
+            @('partecipante.csv', @('Data;Ora;Cosa;Link;Partecipante',
+                                    '15/12/2026;15:00-15:10;Colloquio;https://meet.google.com/kmn-pqrs-tuv;Verdi Mario')),
+            @('richiedente.csv', @('Data;Dalle;Alle;Richiedente', '15/12/2026;15:00;15:10;Verdi Mario'))
         )
         foreach ($p in $prenotazioni) {
             $imp = Importa (ScriviCsv $p[0] $p[1])
             Verifica "un file con le persone ($($p[1][0])) non si importa: nessuna riga, e dice perche' ($($imp.Errore))" (
                 $imp.Righe.Count -eq 0 -and $imp.Errore -match 'colonne con le persone' -and
                 $imp.Errore.Contains($restanoNelRegistro) -and $imp.Errore -notmatch 'Giulia|Luca|Verdi|esempio')
+        }
+        # l'orario di ricevimento di tutti i docenti (nomi e link inventati), come
+        # lo pubblica la scuola: non si importa, se no sul calendario andrebbero
+        # i ricevimenti e i link dei colleghi, senza il nome per capire quale e' il tuo
+        $campoDocenti = $tCol.GetField('DiPiuDocenti', $FS)
+        $diPiuDocenti = if ($null -ne $campoDocenti) { [string]$campoDocenti.GetValue($null) } else { '(manca Colloqui.DiPiuDocenti)' }
+        $dellaScuola = @(
+            @('docenti.csv', @('Docente;Materia;Giorno;Dalle;Alle;Link',
+                               'ROSSI MARIO;Matematica;giovedi;10:10;11:10;https://meet.google.com/aaa-bbbb-ccc',
+                               'BIANCHI ANNA;Italiano;lunedi;09:10;10:10;https://meet.google.com/ddd-eeee-fff',
+                               'VERDI LUCA;Storia;martedi;11:10;12:10;https://meet.google.com/ggg-hhhh-iii')),
+            @('prof.csv', @('Prof.;Giorno;Ora inizio;Ora fine;Link Meet', 'Rossi;giovedi;10:10;11:10;https://meet.google.com/aaa-bbbb-ccc')),
+            @('insegnante.csv', @('Insegnante;Giorno;Ora', 'BIANCHI ANNA;lunedi;09:10-10:10'))
+        )
+        foreach ($p in $dellaScuola) {
+            $imp = Importa (ScriviCsv $p[0] $p[1])
+            Verifica "un file con la colonna dei docenti ($($p[1][0])) non si importa: nessuna riga, e dice perche' ($($imp.Errore))" (
+                $imp.Righe.Count -eq 0 -and $imp.Errore.Contains($diPiuDocenti) -and $imp.Errore -notmatch 'ROSSI|Rossi|BIANCHI|VERDI|aaa-bbbb')
+        }
+        # l'ora in una colonna sola ("Orario", "Ora"), la classe dei colloqui
+        # generali (va nel nome), il link del Meet senza https://
+        $altreColonne = @(
+            @('orario.csv', @('Data;Orario;Cosa;Link', '15/12/2026;15:00-18:00;Colloqui generali;https://meet.google.com/kmn-pqrs-tuv'),
+              '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv'),
+            @('ora.csv', @('Giorno;Ora;Descrizione', 'giovedi;10:10-11:10;Ricevimento'), 'ogni giovedi 10:10-11:10 Ricevimento'),
+            @('classe.csv', @('Data;Dalle;Alle;Cosa;Link;Classe', '15/12/2026;15:00;18:00;Colloqui generali;https://meet.google.com/kmn-pqrs-tuv;prime'),
+              '15/12/2026 15:00-18:00 Colloqui generali (prime) https://meet.google.com/kmn-pqrs-tuv'),
+            @('classi.csv', @('Data;Dalle;Alle;Classi', '16/12/2026;15:00;18:00;seconde e terze'), '16/12/2026 15:00-18:00 Colloqui (seconde e terze)'),
+            @('senza_https.csv', @('Giorno;Dalle;Alle;Cosa;Link', 'giovedi;10:10;11:10;Ricevimento;meet.google.com/abc-defg-hij'),
+              'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij')
+        )
+        foreach ($p in $altreColonne) {
+            $imp = Importa (ScriviCsv $p[0] $p[1])
+            $letteP = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @(($imp.Righe -join "`r`n"), $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+            Verifica "con le colonne $($p[1][0]) la riga e' '$($p[2])', e va sul calendario ($($imp.Righe -join ' | ') $($imp.Errore))" (
+                $imp.Errore -eq '' -and ($imp.Righe -join '|') -eq $p[2] -and $letteP.Count -eq 1 -and $letteP[0].Buona -and
+                -not [bool]$tCol.GetMethod('DaGuardare', $FS).Invoke($null, @($letteP[0], $inizioK, $fineK)))
         }
         # la data con il giorno della settimana, nella colonna giorno o in quella
         # data: una giornata (con il giorno, cosi' la casella dice se torna),
