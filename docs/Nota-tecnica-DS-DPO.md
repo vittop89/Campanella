@@ -68,11 +68,14 @@ Quattro funzioni, tutte facoltative e indipendenti:
   (punto 6): le etichette dai messaggi, che restano vuote nell'elenco di
   Gmail, e gli eventi dell'orario creati dallo script, riconoscibili da un
   contrassegno. Nel cambio d'orario (`ORARI_5_cambioOrario`, eseguita dal
-  docente) accorcia le serie dell'orario messe dallo script perché finiscano
-  il giorno prima della data indicata e toglie quelle che cominciano da
-  quella data in poi: sempre e solo eventi con il contrassegno, e mai prima
-  dell'inizio del periodo indicato (gli anni scolastici precedenti nello
-  stesso calendario restano).
+  docente) rifà fino al giorno prima della data indicata le serie
+  dell'orario messe dallo script che hanno lezioni prima e dopo quella data
+  (Google non permette di accorciarle: crea una serie uguale che finisce il
+  giorno prima, con le lezioni spostate a mano come eventi singoli, e poi
+  toglie la vecchia) e toglie quelle senza lezioni prima di quella data:
+  sempre e solo eventi con il contrassegno, e mai prima dell'inizio del
+  periodo indicato (gli anni scolastici precedenti nello stesso calendario
+  restano).
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -188,18 +191,25 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   è in UTC) lo script mette il fuso dello script solo se nel periodo non ci
   sono ancora lezioni di Campanella, altrimenti si ferma senza toccare
   niente e spiega al docente come sistemare;
-  `ORARI_5_cambioOrario`, che quando l'orario cambia accorcia le serie già
-  messe perché finiscano il giorno prima della data indicata (o le toglie,
-  se cominciano da quella data in poi) e inserisce l'orario nuovo da quella
-  data; e `ORARI_ANNULLA_calendario`, che rimuove solo quelli, nel periodo
-  indicato. Il cambio d'orario accorcia o toglie soltanto eventi con il
-  contrassegno; l'annullamento anche quelli con la descrizione che comincia
-  con «[Campanella]» (se Google non ha salvato il contrassegno, oppure una
-  copia fatta a mano dal docente di una lezione). Gli altri eventi del
-  calendario non li tocca. `test/invarianti_script.js` controlla sul codice
-  che nessun'altra funzione possa prendere un calendario o un evento, né
-  cambiarlo o toglierlo, e che fra gli eventi da accorciare o togliere
-  finiscano solo quelli riconosciuti così. Controlla anche che i due
+  `ORARI_5_cambioOrario`, che quando l'orario cambia rifà fino al giorno
+  prima della data indicata le serie già messe che hanno lezioni prima e
+  dopo quella data (Google non permette di accorciare una serie: lo script
+  ne crea una uguale fino al giorno prima, con il contrassegno e un secondo
+  contrassegno che dice quale serie sostituisce, ne toglie le lezioni che
+  il docente aveva cancellato o spostato, rimette quelle spostate come
+  eventi singoli alla loro ora e solo alla fine toglie la serie vecchia), o
+  le toglie, se non hanno lezioni prima di quella data, e inserisce l'orario
+  nuovo da quella data; e `ORARI_ANNULLA_calendario`, che rimuove solo
+  quelli, nel periodo indicato. Il cambio d'orario rifà o toglie soltanto
+  eventi con il contrassegno; l'annullamento anche quelli con la descrizione
+  che comincia con «[Campanella]» (se Google non ha salvato il contrassegno,
+  oppure una copia fatta a mano dal docente di una lezione). Gli altri eventi
+  del calendario non li tocca. `test/invarianti_script.js` controlla sul
+  codice che nessun'altra funzione possa prendere un calendario o un evento,
+  né cambiarlo o toglierlo, che fra gli eventi da rifare o togliere
+  finiscano solo quelli riconosciuti così, e che il contrassegno lo ricevano
+  solo le serie e gli eventi appena creati dallo script (anche quando la
+  ripresa di un lavoro interrotto glielo rimette). Controlla anche che i due
   script, che stanno nello stesso progetto, non usino le funzioni l'uno
   dell'altro: quello della posta non arriva al calendario, quello degli
   orari non arriva agli indirizzi degli studenti delle classi.

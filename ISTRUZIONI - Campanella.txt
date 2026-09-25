@@ -498,17 +498,21 @@ ORARI - le email a te e il calendario
    cambiato: il nuovo vale dal" con la data, rigenera e incolla
    DatiOrari.gs ed esegui ORARI_5_cambioOrario. Il periodo ("Dal" e "al")
    resta quello con cui hai messo l'orario: la data del cambio va solo
-   nella spunta. Le settimane prima restano come sono, da quella data c'e'
-   l'orario nuovo, e rieseguita con la stessa data da' lo stesso
-   risultato. Tocca solo gli eventi con il contrassegno di Campanella: una
-   copia fatta a mano di una lezione la lascia e te la nomina. Le
-   modifiche fatte a mano su singole lezioni delle serie accorciate
-   potrebbero non restare: il messaggio finale dice in quali serie ne ha
-   trovate. Serve anche per un giorno senza lezione aggiunto dopo, con lo
-   stesso orario.
+   nella spunta. Le settimane prima restano come sono, anche le lezioni
+   spostate o cancellate a mano, e da quella data c'e' l'orario nuovo.
+   Google non lascia accorciare una serie: quelle con lezioni prima e dopo
+   la data le rifa' fino al giorno prima (le lezioni spostate a mano
+   tornano come eventi singoli, alla loro ora) e toglie le vecchie. Altre
+   modifiche fatte a mano a una serie, come il colore o un promemoria, non
+   passano a quella rifatta. Rieseguita con la stessa data, o ripresa dopo
+   un'interruzione, da' lo stesso risultato. Tocca solo gli eventi con il
+   contrassegno di Campanella: una copia fatta a mano di una lezione la
+   lascia e te la nomina. Serve anche per un giorno senza lezione aggiunto
+   dopo, con lo stesso orario.
    ORARI_ANNULLA_calendario toglie invece gli eventi messi dallo script
-   nel periodo indicato in DatiOrari.gs (anche le copie fatte a mano di
-   una lezione, che ne hanno la descrizione). Se finisce il tempo o Google
+   nel periodo indicato in DatiOrari.gs (anche le lezioni spostate che il
+   cambio d'orario ha rimesso come eventi singoli, e le copie fatte a mano
+   di una lezione, che ne hanno la descrizione). Se finisce il tempo o Google
    chiede di rallentare, si ferma e ti dice di rieseguirlo. Se dopo aver
    messo l'orario hai cambiato le date del periodo, gli eventi fuori dal
    periodo nuovo non li trova ne' lui ne' ORARI_5_cambioOrario: rimetti
@@ -593,8 +597,8 @@ COSE CHE NON SUCCEDONO MAI
 - Nessuno strumento cancella posta, file, cartelle o fogli delle risposte.
   Al massimo archivia, ed e' reversibile. Toglie solo quello che ha messo
   lui, e quando glielo chiedi: le etichette dai messaggi, gli eventi del tuo
-  orario (nel cambio d'orario accorcia le serie che ha messo lui, perche'
-  finiscano il giorno prima). Il foglio di controllo toglie da se' la
+  orario (nel cambio d'orario rifa' fino al giorno prima le serie che ha
+  messo lui, e toglie quelle vecchie). Il foglio di controllo toglie da se' la
   scheda vuota "Foglio1" che Google mette nei fogli nuovi e riscrive la sua
   scheda "Istruzioni".
   Due eccezioni, che devi chiedere tu. Lo script dei moduli puo' togliere
