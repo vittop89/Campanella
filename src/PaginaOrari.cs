@@ -460,7 +460,7 @@ namespace Campanella
             p.Controls.Add(cmbCosaVedere);
 
             p.Controls.Add(Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180,
-                delegate { Guscio.Copia(TestoCorrente(cmbCosaVedere.SelectedIndex), "Copiato."); }));
+                delegate { Guscio.Copia(TestoDaDare(cmbCosaVedere.SelectedIndex), "Copiato."); }));
             p.Controls.Add(Tema.Bottone("Salva su file...", 542, y, 130,
                 delegate { SalvaSuFile(cmbCosaVedere.SelectedIndex); }));
             p.Controls.Add(Tema.Bottone("Apri l'editor dello script", 682, y, 198,
@@ -489,6 +489,18 @@ namespace Campanella
         {
             Esce();
             return AnalisiOrario.GeneraDatiGs(orario, S, chkClassi.Checked);
+        }
+
+        /// <summary>
+        /// DatiOrari.gs da copiare o da salvare: lo stesso dell'anteprima, e i
+        /// colori delle classi che ci sono scritti restano nelle impostazioni
+        /// come quelli delle lezioni sul calendario (AnalisiOrario.DatiOrariUsciti).
+        /// </summary>
+        string DatiOrariDaDare()
+        {
+            string testo = DatiOrari();
+            AnalisiOrario.DatiOrariUsciti(orario, S);
+            return testo;
         }
 
         string IstruzioniInvio()
@@ -541,6 +553,12 @@ namespace Campanella
             return sb.ToString();
         }
 
+        /// <summary>Il testo della voce da copiare: come nell'anteprima, DatiOrari.gs con DatiOrariDaDare.</summary>
+        string TestoDaDare(int voce)
+        {
+            return (voce == 1) ? DatiOrariDaDare() : TestoCorrente(voce);
+        }
+
         string TestoCorrente(int voce)
         {
             switch (voce)
@@ -580,7 +598,11 @@ namespace Campanella
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 string testo = (voce == 3) ? IstruzioniCalendario() : TestoCorrente(voce);
                 if (Guscio.SalvaFile(this, d.FileName, testo, new UTF8Encoding(false)))
+                {
+                    // DatiOrari.gs e' uscito: i colori delle classi che ha restano
+                    if (voce == 1) AnalisiOrario.DatiOrariUsciti(orario, S);
                     Guscio.Stato1("Salvato: " + d.FileName);
+                }
             }
         }
 
@@ -690,8 +712,9 @@ namespace Campanella
                 "Ogni lezione sul calendario prende il colore della sua classe: la 2B di un colore, la 3B di un " +
                 "altro, sempre nello stesso calendario. Sono i colori degli eventi di Google Calendar, con i loro " +
                 "nomi (Pomodoro, Mirtillo, Basilico...).\r\n\r\n" +
-                "Di partenza ogni classe del tuo orario ne ha uno diverso, e poi lo tiene: una classe nuova prende " +
-                "un colore che le altre non hanno. Le ore a disposizione sono grigie (Grafite). Un colore che " +
+                "Di partenza ogni classe del tuo orario ne ha uno diverso, e da quando copi o salvi DatiOrari.gs lo " +
+                "tiene: una classe che arriva dopo prende un colore che le altre non hanno, anche se ne aveva uno " +
+                "un altro anno. Le ore a disposizione sono grigie (Grafite). Un colore che " +
                 "scegli tu resta; \"Colori di partenza\" rimette quelli di Campanella. Con \"colore del calendario\" " +
                 "le lezioni di quella classe hanno il colore del calendario (Colore, qui sopra).\r\n\r\n" +
                 "I colori vanno in DatiOrari.gs: ORARI_4_calendario e ORARI_5_cambioOrario li danno alle lezioni " +
@@ -804,7 +827,7 @@ namespace Campanella
 
             Button copia4 = Tema.BottonePrincipale("Copia negli appunti", 352, y - 2, 180, delegate
             {
-                Guscio.Copia(cmbCosaVedere4.SelectedIndex == 0 ? DatiOrari() : IstruzioniCalendario(), "Copiato.");
+                Guscio.Copia(cmbCosaVedere4.SelectedIndex == 0 ? DatiOrariDaDare() : IstruzioniCalendario(), "Copiato.");
             });
             p.Controls.Add(copia4);
             Button salva4 = Tema.Bottone("Salva su file...", 542, y, 130,
@@ -1107,16 +1130,17 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Il riepilogo dei colori delle classi del docente: quelle che non ne
-        /// hanno ancora uno lo prendono adesso (ColoriLezioni.Completa), e lo
-        /// tengono.
+        /// Il riepilogo dei colori delle classi del docente, come li da'
+        /// Campanella adesso (ColoriLezioni.DelCalendario), su una copia: mentre
+        /// si scrive il nome, il docente trovato per prefisso puo' essere un
+        /// altro, e i colori delle sue classi non devono restare. Restano quando
+        /// DatiOrari.gs esce (DatiOrariDaDare) o con "Usa questi colori".
         /// </summary>
         void AggiornaColori(string docente)
         {
             if (riepilogoColori == null) return;
             List<string> classi = AnalisiOrario.ClassiDelCalendario(orario, docente);
-            if (classi.Count > 0) ColoriLezioni.Completa(S.CalColori, S.CalColoriAMano, classi);
-            riepilogoColori.Mostra(classi, S.CalColori, orario.Lezioni.Count == 0
+            riepilogoColori.Mostra(classi, ColoriLezioni.DelCalendario(S, classi), orario.Lezioni.Count == 0
                 ? "Carica l'orario al passo 1: ogni classe del tuo orario avra' il suo colore."
                 : "Scegli il tuo nome: ogni classe del tuo orario avra' il suo colore.");
         }
@@ -1133,7 +1157,7 @@ namespace Campanella
                     : "Prima scegli il tuo nome: i colori vanno alle classi del tuo orario.", Tema.Ambra);
                 return;
             }
-            using (FormColoriClassi f = new FormColoriClassi(classi, S.CalColori, S.CalColoriAMano))
+            using (FormColoriClassi f = new FormColoriClassi(classi, S.CalColori, S.CalColoriAMano, S.CalColoriScritti))
             {
                 if (f.ShowDialog(this) != DialogResult.OK) return;
                 S.CalColori = new Dictionary<string, string>(f.Colori);

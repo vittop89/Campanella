@@ -891,9 +891,25 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
         $null -ne $riepColori -and $riepColori.Visible -and $classiRossi.Count -gt 1 -and $riepColori.Text -like 'Colori: *' -and
         $senzaColore.Count -eq 0 -and $riepColori.Visibili -eq $classiRossi.Count -and
         $riepColori.Bottom -le $txtSosp.Top -and $riepColori.Left -gt $btnColori.Right)
+    # il riepilogo li calcola su una copia: scrivendo il nome ('B' e' BIANCHI,
+    # per prefisso) le impostazioni non cambiano. I colori restano quando
+    # DatiOrari.gs esce da Campanella, copiato o salvato (DatiOrariDaDare)
+    $cmbDoc = $tPO.GetField('cmbDocente', $FIp).GetValue($orari)
+    $cmbDoc.Text = 'B'
+    [System.Windows.Forms.Application]::DoEvents()
+    $cmbDoc.Text = 'ROSSI'
+    [System.Windows.Forms.Application]::DoEvents()
     $coloriStato = $tStato.GetField('CalColori', $FI).GetValue($stato)
-    Verifica "  ...e i loro colori restano nelle impostazioni" (
-        $null -ne $coloriStato -and @($classiRossi | Where-Object { -not $coloriStato.ContainsKey($_) }).Count -eq 0)
+    $primaDiCopiare = if ($null -ne $coloriStato) { $coloriStato.Count } else { -1 }
+    $metodoDaDare = $tPO.GetMethod('DatiOrariDaDare', $FIp)
+    $datiDaDare = if ($null -ne $metodoDaDare) { [string]$metodoDaDare.Invoke($orari, @()) } else { '' }
+    $coloriStato = $tStato.GetField('CalColori', $FI).GetValue($stato)
+    $campoScritti = $tStato.GetField('CalColoriScritti', $FI)
+    $scrittiStato = if ($null -ne $campoScritti) { $campoScritti.GetValue($stato) } else { $null }
+    Verifica "  ...che scrivendo il nome (con 'B' e' BIANCHI) non restano nelle impostazioni ($primaDiCopiare), e con DatiOrari.gs copiato o salvato si': quelli delle classi di ROSSI, sul calendario ($(if ($coloriStato) { @($coloriStato.Keys) -join ', ' }))" (
+        $primaDiCopiare -eq 0 -and $datiDaDare -match 'colori:' -and $null -ne $scrittiStato -and
+        $coloriStato.Count -eq $classiRossi.Count -and $scrittiStato.Count -eq $classiRossi.Count -and
+        @($classiRossi | Where-Object { -not $coloriStato.ContainsKey($_) -or -not $scrittiStato.ContainsKey($_) }).Count -eq 0)
     if ($null -ne $riepColori) {
         # con tante classi, quelle che non ci stanno diventano "e altre N"
         $tante = New-Object 'System.Collections.Generic.List[string]'
@@ -1022,14 +1038,17 @@ $tFCC = $asm.GetType('Campanella.FormColoriClassi')
 Verifica "c'e' la finestra dei colori delle classi" ($null -ne $tFCC)
 if ($null -ne $tFCC) {
     $FIf = [System.Reflection.BindingFlags]'NonPublic,Instance'
-    function FinestraColori([string[]]$classi, $colori, [string[]]$aMano) {
+    function FinestraColori([string[]]$classi, $colori, [string[]]$aMano, $scritti = @{}) {
         $lc = New-Object 'System.Collections.Generic.List[string]'
         foreach ($k in $classi) { $lc.Add($k) }
         $dc = New-Object 'System.Collections.Generic.Dictionary[string,string]'
         foreach ($k in $colori.Keys) { $dc[$k] = $colori[$k] }
         $la = New-Object 'System.Collections.Generic.List[string]'
         foreach ($k in $aMano) { $la.Add($k) }
-        $f = [Activator]::CreateInstance($tFCC, @($lc.PSObject.BaseObject, $dc.PSObject.BaseObject, $la.PSObject.BaseObject))
+        $ds = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        foreach ($k in $scritti.Keys) { $ds[$k] = $scritti[$k] }
+        $f = [Activator]::CreateInstance($tFCC, @($lc.PSObject.BaseObject, $dc.PSObject.BaseObject, $la.PSObject.BaseObject,
+                                                  $ds.PSObject.BaseObject))
         $f.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
         $f.Location = New-Object System.Drawing.Point(-4000, -4000)
         $f.Show()

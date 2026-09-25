@@ -596,17 +596,17 @@ namespace Campanella
                 sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\",     // vuoto = colore scelto da Google");
 
                 // il colore delle lezioni di ogni classe: quelle che non l'hanno
-                // ancora lo prendono qui, e lo tengono (ColoriLezioni.Completa).
-                // Solo le classi con un colore: le altre hanno quello del calendario
-                if (s.CalColori == null) s.CalColori = new Dictionary<string, string>();
-                if (s.CalColoriAMano == null) s.CalColoriAMano = new List<string>();
+                // ancora lo prendono qui (ColoriLezioni.Completa), su una copia:
+                // restano nelle impostazioni quando il file esce da Campanella
+                // (DatiOrariUsciti), non a ogni anteprima. Solo le classi con un
+                // colore: le altre hanno quello del calendario
                 List<string> classiCal = ClassiDelCalendario(o, docenteCal);
-                ColoriLezioni.Completa(s.CalColori, s.CalColoriAMano, classiCal);
+                Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
                 StringBuilder colori = new StringBuilder();
                 foreach (string k in classiCal)
                 {
                     string v;
-                    if (!s.CalColori.TryGetValue(k, out v) || v == "") continue;
+                    if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
                     colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
                 }
                 sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
@@ -648,6 +648,21 @@ namespace Campanella
 
             sb.AppendLine("};");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// DatiOrari.gs e' uscito da Campanella (copiato o salvato): i colori
+        /// delle classi del calendario che ci ha scritto GeneraDatiGs restano
+        /// nelle impostazioni, e sono quelli delle lezioni sul calendario
+        /// (ColoriLezioni.Ricorda). Senza il docente del calendario il file non
+        /// ha colori, e non cambia niente.
+        /// </summary>
+        public static void DatiOrariUsciti(RisultatoOrario o, Stato s)
+        {
+            if (o == null || s == null) return;
+            string docente = o.TrovaDocente(s.CalDocente);
+            if (docente == "") return;
+            ColoriLezioni.Ricorda(s, ClassiDelCalendario(o, docente));
         }
 
         /// <summary>La griglia diventa un array piatto: prima tutte le ore del giorno 1.</summary>

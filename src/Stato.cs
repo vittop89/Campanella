@@ -340,10 +340,17 @@ namespace Campanella
         // di CalendarApp.EventColor, da "1" a "11", oppure "" = il colore del
         // calendario. Solo nomi di classi: sta nelle impostazioni. Quelli delle
         // classi che non sono in CalColoriAMano li ha dati Campanella
-        // (ColoriLezioni.Completa), e restano gli stessi
+        // (ColoriLezioni.Completa), e restano gli stessi. Cambiano solo quando
+        // DatiOrari.gs esce da Campanella (copiato o salvato) e con "Usa questi
+        // colori": il riepilogo e l'anteprima li calcolano su una copia
         public Dictionary<string, string> CalColori = new Dictionary<string, string>();
         // le classi il cui colore l'ha scelto il docente: resta com'e'
         public List<string> CalColoriAMano = new List<string>();
+        // i colori delle classi del calendario nell'ultimo DatiOrari.gs uscito
+        // da Campanella: quelli delle lezioni gia' sul calendario. Fra due
+        // classi con lo stesso colore dato da Campanella lo tiene quella che e'
+        // qui (ColoriLezioni.Completa)
+        public Dictionary<string, string> CalColoriScritti = new Dictionary<string, string>();
         // vero = l'avviso dell'avvio sul fuso dei calendari messi con la 1.5 o
         // prima e' gia' stato dato (o non serviva): non si ripete
         public bool AvvisoFusoCalendarioDato = false;
@@ -960,6 +967,10 @@ namespace Campanella
             List<object> aMano = new List<object>();
             if (CalColoriAMano != null) foreach (string k in CalColoriAMano) aMano.Add(k);
             r["calColoriAMano"] = aMano;
+            Dictionary<string, object> scritti = new Dictionary<string, object>();
+            if (CalColoriScritti != null)
+                foreach (KeyValuePair<string, string> kv in CalColoriScritti) scritti[kv.Key] = kv.Value ?? "";
+            r["calColoriScritti"] = scritti;
             r["avvisoFusoCalendario"] = AvvisoFusoCalendarioDato;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
@@ -1111,6 +1122,7 @@ namespace Campanella
                 // scelta a mano solo una classe che ha un colore (anche "")
                 foreach (string k in Lista(r, "calColoriAMano"))
                     if (s.CalColori.ContainsKey(k) && !s.CalColoriAMano.Contains(k)) s.CalColoriAMano.Add(k);
+                s.CalColoriScritti = ColoriLezioni.Letti(r, "calColoriScritti");
                 s.AvvisoFusoCalendarioDato = Bool(r, "avvisoFusoCalendario", false);
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");
@@ -2347,9 +2359,11 @@ namespace Campanella
     //  dell'orario del docente ne prende uno, cosi' nello stesso calendario la
     //  2B ha un colore e la 3B un altro. Di partenza le classi li prendono in
     //  un ordine fisso, tutte diverse finche' ce ne sono, e poi li tengono
-    //  (Stato.CalColori); uno scelto a mano (Stato.CalColoriAMano) resta. ""
-    //  e' il colore del calendario. Sta in questo file, senza finestre, perche'
-    //  Carica controlla i colori letti dal file.
+    //  (Stato.CalColori, che cambia quando DatiOrari.gs esce da Campanella:
+    //  Ricorda); uno scelto a mano (Stato.CalColoriAMano) resta, e una classe
+    //  gia' sul calendario (Stato.CalColoriScritti) non perde il suo per una
+    //  che arriva. "" e' il colore del calendario. Sta in questo file, senza
+    //  finestre, perche' Carica controlla i colori letti dal file.
     // =======================================================================
     static class ColoriLezioni
     {
@@ -2459,19 +2473,32 @@ namespace Campanella
             return aMano != null && aMano.Contains(classe);
         }
 
+        /// <summary>Vero se la classe ha lo stesso colore (non "") che aveva nell'ultimo DatiOrari.gs uscito (scritti).</summary>
+        static bool SulCalendario(Dictionary<string, string> scritti, Dictionary<string, string> colori, string classe)
+        {
+            string s, v;
+            return scritti != null && scritti.TryGetValue(classe, out s) && colori.TryGetValue(classe, out v) &&
+                   v != "" && v == s;
+        }
+
         /// <summary>
         /// Da' un colore alle classi (quelle dell'orario del docente) che non
         /// l'hanno ancora, e lo scrive in colori, dove resta. Uno scelto a mano
         /// (aMano) resta com'e', anche "" o uguale a quello di un'altra classe.
-        /// Uno dato da Campanella resta, tranne quando e' uguale a quello di una
-        /// classe che viene prima (per esempio dato mentre si scriveva il nome di
-        /// un altro docente) e c'e' ancora un colore che nessuna usa: allora la
-        /// classe ne prende uno libero. Le classi nuove prendono il primo colore
-        /// dell'Ordine che nessun'altra usa, le ore a disposizione Grafite;
-        /// finiti i colori, quello usato da meno classi. Vero se ha cambiato
-        /// qualcosa.
+        /// Uno dato da Campanella resta, tranne quando e' uguale a quello di
+        /// un'altra classe che lo tiene e c'e' ancora un colore che nessuna usa:
+        /// allora la classe ne prende uno libero. Lo tengono prima quelle scelte
+        /// a mano, poi quelle che lo avevano gia' nell'ultimo DatiOrari.gs uscito
+        /// (scritti: le loro lezioni sono gia' sul calendario), poi le altre
+        /// nell'ordine delle classi. Cosi' una classe che torna con un colore
+        /// rimasto (di un altro anno, o dato mentre si scriveva il nome di un
+        /// altro docente) non lo porta via a una che e' gia' sul calendario. Le
+        /// classi nuove prendono il primo colore dell'Ordine che nessun'altra
+        /// usa, le ore a disposizione Grafite; finiti i colori, quello usato da
+        /// meno classi. Vero se ha cambiato qualcosa.
         /// </summary>
-        public static bool Completa(Dictionary<string, string> colori, List<string> aMano, List<string> classi)
+        public static bool Completa(Dictionary<string, string> colori, List<string> aMano, List<string> classi,
+                                    Dictionary<string, string> scritti)
         {
             if (colori == null || classi == null) return false;
             List<string> ordinate = Ordinate(classi);
@@ -2491,7 +2518,11 @@ namespace Campanella
             foreach (string o in Ordine) if (!tutti.Contains(o)) liberi++;
             int daRifare = Math.Max(0, liberi - nuove);
             bool cambiato = false;
-            foreach (string k in ordinate)
+            // prima quelle con il colore che hanno gia' sul calendario, poi le altre
+            List<string> passaggio = new List<string>();
+            foreach (string k in ordinate) if (SulCalendario(scritti, colori, k)) passaggio.Add(k);
+            foreach (string k in ordinate) if (!passaggio.Contains(k)) passaggio.Add(k);
+            foreach (string k in passaggio)
             {
                 if (AMano(aMano, k) || !colori.ContainsKey(k)) continue;
                 string v = colori[k];
@@ -2543,7 +2574,48 @@ namespace Campanella
                 colori.Remove(k);
                 if (aMano != null) aMano.Remove(k);
             }
-            Completa(colori, aMano, classi);
+            // nessuna di queste classi ha piu' un colore: quelli sul calendario non contano
+            Completa(colori, aMano, classi, null);
+        }
+
+        /// <summary>
+        /// I colori delle classi del calendario come li da' Campanella adesso
+        /// (Completa), su una copia: le impostazioni non cambiano. Per il
+        /// riepilogo, l'anteprima e DatiOrari.gs.
+        /// </summary>
+        public static Dictionary<string, string> DelCalendario(Stato s, List<string> classi)
+        {
+            Dictionary<string, string> colori = new Dictionary<string, string>();
+            if (s == null) return colori;
+            if (s.CalColori != null) foreach (KeyValuePair<string, string> kv in s.CalColori) colori[kv.Key] = kv.Value;
+            Completa(colori, s.CalColoriAMano, classi ?? new List<string>(), s.CalColoriScritti);
+            return colori;
+        }
+
+        /// <summary>
+        /// DatiOrari.gs e' uscito da Campanella (copiato o salvato) con i colori
+        /// di queste classi, quelle del calendario: i colori restano nelle
+        /// impostazioni (CalColori) e sono quelli delle lezioni sul calendario
+        /// (CalColoriScritti). Le classi che nel file non ci sono piu' tengono il
+        /// colore, ma non come scelto a mano: se tornano non lo portano via a
+        /// una classe gia' sul calendario.
+        /// </summary>
+        public static void Ricorda(Stato s, List<string> classi)
+        {
+            if (s == null || classi == null || classi.Count == 0) return;
+            Dictionary<string, string> colori = DelCalendario(s, classi);
+            s.CalColori = colori;
+            List<string> aMano = new List<string>();
+            if (s.CalColoriAMano != null)
+                foreach (string k in s.CalColoriAMano) if (classi.Contains(k) && !aMano.Contains(k)) aMano.Add(k);
+            s.CalColoriAMano = aMano;
+            Dictionary<string, string> scritti = new Dictionary<string, string>();
+            foreach (string k in classi)
+            {
+                string v;
+                scritti[k] = colori.TryGetValue(k, out v) ? v : "";
+            }
+            s.CalColoriScritti = scritti;
         }
 
         /// <summary>"1A Pomodoro, 2B Mirtillo, A disposizione Grafite": i colori delle classi, in ordine.</summary>

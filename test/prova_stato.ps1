@@ -1149,20 +1149,31 @@ static class ProvaStato
         colori["3B LSA"] = "";
         colori["A disposizione"] = "8";
         aMano.Add("3B LSA");
+        // quelli dell'ultimo DatiOrari.gs uscito: le lezioni gia' sul calendario
+        Dictionary<string, string> sulCalendario = ColoriScritti(s);
+        Verifica("di partenza nessun colore sul calendario", sulCalendario != null && sulCalendario.Count == 0);
+        if (sulCalendario == null) return;
+        sulCalendario["2B"] = "11";
+        sulCalendario["3B LSA"] = "";
         s.Salva();
         Verifica("Salva riesce", s.UltimoErrore == "");
         Dictionary<string, object> imp = Json(Impostazioni());
         Dictionary<string, object> dati = Json(FileDati(c));
         Dictionary<string, object> nelFile = imp.ContainsKey("calColori") ? imp["calColori"] as Dictionary<string, object> : null;
+        Dictionary<string, object> scrittiNelFile = imp.ContainsKey("calColoriScritti")
+            ? imp["calColoriScritti"] as Dictionary<string, object> : null;
         Verifica("con i dati nel Drive stanno in campanella.json (solo classi e numeri), non nel file dei dati",
             nelFile != null && nelFile.Count == 3 && Str(nelFile, "2B") == "11" && Str(nelFile, "3B LSA") == "" &&
             ListaNelFile(imp, "calColoriAMano") == "3B LSA" && !dati.ContainsKey("calColori") &&
-            !dati.ContainsKey("calColoriAMano"));
+            !dati.ContainsKey("calColoriAMano") && scrittiNelFile != null && scrittiNelFile.Count == 2 &&
+            Str(scrittiNelFile, "2B") == "11" && !dati.ContainsKey("calColoriScritti"));
         Stato t = Carica();
         Dictionary<string, string> letti = ColoriLezioni(t);
-        Verifica("si rileggono uguali, anche il colore del calendario scelto a mano",
+        Dictionary<string, string> scrittiLetti = ColoriScritti(t);
+        Verifica("si rileggono uguali, anche il colore del calendario scelto a mano, e quelli sul calendario",
             letti != null && letti.Count == 3 && letti["2B"] == "11" && letti["3B LSA"] == "" &&
-            letti["A disposizione"] == "8" && string.Join("|", ColoriLezioniAMano(t).ToArray()) == "3B LSA");
+            letti["A disposizione"] == "8" && string.Join("|", ColoriLezioniAMano(t).ToArray()) == "3B LSA" &&
+            scrittiLetti != null && scrittiLetti.Count == 2 && scrittiLetti["2B"] == "11" && scrittiLetti["3B LSA"] == "");
         t.Salva();
         Verifica("e anche dopo un altro salvataggio", ColoriLezioni(Carica()).Count == 3);
 
@@ -1177,13 +1188,25 @@ static class ProvaStato
         scritti["4D"] = null;
         altro["calColori"] = scritti;
         altro["calColoriAMano"] = new object[] { "1A", "2B", "5E" };
+        altro["calColoriScritti"] = scritti;
         ScriviImpostazioni(false, "", altro);
         Stato u = Carica();
         Dictionary<string, string> puliti = ColoriLezioni(u);
+        Dictionary<string, string> scrittiPuliti = ColoriScritti(u);
         Verifica("scritti male a mano: restano solo i colori di Google Calendar (anche scritti come numero) e le classi " +
                  "scelte a mano che hanno un colore (" + string.Join(", ", new List<string>(puliti.Keys).ToArray()) + ")",
             puliti.Count == 3 && puliti["2B"] == "9" && puliti["3C"] == "5" && puliti["4D"] == "" &&
             string.Join("|", ColoriLezioniAMano(u).ToArray()) == "2B");
+        Verifica("  ...e lo stesso per quelli sul calendario (" +
+                 string.Join(", ", new List<string>(scrittiPuliti.Keys).ToArray()) + ")",
+            scrittiPuliti.Count == 3 && scrittiPuliti["2B"] == "9" && scrittiPuliti["3C"] == "5" && scrittiPuliti["4D"] == "");
+    }
+
+    static Dictionary<string, string> ColoriScritti(Stato s)
+    {
+        FieldInfo f = typeof(Stato).GetField("CalColoriScritti");
+        if (f == null) { Verifica("Stato ha il campo CalColoriScritti", false); return null; }
+        return f.GetValue(s) as Dictionary<string, string>;
     }
 
     static Dictionary<string, string> ColoriLezioni(Stato s)

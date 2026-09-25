@@ -807,15 +807,24 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
             if ($LASTEXITCODE -ne 0 -or -not $esito) { return '(DatiOrari.gs non si carica)' }
             [string]($esito | Select-Object -Last 1)
         }
-        function Completa($colori, $aMano, [string[]]$classi) {
+        function Completa($colori, $aMano, [string[]]$classi, $scritti = $null) {
             $lista = New-Object 'System.Collections.Generic.List[string]'
             foreach ($k in $classi) { $lista.Add($k) }
-            $a = New-Object 'object[]' 3
+            $a = New-Object 'object[]' 4
             $a[0] = $colori.PSObject.BaseObject
             $a[1] = $aMano.PSObject.BaseObject
             $a[2] = $lista.PSObject.BaseObject
+            $a[3] = if ($null -ne $scritti) { $scritti.PSObject.BaseObject } else { $null }
             $tCL.GetMethod('Completa', $FS).Invoke($null, $a)
         }
+        # DatiOrari.gs copiato o salvato: i colori che ha restano nelle impostazioni
+        function Uscito($o, $s) {
+            $a = New-Object 'object[]' 2
+            $a[0] = $o.PSObject.BaseObject
+            $a[1] = $s.PSObject.BaseObject
+            [void]$tAn.GetMethod('DatiOrariUsciti', $FS).Invoke($null, $a)
+        }
+        function Elenco($d) { if ($null -eq $d) { return '(null)' }; ((@($d.Keys) | Sort-Object) | ForEach-Object { "$_=$($d[$_])" }) -join ',' }
         function Nome([string]$v) { $tCL.GetMethod('Nome', $FS).Invoke($null, @($v)) }
         # ROSSI ha sei classi, con le ore "D" (a disposizione); VERDI un'altra orario
         $oc = AnalizzaFile (ScriviCsv 'colori.csv' @(
@@ -832,9 +841,14 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
         $partenza = '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","10A":"3","A disposizione":"8"}'
         Verifica "di partenza ogni classe ha un colore diverso, nell'ordine fisso (1A Pomodoro, 2A Mirtillo, 2B Basilico, 3B LSA Mandarino, 10A Vinaccia), le ore a disposizione Grafite: $primo" (
             $primo -eq $partenza)
-        Verifica "  ...e i colori dati restano nelle impostazioni, nessuno scelto a mano" (
-            $s.CalColori.Count -eq 6 -and $s.CalColori['10A'] -eq '3' -and $s.CalColoriAMano.Count -eq 0)
+        Verifica "  ...ma l'anteprima non li scrive nelle impostazioni" (
+            $s.CalColori.Count -eq 0 -and $s.CalColoriScritti.Count -eq 0)
         Verifica "rigenerato, DatiOrari.gs ha gli stessi colori" ((ColoriGenerati $oc $s) -eq $partenza)
+        Uscito $oc $s
+        Verifica "copiato o salvato, i suoi colori restano nelle impostazioni, nessuno scelto a mano, e sono quelli sul calendario ($(Elenco $s.CalColoriScritti))" (
+            $s.CalColori.Count -eq 6 -and $s.CalColori['10A'] -eq '3' -and $s.CalColoriAMano.Count -eq 0 -and
+            (Elenco $s.CalColoriScritti) -eq (Elenco $s.CalColori))
+        Verifica "  ...e rigenerato non cambiano" ((ColoriGenerati $oc $s) -eq $partenza)
         # una classe nuova nell'orario (un cambio d'orario): le altre tengono il loro colore
         $l = [Activator]::CreateInstance($asm.GetType('Campanella.Lezione'))
         $l.Docente = 'ROSSI'; $l.Giorno = 3; $l.Ora = 3; $l.Classe = '4C'
@@ -842,6 +856,7 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
         $conNuova = ColoriGenerati $oc $s
         Verifica "una classe nuova prende un colore che le altre non hanno (Pavone), e le altre tengono il loro: $conNuova" (
             $conNuova -eq '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","4C":"7","10A":"3","A disposizione":"8"}')
+        Uscito $oc $s
         # scelti a mano: 2B con il colore del calendario, 2A con lo stesso colore di 1A
         $s.CalColori['2B'] = ''
         $s.CalColori['2A'] = '11'
@@ -860,14 +875,28 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
         Verifica "i colori di partenza dimenticano le scelte a mano e rifanno l'ordine fisso" (
             $s.CalColoriAMano.Count -eq 0 -and
             (ColoriGenerati $oc $s) -eq '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","4C":"3","10A":"7","A disposizione":"8"}')
-        # due classi con lo stesso colore dato da Campanella (mentre si scriveva il
-        # nome di un altro docente): la seconda ne prende uno libero, la prima lo tiene
+        # due classi con lo stesso colore dato da Campanella, nessuna delle due
+        # sul calendario: la seconda ne prende uno libero, la prima lo tiene
         $colori = New-Object 'System.Collections.Generic.Dictionary[string,string]'
         $colori['1A'] = '11'; $colori['2A'] = '11'; $colori['2B'] = '9'
         $vuota = New-Object 'System.Collections.Generic.List[string]'
         [void](Completa $colori $vuota @('2A', '1A', '2B'))
         Verifica "due classi con lo stesso colore di partenza: la prima lo tiene, la seconda ne prende uno libero ($($colori['1A']), $($colori['2A']), $($colori['2B']))" (
             $colori['1A'] -eq '11' -and $colori['2A'] -eq '10' -and $colori['2B'] -eq '9')
+        # ...ma se la seconda e' gia' sul calendario con quel colore (nell'ultimo
+        # DatiOrari.gs uscito) lo tiene lei, e la prima, che arriva, ne prende uno libero
+        $colori['1A'] = '11'; $colori['2A'] = '11'; $colori['2B'] = '9'
+        $sulCal = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        $sulCal['2A'] = '11'; $sulCal['2B'] = '9'
+        [void](Completa $colori $vuota @('1A', '2A', '2B') $sulCal)
+        Verifica "  ...ma la classe gia' sul calendario con quel colore lo tiene, e quella che arriva ne prende uno libero ($($colori['1A']), $($colori['2A']), $($colori['2B']))" (
+            $colori['1A'] -eq '10' -and $colori['2A'] -eq '11' -and $colori['2B'] -eq '9')
+        # sul calendario con un altro colore non conta: di nuovo l'ordine
+        $colori['1A'] = '11'; $colori['2A'] = '11'; $colori['2B'] = '9'
+        $sulCal['2A'] = '6'
+        [void](Completa $colori $vuota @('1A', '2A', '2B') $sulCal)
+        Verifica "  ...e se sul calendario aveva un altro colore, conta di nuovo l'ordine ($($colori['1A']), $($colori['2A']))" (
+            $colori['1A'] -eq '11' -and $colori['2A'] -eq '10')
         $scelte = New-Object 'System.Collections.Generic.List[string]'
         $scelte.Add('2A')
         $colori['2A'] = '11'
@@ -916,6 +945,65 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
         $s2 = NuovoStato
         Verifica "senza il docente del calendario i colori non si toccano" (
             (ColoriGenerati $oc $s2) -eq 'null' -and $s2.CalColori.Count -eq 0)
+        Uscito $oc $s2
+        Verifica "  ...nemmeno copiato" ($s2.CalColori.Count -eq 0 -and $s2.CalColoriScritti.Count -eq 0)
+
+        # RICCI ha la 1A, ROSSI la 2A e la 3B. Scrivendo ROSSI una lettera alla
+        # volta, con 'R' il docente trovato per prefisso e' RICCI: l'anteprima (e
+        # il riepilogo del passo 4, che fa lo stesso) non scrivono colori
+        $righeRR = @(
+            'Orario dal 14/09;;;;;;',
+            ';LUN;;MAR;;MER;',
+            ';1;2;1;2;1;2',
+            'RICCI;1A;;;;;',
+            'ROSSI;;2A;3B;;;')
+        $or = AnalizzaFile (ScriviCsv 'colori_prefisso.csv' $righeRR)
+        $sr = NuovoStato
+        $sr.CalInizio = '2026-09-14'
+        $sr.CalFine = '2027-06-10'
+        foreach ($p in @('R', 'RO', 'ROS', 'ROSS')) {
+            $sr.CalDocente = $p
+            [void](ColoriGenerati $or $sr)
+        }
+        Verifica "scrivendo il nome una lettera alla volta ('R' e' RICCI) l'anteprima non scrive colori nelle impostazioni ($(Elenco $sr.CalColori))" (
+            $sr.CalColori.Count -eq 0)
+        $sr.CalDocente = 'ROSSI'
+        $settembre = ColoriGenerati $or $sr
+        Uscito $or $sr
+        Verifica "a settembre ROSSI ha la 2A Pomodoro e la 3B Mirtillo, e il file copiato li lascia nelle impostazioni: $settembre" (
+            $settembre -eq '{"2A":"11","3B":"9"}' -and (Elenco $sr.CalColori) -eq '2A=11,3B=9')
+        # a gennaio ROSSI prende anche la 1A, che nelle impostazioni ha ancora un
+        # colore rimasto (di un altro anno scolastico, o di una versione di prima)
+        $sr.CalColori['1A'] = '11'
+        $l = [Activator]::CreateInstance($asm.GetType('Campanella.Lezione'))
+        $l.Docente = 'ROSSI'; $l.Giorno = 2; $l.Ora = 2; $l.Classe = '1A'
+        $or.Lezioni.Add($l)
+        $gennaio = ColoriGenerati $or $sr
+        Verifica "a gennaio la 1A, che arriva con un colore rimasto (Pomodoro), ne prende uno libero, e la 2A e la 3B, gia' sul calendario, tengono il loro: $gennaio" (
+            $gennaio -eq '{"1A":"10","2A":"11","3B":"9"}')
+        Uscito $or $sr
+        Verifica "  ...e copiato resta cosi' ($(Elenco $sr.CalColoriScritti))" (
+            (ColoriGenerati $or $sr) -eq $gennaio -and (Elenco $sr.CalColoriScritti) -eq '1A=10,2A=11,3B=9')
+
+        # un colore scelto a mano per una classe che non e' piu' nell'orario (la
+        # 4D di un anno prima): copiato un DatiOrari.gs senza di lei, lo tiene ma
+        # non come scelto a mano, e quando torna non lo porta via alla 2A
+        $om = AnalizzaFile (ScriviCsv 'colori_amano.csv' $righeRR)
+        $sm = NuovoStato
+        $sm.CalInizio = '2026-09-14'
+        $sm.CalFine = '2027-06-10'
+        $sm.CalDocente = 'ROSSI'
+        $sm.CalColori['4D'] = '11'
+        $sm.CalColoriAMano.Add('4D')
+        $senza4D = ColoriGenerati $om $sm
+        Uscito $om $sm
+        Verifica "la 4D scelta a mano Pomodoro un anno prima: senza di lei la 2A prende Pomodoro, e copiato il file la 4D non e' piu' scelta a mano ($senza4D; a mano: $($sm.CalColoriAMano -join ','))" (
+            $senza4D -eq '{"2A":"11","3B":"9"}' -and $sm.CalColoriAMano.Count -eq 0 -and $sm.CalColori['4D'] -eq '11')
+        $l = [Activator]::CreateInstance($asm.GetType('Campanella.Lezione'))
+        $l.Docente = 'ROSSI'; $l.Giorno = 2; $l.Ora = 2; $l.Classe = '4D'
+        $om.Lezioni.Add($l)
+        $con4D = ColoriGenerati $om $sm
+        Verifica "  ...e quando torna ne prende uno libero, la 2A tiene Pomodoro: $con4D" ($con4D -eq '{"2A":"11","3B":"9","4D":"10"}')
     }
 
     # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------

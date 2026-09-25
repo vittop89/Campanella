@@ -2174,6 +2174,8 @@ namespace Campanella
         readonly Dictionary<string, ComboBox> tendine = new Dictionary<string, ComboBox>();
         readonly Dictionary<string, QuadratoColore> quadrati = new Dictionary<string, QuadratoColore>();
         readonly Dictionary<string, Label> note = new Dictionary<string, Label>();
+        // quelli delle lezioni gia' sul calendario (Stato.CalColoriScritti)
+        readonly Dictionary<string, string> scritti;
         readonly Panel righe;
         bool riempiendo = false;
         const int Larga = 560;
@@ -2187,12 +2189,15 @@ namespace Campanella
             public override string ToString() { return ColoriLezioni.Nome(Valore); }
         }
 
-        public FormColoriClassi(List<string> classi, Dictionary<string, string> colori, List<string> aMano)
+        /// <param name="scritti">i colori delle classi nell'ultimo DatiOrari.gs uscito (Stato.CalColoriScritti), anche null</param>
+        public FormColoriClassi(List<string> classi, Dictionary<string, string> colori, List<string> aMano,
+                                Dictionary<string, string> scritti)
         {
             Classi = ColoriLezioni.Ordinate(classi);
             Colori = new Dictionary<string, string>(colori ?? new Dictionary<string, string>());
             AMano = new List<string>(aMano ?? new List<string>());
-            ColoriLezioni.Completa(Colori, AMano, Classi);
+            this.scritti = new Dictionary<string, string>(scritti ?? new Dictionary<string, string>());
+            ColoriLezioni.Completa(Colori, AMano, Classi, this.scritti);
 
             Text = "Colori delle classi";
             StartPosition = FormStartPosition.CenterParent;
