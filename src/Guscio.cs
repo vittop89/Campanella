@@ -167,7 +167,8 @@ namespace Campanella
             if (!conCalendario) return "";
             return "Se hai messo il tuo orario su Google Calendar con Campanella 1.5 o prima, quel calendario " +
                    "ha il fuso orario UTC: dalla fine dell'ora legale (l'ultima domenica di ottobre) a fine " +
-                   "marzo le lezioni compaiono un'ora prima.\n\n" +
+                   "marzo le lezioni compaiono un'ora prima. Cambiare il fuso del calendario dalle " +
+                   "impostazioni di Google Calendar non basta: le lezioni gia' messe restano nel fuso di prima.\n\n" +
                    "Per sistemare: nella pagina Orari copia di nuovo il \"Codice degli orari\" e incollalo " +
                    "nel file Orari del progetto Apps Script, al posto di quello che c'era; poi esegui " +
                    "ORARI_1_anteprima e segui quello che dice (di solito ORARI_ANNULLA_calendario, poi " +

@@ -381,10 +381,11 @@ try {
         ScriviDati '{"formato":1,"personale":[],"calDocente":"ROSSI","calNome":"Orario ROSSI"}'
         $st = Rileggi
         $a = $mAvvisi.Invoke($null, @($st, $false))
-        Verifica "l'orario messo sul calendario con una versione di prima: un avviso sul fuso orario, con il rimedio" (
+        Verifica ("l'orario messo sul calendario con una versione di prima: un avviso sul fuso orario, con il rimedio, " +
+                  "e che cambiare il fuso dalle impostazioni di Google Calendar non basta") (
             $a.Count -eq 1 -and $a[0][0] -match 'Google Calendar' -and $a[0][1] -match "un'ora prima" -and
             $a[0][1] -match 'UTC' -and $a[0][1] -match 'ORARI_1_anteprima' -and $a[0][1] -match 'ORARI_ANNULLA_calendario' -and
-            $a[0][1] -match 'ORARI_4_calendario')
+            $a[0][1] -match 'ORARI_4_calendario' -and $a[0][1] -match 'dalle impostazioni di Google Calendar non basta')
         Verifica "  ...e lo segna come dato" ((Campo $st 'AvvisoFusoCalendarioDato') -eq $true)
         Verifica "  ...anche con le condizioni appena chieste (il salvataggio non l'ha detto)" ((Avvisi $true).Count -eq 1)
         $st.GetType().GetMethod('Salva', $FI).Invoke($st, @()) | Out-Null
