@@ -9,7 +9,8 @@
     minimi, non numeri esatti.
 
     Poi prova il generatore di DatiOrari.gs con tabelloni inventati, scritti
-    in una cartella temporanea che alla fine viene tolta.
+    in una cartella temporanea che alla fine viene tolta (anche i colori delle
+    classi: quelli di partenza, che restano gli stessi, e quelli scelti a mano).
 #>
 param(
     [string]$File = (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'tabellone_esempio.csv'),
@@ -777,6 +778,125 @@ console.log(JSON.stringify({
     $r = CalendarioGenerato $s
     Verifica "senza giorni senza lezione e senza cambio: un elenco vuoto e validoDal vuoto" (
         $null -ne $r -and $null -ne $r.sospensioni -and @($r.sospensioni).Count -eq 0 -and $r.validoDal -eq '')
+
+    # --- i colori delle classi: di partenza, e poi sempre gli stessi ---------
+    # Ogni classe dell'orario del docente ha il colore delle sue lezioni sul
+    # calendario (CalendarApp.EventColor, da "1" a "11"). Di partenza lo da'
+    # Campanella, nell'ordine fisso, e la classe lo tiene: una classe nuova
+    # non cambia quelli delle altre. Uno scelto a mano resta.
+    Write-Host "`nDATIORARI.GS: I COLORI DELLE CLASSI" -ForegroundColor Cyan
+    $tCL = $asm.GetType('Campanella.ColoriLezioni')
+    Verifica "c'e' ColoriLezioni, con Completa, DiPartenza, Nome e Esadecimale" (
+        $null -ne $tCL -and $null -ne $tCL.GetMethod('Completa', $FS) -and $null -ne $tCL.GetMethod('DiPartenza', $FS) -and
+        $null -ne $tCL.GetMethod('Nome', $FS) -and $null -ne $tCL.GetMethod('Esadecimale', $FS))
+    if ($null -ne $tCL) {
+        $leggiColori = Join-Path $tmp 'leggi_colori.js'
+        [System.IO.File]::WriteAllText($leggiColori, @'
+// carica DatiOrari.gs e stampa i colori delle classi, nell'ordine in cui sono scritti
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const c = contesto.ORARI && contesto.ORARI.calendario;
+console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.colori : null));
+'@, $utf8)
+        function ColoriGenerati($o, $s) {
+            $f = Join-Path $tmp 'DatiOrari_colori.gs'
+            [System.IO.File]::WriteAllText($f, (GeneraDati $o $s $false), $utf8)
+            $esito = & node $leggiColori $f
+            if ($LASTEXITCODE -ne 0 -or -not $esito) { return '(DatiOrari.gs non si carica)' }
+            [string]($esito | Select-Object -Last 1)
+        }
+        function Completa($colori, $aMano, [string[]]$classi) {
+            $lista = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($k in $classi) { $lista.Add($k) }
+            $a = New-Object 'object[]' 3
+            $a[0] = $colori.PSObject.BaseObject
+            $a[1] = $aMano.PSObject.BaseObject
+            $a[2] = $lista.PSObject.BaseObject
+            $tCL.GetMethod('Completa', $FS).Invoke($null, $a)
+        }
+        function Nome([string]$v) { $tCL.GetMethod('Nome', $FS).Invoke($null, @($v)) }
+        # ROSSI ha sei classi, con le ore "D" (a disposizione); VERDI un'altra orario
+        $oc = AnalizzaFile (ScriviCsv 'colori.csv' @(
+            'Orario dal 14/09;;;;;;;;;;;;',
+            ';LUN;;;MAR;;;MER;;;GIO;;',
+            ';1;2;3;1;2;3;1;2;3;1;2;3',
+            'ROSSI;2B;2B;10A;D;3B LSA;;1A;;D;2A;;',
+            'VERDI;1A;;;2B;;;;;;;3B LSA;'))
+        $s = NuovoStato
+        $s.CalDocente = 'ROSSI'
+        $s.CalInizio = '2026-09-14'
+        $s.CalFine = '2027-06-10'
+        $primo = ColoriGenerati $oc $s
+        $partenza = '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","10A":"3","A disposizione":"8"}'
+        Verifica "di partenza ogni classe ha un colore diverso, nell'ordine fisso (1A Pomodoro, 2A Mirtillo, 2B Basilico, 3B LSA Mandarino, 10A Vinaccia), le ore a disposizione Grafite: $primo" (
+            $primo -eq $partenza)
+        Verifica "  ...e i colori dati restano nelle impostazioni, nessuno scelto a mano" (
+            $s.CalColori.Count -eq 6 -and $s.CalColori['10A'] -eq '3' -and $s.CalColoriAMano.Count -eq 0)
+        Verifica "rigenerato, DatiOrari.gs ha gli stessi colori" ((ColoriGenerati $oc $s) -eq $partenza)
+        # una classe nuova nell'orario (un cambio d'orario): le altre tengono il loro colore
+        $l = [Activator]::CreateInstance($asm.GetType('Campanella.Lezione'))
+        $l.Docente = 'ROSSI'; $l.Giorno = 3; $l.Ora = 3; $l.Classe = '4C'
+        $oc.Lezioni.Add($l)
+        $conNuova = ColoriGenerati $oc $s
+        Verifica "una classe nuova prende un colore che le altre non hanno (Pavone), e le altre tengono il loro: $conNuova" (
+            $conNuova -eq '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","4C":"7","10A":"3","A disposizione":"8"}')
+        # scelti a mano: 2B con il colore del calendario, 2A con lo stesso colore di 1A
+        $s.CalColori['2B'] = ''
+        $s.CalColori['2A'] = '11'
+        $s.CalColoriAMano.Add('2B')
+        $s.CalColoriAMano.Add('2A')
+        $aMano = ColoriGenerati $oc $s
+        Verifica "i colori scelti a mano restano: 2B (colore del calendario) non e' in DatiOrari.gs, 2A e' Pomodoro; 1A, che aveva lo stesso, prende quello lasciato da 2A: $aMano" (
+            $aMano -eq '{"1A":"9","2A":"11","3B LSA":"6","4C":"7","10A":"3","A disposizione":"8"}')
+        Verifica "  ...e rigenerato non cambia piu'" ((ColoriGenerati $oc $s) -eq $aMano)
+        # "Colori di partenza": dimentica le scelte, e da' i colori come la prima volta
+        $lista = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($k in @('1A', '2A', '2B', '3B LSA', '4C', '10A', 'A disposizione')) { $lista.Add($k) }
+        $a = New-Object 'object[]' 3
+        $a[0] = $s.CalColori.PSObject.BaseObject; $a[1] = $s.CalColoriAMano.PSObject.BaseObject; $a[2] = $lista.PSObject.BaseObject
+        $tCL.GetMethod('DiPartenza', $FS).Invoke($null, $a) | Out-Null
+        Verifica "i colori di partenza dimenticano le scelte a mano e rifanno l'ordine fisso" (
+            $s.CalColoriAMano.Count -eq 0 -and
+            (ColoriGenerati $oc $s) -eq '{"1A":"11","2A":"9","2B":"10","3B LSA":"6","4C":"3","10A":"7","A disposizione":"8"}')
+        # due classi con lo stesso colore dato da Campanella (mentre si scriveva il
+        # nome di un altro docente): la seconda ne prende uno libero, la prima lo tiene
+        $colori = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        $colori['1A'] = '11'; $colori['2A'] = '11'; $colori['2B'] = '9'
+        $vuota = New-Object 'System.Collections.Generic.List[string]'
+        [void](Completa $colori $vuota @('2A', '1A', '2B'))
+        Verifica "due classi con lo stesso colore di partenza: la prima lo tiene, la seconda ne prende uno libero ($($colori['1A']), $($colori['2A']), $($colori['2B']))" (
+            $colori['1A'] -eq '11' -and $colori['2A'] -eq '10' -and $colori['2B'] -eq '9')
+        $scelte = New-Object 'System.Collections.Generic.List[string]'
+        $scelte.Add('2A')
+        $colori['2A'] = '11'
+        [void](Completa $colori $scelte @('1A', '2A', '2B'))
+        Verifica "  ...ma un colore scelto a mano resta anche se e' di un'altra classe: cambia quella con il colore di partenza ($($colori['1A']), $($colori['2A']))" (
+            $colori['2A'] -eq '11' -and $colori['1A'] -ne '11' -and $colori['1A'] -ne '9')
+        $scelte.Add('1A')
+        $colori['1A'] = '11'
+        [void](Completa $colori $scelte @('1A', '2A', '2B'))
+        Verifica "  ...e due scelte a mano uguali restano tutte e due" ($colori['1A'] -eq '11' -and $colori['2A'] -eq '11')
+        # piu' classi che colori: le prime undici tutte diverse, le altre il meno usato; poi fermo
+        $colori = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        $tante = @(1..13 | ForEach-Object { "$($_)A" })
+        [void](Completa $colori $vuota $tante)
+        $prime = @($tante[0..10] | ForEach-Object { $colori[$_] })
+        $prima = ($tante | ForEach-Object { $colori[$_] }) -join ','
+        $cambiate = Completa $colori $vuota $tante
+        Verifica "con 13 classi le prime 11 hanno tutti i colori, le altre due quelli meno usati, e rifatto non cambia ($prima)" (
+            @($prime | Sort-Object -Unique).Count -eq 11 -and $colori['12A'] -ne '' -and $colori['13A'] -ne '' -and
+            -not $cambiate -and (($tante | ForEach-Object { $colori[$_] }) -join ',') -eq $prima)
+        Verifica "i nomi dei colori sono quelli di Google Calendar in italiano" (
+            (Nome '11') -eq 'Pomodoro' -and (Nome '9') -eq 'Mirtillo' -and (Nome '10') -eq 'Basilico' -and
+            (Nome '8') -eq 'Grafite' -and (Nome '1') -eq 'Lavanda' -and (Nome '') -eq 'colore del calendario' -and
+            $tCL.GetMethod('Esadecimale', $FS).Invoke($null, @('9')) -eq '#3f51b5')
+        # senza docente: nessun colore, e DatiOrari.gs non ha il calendario
+        $s2 = NuovoStato
+        Verifica "senza il docente del calendario i colori non si toccano" (
+            (ColoriGenerati $oc $s2) -eq 'null' -and $s2.CalColori.Count -eq 0)
+    }
 
     # --- il generatore vero davanti al banco di Orari.gs (A-13) -------------
     # i banchi girano di solito su DatiOrari_esempio.gs, scritto a mano: qui

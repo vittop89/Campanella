@@ -335,6 +335,15 @@ namespace Campanella
         public string CalColore = "";            // colore del calendario, vuoto = quello di Google
         public string CalSospensioni = "";       // giorni senza lezione, una riga per giorno o periodo (testo libero: segue i dati personali)
         public string CalValidoDal = "";         // yyyy-MM-dd: da quando vale l'orario cambiato, vuoto = nessun cambio
+        // il colore delle lezioni di ogni classe sul calendario (la classe come
+        // nel tabellone, "A disposizione" per le ore a disposizione): il valore
+        // di CalendarApp.EventColor, da "1" a "11", oppure "" = il colore del
+        // calendario. Solo nomi di classi: sta nelle impostazioni. Quelli delle
+        // classi che non sono in CalColoriAMano li ha dati Campanella
+        // (ColoriLezioni.Completa), e restano gli stessi
+        public Dictionary<string, string> CalColori = new Dictionary<string, string>();
+        // le classi il cui colore l'ha scelto il docente: resta com'e'
+        public List<string> CalColoriAMano = new List<string>();
         // vero = l'avviso dell'avvio sul fuso dei calendari messi con la 1.5 o
         // prima e' gia' stato dato (o non serviva): non si ripete
         public bool AvvisoFusoCalendarioDato = false;
@@ -943,6 +952,14 @@ namespace Campanella
             r["calOreInizio"] = CalOreInizio;
             r["calColore"] = CalColore;
             r["calValidoDal"] = CalValidoDal;    // solo una data; i giorni senza lezione stanno in Dati()
+            // i colori delle classi: nomi di classi e numeri, niente di personale
+            Dictionary<string, object> colori = new Dictionary<string, object>();
+            if (CalColori != null)
+                foreach (KeyValuePair<string, string> kv in CalColori) colori[kv.Key] = kv.Value ?? "";
+            r["calColori"] = colori;
+            List<object> aMano = new List<object>();
+            if (CalColoriAMano != null) foreach (string k in CalColoriAMano) aMano.Add(k);
+            r["calColoriAMano"] = aMano;
             r["avvisoFusoCalendario"] = AvvisoFusoCalendarioDato;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
@@ -1089,6 +1106,11 @@ namespace Campanella
                 s.CalOreInizio = Str(r, "calOreInizio", "");
                 s.CalColore = Str(r, "calColore", "");
                 s.CalValidoDal = Str(r, "calValidoDal", "");
+                s.CalColori = ColoriLezioni.Letti(r, "calColori");
+                s.CalColoriAMano = new List<string>();
+                // scelta a mano solo una classe che ha un colore (anche "")
+                foreach (string k in Lista(r, "calColoriAMano"))
+                    if (s.CalColori.ContainsKey(k) && !s.CalColoriAMano.Contains(k)) s.CalColoriAMano.Add(k);
                 s.AvvisoFusoCalendarioDato = Bool(r, "avvisoFusoCalendario", false);
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");
@@ -2314,6 +2336,227 @@ namespace Campanella
                     if (giro == 1 && quante < meno) { meno = quante; migliore = t; }
                 }
             return migliore;
+        }
+    }
+
+    // =======================================================================
+    //  I COLORI DELLE LEZIONI SUL CALENDARIO (Orari, passo 4)
+    //
+    //  Google Calendar da' agli eventi undici colori (CalendarApp.EventColor,
+    //  da "1" a "11"), che nell'interfaccia italiana hanno un nome. Ogni classe
+    //  dell'orario del docente ne prende uno, cosi' nello stesso calendario la
+    //  2B ha un colore e la 3B un altro. Di partenza le classi li prendono in
+    //  un ordine fisso, tutte diverse finche' ce ne sono, e poi li tengono
+    //  (Stato.CalColori); uno scelto a mano (Stato.CalColoriAMano) resta. ""
+    //  e' il colore del calendario. Sta in questo file, senza finestre, perche'
+    //  Carica controlla i colori letti dal file.
+    // =======================================================================
+    static class ColoriLezioni
+    {
+        /// <summary>Le ore a disposizione, come le chiama il calendario (AnalisiOrario.Blocchi).</summary>
+        public const string Disposizione = "A disposizione";
+        /// <summary>Grafite: il colore di partenza delle ore a disposizione.</summary>
+        public const string Grafite = "8";
+
+        /// <summary>
+        /// I colori nell'ordine del menu di Google Calendar: il valore
+        /// (CalendarApp.EventColor), il nome nell'interfaccia italiana e il colore.
+        /// </summary>
+        public static readonly string[,] Tavolozza =
+        {
+            { "11", "Pomodoro", "#d50000" }, { "4", "Fenicottero", "#e67c73" }, { "6", "Mandarino", "#f4511e" },
+            { "5", "Banana", "#f6bf26" }, { "2", "Salvia", "#33b679" }, { "10", "Basilico", "#0b8043" },
+            { "7", "Pavone", "#039be5" }, { "9", "Mirtillo", "#3f51b5" }, { "1", "Lavanda", "#7986cb" },
+            { "3", "Vinaccia", "#8e24aa" }, { "8", "Grafite", "#616161" }
+        };
+
+        /// <summary>
+        /// L'ordine in cui le classi prendono i colori di partenza: ogni tinta
+        /// lontana da quella prima (rosso, blu, verde, arancione, viola...), le
+        /// piu' chiare dopo; Grafite per ultimo, e' delle ore a disposizione.
+        /// </summary>
+        public static readonly string[] Ordine = { "11", "9", "10", "6", "3", "7", "5", "4", "2", "1", "8" };
+
+        static int Indice(string valore)
+        {
+            for (int i = 0; i < Tavolozza.GetLength(0); i++) if (Tavolozza[i, 0] == valore) return i;
+            return -1;
+        }
+
+        /// <summary>Vero se e' un colore degli eventi di Google Calendar ("1".."11") oppure "", il colore del calendario.</summary>
+        public static bool Valido(string valore)
+        {
+            return valore == "" || Indice(valore) >= 0;
+        }
+
+        /// <summary>Il nome del colore come in Google Calendar ("11" -> Pomodoro); "" e' il colore del calendario.</summary>
+        public static string Nome(string valore)
+        {
+            int i = Indice(valore ?? "");
+            return (i >= 0) ? Tavolozza[i, 1] : "colore del calendario";
+        }
+
+        /// <summary>Il colore "#rrggbb" per disegnarlo; "" per il colore del calendario.</summary>
+        public static string Esadecimale(string valore)
+        {
+            int i = Indice(valore ?? "");
+            return (i >= 0) ? Tavolozza[i, 2] : "";
+        }
+
+        /// <summary>
+        /// I colori letti dal file: solo le classi con un nome e un colore che
+        /// Google Calendar ha (o ""). Un valore scritto male a mano non arriva
+        /// allo script: la classe riprende un colore di partenza.
+        /// </summary>
+        public static Dictionary<string, string> Letti(Dictionary<string, object> r, string chiave)
+        {
+            Dictionary<string, string> fuori = new Dictionary<string, string>();
+            Dictionary<string, object> d = (r != null && r.ContainsKey(chiave)) ? r[chiave] as Dictionary<string, object> : null;
+            if (d == null) return fuori;
+            foreach (KeyValuePair<string, object> kv in d)
+            {
+                string classe = (kv.Key ?? "").Trim();
+                string valore = (kv.Value == null) ? "" : Convert.ToString(kv.Value, CultureInfo.InvariantCulture).Trim();
+                if (classe != "" && Valido(valore)) fuori[classe] = valore;
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// Le classi in ordine, una volta sola: prima il numero ("2B" prima di
+        /// "10A"), poi il resto; "A disposizione" in fondo. Lo stesso ordine
+        /// dello script (_orariOrdineClassi_).
+        /// </summary>
+        public static List<string> Ordinate(List<string> classi)
+        {
+            List<string> fuori = new List<string>();
+            if (classi != null)
+                foreach (string k in classi) if (!string.IsNullOrEmpty(k) && !fuori.Contains(k)) fuori.Add(k);
+            fuori.Sort(Confronta);
+            return fuori;
+        }
+
+        public static int Confronta(string a, string b)
+        {
+            string x = a ?? "", y = b ?? "";
+            int dx = (x == Disposizione) ? 1 : 0, dy = (y == Disposizione) ? 1 : 0;
+            if (dx != dy) return dx - dy;
+            Match nx = Regex.Match(x, "^[0-9]+"), ny = Regex.Match(y, "^[0-9]+");
+            if (nx.Success && ny.Success)
+            {
+                // come numeri: senza gli zeri davanti, conta la lunghezza e poi le cifre
+                string cx = nx.Value.TrimStart('0'), cy = ny.Value.TrimStart('0');
+                if (cx.Length != cy.Length) return cx.Length - cy.Length;
+                int c = string.CompareOrdinal(cx, cy);
+                if (c != 0) return c;
+            }
+            if (nx.Success != ny.Success) return nx.Success ? -1 : 1;
+            return string.CompareOrdinal(x.ToLowerInvariant(), y.ToLowerInvariant());
+        }
+
+        static bool AMano(List<string> aMano, string classe)
+        {
+            return aMano != null && aMano.Contains(classe);
+        }
+
+        /// <summary>
+        /// Da' un colore alle classi (quelle dell'orario del docente) che non
+        /// l'hanno ancora, e lo scrive in colori, dove resta. Uno scelto a mano
+        /// (aMano) resta com'e', anche "" o uguale a quello di un'altra classe.
+        /// Uno dato da Campanella resta, tranne quando e' uguale a quello di una
+        /// classe che viene prima (per esempio dato mentre si scriveva il nome di
+        /// un altro docente) e c'e' ancora un colore che nessuna usa: allora la
+        /// classe ne prende uno libero. Le classi nuove prendono il primo colore
+        /// dell'Ordine che nessun'altra usa, le ore a disposizione Grafite;
+        /// finiti i colori, quello usato da meno classi. Vero se ha cambiato
+        /// qualcosa.
+        /// </summary>
+        public static bool Completa(Dictionary<string, string> colori, List<string> aMano, List<string> classi)
+        {
+            if (colori == null || classi == null) return false;
+            List<string> ordinate = Ordinate(classi);
+            // i colori gia' presi, uno per classe (si contano quando sono finiti)
+            List<string> usati = new List<string>();
+            foreach (string k in ordinate)
+                if (AMano(aMano, k) && colori.ContainsKey(k) && colori[k] != "") usati.Add(colori[k]);
+            // quanti colori non usa nessuna classe, tolti quelli che servono alle nuove
+            List<string> tutti = new List<string>(usati);
+            int nuove = 0;
+            foreach (string k in ordinate)
+            {
+                if (!colori.ContainsKey(k)) nuove++;
+                else if (!AMano(aMano, k) && colori[k] != "") tutti.Add(colori[k]);
+            }
+            int liberi = 0;
+            foreach (string o in Ordine) if (!tutti.Contains(o)) liberi++;
+            int daRifare = Math.Max(0, liberi - nuove);
+            bool cambiato = false;
+            foreach (string k in ordinate)
+            {
+                if (AMano(aMano, k) || !colori.ContainsKey(k)) continue;
+                string v = colori[k];
+                if (v == "" || (usati.Contains(v) && daRifare > 0))
+                {
+                    if (v != "") daRifare--;
+                    colori.Remove(k);
+                    continue;
+                }
+                usati.Add(v);
+            }
+            // le classi senza colore: prima le ore a disposizione, che vogliono Grafite
+            List<string> daDare = new List<string>();
+            if (ordinate.Contains(Disposizione) && !colori.ContainsKey(Disposizione)) daDare.Add(Disposizione);
+            foreach (string k in ordinate) if (!colori.ContainsKey(k) && k != Disposizione) daDare.Add(k);
+            foreach (string k in daDare)
+            {
+                string v = null;
+                if (k == Disposizione && !usati.Contains(Grafite)) v = Grafite;
+                if (v == null) foreach (string o in Ordine) if (!usati.Contains(o)) { v = o; break; }
+                if (v == null)
+                {
+                    // finiti: quello che usano meno classi, nell'ordine
+                    int meno = int.MaxValue;
+                    foreach (string o in Ordine)
+                    {
+                        int quante = 0;
+                        foreach (string u in usati) if (u == o) quante++;
+                        if (quante < meno) { meno = quante; v = o; }
+                    }
+                }
+                colori[k] = v;
+                usati.Add(v);
+                cambiato = true;
+            }
+            return cambiato;
+        }
+
+        /// <summary>
+        /// "Colori di partenza": le classi dimenticano i colori scelti a mano e
+        /// quelli dati prima, e prendono quelli che Campanella darebbe se
+        /// nessuna ne avesse uno.
+        /// </summary>
+        public static void DiPartenza(Dictionary<string, string> colori, List<string> aMano, List<string> classi)
+        {
+            if (colori == null || classi == null) return;
+            foreach (string k in classi)
+            {
+                colori.Remove(k);
+                if (aMano != null) aMano.Remove(k);
+            }
+            Completa(colori, aMano, classi);
+        }
+
+        /// <summary>"1A Pomodoro, 2B Mirtillo, A disposizione Grafite": i colori delle classi, in ordine.</summary>
+        public static string Riassunto(Dictionary<string, string> colori, List<string> classi)
+        {
+            List<string> parti = new List<string>();
+            foreach (string k in Ordinate(classi))
+            {
+                string v;
+                if (colori == null || !colori.TryGetValue(k, out v)) v = "";
+                parti.Add(k + " " + Nome(v));
+            }
+            return string.Join(", ", parti.ToArray());
         }
     }
 

@@ -505,6 +505,20 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Le classi dell'orario di un docente sul calendario: i titoli dei suoi
+        /// blocchi ("A disposizione" per le ore D), una volta sola, in ordine.
+        /// Sono quelle che prendono un colore (ColoriLezioni).
+        /// </summary>
+        public static List<string> ClassiDelCalendario(RisultatoOrario o, string docente)
+        {
+            List<string> fuori = new List<string>();
+            if (o == null || string.IsNullOrEmpty(docente)) return fuori;
+            foreach (BloccoOrario b in Blocchi(o.GrigliaDocente(docente), o))
+                if (!fuori.Contains(b.Testo)) fuori.Add(b.Testo);
+            return ColoriLezioni.Ordinate(fuori);
+        }
+
         // ===================================================================
         //  GENERAZIONE DEI DATI PER APPS SCRIPT
         // ===================================================================
@@ -518,7 +532,8 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
             sb.AppendLine("   tabellone, e per il calendario i giorni senza lezione, con il nome che");
-            sb.AppendLine("   hai scritto. Niente indirizzi: le email arrivano tutte a te.");
+            sb.AppendLine("   hai scritto, e il colore di ogni classe. Niente indirizzi: le email");
+            sb.AppendLine("   arrivano tutte a te.");
             sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
             sb.AppendLine("   dall'applicazione.");
             sb.AppendLine("   ========================================================================= */");
@@ -579,6 +594,23 @@ namespace Campanella
                 for (int i = 0; i < inizi.Count; i++) sb.Append((i > 0 ? ", " : "") + "\"" + inizi[i] + "\"");
                 sb.AppendLine("],   // quando comincia ogni ora di lezione");
                 sb.AppendLine("    colore:    \"" + Js(s.CalColore) + "\",     // vuoto = colore scelto da Google");
+
+                // il colore delle lezioni di ogni classe: quelle che non l'hanno
+                // ancora lo prendono qui, e lo tengono (ColoriLezioni.Completa).
+                // Solo le classi con un colore: le altre hanno quello del calendario
+                if (s.CalColori == null) s.CalColori = new Dictionary<string, string>();
+                if (s.CalColoriAMano == null) s.CalColoriAMano = new List<string>();
+                List<string> classiCal = ClassiDelCalendario(o, docenteCal);
+                ColoriLezioni.Completa(s.CalColori, s.CalColoriAMano, classiCal);
+                StringBuilder colori = new StringBuilder();
+                foreach (string k in classiCal)
+                {
+                    string v;
+                    if (!s.CalColori.TryGetValue(k, out v) || v == "") continue;
+                    colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
+                }
+                sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
+                              "// il colore delle lezioni di ogni classe (Google Calendar, da 1 a 11); le altre, quello del calendario");
 
                 // i giorni senza lezione: solo le righe capite, con le date
                 // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)

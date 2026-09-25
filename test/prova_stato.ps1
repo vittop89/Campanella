@@ -97,6 +97,7 @@ static class ProvaStato
                 case "classi-andata-e-ritorno": ClassiAndataERitorno(); break;
                 case "classi-colori": ClassiColori(); break;
                 case "classi-madri": ClassiMadri(); break;
+                case "colori-lezioni": ColoriLezioniAndataERitorno(); break;
                 // queste due girano nella stessa cartella, una dopo l'altra: la
                 // prima con lo Stato di adesso, la seconda con Formato = 1
                 case "scrivi-per-la-vecchia": ScriviPerLaVecchia(); break;
@@ -1128,6 +1129,77 @@ static class ProvaStato
             string.Join("|", Carica().MadriClassi.ToArray()) == "Corsi");
     }
 
+    // I colori delle lezioni di ogni classe sul calendario (Orari, passo 4):
+    // solo nomi di classi e numeri, quindi nelle impostazioni anche con i dati
+    // nel Drive. Si rileggono uguali, anche "" (il colore del calendario) e le
+    // classi scelte a mano. Un valore che Google Calendar non ha, scritto a mano
+    // nel file, non si legge (la classe riprendera' un colore di partenza), e
+    // una classe "scelta a mano" senza colore non conta.
+    static void ColoriLezioniAndataERitorno()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Scrivi(FileDati(c), ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"))));
+        Stato s = Carica();
+        Dictionary<string, string> colori = ColoriLezioni(s);
+        List<string> aMano = ColoriLezioniAMano(s);
+        Verifica("di partenza nessun colore delle classi", colori != null && colori.Count == 0 && aMano != null && aMano.Count == 0);
+        if (colori == null || aMano == null) return;
+        colori["2B"] = "11";
+        colori["3B LSA"] = "";
+        colori["A disposizione"] = "8";
+        aMano.Add("3B LSA");
+        s.Salva();
+        Verifica("Salva riesce", s.UltimoErrore == "");
+        Dictionary<string, object> imp = Json(Impostazioni());
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Dictionary<string, object> nelFile = imp.ContainsKey("calColori") ? imp["calColori"] as Dictionary<string, object> : null;
+        Verifica("con i dati nel Drive stanno in campanella.json (solo classi e numeri), non nel file dei dati",
+            nelFile != null && nelFile.Count == 3 && Str(nelFile, "2B") == "11" && Str(nelFile, "3B LSA") == "" &&
+            ListaNelFile(imp, "calColoriAMano") == "3B LSA" && !dati.ContainsKey("calColori") &&
+            !dati.ContainsKey("calColoriAMano"));
+        Stato t = Carica();
+        Dictionary<string, string> letti = ColoriLezioni(t);
+        Verifica("si rileggono uguali, anche il colore del calendario scelto a mano",
+            letti != null && letti.Count == 3 && letti["2B"] == "11" && letti["3B LSA"] == "" &&
+            letti["A disposizione"] == "8" && string.Join("|", ColoriLezioniAMano(t).ToArray()) == "3B LSA");
+        t.Salva();
+        Verifica("e anche dopo un altro salvataggio", ColoriLezioni(Carica()).Count == 3);
+
+        // scritti a mano nel file: restano solo i colori di Google Calendar
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        Dictionary<string, object> scritti = new Dictionary<string, object>();
+        scritti["1A"] = "rosso";
+        scritti["2A"] = "12";
+        scritti["2B"] = 9;
+        scritti[" 3C "] = "5";
+        scritti[""] = "4";
+        scritti["4D"] = null;
+        altro["calColori"] = scritti;
+        altro["calColoriAMano"] = new object[] { "1A", "2B", "5E" };
+        ScriviImpostazioni(false, "", altro);
+        Stato u = Carica();
+        Dictionary<string, string> puliti = ColoriLezioni(u);
+        Verifica("scritti male a mano: restano solo i colori di Google Calendar (anche scritti come numero) e le classi " +
+                 "scelte a mano che hanno un colore (" + string.Join(", ", new List<string>(puliti.Keys).ToArray()) + ")",
+            puliti.Count == 3 && puliti["2B"] == "9" && puliti["3C"] == "5" && puliti["4D"] == "" &&
+            string.Join("|", ColoriLezioniAMano(u).ToArray()) == "2B");
+    }
+
+    static Dictionary<string, string> ColoriLezioni(Stato s)
+    {
+        FieldInfo f = typeof(Stato).GetField("CalColori");
+        if (f == null) { Verifica("Stato ha il campo CalColori", false); return null; }
+        return f.GetValue(s) as Dictionary<string, string>;
+    }
+
+    static List<string> ColoriLezioniAMano(Stato s)
+    {
+        FieldInfo f = typeof(Stato).GetField("CalColoriAMano");
+        if (f == null) { Verifica("Stato ha il campo CalColoriAMano", false); return new List<string>(); }
+        return f.GetValue(s) as List<string> ?? new List<string>();
+    }
+
     static void ColoriDelleClassi(Stato s)
     {
         Type t = typeof(Stato).Assembly.GetType("Campanella.ColoriEtichette");
@@ -1530,6 +1602,7 @@ $casi = @(
     'classi-andata-e-ritorno'
     'classi-colori'
     'classi-madri'
+    'colori-lezioni'
 )
 
 $base = Join-Path $env:TEMP ('campanella-prova-stato-' + [Guid]::NewGuid().ToString('N'))
