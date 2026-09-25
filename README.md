@@ -170,7 +170,7 @@ on every push and pull request, and the release workflow before publishing:
 
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
-node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: days without lessons, resume, timetable change; next to the mail script and a class file
+node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: time zone, days without lessons, resume, timetable change; next to the mail script and a class file
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
 node test\prova_gemelli.js        # twin functions of the two forms scripts stay identical

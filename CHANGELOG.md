@@ -110,6 +110,25 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   (getOwnedCalendarsByName and an exact match: not a colleague's calendar
   the teacher is subscribed to, not one differing in case); with two of them
   the functions stop without touching anything.
+- The calendar is created with the script's time zone. Up to 1.5.3
+  ORARI_4_calendario created it without one, Google gave it UTC, and a
+  weekly series repeats at the same time of the calendar's zone: from 26
+  October, when summer time ends, every lesson appeared one hour early
+  (08:00 became 07:00), until the end of March. ORARI_4_calendario and
+  ORARI_5_cambioOrario now check the zone of the calendar they find before
+  putting, changing or removing lessons: with no lessons by Campanella in
+  the period they give it the script's zone (the final message says so);
+  with lessons already there they stop without touching anything and say
+  how to fix it: ORARI_ANNULLA_calendario, then ORARI_4_calendario, which
+  sets the zone and puts the timetable back (lessons moved, cancelled or
+  edited by hand are lost and have to be redone; if the timetable already
+  changed during the year, first ORARI_4_calendario with the previous
+  DatiOrari.gs, then ORARI_5_cambioOrario with the new one).
+  ORARI_1_anteprima prints the script's time zone, warns when it is not
+  Europe/Rome (Project settings -> Time zone), and says when the calendar
+  has another zone and whether it already holds lessons. Moved lessons are
+  recognised by day and time in the calendar's zone, so in a UTC calendar
+  the lessons after 25 October do not look moved.
 - ORARI_4_calendario and ORARI_5_cambioOrario resume by themselves, like the
   sending: when an execution runs out of time, or Google says there were too
   many calendar changes in a short time ("Service invoked too many times",

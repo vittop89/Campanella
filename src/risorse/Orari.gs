@@ -12,14 +12,17 @@
  *
  *  FUNZIONI, NELL'ORDINE
  *    ORARI_1_anteprima ......... dice cosa manderebbe, senza mandare niente
- *                                (e quante serie metterebbe sul calendario)
+ *                                (e quante serie metterebbe sul calendario;
+ *                                avvisa se il fuso orario dello script non
+ *                                e' quello dell'Italia)
  *    ORARI_2_invia ............. manda a te una email per docente (a blocchi,
  *                                riprende da sola se finisce il tempo)
  *    ORARI_3_inviaOrariClassi .. manda a te anche gli orari delle classi
  *                                (anche questa riprende da sola)
  *    ORARI_4_calendario ........ mette il tuo orario (il nome scelto
  *                                nell'applicazione) su Google Calendar, nel
- *                                calendario indicato (lo crea se non c'e'),
+ *                                calendario indicato (lo crea se non c'e',
+ *                                con il fuso orario dello script),
  *                                senza lezioni nei giorni senza lezione;
  *                                riprende da sola se finisce il tempo o se
  *                                Google chiede di rallentare
@@ -62,6 +65,7 @@ var _ORARI_MAX_RIFIUTI   = 10;                 // limiti di Google di fila prima
 var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
 var _ORARI_TAG           = 'campanella';       // contrassegno degli eventi creati qui
 var _ORARI_TAG_VALORE    = 'orario';
+var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';      // quello delle scuole italiane: l'anteprima avvisa se lo script ne ha un altro
 
 
 // ===========================================================================
@@ -72,6 +76,15 @@ function ORARI_1_anteprima() {
   var righe = [];
   righe.push('ANTEPRIMA - non viene mandato niente.');
   righe.push('Orari.gs versione ' + _ORARI_VERSIONE);
+  var fuso = Session.getScriptTimeZone();
+  righe.push('Fuso orario dello script: ' + fuso);
+  if (fuso !== _ORARI_FUSO_SCUOLA) {
+    // il calendario prende il fuso dello script: le lezioni finirebbero a un'altra ora
+    righe.push('ATTENZIONE: il fuso orario dello script non e\' quello dell\'Italia (' + _ORARI_FUSO_SCUOLA + '): ' +
+               'le ore delle lezioni sul calendario sarebbero lette in quel fuso, e le lezioni comparirebbero a ' +
+               'un\'altra ora. Cambialo nell\'editor: Impostazioni progetto (l\'ingranaggio a sinistra) -> Fuso ' +
+               'orario -> quello con Roma, poi riesegui ORARI_1_anteprima.');
+  }
   righe.push('');
   righe.push('Periodo: ' + (d.periodo || '(non indicato)'));
   righe.push('Docenti nel file: ' + d.docenti.length);
@@ -119,6 +132,17 @@ function _orariAnteprimaCalendario_(d) {
     righe.push('Serie settimanali da creare con ORARI_4_calendario: ' + piano.serie.length +
                ' (' + piano.lezioni + ' lezioni)');
     righe.push('Lezioni saltate nei giorni senza lezione: ' + piano.saltate);
+    // il calendario c'e' gia', con un altro fuso: lo dico prima di ORARI_4 e ORARI_5
+    var cal = _orariTrovaCalendario_(c.nome);
+    var fuso = Session.getScriptTimeZone();
+    var suo = cal ? String(cal.getTimeZone() || '') : fuso;
+    if (suo !== fuso) {
+      var problema = _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso);
+      righe.push(problema ? 'Calendario da sistemare. ' + problema
+                          : 'Il calendario "' + c.nome + '" ha il fuso orario ' + (suo || '(nessuno)') + ', non ' + fuso +
+                            ': ORARI_4_calendario (o ORARI_5_cambioOrario) gli mette ' + fuso + ' prima di mettere ' +
+                            'le lezioni.');
+    }
     if (c.validoDal) {
       var validoDal = _orariValidoDal_(c, periodo);
       if (validoDal < periodo.inizio) {
@@ -308,6 +332,13 @@ function _orariInvia_(tipo, e) {
 //  limite di Google alle modifiche fatte in poco tempo: lo script si ricorda
 //  a che punto e' (con un'impronta del piano, per non mescolare due orari) e
 //  si riprogramma fra un minuto, come l'invio.
+//
+//  Google ripete una serie alla stessa ora nel fuso del calendario, non in
+//  quello dello script: il calendario si crea con il fuso dello script, e
+//  uno che c'e' gia' con un altro fuso (UTC, come quelli creati senza fuso
+//  da Campanella 1.5) lo prende prima di ricevere lezioni. Se ne ha gia'
+//  qualcuna, lo script si ferma e spiega come sistemare: dalla fine dell'ora
+//  legale quelle lezioni comparirebbero un'ora prima.
 // ===========================================================================
 function ORARI_4_calendario(e) {
   return _orariCalendarioConLock_(_ORARI_TRIGGER_CALENDARIO, e);
@@ -473,18 +504,25 @@ function _orariCalendario_(funzione, e) {
                     'Riesegui ' + funzione + '.');
   }
   if (!stato) {
-    var creato = false;
+    var creato = false, fusoDiPrima = '';
     if (cambio) {
       if (!cal) {
         throw new Error('Non c\'e\' nessun calendario chiamato "' + c.nome + '": ORARI_5_cambioOrario cambia ' +
           'l\'orario messo con ORARI_4_calendario. Se non l\'hai mai messo, esegui ORARI_4_calendario.');
       }
     } else if (!cal) {
+      // con il fuso dello script: senza, Google lo crea in UTC, e le serie
+      // restano alla stessa ora UTC (dalla fine dell'ora legale, un'ora prima)
       cal = CalendarApp.createCalendar(c.nome, {
-        summary: 'Orario scolastico messo da Campanella. Gli eventi si tolgono con ORARI_ANNULLA_calendario.'
+        summary: 'Orario scolastico messo da Campanella. Gli eventi si tolgono con ORARI_ANNULLA_calendario.',
+        timeZone: Session.getScriptTimeZone()
       });
       creato = true;
-    } else {
+    }
+    // prima di mettere, cambiare o togliere lezioni: il fuso del calendario
+    // dev'essere quello dello script (si ferma se ci sono gia' lezioni nel fuso sbagliato)
+    if (!creato) fusoDiPrima = _orariSistemaFuso_(cal, c, periodo);
+    if (!cambio && !creato) {
       // rieseguire sopra un orario gia' messo raddoppierebbe ogni lezione
       var gia = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine)).length;
       if (gia) {
@@ -500,7 +538,7 @@ function _orariCalendario_(funzione, e) {
       try { cal.setColor(CalendarApp.Color[c.colore] || c.colore); } catch (err) { /* colore non riconosciuto */ }
     }
     stato = { funzione: funzione, impronta: impronta, fase: cambio ? 'taglio' : 'crea', fatti: 0,
-              accorciate: 0, tolte: 0, eventiTolti: 0, rifiuti: 0, creato: creato,
+              accorciate: 0, tolte: 0, eventiTolti: 0, rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima,
               irregolari: [], nIrregolari: 0, senzaContrassegno: [], nSenzaContrassegno: 0 };
     prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato));
   }
@@ -583,6 +621,7 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
   // prima dell'inizio, quindi prima del validoDal: restano come sono
   var da = new Date(periodo.inizio.getFullYear() - 1, periodo.inizio.getMonth(), periodo.inizio.getDate());
   var nostri = _orariNostri_(cal, da, _orariFineGiornata_(periodo.fine));
+  var fuso = cal.getTimeZone();
   var fino = new Date(validoDal.getFullYear(), validoDal.getMonth(), validoDal.getDate() - 1, 23, 59, 59);
   if (!stato.irregolari) { stato.irregolari = []; stato.nIrregolari = 0; }
   stato.senzaContrassegno = [];
@@ -592,7 +631,7 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
     if (voce.ultimo < validoDal) continue;          // finisce prima del cambio: resta com'e'
     // la prima lezione di nuovo, con il periodo: una lezione spostata sta
     // nella sua settimana solo dove Campanella metteva lezioni
-    if (voce.serie) _orariPrimaLezione_(voce, periodo);
+    if (voce.serie) _orariPrimaLezione_(voce, periodo, fuso);
     if (!voce.contrassegno) {
       // la sola descrizione non basta per cambiarla: la nomino e basta
       stato.nSenzaContrassegno++;
@@ -763,7 +802,8 @@ function _orariLimiteGoogle_(err) {
 }
 
 function _orariFineCalendario_(c, doc, periodo, piano, stato) {
-  return (stato.creato ? 'Creato il calendario "' + c.nome + '".\n' : 'Uso il calendario "' + c.nome + '".\n') +
+  return (stato.creato ? 'Creato il calendario "' + c.nome + '", con il fuso orario ' + Session.getScriptTimeZone() + '.\n'
+                       : 'Uso il calendario "' + c.nome + '".\n') + _orariAvvisoFuso_(stato) +
     'Orario di ' + doc.nome + ': ' + piano.serie.length + ' serie settimanali dal ' + c.inizio + ' al ' + c.fine +
     ' (' + piano.lezioni + ' lezioni).\n' +
     'Giorni senza lezione: ' + _orariSospensioniNelPeriodo_(periodo) + ' (giorni o periodi).\n' +
@@ -774,6 +814,13 @@ function _orariFineCalendario_(c, doc, periodo, piano, stato) {
     'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false);
 }
 
+/** Per i messaggi finali: il fuso del calendario, se l'ho cambiato. "" se no. */
+function _orariAvvisoFuso_(stato) {
+  if (!stato.fusoDiPrima) return '';
+  return 'Il calendario aveva il fuso orario ' + stato.fusoDiPrima + ': gli ho messo ' + Session.getScriptTimeZone() +
+    ', quello dello script, cosi\' le lezioni restano alla loro ora anche dopo il cambio dell\'ora.\n';
+}
+
 /** Il messaggio finale del cambio d'orario. validoDal e' la data vera del cambio, mai prima dell'inizio. */
 function _orariFineCambio_(c, doc, piano, stato, validoDal) {
   var dal = _orariChiaveData_(validoDal);
@@ -782,6 +829,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
   var niente = (stato.accorciate + stato.tolte + stato.eventiTolti === 0);
   var irregolari = stato.nIrregolari || 0, senzaContrassegno = stato.nSenzaContrassegno || 0;
   return 'Cambio d\'orario dal ' + dal + ' nel calendario "' + c.nome + '", per ' + doc.nome + '.\n' +
+    _orariAvvisoFuso_(stato) +
     (primaDellInizio ? 'La data scritta in DatiOrari.gs, ' + c.validoDal + ', viene prima dell\'inizio del periodo: ' +
                        'l\'orario nuovo vale da tutto il periodo, dal ' + c.inizio + '. Quello che c\'e\' prima ' +
                        'dell\'inizio (per esempio l\'anno scorso, nello stesso calendario) non l\'ho toccato.\n' : '') +
@@ -877,6 +925,7 @@ function _orariAnnullaCalendario_() {
  * anche in una copia fatta a mano di una lezione.
  */
 function _orariNostri_(cal, inizio, fine) {
+  var fuso = cal.getTimeZone();
   var eventi = cal.getEvents(inizio, fine);
   var perSerie = {};
   var fuori = [];
@@ -913,30 +962,34 @@ function _orariNostri_(cal, inizio, fine) {
     if (contrassegno) voce.contrassegno = true;
     voce.lezioni.push(lezione);
   }
-  for (var k = 0; k < fuori.length; k++) if (fuori[k].serie) _orariPrimaLezione_(fuori[k]);
+  for (var k = 0; k < fuori.length; k++) if (fuori[k].serie) _orariPrimaLezione_(fuori[k], null, fuso);
   return fuori;
 }
 
 /**
- * La prima lezione di una serie, per setRecurrence, che vuole l'inizio del
- * primo evento. getEvents da' le lezioni spostate a mano all'ora nuova: la
- * prima trovata non basta (una prima lezione spostata sposterebbe tutta la
- * serie). Giorno, ora e durata della serie sono quelli piu' frequenti; la
- * prima lezione e' la prima con quelli, o qualche settimana prima se ci sono
- * lezioni spostate che vengono da prima (vedi sotto). Poi voce.ultimo,
- * l'inizio dell'ultima lezione, e voce.irregolare: ci sono lezioni spostate,
- * o settimane che mancano (cancellate a mano). Con il periodo (inizio e
- * giorni senza lezione, come da _orariPeriodo_) una lezione spostata prima
- * della prima regolare sta, se puo', nella settimana in cui cade. La serie
- * non comincia mai prima del giorno scritto nella sua descrizione ("serie
- * dal 2026-10-12"), se c'e'.
+ * La prima lezione di una serie: dove comincia per Google. getEvents da' le
+ * lezioni spostate a mano all'ora nuova: la prima trovata non basta (una
+ * prima lezione spostata sposterebbe tutta la serie). Giorno, ora e durata
+ * della serie sono quelli piu' frequenti (voce.forma), guardati nel fuso del
+ * calendario: in un calendario con un altro fuso, come UTC, dopo il cambio
+ * dell'ora le lezioni non sembrano spostate. Senza fuso, quello dello
+ * script. La prima lezione e' la prima con quella forma, o qualche settimana
+ * prima se ci sono lezioni spostate che vengono da prima (vedi sotto). Poi
+ * voce.ultimo, l'inizio dell'ultima lezione, e voce.irregolare: ci sono
+ * lezioni spostate, o settimane che mancano (cancellate a mano). Con il
+ * periodo (inizio e giorni senza lezione, come da _orariPeriodo_) una
+ * lezione spostata prima della prima regolare sta, se puo', nella settimana
+ * in cui cade. La serie non comincia mai prima del giorno scritto nella sua
+ * descrizione ("serie dal 2026-10-12"), se c'e'.
  */
-function _orariPrimaLezione_(voce, periodo) {
+function _orariPrimaLezione_(voce, periodo, fuso) {
   var settimana = 7 * 24 * 3600 * 1000;
   var lezioni = voce.lezioni.sort(function (x, y) { return x.inizio - y.inizio; });
+  var forme = [];
+  for (var h = 0; h < lezioni.length; h++) forme.push(_orariForma_(lezioni[h], fuso));
   var conta = {};
   for (var i = 0; i < lezioni.length; i++) {
-    var f = _orariForma_(lezioni[i]);
+    var f = forme[i];
     conta[f] = (conta[f] || 0) + 1;
   }
   // la forma della serie: la piu' frequente. A parita' (succede solo con
@@ -947,15 +1000,15 @@ function _orariPrimaLezione_(voce, periodo) {
   var scritto = _orariGiornoDellaDescrizione_(voce.descrizione);
   var forma = '', quante = 0, delGiorno = false;
   for (var j = 0; j < lezioni.length; j++) {
-    var g = _orariForma_(lezioni[j]);
-    var giusto = (lezioni[j].inizio.getDay() === scritto);
+    var g = forme[j];
+    var giusto = (_orariGiornoDellaForma_(g) === scritto);
     if (conta[g] > quante || (conta[g] === quante && giusto && !delGiorno)) {
       quante = conta[g]; forma = g; delGiorno = giusto;
     }
   }
   var prima = null, ultimaRegolare = null;
   for (var k = 0; k < lezioni.length; k++) {
-    if (_orariForma_(lezioni[k]) !== forma) continue;
+    if (forme[k] !== forma) continue;
     if (!prima) prima = lezioni[k];
     ultimaRegolare = lezioni[k];
   }
@@ -968,7 +1021,7 @@ function _orariPrimaLezione_(voce, periodo) {
   // loro da prima (una lezione rimandata oltre quella della settimana dopo)
   var primaDellaPrima = 0, inMezzo = 0;
   for (var m = 0; m < lezioni.length; m++) {
-    if (_orariForma_(lezioni[m]) === forma) continue;
+    if (forme[m] === forma) continue;
     if (lezioni[m].inizio < prima.inizio) primaDellaPrima++;
     else if (lezioni[m].inizio < ultimaRegolare.inizio) inMezzo++;
   }
@@ -990,7 +1043,7 @@ function _orariPrimaLezione_(voce, periodo) {
   if (periodo && primaDellaPrima && inMezzo <= vuoteInMezzo) {
     var limite = (dalScritto && dalScritto > periodo.inizio)
       ? { inizio: dalScritto, fine: periodo.fine, sospensioni: periodo.sospensioni } : periodo;
-    indietro = Math.max(indietro, _orariSettimaneProprie_(lezioni, forma, prima, limite));
+    indietro = Math.max(indietro, _orariSettimaneProprie_(lezioni, forme, forma, prima, limite));
   }
   var p = prima.inizio;
   voce.inizio = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * indietro,
@@ -1001,26 +1054,28 @@ function _orariPrimaLezione_(voce, periodo) {
                            p.getHours(), p.getMinutes(), p.getSeconds());
   }
   voce.fine = new Date(voce.inizio.getTime() + (prima.fine - prima.inizio));
+  voce.forma = forma;
   voce.ultimo = lezioni[lezioni.length - 1].inizio;
   var attese = Math.round((ultimaRegolare.inizio - voce.inizio) / settimana) + 1;
   voce.irregolare = (quante < lezioni.length) || (lezioni.length < attese);
 }
 
 /**
- * Per _orariPrimaLezione_: le lezioni spostate prima della prima regolare,
- * ognuna nella settimana in cui cade (le settimane della serie cominciano
+ * Per _orariPrimaLezione_ (con la forma di ogni lezione e quella della
+ * serie): le lezioni spostate prima della prima regolare, ognuna nella
+ * settimana in cui cade (le settimane della serie cominciano
  * nel giorno della prima regolare, quello della descrizione). Quante
  * settimane prima della prima regolare comincia allora la serie; 0 se non si
  * puo': due spostate nella stessa settimana, o una settimana il cui giorno
  * viene prima dell'inizio del periodo o e' senza lezione, dove Campanella non
  * ha messo lezioni.
  */
-function _orariSettimaneProprie_(lezioni, forma, prima, periodo) {
+function _orariSettimaneProprie_(lezioni, forme, forma, prima, periodo) {
   var p = prima.inizio, viste = [], fino = 0;
   var giornoPrima = new Date(p.getFullYear(), p.getMonth(), p.getDate());
   for (var i = 0; i < lezioni.length; i++) {
     var t = lezioni[i].inizio;
-    if (t >= p || _orariForma_(lezioni[i]) === forma) continue;
+    if (t >= p || forme[i] === forma) continue;
     var giorni = Math.round((giornoPrima - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / (24 * 3600 * 1000));
     var k = Math.ceil(giorni / 7);
     var giorno = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 7 * k);
@@ -1060,10 +1115,19 @@ function _orariPrimoGiornoDellaDescrizione_(descrizione, prima) {
   return (g.getDay() === p.getDay() && giorni >= 0 && giorni % 7 === 0) ? g : null;
 }
 
-/** Giorno della settimana, ora e durata di una lezione: in una serie sono uguali, se nessuno le ha cambiate. */
-function _orariForma_(lezione) {
-  return lezione.inizio.getDay() + ' ' + lezione.inizio.getHours() + ':' + lezione.inizio.getMinutes() + ' ' +
+/**
+ * Giorno della settimana (1 = lunedi' ... 7 = domenica), ora e durata di una
+ * lezione, nel fuso dato (quello del calendario; senza, quello dello script):
+ * in una serie sono uguali, se nessuno le ha cambiate.
+ */
+function _orariForma_(lezione, fuso) {
+  return Utilities.formatDate(lezione.inizio, fuso || Session.getScriptTimeZone(), 'u HH:mm') + ' ' +
          (lezione.fine - lezione.inizio);
+}
+
+/** Il giorno della settimana di una forma di _orariForma_, come getDay: 0 = domenica. */
+function _orariGiornoDellaForma_(forma) {
+  return Number(String(forma).split(' ')[0]) % 7;
 }
 
 /** "1A, lunedi' 09:00, dal 2026-09-14": una serie (o un evento) nei messaggi. */
@@ -1231,6 +1295,45 @@ function _orariTrovaCalendario_(nome) {
       'nell\'applicazione (Orari, passo 4) e rigenera DatiOrari.gs.');
   }
   return esatti.length ? esatti[0] : null;
+}
+
+/**
+ * Il fuso del calendario deve essere quello dello script. Google ripete una
+ * serie alla stessa ora nel fuso del calendario: in un calendario UTC (come
+ * quelli creati da Campanella 1.5, senza fuso) una lezione delle 8 resta alle
+ * 6 UTC, e dalla fine dell'ora legale (l'ultima domenica di ottobre) compare
+ * alle 7. Se il fuso e' un altro e nel periodo non ci sono lezioni di
+ * Campanella, glielo imposta e torna il fuso di prima; se ci sono, si ferma
+ * senza toccare niente e spiega come sistemare. '' se era gia' giusto.
+ */
+function _orariSistemaFuso_(cal, c, periodo) {
+  var fuso = Session.getScriptTimeZone();
+  var suo = String(cal.getTimeZone() || '');
+  if (suo === fuso) return '';
+  var problema = _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso);
+  if (problema) throw new Error(problema + '\nNon ho aggiunto, cambiato ne\' tolto niente.');
+  cal.setTimeZone(fuso);
+  return suo || '(nessuno)';
+}
+
+/**
+ * Le lezioni di Campanella nel periodo, in un calendario con un fuso diverso
+ * da quello dello script: che cosa succede e come si sistema. '' se non ce
+ * ne sono (allora basta cambiare il fuso). Per ORARI_1_anteprima e per
+ * _orariSistemaFuso_.
+ */
+function _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso) {
+  var gia = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine)).length;
+  if (!gia) return '';
+  return 'Il calendario "' + c.nome + '" ha il fuso orario ' + (suo || '(nessuno)') + ', non ' + fuso + ' come lo ' +
+    'script, e ci sono gia\' ' + gia + ' serie o lezioni messe da Campanella fra il ' + c.inizio + ' e il ' + c.fine +
+    ' (con una versione di prima, che creava il calendario senza fuso). Google ripete le lezioni alla stessa ora ' +
+    'del fuso del calendario: con UTC, dalla fine dell\'ora legale (l\'ultima domenica di ottobre) compaiono ' +
+    'un\'ora prima.\nPer sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni messe da Campanella nel ' +
+    'periodo, e poi ORARI_4_calendario, che mette al calendario il fuso giusto e rimette l\'orario. Cosi\' si ' +
+    'perdono le modifiche fatte a mano alle lezioni (spostate, cancellate, cambiate): se ne avevi fatte, rifalle ' +
+    'dopo. Se l\'orario e\' gia\' cambiato a meta\' anno, rimetti prima con ORARI_4_calendario il DatiOrari.gs ' +
+    'dell\'orario di prima, poi incolla quello nuovo ed esegui ORARI_5_cambioOrario.';
 }
 
 /** "2026-09-14" -> Date a mezzanotte, nel fuso dello script. null se non e' una data. */

@@ -274,7 +274,8 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //  quelli con il contrassegno. Qui la promessa diventa una forma del codice:
 //    - di CalendarApp solo questi membri: nessun altro calendario si prende;
 //    - ogni metodo che legge, crea, cambia o toglie eventi sta solo in certe
-//      funzioni e su un ricevente scritto proprio cosi';
+//      funzioni e su un ricevente scritto proprio cosi' (anche il fuso del
+//      calendario, setTimeZone, solo in _orariSistemaFuso_);
 //    - nelle funzioni che cambiano o tolgono, e in _orariNostri_, i riceventi
 //      vengono da una dichiarazione esatta e non si riassegnano ne' si
 //      modificano (quindi: solo le voci trovate da _orariNostri_);
@@ -321,6 +322,8 @@ const CALENDARIO_ORARI = {
     getEventSeries:          { funzioni: ['_orariNostri_'], ricevente: 'ev' },
     createEventSeries:       { funzioni: ['_orariCreaSerie_'], ricevente: 'cal' },
     getOwnedCalendarsByName: { funzioni: ['_orariTrovaCalendario_'], ricevente: 'CalendarApp' },
+    // il fuso del calendario trovato: prende quello dello script, prima delle lezioni
+    setTimeZone:             { funzioni: ['_orariSistemaFuso_'], ricevente: 'cal' },
     createCalendar:          { funzioni: ['_orariCalendario_'], ricevente: 'CalendarApp' }
   },
   // da dove vengono i riceventi: una dichiarazione sola, scritta cosi'
@@ -351,7 +354,7 @@ const CALENDARIO_ORARI = {
       fuori: ['var fuori = [];', 'fuori.push(voce);',
               'fuori.push({ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: lezione.inizio, ' +
                 'fine: lezione.fine, ultimo: lezione.inizio });',
-              'k < fuori.length;', 'fuori[k].serie', 'fuori[k]', 'return fuori;'],
+              'k < fuori.length;', 'fuori[k].serie', 'fuori[k], null, fuso', 'return fuori;'],
       perSerie: ['var perSerie = {};', 'var voce = perSerie[id];',
                  'voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), ' +
                    'descrizione: descrizione, lezioni: [] };']
@@ -384,7 +387,7 @@ const CALENDARIO_ORARI = {
   // di aggiornare l'impronta (sha256 del testo senza commenti, spazi ridotti)
   // E cosi' le funzioni che rimettono il contrassegno a una serie a cui Google
   // non l'ha salvato: quali serie lo ricevono, e da che cosa le si riconosce
-  impronte: { _orariNostri_: '00b0d489da7b1ae3', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
+  impronte: { _orariNostri_: '95c25c0712e78534', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
               _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
@@ -423,7 +426,7 @@ const CALENDARIO_ORARI = {
   vietati: ['setTitle', 'setDescription', 'setLocation', 'setTime', 'setAllDayDate', 'setAllDayDates',
             'setVisibility', 'setAnyoneCanAddSelf', 'setGuestsCanInviteOthers', 'setGuestsCanModify',
             'setGuestsCanSeeGuests', 'setMyStatus', 'addEmailReminder', 'addPopupReminder', 'addSmsReminder',
-            'resetRemindersToDefault', 'deleteTag', 'setHidden', 'setSelected', 'setName', 'setTimeZone',
+            'resetRemindersToDefault', 'deleteTag', 'setHidden', 'setSelected', 'setName',
             'unsubscribeFromCalendar', 'subscribeToCalendar', 'getDefaultCalendar', 'getAllCalendars',
             'getAllOwnedCalendars', 'getCalendarById', 'getOwnedCalendarById', 'getCalendarsByName',
             'getEventSeriesById', 'getEventById', 'getEventsForDay', 'createEvent', 'createAllDayEvent',
@@ -1575,6 +1578,12 @@ function provaDellaProva() {
   deveFallire('Orari.gs', '  ...e CalendarApp messo in una variabile',
     inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  var C = CalendarApp; C.getOwnedCalendarsByName(\'Famiglia\');'),
     'CalendarApp usato fuori da');
+  deveFallire('Orari.gs', 'il fuso di un calendario cambiato fuori da _orariSistemaFuso_ viene trovato',
+    inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  _orariTrovaCalendario_(\'Famiglia\').setTimeZone(\'UTC\');'),
+    'setTimeZone fuori da _orariSistemaFuso_');
+  deveFallire('Orari.gs', '  ...e, li\' dentro, su un altro calendario che quello ricevuto',
+    inserisci(orari, 'function _orariSistemaFuso_(cal, c, periodo) {',
+      '\n  _orariTrovaCalendario_(\'Famiglia\').setTimeZone(\'UTC\');'), 'setTimeZone su "(non un nome)": solo su cal');
   deveFallire('Orari.gs', '  ...o preso per nome da this',
     inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  var C = this.CalendarApp;'), 'nome non ammesso negli orari: this');
   deveFallire('Orari.gs', 'nel taglio, una voce senza contrassegno che non si salta piu\' viene trovata',
@@ -1614,7 +1623,7 @@ function provaDellaProva() {
   const QUALUNQUE = '{ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(), inizio: ev.getStartTime(), ' +
     'fine: ev.getEndTime(), ultimo: ev.getStartTime() }';
   const SINGOLO = 'fuori.push({ evento: ev, contrassegno: contrassegno,';
-  const PRIMA_LEZIONE = 'function _orariPrimaLezione_(voce, periodo) {';
+  const PRIMA_LEZIONE = 'function _orariPrimaLezione_(voce, periodo, fuso) {';
   const VOCE_TAGLIO = 'var voce = nostri[i];';
   const RACCOLTA = 'in _orariNostri_ fuori si usa solo cosi\'';
   deveFallire('Orari.gs', '(a) ogni evento messo fra i nostri con fuori.unshift, prima della guardia, viene trovato',

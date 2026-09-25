@@ -182,7 +182,12 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   contrassegno e senza i giorni senza lezione indicati dal docente (se
   Google non salva il contrassegno di una serie appena creata, alla ripresa
   lo script lo rimette a quella serie, riconosciuta da titolo, descrizione e
-  prima lezione, e solo se ce n'è una sola così);
+  prima lezione, e solo se ce n'è una sola così). Il calendario creato
+  dallo script ha il fuso orario dello script; a quello del docente che ne
+  ha un altro (un calendario messo con la versione 1.5, creato senza fuso,
+  è in UTC) lo script mette il fuso dello script solo se nel periodo non ci
+  sono ancora lezioni di Campanella, altrimenti si ferma senza toccare
+  niente e spiega al docente come sistemare;
   `ORARI_5_cambioOrario`, che quando l'orario cambia accorcia le serie già
   messe perché finiscano il giorno prima della data indicata (o le toglie,
   se cominciano da quella data in poi) e inserisce l'orario nuovo da quella

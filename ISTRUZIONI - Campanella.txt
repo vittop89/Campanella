@@ -445,7 +445,16 @@ ORARI - le email a te e il calendario
 4) Passo 4: Google Calendar. Scegli il tuo nome, come e' scritto nel
    tabellone, il nome del calendario, il periodo e gli orari delle ore.
    Il calendario e' uno tuo con quel nome esatto (non uno di un collega a
-   cui sei iscritto); se non c'e', lo script lo crea.
+   cui sei iscritto); se non c'e', lo script lo crea, con il fuso orario
+   dello script: ORARI_1_anteprima lo scrive, e se non e' Europe/Rome ti
+   avvisa (si cambia in Impostazioni progetto -> Fuso orario). Un
+   calendario messo con Campanella 1.5 ha il fuso UTC: dal 26 ottobre, a
+   fine ora legale, le lezioni compaiono un'ora prima. ORARI_4_calendario e
+   ORARI_5_cambioOrario se ne accorgono, si fermano senza toccare niente e
+   ti dicono come sistemare: ORARI_ANNULLA_calendario e poi di nuovo
+   ORARI_4_calendario (le lezioni spostate o cancellate a mano vanno
+   rifatte). A un calendario con un altro fuso ma senza lezioni di
+   Campanella mettono loro il fuso giusto.
    In "Giorni senza lezione" scrivi una riga per giorno o per periodo
    (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
    dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Il mese si

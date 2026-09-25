@@ -170,7 +170,7 @@ pubblicare:
 
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
-node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: giorni senza lezione, ripresa, cambio d'orario; accanto alla Posta e al file di una classe
+node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: fuso orario, giorni senza lezione, ripresa, cambio d'orario; accanto alla Posta e al file di una classe
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
 node test\mock_pannello.js        # il foglio di controllo per più moduli
 node test\prova_gemelli.js        # le funzioni gemelle dei due script dei moduli restano uguali

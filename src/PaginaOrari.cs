@@ -1111,6 +1111,13 @@ namespace Campanella
             sb.AppendLine("    Con tante lezioni ci mette qualche minuto. Se finisce il tempo di");
             sb.AppendLine("    un'esecuzione, o se Google chiede di rallentare, si ferma e riprende");
             sb.AppendLine("    da solo dopo un minuto, da dove era arrivato: non devi fare niente.");
+            sb.AppendLine("    Il calendario nasce con il fuso orario dello script: ORARI_1_anteprima");
+            sb.AppendLine("    lo scrive, e se non e' Europe/Rome te lo dice (Impostazioni progetto");
+            sb.AppendLine("    -> Fuso orario). Un calendario messo con Campanella 1.5 ha il fuso");
+            sb.AppendLine("    UTC: dal 26 ottobre le lezioni compaiono un'ora prima. Lo script se ne");
+            sb.AppendLine("    accorge, si ferma e ti dice come sistemare: ORARI_ANNULLA_calendario e");
+            sb.AppendLine("    poi di nuovo ORARI_4_calendario (le lezioni spostate o cancellate a");
+            sb.AppendLine("    mano vanno rifatte).");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
             sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");
