@@ -12,9 +12,10 @@
  *
  *  FUNZIONI, NELL'ORDINE
  *    ORARI_1_anteprima ......... dice cosa manderebbe, senza mandare niente
- *                                (e quante serie metterebbe sul calendario;
- *                                avvisa se il fuso orario dello script non
- *                                e' quello dell'Italia)
+ *                                (e quante serie e quanti colloqui
+ *                                metterebbe sul calendario; avvisa se il
+ *                                fuso orario dello script non e' quello
+ *                                dell'Italia)
  *    ORARI_2_invia ............. manda a te una email per docente (a blocchi,
  *                                riprende da sola se finisce il tempo)
  *    ORARI_3_inviaOrariClassi .. manda a te anche gli orari delle classi
@@ -24,15 +25,21 @@
  *                                calendario indicato (lo crea se non c'e',
  *                                con il fuso orario dello script),
  *                                senza lezioni nei giorni senza lezione e
- *                                ogni classe con il suo colore; riprende da
- *                                sola se finisce il tempo o se Google
- *                                chiede di rallentare
+ *                                ogni classe con il suo colore, e i tuoi
+ *                                colloqui con le famiglie, con il link del
+ *                                Meet; riprende da sola se finisce il tempo
+ *                                o se Google chiede di rallentare
  *    ORARI_5_cambioOrario ...... l'orario e' cambiato: dalla data scelta
- *                                nell'applicazione mette quello nuovo, e le
- *                                settimane prima restano (riprende da sola)
+ *                                nell'applicazione mette quello nuovo (e i
+ *                                colloqui), e le settimane prima restano
+ *                                (riprende da sola)
  *    ORARI_6_coloraLezioni ..... da' alle lezioni gia' messe il colore della
- *                                loro classe scelto nell'applicazione, senza
- *                                rifarle (riprende da sola)
+ *                                loro classe scelto nell'applicazione, e ai
+ *                                colloqui il loro, senza rifarli (riprende
+ *                                da sola)
+ *    ORARI_7_colloqui .......... i colloqui sono cambiati: li aggiorna da
+ *                                oggi in poi, senza toccare le lezioni;
+ *                                quelli passati restano (riprende da sola)
  *    ORARI_ANNULLA_calendario .. toglie dal calendario gli eventi messi qui,
  *                                nel periodo scritto in DatiOrari.gs, e
  *                                dimentica un lavoro a meta'
@@ -44,10 +51,11 @@
  *    quindi anche il permesso per il Calendario, anche se usi solo le email:
  *    e' normale. Le email partono con MailApp, l'etichetta la mette GmailApp
  *    e il tuo indirizzo lo dice Session. Il Calendario lo usano soltanto
- *    ORARI_4_calendario, ORARI_5_cambioOrario, ORARI_6_coloraLezioni e
- *    ORARI_ANNULLA_calendario, che toccano solo il calendario che indichi
- *    (uno tuo, non uno a cui sei iscritto, con quel nome esatto) e, dentro,
- *    solo gli eventi creati qui: ORARI_4_calendario li crea, ORARI_5_cambioOrario
+ *    ORARI_4_calendario, ORARI_5_cambioOrario, ORARI_6_coloraLezioni,
+ *    ORARI_7_colloqui e ORARI_ANNULLA_calendario, che toccano solo il
+ *    calendario che indichi (uno tuo, non uno a cui sei iscritto, con quel
+ *    nome esatto) e, dentro, solo gli eventi creati qui: ORARI_4_calendario
+ *    li crea, ORARI_5_cambioOrario (e ORARI_7_colloqui, per i soli colloqui)
  *    rifa' fino al giorno prima del cambio (poi toglie la serie vecchia) o
  *    toglie solo quelli con il contrassegno, ORARI_6_coloraLezioni cambia
  *    solo il colore di quelli con il contrassegno, ORARI_ANNULLA_calendario
@@ -55,9 +63,19 @@
  *    [Campanella] (se Google non ha salvato il contrassegno; ma anche una
  *    copia fatta a mano di una lezione ha quella descrizione). Gli eventi
  *    creati qui hanno il colore della loro classe, scelto nell'applicazione
- *    (calendario.colori in DatiOrari.gs). Del calendario cambiano solo il
- *    colore scelto nell'applicazione e il fuso orario, se non e' quello dello
+ *    (calendario.colori in DatiOrari.gs), e i colloqui il loro
+ *    (calendario.coloreColloqui). Del calendario cambiano solo il colore
+ *    scelto nell'applicazione e il fuso orario, se non e' quello dello
  *    script.
+ *
+ *  I COLLOQUI CON LE FAMIGLIE
+ *    Li scrivi nell'applicazione (Orari, passo 4, Colloqui): il ricevimento
+ *    di ogni settimana, le giornate dei colloqui generali, i periodi senza
+ *    colloqui. Sul calendario il ricevimento e' una serie (a tratti, come le
+ *    lezioni: niente colloqui nei giorni senza lezione e in quelli senza
+ *    colloqui), una giornata e' un evento singolo; il titolo e' il nome che
+ *    hai scritto, il luogo il link del Meet. Le prenotazioni dei genitori
+ *    restano nel registro elettronico: qui c'e' solo quando e dove.
  *
  *  IL CALENDARIO IN UN ALTRO ACCOUNT
  *    Per mettere l'orario nel Google Calendar di un altro account (per
@@ -94,6 +112,7 @@ var _ORARI_CHIAVE_COLORI = 'CAMPANELLA_ORARI_COLORI_PROGRESSO';  // quello di OR
 var _ORARI_TRIGGER_CALENDARIO = 'ORARI_4_calendario';  // le riprese del calendario: la funzione stessa
 var _ORARI_TRIGGER_CAMBIO = 'ORARI_5_cambioOrario';
 var _ORARI_TRIGGER_COLORI = 'ORARI_6_coloraLezioni';
+var _ORARI_TRIGGER_COLLOQUI = 'ORARI_7_colloqui';  // le riprese dei colloqui (lo stesso lavoro a meta' del calendario)
 // i colori degli eventi di Google Calendar (CalendarApp.EventColor, da "1" a
 // "11") con il nome che hanno nell'interfaccia italiana, per i messaggi
 var _ORARI_NOMI_COLORI   = ['', 'Lavanda', 'Salvia', 'Vinaccia', 'Fenicottero', 'Banana', 'Mandarino', 'Pavone',
@@ -102,6 +121,11 @@ var _ORARI_PAUSA_MS      = 500;                // fra una modifica al calendario
 var _ORARI_MAX_RIFIUTI   = 10;                 // limiti di Google di fila prima di smettere di riprovare
 var _ORARI_TAG           = 'campanella';       // contrassegno degli eventi creati qui
 var _ORARI_TAG_VALORE    = 'orario';
+// i colloqui con le famiglie: lo stesso contrassegno, con un valore loro. Senza
+// contrassegno si riconoscono dall'inizio della descrizione
+var _ORARI_TAG_COLLOQUIO = 'colloquio';
+var _ORARI_INIZIO_COLLOQUI = '[Campanella] Colloqui';
+var _ORARI_NOME_COLLOQUI = 'Colloqui';          // nei messaggi, dove le lezioni hanno la classe
 // il secondo contrassegno delle serie e degli eventi rifatti dal cambio
 // d'orario: l'id della serie vecchia che sostituiscono e il giorno prima del cambio
 var _ORARI_TAG_SOSTITUISCE = 'campanella_sostituisce';
@@ -212,6 +236,7 @@ function _orariAnteprimaCalendario_(d) {
                ' (' + piano.lezioni + ' lezioni)');
     righe.push('Lezioni saltate nei giorni senza lezione: ' + piano.saltate);
     righe = righe.concat(_orariAnteprimaColori_(c, piano));
+    righe.push(_orariRigaColloqui_(c, _orariPianoColloqui_(c, periodo, periodo.inizio), 'da mettere con ORARI_4_calendario'));
     // il calendario c'e' gia', con un altro fuso: lo dico prima di ORARI_4 e ORARI_5
     var cal = _orariTrovaCalendario_(c.nome);
     var fuso = Session.getScriptTimeZone();
@@ -412,7 +437,8 @@ function _orariInvia_(tipo, e) {
 //  DatiOrari.gs) l'evento non c'e': il blocco diventa piu' serie, una per
 //  ogni tratto di settimane senza interruzioni (il "piano"). Gli eventi
 //  portano un contrassegno, cosi' ORARI_ANNULLA_calendario e
-//  ORARI_5_cambioOrario toccano solo loro.
+//  ORARI_5_cambioOrario toccano solo loro. Dopo le lezioni vanno i colloqui
+//  con le famiglie (la sezione 7).
 //
 //  Con tante serie si rischia il tempo massimo di un'esecuzione, o il
 //  limite di Google alle modifiche fatte in poco tempo: lo script si ricorda
@@ -458,7 +484,10 @@ function ORARI_4_calendario(e) {
 //  fine si toglie la vecchia. Le serie senza lezioni prima di
 //  quel giorno si tolgono, come gli eventi singoli da quel giorno in poi, e
 //  dal validoDal si mette l'orario nuovo. Le settimane prima restano come
-//  sono. Rieseguito con la stessa data, o ripreso dopo un'interruzione, da'
+//  sono. I colloqui con le famiglie si trattano come le lezioni: rifatti
+//  fino al giorno prima, e dal validoDal quelli di DatiOrari.gs (per i soli
+//  colloqui, da oggi, c'e' ORARI_7_colloqui: la sezione 7). Rieseguito con
+//  la stessa data, o ripreso dopo un'interruzione, da'
 //  lo stesso risultato: la serie nuova ha un secondo contrassegno con la
 //  serie vecchia che sostituisce e il giorno prima del cambio, e si ritrova.
 //  Una data prima dell'inizio del periodo vale come l'inizio: l'anno prima,
@@ -476,7 +505,8 @@ function ORARI_5_cambioOrario(e) {
 //  (calendario.colori in DatiOrari.gs): ORARI_4_calendario e
 //  ORARI_5_cambioOrario lo danno alle serie e agli eventi che creano. Questa
 //  funzione lo da' a quelli gia' messi, senza rifarli ne' spostarli: solo a
-//  quelli con il contrassegno, nel periodo di DatiOrari.gs. Le lezioni di una
+//  quelli con il contrassegno, nel periodo di DatiOrari.gs; ai colloqui con
+//  le famiglie il colore dei colloqui (calendario.coloreColloqui). Le lezioni di una
 //  classe senza colore restano come sono (il messaggio dice quali ne hanno
 //  ancora uno di prima). Con tante serie puo' finire il tempo, o Google puo'
 //  chiedere di rallentare: si ricorda quelle gia' fatte e riprende da sola
@@ -500,6 +530,29 @@ function ORARI_6_coloraLezioni(e) {
   }
   try { return _orariColori_(e); }
   finally { lock.releaseLock(); }
+}
+
+// ===========================================================================
+//  7 - I COLLOQUI CON LE FAMIGLIE
+//  ORARI_4_calendario mette, dopo le lezioni, anche i colloqui scritti
+//  nell'applicazione (calendario.colloqui in DatiOrari.gs): ogni ricevimento
+//  settimanale come le lezioni, una serie per ogni tratto di settimane (niente
+//  colloqui nei giorni senza lezione e in quelli in cui sono sospesi), ogni
+//  giornata singola come evento singolo. Il titolo e' il nome scritto, il
+//  luogo il link del Meet, la descrizione comincia con "[Campanella]
+//  Colloqui" e dice il link; il contrassegno e' quello delle lezioni con un
+//  valore suo, e il colore quello dei colloqui (calendario.coloreColloqui).
+//  ORARI_5_cambioOrario li tratta come le lezioni, e ORARI_ANNULLA_calendario
+//  li toglie con loro.
+//  Se cambiano solo i colloqui, questa funzione li aggiorna da oggi in poi:
+//  e' il cambio d'orario (la sezione 5), con oggi come data del cambio, solo
+//  sui colloqui. Quelli prima di oggi restano come sono, anche se cambiati a
+//  mano; le lezioni non si toccano. Il giorno e' quello in cui comincia: una
+//  ripresa dopo la mezzanotte continua lo stesso lavoro. Le prenotazioni dei
+//  genitori restano nel registro elettronico: qui c'e' solo quando e dove.
+// ===========================================================================
+function ORARI_7_colloqui(e) {
+  return _orariCalendarioConLock_(_ORARI_TRIGGER_COLLOQUI, e);
 }
 
 function ORARI_ANNULLA_calendario() {
@@ -540,13 +593,14 @@ function _orariCalendarioConLock_(funzione, e) {
   finally { lock.releaseLock(); }
 }
 
-/** Il lavoro a meta' sul calendario (di ORARI_4 o di ORARI_5), se c'e' e si capisce. */
+/** Il lavoro a meta' sul calendario (di ORARI_4, di ORARI_5 o di ORARI_7), se c'e' e si capisce. */
 function _orariLavoroCalendario_() {
   var testo = PropertiesService.getUserProperties().getProperty(_ORARI_CHIAVE_CALENDARIO);
   if (!testo) return null;
   try {
     var s = JSON.parse(testo);
-    if (s && (s.funzione === _ORARI_TRIGGER_CALENDARIO || s.funzione === _ORARI_TRIGGER_CAMBIO)) return s;
+    if (s && (s.funzione === _ORARI_TRIGGER_CALENDARIO || s.funzione === _ORARI_TRIGGER_CAMBIO ||
+              s.funzione === _ORARI_TRIGGER_COLLOQUI)) return s;
   } catch (err) { /* un punto illeggibile vale come nessun punto */ }
   return null;
 }
@@ -571,6 +625,9 @@ function _orariCalendario_(funzione, e) {
   var prop = PropertiesService.getUserProperties();
   var salvato = _orariLavoroCalendario_();
   var cambio = (funzione === _ORARI_TRIGGER_CAMBIO);
+  // ORARI_7_colloqui: il taglio del cambio d'orario, da oggi e solo sui colloqui
+  var soloColloqui = (funzione === _ORARI_TRIGGER_COLLOQUI);
+  var taglia = cambio || soloColloqui;
   var ripresa = !!(e && e.triggerUid);
 
   // una ripresa programmata che non trova il suo lavoro non ricomincia da
@@ -604,8 +661,11 @@ function _orariCalendario_(funzione, e) {
     throw new Error(salvato.funzione === _ORARI_TRIGGER_CAMBIO
       ? 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): ' + come + '. Per togliere tutto quello ' +
         'che Campanella ha messo sul calendario c\'e\' ORARI_ANNULLA_calendario.'
+      : salvato.funzione === _ORARI_TRIGGER_COLLOQUI
+      ? 'C\'e\' un aggiornamento dei colloqui a meta\' (ORARI_7_colloqui): ' + come + '. Per togliere tutto ' +
+        'quello che Campanella ha messo sul calendario c\'e\' ORARI_ANNULLA_calendario.'
       : 'L\'orario messo da ORARI_4_calendario e\' ancora a meta\': ' + come + ', e poi esegui ' +
-        'ORARI_5_cambioOrario. Per togliere tutto c\'e\' ORARI_ANNULLA_calendario.');
+        funzione + '. Per togliere tutto c\'e\' ORARI_ANNULLA_calendario.');
   }
 
   // prima di toccare il calendario: dati, date e piano, tutti controllati
@@ -622,11 +682,29 @@ function _orariCalendario_(funzione, e) {
     if (validoDal < periodo.inizio) validoDal = periodo.inizio;
     dal = validoDal;
   }
-  var piano = _orariPiano_(d, doc, periodo, dal);
-  var impronta = _orariImpronta_(c, doc, d, piano, cambio ? c.validoDal : '');
+  if (soloColloqui) {
+    // da oggi, o dal giorno in cui e' cominciato il lavoro che riprende
+    validoDal = _orariOggiDeiColloqui_(salvato, periodo);
+    dal = validoDal;
+  }
+  // ORARI_7_colloqui non mette lezioni: il suo piano ha solo i colloqui
+  var piano = soloColloqui ? { serie: [], lezioni: 0, saltate: 0, blocchiFuori: 0 }
+                           : _orariPiano_(d, doc, periodo, dal);
+  piano.colloqui = _orariPianoColloqui_(c, periodo, dal);
+  var impronta = _orariImpronta_(c, doc, d, piano,
+                                 cambio ? c.validoDal : (soloColloqui ? _orariChiaveData_(validoDal) : ''));
 
   if (salvato && salvato.impronta !== impronta) {
     _togliTriggerOrari_(funzione);
+    if (soloColloqui) {
+      // come il cambio d'orario: si rifa' da capo con i dati di adesso
+      var colloquioSenza = _orariPezzoAppenaRifatto_(salvato, c);
+      prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
+      throw new Error('DatiOrari.gs e\' cambiato a meta\' del lavoro: ORARI_7_colloqui aveva cominciato con altri ' +
+        'colloqui (o altre date) e non va avanti mescolandoli. Ho dimenticato il lavoro a meta\'; i colloqui gia\' ' +
+        'messi restano.\nRiesegui ORARI_7_colloqui: aggiorna i colloqui da oggi con i dati di adesso, e quelli ' +
+        'prima restano.' + _orariAvvisoDaContrassegnare_(salvato) + colloquioSenza);
+    }
     if (cambio) {
       // il cambio si rifa' da capo con i dati di adesso: il taglio ritrova le
       // serie gia' messe, e i pezzi rifatti per un'altra data li toglie
@@ -672,10 +750,14 @@ function _orariCalendario_(funzione, e) {
   }
   if (!stato) {
     var creato = false, fusoDiPrima = '';
-    if (cambio) {
+    if (taglia) {
       if (!cal) {
-        throw new Error('Non c\'e\' nessun calendario chiamato "' + c.nome + '": ORARI_5_cambioOrario cambia ' +
-          'l\'orario messo con ORARI_4_calendario. Se non l\'hai mai messo, esegui ORARI_4_calendario.');
+        throw new Error(cambio
+          ? 'Non c\'e\' nessun calendario chiamato "' + c.nome + '": ORARI_5_cambioOrario cambia ' +
+            'l\'orario messo con ORARI_4_calendario. Se non l\'hai mai messo, esegui ORARI_4_calendario.'
+          : 'Non c\'e\' nessun calendario chiamato "' + c.nome + '": ORARI_7_colloqui aggiorna i colloqui messi ' +
+            'con ORARI_4_calendario. Se non l\'hai mai eseguito, esegui ORARI_4_calendario, che mette l\'orario e i ' +
+            'colloqui.');
       }
     } else if (!cal) {
       // con il fuso dello script: senza, Google lo crea in UTC, e le serie
@@ -692,7 +774,7 @@ function _orariCalendario_(funzione, e) {
     // setTimeZone nessuno l'ha provato dal vivo: da qui si usa il calendario
     // ripreso da Google, che deve avere il fuso nuovo (se no si ferma)
     if (fusoDiPrima) cal = _orariCalendarioColFusoNuovo_(c, fusoDiPrima);
-    if (!cambio && !creato) {
+    if (!taglia && !creato) {
       // rieseguire sopra un orario gia' messo raddoppierebbe ogni lezione
       var gia = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine)).length;
       if (gia) {
@@ -704,11 +786,12 @@ function _orariCalendario_(funzione, e) {
           'nuovo ORARI_4_calendario.');
       }
     }
-    if (!cambio && c.colore) {
+    if (!taglia && c.colore) {
       try { cal.setColor(CalendarApp.Color[c.colore] || c.colore); } catch (err) { /* colore non riconosciuto */ }
     }
-    stato = { funzione: funzione, impronta: impronta, fase: cambio ? 'taglio' : 'crea', fatti: 0,
-              validoDal: cambio ? c.validoDal : '', rifatte: 0, tolte: 0, eventiTolti: 0, rimesse: 0, spostate: [],
+    stato = { funzione: funzione, impronta: impronta, fase: taglia ? 'taglio' : 'crea', fatti: 0, colloquiFatti: 0,
+              validoDal: cambio ? c.validoDal : (soloColloqui ? _orariChiaveData_(validoDal) : ''),
+              rifatte: 0, tolte: 0, eventiTolti: 0, rimesse: 0, spostate: [],
               rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima, senzaContrassegno: [], nSenzaContrassegno: 0,
               coloriImpronta: _orariImprontaColori_(c), coloriNonMessi: [], nColoriNonMessi: 0 };
     prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato));
@@ -722,6 +805,8 @@ function _orariCalendario_(funzione, e) {
   // i conti del taglio, anche in un punto salvato prima che ci fossero
   if (!stato.spostate) { stato.spostate = []; stato.rimesse = 0; }
   if (!stato.rifatte) stato.rifatte = 0;
+  // i colloqui messi, anche in un punto salvato prima che ci fossero
+  if (!stato.colloquiFatti) stato.colloquiFatti = 0;
   // i colori delle classi non sono nell'impronta (vedi sopra): cambiati a
   // meta', le serie da qui in poi prendono quelli di adesso, e il messaggio
   // finale dice di ricolorare le altre. Un punto salvato da una versione di
@@ -793,6 +878,37 @@ function _orariCalendario_(funzione, e) {
       }
       Utilities.sleep(_ORARI_PAUSA_MS);
     }
+    // poi i colloqui, allo stesso modo: il ricevimento di ogni settimana a
+    // tratti, le giornate singole come eventi singoli (vedi la sezione 7)
+    while (stato.colloquiFatti < piano.colloqui.voci.length) {
+      if (Date.now() > scadenza) return _orariCalendarioInterrotto_(funzione, stato, piano, 'tempo', salva);
+      var nuovoColloquio = _orariCreaColloquio_(cal, piano.colloqui.voci[stato.colloquiFatti], doc);
+      stato.daContrassegnare.push(_orariColloquioFatto_(piano.colloqui.voci[stato.colloquiFatti], doc));
+      stato.colloquiFatti++;
+      stato.rifiuti = 0;
+      salva();
+      var voceColloquio = piano.colloqui.voci[stato.colloquiFatti - 1];
+      if (c.coloreColloqui) {
+        try { nuovoColloquio.setColor(c.coloreColloqui); }
+        catch (errColoreColloquio) {
+          _orariColoreNonMesso_(stato, _orariEtichettaDelTratto_(_orariColloquioFatto_(voceColloquio, doc)));
+          salva();
+        }
+      }
+      nuovoColloquio.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);
+      stato.daContrassegnare.pop();
+      // anche un ricevimento settimanale prova il fuso, se le lezioni non l'hanno provato
+      if (!stato.fusoProvato && !voceColloquio.singolo && _orariPassaUnCambioDellOra_(voceColloquio)) {
+        var provaColloquio = _orariFusoDellaSerie_(cal, nuovoColloquio.getId(), voceColloquio);
+        if (provaColloquio.sbagliata) {
+          stato.fusoSbagliato = _orariFusoSbagliato_(c, provaColloquio);
+          salva();
+          throw new Error(stato.fusoSbagliato);
+        }
+        stato.fusoProvato = provaColloquio.provato;
+      }
+      Utilities.sleep(_ORARI_PAUSA_MS);
+    }
   } catch (err) {
     salva();
     var limite = _orariLimiteGoogle_(err);
@@ -803,7 +919,8 @@ function _orariCalendario_(funzione, e) {
   prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
   _togliTriggerOrari_(funzione);
   var testo = cambio ? _orariFineCambio_(c, doc, piano, stato, validoDal)
-                     : _orariFineCalendario_(c, doc, periodo, piano, stato);
+            : soloColloqui ? _orariFineColloqui_(c, doc, piano, stato, validoDal)
+            : _orariFineCalendario_(c, doc, periodo, piano, stato);
   Logger.log(testo);
   return testo;
 }
@@ -872,6 +989,8 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
     var voce = nostri[i];
     var cosa = piano.cose[i];
     if (cosa.resta) continue;            // finisce prima del cambio, o e' un pezzo gia' rifatto (va con la sua serie)
+    // ORARI_7_colloqui tocca solo i colloqui: le lezioni restano come sono
+    if (stato.funzione === _ORARI_TRIGGER_COLLOQUI && !voce.colloquio) continue;
     if (!voce.contrassegno) {
       // la sola descrizione non basta per cambiarla: la nomino e basta
       stato.nSenzaContrassegno++;
@@ -892,19 +1011,22 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
     } else {
       var r = cosa.rifai;
       var id = r.idNuova;
-      // i colori dei pezzi rifatti (vedi sopra)
-      var colore = _orariColoreDi_(c, r.titolo) || _orariColoreDiVoce_(voce) || r.coloreDiTutte;
+      // i colori dei pezzi rifatti (vedi sopra): per un colloquio quello dei colloqui
+      var colore = _orariColoreNeiDati_(c, voce, r.titolo) || _orariColoreDiVoce_(voce) || r.coloreDiTutte;
+      // il contrassegno dei pezzi: quello della serie vecchia, di una lezione o di un colloquio
+      var valore = voce.colloquio ? _ORARI_TAG_COLLOQUIO : _ORARI_TAG_VALORE;
       if (!id && r.inizio) {
         // (1) la serie nuova: il suo id nel punto salvato prima dei contrassegni
         var nuova = _orariSerieRifatta_(cal, r, fino);
         id = nuova.getId();
-        stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };
+        stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno,
+                               colloquio: voce.colloquio };
         salva();
         if (colore) {
           try { nuova.setColor(colore); }
           catch (errColore) { _orariColoreNonMesso_(stato, _orariEtichetta_(voce)); salva(); }
         }
-        nuova.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+        nuova.setTag(_ORARI_TAG, valore);
         nuova.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
         stato.appenaCreato = null;
         salva();
@@ -919,7 +1041,8 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
       for (var m = 0; m < r.spostate.length; m++) {
         if (Date.now() > scadenza) return false;
         var singolo = _orariLezioneRifatta_(cal, r.spostate[m]);
-        stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };
+        stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno,
+                               colloquio: voce.colloquio };
         salva();
         var suo = _orariColoreDellaLezione_(r.spostate[m]);
         var suoAMano = !!suo && suo !== r.coloreDiTutte;
@@ -929,10 +1052,11 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
           try { singolo.setColor(coloreSingolo); messoAMano = suoAMano; }
           catch (errColoreSingolo) { _orariColoreNonMesso_(stato, _orariEtichettaLezione_(r.spostate[m])); salva(); }
         }
-        // la classe e, se ha il colore scelto a mano per lei, il segno: li legge ORARI_6_coloraLezioni
-        singolo.setTag(_ORARI_TAG_CLASSE, r.titolo);
+        // la classe (non per un colloquio, che ha il colore dei colloqui) e, se
+        // ha il colore scelto a mano per lei, il segno: li legge ORARI_6_coloraLezioni
+        if (!voce.colloquio) singolo.setTag(_ORARI_TAG_CLASSE, r.titolo);
         if (messoAMano) singolo.setTag(_ORARI_TAG_COLORE, _ORARI_COLORE_A_MANO);
-        singolo.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+        singolo.setTag(_ORARI_TAG, valore);
         singolo.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
         stato.appenaCreato = null;
         stato.rimesse++;
@@ -1214,15 +1338,17 @@ function _orariSerieConId_(voce, id) {
  */
 function _orariRimettiContrassegniAlPezzo_(cal, pezzo) {
   var aQuellOra = cal.getEvents(new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));
+  // il pezzo di un colloquio ha il contrassegno dei colloqui
+  var valore = pezzo.colloquio ? _ORARI_TAG_COLLOQUIO : _ORARI_TAG_VALORE;
   for (var i = 0; i < aQuellOra.length; i++) {
     var ev = aQuellOra[i];
     if (!_orariEventoDelPezzo_(ev, pezzo.id)) continue;
     if (ev.isRecurringEvent()) {
       var serie = ev.getEventSeries();
-      serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      serie.setTag(_ORARI_TAG, valore);
       serie.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
     } else {
-      ev.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      ev.setTag(_ORARI_TAG, valore);
       ev.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
     }
     return true;
@@ -1295,6 +1421,59 @@ function _orariCreaSerie_(cal, voce, c, d, doc) {
 }
 
 /**
+ * Un colloquio del piano (_orariPianoColloqui_): il ricevimento di un tratto
+ * di settimane come serie, dal primo incontro ogni settimana fino all'ultimo
+ * compreso, o la giornata singola come evento singolo. Il titolo e' il nome,
+ * il luogo il link (se c'e'), la descrizione quella dei colloqui.
+ */
+function _orariCreaColloquio_(cal, voce, doc) {
+  var primo = _orariData_(voce.dal);
+  var da = _orariAlleOre_(primo, voce.dalle);
+  var a = _orariAlleOre_(primo, voce.alle);
+  var opzioni = { description: _orariDescrizioneColloquio_(doc.nome, voce) };
+  if (voce.link) opzioni.location = voce.link;
+  if (voce.singolo) return cal.createEvent(voce.nome, da, a, opzioni);
+  var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(_orariFineGiornata_(_orariData_(voce.al)));
+  return cal.createEventSeries(voce.nome, da, a, ricorrenza, opzioni);
+}
+
+/**
+ * Come _orariTrattoFatto_, per un colloquio appena creato da
+ * _orariCreaColloquio_: se Google non gli salva il contrassegno, la ripresa
+ * lo ritrova (_orariSerieDelTratto_) e glielo rimette, con il valore dei
+ * colloqui. Una giornata singola (singolo) si ritrova anche dall'ora di fine.
+ */
+function _orariColloquioFatto_(voce, doc) {
+  var primo = _orariData_(voce.dal);
+  return { dal: voce.dal, al: voce.al, titolo: voce.nome, colloquio: true, singolo: voce.singolo,
+           inizio: _orariAlleOre_(primo, voce.dalle).getTime(), fine: _orariAlleOre_(primo, voce.alle).getTime(),
+           descrizione: _orariDescrizioneColloquio_(doc.nome, voce) };
+}
+
+/**
+ * La descrizione di un colloquio: comincia con _ORARI_INIZIO_COLLOQUI (senza
+ * contrassegno lo si riconosce da li'), dice di chi e', quando e il link, e
+ * per una serie il giorno del primo incontro ("serie dal 2026-10-15"), che
+ * _orariPrimaLezione_ rilegge come per le lezioni.
+ */
+function _orariDescrizioneColloquio_(docente, voce) {
+  var nomi = ['domenica', 'lunedi\'', 'martedi\'', 'mercoledi\'', 'giovedi\'', 'venerdi\'', 'sabato'];
+  var giorno = nomi[_orariData_(voce.dal).getDay()];
+  return _ORARI_INIZIO_COLLOQUI + ' con le famiglie, di ' + docente + ': ' + voce.nome + ', ' +
+         (voce.singolo ? giorno + ' ' + voce.dal : 'ogni ' + giorno) + ' dalle ' + voce.dalle + ' alle ' + voce.alle +
+         (voce.singolo ? '' : ', serie dal ' + voce.dal) +
+         (voce.link ? '. Link: ' + voce.link : '') +
+         '. Le prenotazioni restano nel registro elettronico.';
+}
+
+/** Il giorno (a mezzanotte) all'ora "hh:mm", nel fuso dello script. */
+function _orariAlleOre_(giorno, hhmm) {
+  var t = new Date(giorno.getTime());
+  t.setHours(_orariMinutiDi_(hhmm) / 60 | 0, _orariMinutiDi_(hhmm) % 60, 0, 0);
+  return t;
+}
+
+/**
  * Quello che serve per ritrovare la serie di un tratto del piano appena
  * creata da _orariCreaSerie_, se Google non le salva il contrassegno: le
  * date del tratto, il titolo, l'inizio della prima lezione e la descrizione.
@@ -1321,7 +1500,10 @@ function _orariRimettiContrassegno_(cal, tratto) {
   for (var i = 0; i < nostri.length; i++) {
     var voce = nostri[i];
     if (!_orariSerieDelTratto_(voce, tratto)) continue;
-    voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+    // la giornata singola di un colloquio e' un evento singolo
+    if (tratto.singolo) voce.evento.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);
+    else if (tratto.colloquio) voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_COLLOQUIO);
+    else voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
     return true;
   }
   return false;
@@ -1331,9 +1513,15 @@ function _orariRimettiContrassegno_(cal, tratto) {
  * Vero se la voce di _orariNostri_ e' la serie del tratto come l'ha creata
  * Campanella: una serie, con lo stesso titolo, la stessa descrizione e la
  * prima lezione proprio all'inizio del tratto (appena creata, nessuno l'ha
- * ancora spostata).
+ * ancora spostata). La giornata singola di un colloquio (tratto.singolo) e'
+ * un evento singolo, con la descrizione dei colloqui, lo stesso titolo e la
+ * stessa ora di inizio e di fine.
  */
 function _orariSerieDelTratto_(voce, tratto) {
+  if (tratto.singolo) {
+    return !!voce.evento && voce.colloquio === true && voce.titolo === tratto.titolo &&
+           voce.inizio.getTime() === tratto.inizio && voce.fine.getTime() === tratto.fine;
+  }
   return !!voce.serie && voce.titolo === tratto.titolo && voce.descrizione === tratto.descrizione &&
          voce.inizio.getTime() === tratto.inizio;
 }
@@ -1357,9 +1545,10 @@ function _orariAvvisoDaContrassegnare_(stato) {
 }
 
 /**
- * Per il messaggio finale di ORARI_4_calendario e ORARI_5_cambioOrario: le
- * serie a cui Google non ha salvato il contrassegno e che non ho ritrovato
- * per rimetterlo, con il rimedio. "" se non ce ne sono.
+ * Per il messaggio finale di ORARI_4_calendario, ORARI_5_cambioOrario e
+ * ORARI_7_colloqui: le serie a cui Google non ha salvato il contrassegno e
+ * che non ho ritrovato per rimetterlo, con il rimedio (cambio: la funzione
+ * che le rimette, rieseguita; false per ORARI_4_calendario). "" se non ce ne sono.
  */
 function _orariAvvisoNonRitrovate_(stato, cambio) {
   var n = stato.nNonRitrovate || 0;
@@ -1372,7 +1561,7 @@ function _orariAvvisoNonRitrovate_(stato, cambio) {
     'due volte. ' +
     (cambio
       ? 'Per sistemare: ' + (una ? 'cancellala' : 'cancellale') + ' tu da Google Calendar (tutti gli eventi della ' +
-        'serie; se ce ne sono due uguali, tutte e due), poi riesegui ORARI_5_cambioOrario con lo stesso ' +
+        'serie; se ce ne sono due uguali, tutte e due), poi riesegui ' + cambio + ' con lo stesso ' +
         'DatiOrari.gs, che ' + (una ? 'la' : 'le') + ' rimette con il contrassegno.'
       : 'Per sistemare: ORARI_ANNULLA_calendario, poi di nuovo ORARI_4_calendario.');
 }
@@ -1384,10 +1573,16 @@ function _orariAvvisoNonRitrovate_(stato, cambio) {
  * lo riesegua il docente. Il punto resta salvato in ogni caso.
  */
 function _orariCalendarioInterrotto_(funzione, stato, piano, motivo, salva) {
+  var colloqui = piano.colloqui.voci.length;
   var dove = (stato.fase === 'taglio')
-    ? 'mentre rifacevo l\'orario di prima fino al giorno prima del cambio: ' + stato.rifatte + ' serie rifatte e ' +
-      stato.tolte + ' tolte'
-    : stato.fatti + ' serie messe su ' + piano.serie.length;
+    ? (funzione === _ORARI_TRIGGER_COLLOQUI
+        ? 'mentre rifacevo i colloqui di prima, fino al giorno prima dell\'aggiornamento: ' + stato.rifatte +
+          ' serie rifatte e ' + stato.tolte + ' tolte'
+        : 'mentre rifacevo l\'orario di prima fino al giorno prima del cambio: ' + stato.rifatte + ' serie rifatte e ' +
+          stato.tolte + ' tolte')
+    : (piano.serie.length || !colloqui ? stato.fatti + ' serie messe su ' + piano.serie.length : '') +
+      (piano.serie.length && colloqui ? ', ' : '') +
+      (colloqui ? stato.colloquiFatti + ' colloqui messi su ' + colloqui : '');
   return _orariInterrotto_(funzione, dove, stato, motivo, salva);
 }
 
@@ -1444,9 +1639,12 @@ function _orariFineCalendario_(c, doc, periodo, piano, stato) {
     'Lezioni saltate nei giorni senza lezione: ' + piano.saltate + '.' +
     (piano.blocchiFuori ? '\nSaltati ' + piano.blocchiFuori + ' blocchi (giorno non riconosciuto o fuori dal periodo).' : '') +
     '\n' + _orariRigaColori_(c, _orariClassiDelPiano_(piano)) +
+    '\n' + _orariRigaColloqui_(c, piano.colloqui, 'messi') +
     '\n\nSe l\'orario cambia a meta\' anno, ORARI_5_cambioOrario lo cambia dalla data che scegli e lascia ' +
-    'le settimane prima. Se qualcosa non va, ORARI_ANNULLA_calendario toglie solo questi eventi e lascia ' +
-    'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false) + _orariAvvisoColori_(stato);
+    'le settimane prima; se cambiano solo i colloqui, ORARI_7_colloqui li aggiorna da oggi. Le prenotazioni dei ' +
+    'genitori restano nel registro elettronico. Se qualcosa non va, ORARI_ANNULLA_calendario toglie solo questi ' +
+    'eventi e lascia il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false) +
+    _orariAvvisoColori_(stato);
 }
 
 /**
@@ -1482,6 +1680,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     c.fine + ')\n' +
     'Lezioni saltate nei giorni senza lezione: ' + piano.saltate + '\n' +
     _orariRigaColori_(c, _orariClassiDelPiano_(piano)) + '\n' +
+    _orariRigaColloqui_(c, piano.colloqui, 'dal ' + dal) + '\n' +
     (senzaContrassegno ? '\nSerie o lezioni singole con la descrizione di Campanella ma senza contrassegno, forse ' +
                          'copiate a mano: ' +
                          'non le ho toccate, controllale tu (' + senzaContrassegno + '): ' +
@@ -1496,7 +1695,32 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     'DatiOrari.gs non ne ha uno, quello della serie vecchia), e le lezioni colorate a mano solo loro il loro. ' +
     'Altre modifiche fatte a mano a una serie vecchia, come un promemoria, non sono passate a quella rifatta: se ' +
     'ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
-    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoPezziNonRitrovati_(stato) + _orariAvvisoNonRitrovate_(stato, true) +
+    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoPezziNonRitrovati_(stato) +
+    _orariAvvisoNonRitrovate_(stato, _ORARI_TRIGGER_CAMBIO) +
+    _orariAvvisoColori_(stato);
+}
+
+/** Il messaggio finale di ORARI_7_colloqui. validoDal e' il giorno da cui li ha aggiornati, mai prima dell'inizio. */
+function _orariFineColloqui_(c, doc, piano, stato, validoDal) {
+  var dal = _orariChiaveData_(validoDal);
+  var giornoPrima = _orariChiaveData_(new Date(validoDal.getFullYear(), validoDal.getMonth(), validoDal.getDate() - 1));
+  var rimesse = stato.rimesse || 0, senzaContrassegno = stato.nSenzaContrassegno || 0;
+  return 'Colloqui aggiornati dal ' + dal + ' nel calendario "' + c.nome + '", per ' + doc.nome + '.\n' +
+    _orariAvvisoFuso_(stato) +
+    'Ricevimenti di prima rifatti fino al ' + giornoPrima + ', con gli incontri come erano: ' + stato.rifatte + '\n' +
+    'Ricevimenti di prima tolti (nessun incontro prima del ' + dal + '): ' + stato.tolte + '\n' +
+    'Giornate di colloqui tolte (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' +
+    (rimesse ? 'Incontri spostati, rinominati, annotati o colorati a mano, rimessi come eventi singoli alla loro ' +
+               'ora: ' + rimesse + ' - ' + stato.spostate.join('; ') +
+               (rimesse > stato.spostate.length ? '; ...' : '') + '\n' : '') +
+    _orariRigaColloqui_(c, piano.colloqui, 'dal ' + dal) + '\n' +
+    (senzaContrassegno ? '\nColloqui con la descrizione di Campanella ma senza contrassegno, forse copiati a mano: ' +
+                         'non li ho toccati, controllali tu (' + senzaContrassegno + '): ' +
+                         stato.senzaContrassegno.join('; ') +
+                         (senzaContrassegno > stato.senzaContrassegno.length ? '; ...' : '') + '\n' : '') +
+    '\nLe lezioni non le ho toccate, e i colloqui prima del ' + dal + ' restano come erano. Le prenotazioni dei ' +
+    'genitori restano nel registro elettronico: qui ci sono solo il giorno, l\'ora e il link.' +
+    _orariAvvisoPezziNonRitrovati_(stato) + _orariAvvisoNonRitrovate_(stato, _ORARI_TRIGGER_COLLOQUI) +
     _orariAvvisoColori_(stato);
 }
 
@@ -1510,9 +1734,9 @@ function _orariEtichettaLezione_(lezione) {
 }
 
 /**
- * Toglie gli eventi messi da Campanella nel periodo di DatiOrari.gs. Con
- * tante serie puo' finire il tempo, o Google puo' chiedere di rallentare: si
- * ferma, dice quanti ne ha tolti e di rieseguirlo (rieseguito, ritrova solo
+ * Toglie gli eventi messi da Campanella nel periodo di DatiOrari.gs, lezioni e
+ * colloqui. Con tante serie puo' finire il tempo, o Google puo' chiedere di
+ * rallentare: si ferma, dice quanti ne ha tolti e di rieseguirlo (rieseguito, ritrova solo
  * quelli che restano). Non si riprogramma da solo: e' il docente che toglie.
  * Un cambio d'orario fermato appena dopo aver rifatto un pezzo (la serie
  * nuova o un evento singolo), prima che Google ne salvasse i contrassegni,
@@ -1535,6 +1759,7 @@ function _orariAnnullaCalendario_() {
   _togliTriggerOrari_(_ORARI_TRIGGER_CALENDARIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_CAMBIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+  _togliTriggerOrari_(_ORARI_TRIGGER_COLLOQUI);
   var nota = aMeta ? '\nDimenticato anche il lavoro a meta\' sul calendario, e tolte le sue riprese.' : '';
 
   var d = _orariDati_();
@@ -1729,8 +1954,9 @@ function _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva) {
       }
       continue;
     }
-    var classe = _orariClasseDellaVoce_(voce);
-    var colore = _orariColoreDi_(c, classe);
+    // un colloquio prende il colore dei colloqui, una lezione quello della sua classe
+    var classe = voce.colloquio ? _ORARI_NOME_COLLOQUI : _orariClasseDellaVoce_(voce);
+    var colore = _orariColoreNeiDati_(c, voce, classe);
     if (!colore) {
       // una classe senza colore: la lascio com'e', e se ne ha uno di prima lo dico
       conti.nSenza++;
@@ -1778,6 +2004,11 @@ function _orariCalendarioAMeta_(lavoro) {
     return 'C\'e\' un cambio d\'orario a meta\' (ORARI_5_cambioOrario): ' + come + '. Quando e\' finito esegui ' +
       'ORARI_6_coloraLezioni: finche\' e\' a meta\' non coloro niente, perche\' il cambio riconosce dal colore le ' +
       'lezioni colorate a mano solo loro, e le rimette con il loro. Non ho toccato niente.';
+  }
+  if (lavoro.funzione === _ORARI_TRIGGER_COLLOQUI) {
+    return 'C\'e\' un aggiornamento dei colloqui a meta\' (ORARI_7_colloqui): ' + come + '. Quando e\' finito ' +
+      'esegui ORARI_6_coloraLezioni: finche\' e\' a meta\' non coloro niente, perche\' l\'aggiornamento riconosce dal ' +
+      'colore gli incontri colorati a mano solo loro, e li rimette con il loro. Non ho toccato niente.';
   }
   return 'L\'orario messo da ORARI_4_calendario e\' ancora a meta\': ' + come + '. ORARI_4_calendario da\' gia\' ' +
     'a ogni serie il colore della sua classe; quando e\' finito, se il suo messaggio finale te lo dice, esegui ' +
@@ -1957,7 +2188,7 @@ function _orariAnteprimaColori_(c, piano) {
   return righe;
 }
 
-/** L'impronta dei colori di DatiOrari.gs (solo quelli giusti): cambia se cambia un colore. */
+/** L'impronta dei colori di DatiOrari.gs (solo quelli giusti, anche quello dei colloqui): cambia se cambia un colore. */
 function _orariImprontaColori_(c) {
   var parti = [];
   for (var k in c.colori) {
@@ -1965,6 +2196,8 @@ function _orariImprontaColori_(c) {
     if (v) parti.push(k + '=' + v);
   }
   parti.sort();
+  // quello dei colloqui dopo le classi, con un segno che nessuna classe ha
+  if (c.coloreColloqui) parti.push('\n' + _ORARI_NOME_COLLOQUI + '=' + c.coloreColloqui);
   return _orariFnv_(parti.join('\n'));
 }
 
@@ -2000,7 +2233,9 @@ function _orariAvvisoColori_(stato) {
  * serie nuova, _orariTogliBuco_), o per l'evento singolo. Messi da
  * Campanella vuol dire con il contrassegno (contrassegno: true), oppure con
  * la descrizione che comincia con [Campanella]: se Google non ha salvato il
- * contrassegno, ma anche in una copia fatta a mano di una lezione.
+ * contrassegno, ma anche in una copia fatta a mano di una lezione. Le lezioni
+ * e i colloqui con le famiglie hanno lo stesso contrassegno, con due valori:
+ * colloquio dice quale (_orariDiColloquio_).
  */
 function _orariNostri_(cal, inizio, fine) {
   var fuso = cal.getTimeZone();
@@ -2010,7 +2245,9 @@ function _orariNostri_(cal, inizio, fine) {
   for (var i = 0; i < eventi.length; i++) {
     var ev = eventi[i];
     var contrassegno = false;
-    try { contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE); } catch (e) { }
+    try {
+      contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE || ev.getTag(_ORARI_TAG) === _ORARI_TAG_COLLOQUIO);
+    } catch (e) { }
     var nostro = contrassegno;
     if (!nostro) {
       try { nostro = String(ev.getDescription() || '').indexOf('[Campanella]') === 0; } catch (e2) { }
@@ -2024,7 +2261,8 @@ function _orariNostri_(cal, inizio, fine) {
     try { ricorrente = ev.isRecurringEvent(); } catch (e3) { ricorrente = false; }
     if (!ricorrente) {
       fuori.push({ evento: ev, contrassegno: contrassegno, titolo: ev.getTitle(),
-                   inizio: lezione.inizio, fine: lezione.fine, ultimo: lezione.inizio });
+                   inizio: lezione.inizio, fine: lezione.fine, ultimo: lezione.inizio,
+                   colloquio: _orariDiColloquio_(ev) });
       continue;
     }
     var serie = ev.getEventSeries();
@@ -2034,7 +2272,7 @@ function _orariNostri_(cal, inizio, fine) {
       var descrizione = '';
       try { descrizione = String(serie.getDescription() || ''); } catch (e4) { }
       voce = perSerie[id] = { serie: serie, contrassegno: false, titolo: ev.getTitle(), descrizione: descrizione,
-                              lezioni: [] };
+                              lezioni: [], colloquio: _orariDiColloquio_(serie) };
       fuori.push(voce);
     }
     if (contrassegno) voce.contrassegno = true;
@@ -2042,6 +2280,20 @@ function _orariNostri_(cal, inizio, fine) {
   }
   for (var k = 0; k < fuori.length; k++) if (fuori[k].serie) _orariPrimaLezione_(fuori[k], null, fuso);
   return fuori;
+}
+
+/**
+ * Per _orariNostri_: vero se l'evento (o la serie) di Campanella e' un
+ * colloquio con le famiglie. Con il contrassegno lo dice il suo valore;
+ * senza (Google non l'ha salvato), l'inizio della descrizione. Non decide se
+ * un evento e' di Campanella: lo decidono il contrassegno e la descrizione.
+ */
+function _orariDiColloquio_(x) {
+  var valore = '', descrizione = '';
+  try { valore = String(x.getTag(_ORARI_TAG) || ''); } catch (e) { valore = ''; }
+  if (valore) return valore === _ORARI_TAG_COLLOQUIO;
+  try { descrizione = String(x.getDescription() || ''); } catch (e2) { descrizione = ''; }
+  return descrizione.indexOf(_ORARI_INIZIO_COLLOQUI) === 0;
 }
 
 /**
@@ -2238,7 +2490,15 @@ function _orariCalendarioConfig_(d) {
     // legge solo con _orariColoreDi_, che scarta quelli sbagliati
     colori: (c.colori && typeof c.colori === 'object') ? c.colori : {},
     sospensioni: (c.sospensioni && c.sospensioni.length) ? c.sospensioni : [],
-    validoDal: String(c.validoDal || '').trim()
+    validoDal: String(c.validoDal || '').trim(),
+    // i colloqui con le famiglie (si leggono con _orariPianoColloqui_, che
+    // controlla date e ore) e il loro colore, "" se non ce n'e' uno giusto
+    colloqui: {
+      settimanali: (c.colloqui && c.colloqui.settimanali && c.colloqui.settimanali.length) ? c.colloqui.settimanali : [],
+      singoli: (c.colloqui && c.colloqui.singoli && c.colloqui.singoli.length) ? c.colloqui.singoli : [],
+      sospensioni: (c.colloqui && c.colloqui.sospensioni && c.colloqui.sospensioni.length) ? c.colloqui.sospensioni : []
+    },
+    coloreColloqui: _orariColoreValido_(c.coloreColloqui)
   };
 }
 
@@ -2315,6 +2575,146 @@ function _orariPiano_(d, doc, periodo, dal) {
   return piano;
 }
 
+/**
+ * Il piano dei colloqui, dal giorno dal alla fine del periodo. Ogni
+ * ricevimento settimanale (calendario.colloqui.settimanali) come le lezioni:
+ * nelle sue date (dal, al) se le ha, se no in tutto il periodo, senza i giorni
+ * senza lezione e quelli in cui i colloqui sono sospesi
+ * (calendario.colloqui.sospensioni), una serie per ogni tratto di settimane.
+ * Le giornate singole (singoli) una per una, se cadono nel periodo e non
+ * prima di dal: le sospensioni valgono solo per il ricevimento settimanale,
+ * perche' una giornata scritta apposta (i colloqui generali) di solito cade
+ * proprio quando il ricevimento e' sospeso. Ogni voce: { singolo, nome,
+ * dalle, alle, link, dal, al, incontri }; i conti per i messaggi. Dati che
+ * non si capiscono fermano tutto prima di toccare il calendario. Lo stesso
+ * calcolo lo fa Campanella (Colloqui.Piano), per il riepilogo della pagina.
+ */
+function _orariPianoColloqui_(c, periodo, dal) {
+  var k = c.colloqui;
+  var piano = { voci: [], settimanali: 0, tratti: 0, singoli: 0, incontri: 0, saltati: 0, fuori: 0 };
+  var sospesi = [];
+  for (var s = 0; s < k.sospensioni.length; s++) {
+    var x = k.sospensioni[s] || {};
+    var da = _orariData_(x.dal), a = _orariData_(x.al || x.dal);
+    if (!da || !a || a < da) {
+      throw new Error('In DatiOrari.gs il periodo senza colloqui numero ' + (s + 1) + ' non si capisce (dal "' +
+        x.dal + '" al "' + x.al + '"): rigenera il file dall\'applicazione.');
+    }
+    sospesi.push({ dal: _orariChiaveData_(da), al: _orariChiaveData_(a) });
+  }
+  for (var i = 0; i < k.settimanali.length; i++) {
+    var w = _orariColloquioLetto_(k.settimanali[i], 'il ricevimento settimanale numero ' + (i + 1));
+    var giorno = _orariGiornoSettimana_(w.giorno);
+    var inizio = w.dal ? _orariData_(w.dal) : periodo.inizio;
+    var fine = w.al ? _orariData_(w.al) : periodo.fine;
+    if (giorno < 0 || !inizio || !fine) {
+      throw new Error('In DatiOrari.gs il ricevimento settimanale numero ' + (i + 1) + ' non si capisce (giorno "' +
+        w.giorno + '", dal "' + w.dal + '" al "' + w.al + '"): rigenera il file dall\'applicazione.');
+    }
+    piano.settimanali++;
+    if (inizio < dal) inizio = dal;
+    if (fine > periodo.fine) fine = periodo.fine;
+    var aperta = null;
+    for (var g = _orariPrimoGiorno_(inizio, giorno); g <= fine;
+         g = new Date(g.getFullYear(), g.getMonth(), g.getDate() + 7)) {
+      var chiave = _orariChiaveData_(g);
+      if (_orariSospeso_(chiave, periodo.sospensioni) || _orariSospeso_(chiave, sospesi)) {
+        piano.saltati++;
+        aperta = null;
+        continue;
+      }
+      if (!aperta) {
+        aperta = { singolo: false, nome: w.nome, dalle: w.dalle, alle: w.alle, link: w.link, dal: chiave, al: chiave,
+                   incontri: 0 };
+        piano.voci.push(aperta);
+        piano.tratti++;
+      }
+      aperta.al = chiave;
+      aperta.incontri++;
+      piano.incontri++;
+    }
+  }
+  for (var j = 0; j < k.singoli.length; j++) {
+    var u = _orariColloquioLetto_(k.singoli[j], 'la giornata di colloqui numero ' + (j + 1));
+    var data = _orariData_(k.singoli[j].data);
+    if (!data) {
+      throw new Error('In DatiOrari.gs la giornata di colloqui numero ' + (j + 1) + ' non ha una data aaaa-mm-gg ("' +
+        k.singoli[j].data + '"): rigenera il file dall\'applicazione.');
+    }
+    if (data < periodo.inizio || data > periodo.fine) { piano.fuori++; continue; }
+    if (data < dal) continue;            // prima del cambio: resta com'e'
+    var giornata = _orariChiaveData_(data);
+    piano.voci.push({ singolo: true, nome: u.nome, dalle: u.dalle, alle: u.alle, link: u.link, dal: giornata,
+                      al: giornata, incontri: 1 });
+    piano.singoli++;
+    piano.incontri++;
+  }
+  return piano;
+}
+
+/**
+ * Un colloquio di DatiOrari.gs (cosa: come si chiama nei messaggi) con le ore
+ * controllate: "hh:mm", la fine dopo l'inizio. Il nome di partenza e'
+ * "Colloqui"; il link, se c'e', e' un indirizzo https://.
+ */
+function _orariColloquioLetto_(x, cosa) {
+  var v = x || {};
+  var ora = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+  var dalle = String(v.dalle || '').trim(), alle = String(v.alle || '').trim();
+  var md = ora.exec(dalle), ma = ora.exec(alle);
+  if (!md || !ma || Number(ma[1]) * 60 + Number(ma[2]) <= Number(md[1]) * 60 + Number(md[2])) {
+    throw new Error('In DatiOrari.gs ' + cosa + ' non ha le ore giuste (dalle "' + v.dalle + '" alle "' + v.alle +
+      '"): rigenera il file dall\'applicazione.');
+  }
+  var link = String(v.link || '').trim();
+  if (link && !/^https:\/\/\S+$/.test(link)) {
+    throw new Error('In DatiOrari.gs ' + cosa + ' ha un link che non e\' un indirizzo https:// ("' + link + '"): ' +
+      'rigenera il file dall\'applicazione.');
+  }
+  return { nome: String(v.nome || '').trim() || _ORARI_NOME_COLLOQUI, giorno: String(v.giorno || ''),
+           dal: String(v.dal || '').trim(), al: String(v.al || '').trim(), link: link,
+           dalle: ('0' + Number(md[1])).slice(-2) + ':' + md[2], alle: ('0' + Number(ma[1])).slice(-2) + ':' + ma[2] };
+}
+
+/**
+ * Il giorno da cui ORARI_7_colloqui aggiorna i colloqui: oggi, oppure quello
+ * del lavoro a meta' che riprende (salvato). Mai prima dell'inizio del
+ * periodo; dopo la fine non c'e' niente da aggiornare.
+ */
+function _orariOggiDeiColloqui_(salvato, periodo) {
+  var oggi = (salvato && salvato.funzione === _ORARI_TRIGGER_COLLOQUI) ? _orariData_(salvato.validoDal) : null;
+  if (!oggi) {
+    var adesso = new Date();
+    oggi = new Date(adesso.getFullYear(), adesso.getMonth(), adesso.getDate());
+  }
+  if (oggi > periodo.fine) {
+    throw new Error('Il periodo del calendario e\' finito il ' + _orariChiaveData_(periodo.fine) + ': non ci sono ' +
+      'colloqui da aggiornare. Per l\'anno nuovo scegli il periodo nell\'applicazione (Orari, passo 4), rigenera ' +
+      'DatiOrari.gs ed esegui ORARI_4_calendario.');
+  }
+  return (oggi < periodo.inizio) ? periodo.inizio : oggi;
+}
+
+/** "Colloqui ...: 1 ricevimento settimanale (2 serie, 28 incontri), 2 giornate singole; ...": per i messaggi. */
+function _orariRigaColloqui_(c, piano, cosa) {
+  if (!piano.settimanali && !piano.voci.length && !piano.fuori) {
+    return 'Colloqui ' + cosa + ': nessuno (si scrivono nell\'applicazione, Orari, passo 4, Colloqui).';
+  }
+  return 'Colloqui ' + cosa + ': ' +
+    (piano.settimanali === 1 ? '1 ricevimento settimanale' : piano.settimanali + ' ricevimenti settimanali') +
+    ' (' + piano.tratti + ' serie, ' + (piano.incontri - piano.singoli) + ' incontri), ' +
+    (piano.singoli === 1 ? '1 giornata singola' : piano.singoli + ' giornate singole') +
+    (piano.saltati ? '; ' + piano.saltati + ' incontri saltati nei giorni senza lezione o senza colloqui' : '') +
+    (piano.fuori ? '; ' + (piano.fuori === 1 ? '1 giornata fuori dal periodo, lasciata fuori'
+                                             : piano.fuori + ' giornate fuori dal periodo, lasciate fuori') : '') +
+    '. Colore dei colloqui: ' + _orariNomeColore_(c.coloreColloqui) + '.';
+}
+
+/** Il colore che DatiOrari.gs da' a una voce di _orariNostri_: quello dei colloqui, o quello della sua classe. */
+function _orariColoreNeiDati_(c, voce, classe) {
+  return voce.colloquio ? c.coloreColloqui : _orariColoreDi_(c, classe);
+}
+
 /** Quanti giorni o periodi senza lezione toccano il periodo: quelli fuori (un anno sbagliato) non contano. */
 function _orariSospensioniNelPeriodo_(periodo) {
   var da = _orariChiaveData_(periodo.inizio), a = _orariChiaveData_(periodo.fine), n = 0;
@@ -2332,9 +2732,12 @@ function _orariSospeso_(chiave, sospensioni) {
 /**
  * L'impronta del piano: cambia se cambia qualunque cosa che decide quali
  * lezioni finiscono sul calendario (calendario, classi, giorni, ore, date,
- * descrizioni). Una ripresa con un'impronta diversa si ferma invece di
- * mescolare due orari. I colori delle classi non ci sono: cambiati a meta'
- * non mescolano due orari (vedi la sezione 4, e _orariImprontaColori_).
+ * descrizioni), e i colloqui del piano (piano.colloqui: date, ore, nomi e
+ * link). Una ripresa con un'impronta diversa si ferma invece di mescolare
+ * due orari. Senza colloqui l'impronta e' quella delle versioni di prima,
+ * cosi' un lavoro a meta' lasciato da una di loro si finisce. I colori non ci
+ * sono: cambiati a meta' non mescolano due orari (vedi la sezione 4, e
+ * _orariImprontaColori_).
  */
 function _orariImpronta_(c, doc, d, piano, validoDal) {
   var parti = [c.nome, doc.nome, c.inizioOre.join(','), c.minutiOra, validoDal];
@@ -2343,7 +2746,13 @@ function _orariImpronta_(c, doc, d, piano, validoDal) {
     parti.push([s.blocco.testo, s.dal, s.al, s.blocco.oraDa, s.blocco.oraA,
                 _orariDescrizione_(doc.nome, s.blocco, d)].join('|'));
   }
-  return _orariFnv_(parti.join('\n')) + '-' + piano.serie.length;
+  var colloqui = (piano.colloqui && piano.colloqui.voci) ? piano.colloqui.voci : [];
+  for (var j = 0; j < colloqui.length; j++) {
+    var k = colloqui[j];
+    parti.push(['colloquio', k.singolo ? 'giornata' : 'settimanale', k.nome, k.dal, k.al, k.dalle, k.alle,
+                k.link].join('|'));
+  }
+  return _orariFnv_(parti.join('\n')) + '-' + piano.serie.length + (colloqui.length ? '-' + colloqui.length : '');
 }
 
 /** FNV-1a a 32 bit di un testo, in otto cifre esadecimali. */

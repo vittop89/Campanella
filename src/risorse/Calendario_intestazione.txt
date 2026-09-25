@@ -12,8 +12,10 @@
  *  script.google.com entrando con quell'account), insieme al file
  *  DatiOrari.gs "solo il tuo", preparato anche lui dall'applicazione: dentro
  *  c'e' soltanto il tuo orario (il tuo cognome come nel tabellone, le tue
- *  classi e le tue ore, i giorni senza lezione e il colore di ogni classe),
- *  nessun collega. Prima di eseguire qualcosa: Impostazioni progetto
+ *  classi e le tue ore, i giorni senza lezione e il colore di ogni classe) e
+ *  i tuoi colloqui con le famiglie, con i link del Meet, nessun collega.
+ *  Quei link aprono le tue stanze: tieni il file per te. Prima di eseguire
+ *  qualcosa: Impostazioni progetto
  *  (l'ingranaggio a sinistra) -> Fuso orario -> quello con Roma.
  *
  *  Non manda email e non legge la posta: le funzioni delle email di Orari.gs
@@ -22,22 +24,29 @@
  *  cose, quindi le istruzioni valgono per tutti e due.
  *
  *  FUNZIONI, NELL'ORDINE
- *    ORARI_1_anteprima ......... dice quante serie metterebbe sul calendario,
- *                                senza mettere niente; avvisa se il fuso
- *                                orario dello script non e' quello dell'Italia
+ *    ORARI_1_anteprima ......... dice quante serie e quanti colloqui
+ *                                metterebbe sul calendario, senza mettere
+ *                                niente; avvisa se il fuso orario dello
+ *                                script non e' quello dell'Italia
  *    ORARI_4_calendario ........ mette il tuo orario su Google Calendar, nel
  *                                calendario indicato (lo crea se non c'e',
  *                                con il fuso orario dello script), senza
  *                                lezioni nei giorni senza lezione e ogni
- *                                classe con il suo colore; riprende da sola
- *                                se finisce il tempo o se Google chiede di
- *                                rallentare
+ *                                classe con il suo colore, e i tuoi colloqui
+ *                                con le famiglie, con il link del Meet;
+ *                                riprende da sola se finisce il tempo o se
+ *                                Google chiede di rallentare
  *    ORARI_5_cambioOrario ...... l'orario e' cambiato: dalla data scelta
- *                                nell'applicazione mette quello nuovo, e le
- *                                settimane prima restano (riprende da sola)
+ *                                nell'applicazione mette quello nuovo (e i
+ *                                colloqui), e le settimane prima restano
+ *                                (riprende da sola)
  *    ORARI_6_coloraLezioni ..... da' alle lezioni gia' messe il colore della
- *                                loro classe scelto nell'applicazione, senza
- *                                rifarle (riprende da sola)
+ *                                loro classe scelto nell'applicazione, e ai
+ *                                colloqui il loro, senza rifarli (riprende
+ *                                da sola)
+ *    ORARI_7_colloqui .......... i colloqui sono cambiati: li aggiorna da
+ *                                oggi in poi, senza toccare le lezioni;
+ *                                quelli passati restano (riprende da sola)
  *    ORARI_ANNULLA_calendario .. toglie dal calendario gli eventi messi qui,
  *                                nel periodo scritto in DatiOrari.gs, e
  *                                dimentica un lavoro a meta'
@@ -55,5 +64,11 @@
  *        minuto dopo, e a lavoro finito la ripresa si toglie.
  *    Nient'altro: niente posta, niente email, niente Drive, documenti o
  *    fogli, niente servizi fuori da Google, e nemmeno il tuo indirizzo.
+ *
+ *  I COLLOQUI
+ *    Il ricevimento di ogni settimana e' una serie (niente colloqui nei
+ *    giorni senza lezione e in quelli senza colloqui), una giornata di
+ *    colloqui un evento singolo; il luogo e' il link del Meet. Le
+ *    prenotazioni dei genitori restano nel registro elettronico.
  * ============================================================================
  */

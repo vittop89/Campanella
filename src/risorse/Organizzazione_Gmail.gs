@@ -116,6 +116,7 @@ var _TRIGGER_ORARI_CLASSI   = 'ORARI_3_inviaOrariClassi';  // i due invii
 var _TRIGGER_ORARI_CALENDARIO = 'ORARI_4_calendario';     // e il calendario, anche nel cambio d'orario
 var _TRIGGER_ORARI_CAMBIO   = 'ORARI_5_cambioOrario';
 var _TRIGGER_ORARI_COLORI   = 'ORARI_6_coloraLezioni';    // e i colori delle lezioni sul calendario
+var _TRIGGER_ORARI_COLLOQUI = 'ORARI_7_colloqui';         // e l'aggiornamento dei colloqui con le famiglie
 // dove Orari.gs si ricorda il lavoro a meta' sul calendario e quello sui
 // colori: ANNULLA_automazione li segna fermati, cosi' una ripresa gia'
 // partita non li riprende
@@ -1660,12 +1661,13 @@ function ANNULLA_automazione() {
     _rimuoviTrigger_(_TRIGGER_ORARIO);
     _rimuoviTrigger_(_TRIGGER_RIPRESA);
     // Orari.gs sta nello stesso progetto e anche le sue riprese (orari dei
-    // docenti, orari delle classi, calendario, cambio d'orario e colori delle
-    // lezioni) sono attivita' programmate: spegnere l'automazione vuol dire
-    // spegnere tutto
+    // docenti, orari delle classi, calendario, cambio d'orario, colori delle
+    // lezioni e colloqui) sono attivita' programmate: spegnere l'automazione
+    // vuol dire spegnere tutto. L'aggiornamento dei colloqui ha lo stesso
+    // lavoro a meta' del calendario
     orari = _rimuoviTrigger_(_TRIGGER_ORARI) + _rimuoviTrigger_(_TRIGGER_ORARI_CLASSI);
     calendario = _rimuoviTrigger_(_TRIGGER_ORARI_CALENDARIO) + _rimuoviTrigger_(_TRIGGER_ORARI_CAMBIO) +
-                 _fermaCalendarioOrari_(_CHIAVE_ORARI_CALENDARIO);
+                 _rimuoviTrigger_(_TRIGGER_ORARI_COLLOQUI) + _fermaCalendarioOrari_(_CHIAVE_ORARI_CALENDARIO);
     colori = _rimuoviTrigger_(_TRIGGER_ORARI_COLORI) + _fermaCalendarioOrari_(_CHIAVE_ORARI_COLORI);
   } finally {
     lock.releaseLock();
@@ -1675,8 +1677,9 @@ function ANNULLA_automazione() {
                        'ORARI_2_invia (o ORARI_3_inviaOrariClassi, per gli orari delle classi), ' +
                        'che riparte da dove era arrivato.' : '') +
               (calendario ? '\nFermata anche la ripresa del calendario degli orari: se serve, riesegui ' +
-                            'ORARI_4_calendario (o ORARI_5_cambioOrario, per un cambio d\'orario), che ' +
-                            'riparte da dove era arrivato; ORARI_ANNULLA_calendario invece toglie tutto.' : '') +
+                            'ORARI_4_calendario (o ORARI_5_cambioOrario, per un cambio d\'orario, o ' +
+                            'ORARI_7_colloqui, per i colloqui), che riparte da dove era arrivato; ' +
+                            'ORARI_ANNULLA_calendario invece toglie tutto.' : '') +
               (colori ? '\nFermata anche la ripresa dei colori delle lezioni sul calendario: se serve, riesegui ' +
                         'ORARI_6_coloraLezioni, che riparte da dove era arrivato.' : '');
   Logger.log(testo);
@@ -1685,8 +1688,8 @@ function ANNULLA_automazione() {
 
 /**
  * Segna "fermato" un lavoro a meta' di Orari.gs sul calendario (chiave: dove
- * se lo ricorda, quello di ORARI_4/ORARI_5 o quello dei colori), se c'e'. Una
- * sua ripresa scattata un attimo prima, che aspettava il blocco mentre qui si
+ * se lo ricorda, quello di ORARI_4, ORARI_5 e ORARI_7 o quello dei colori),
+ * se c'e'. Una sua ripresa scattata un attimo prima, che aspettava il blocco mentre qui si
  * toglievano i trigger, quando lo prende trova il segno e non riprende il
  * lavoro (ne' si riprogramma); rieseguito a mano, riparte. Dice 1 se l'ha
  * segnato, 0 se non c'era niente da fermare.
