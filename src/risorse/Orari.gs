@@ -23,12 +23,16 @@
  *                                nell'applicazione) su Google Calendar, nel
  *                                calendario indicato (lo crea se non c'e',
  *                                con il fuso orario dello script),
- *                                senza lezioni nei giorni senza lezione;
- *                                riprende da sola se finisce il tempo o se
- *                                Google chiede di rallentare
+ *                                senza lezioni nei giorni senza lezione e
+ *                                ogni classe con il suo colore; riprende da
+ *                                sola se finisce il tempo o se Google
+ *                                chiede di rallentare
  *    ORARI_5_cambioOrario ...... l'orario e' cambiato: dalla data scelta
  *                                nell'applicazione mette quello nuovo, e le
  *                                settimane prima restano (riprende da sola)
+ *    ORARI_6_coloraLezioni ..... da' alle lezioni gia' messe il colore della
+ *                                loro classe scelto nell'applicazione, senza
+ *                                rifarle (riprende da sola)
  *    ORARI_ANNULLA_calendario .. toglie dal calendario gli eventi messi qui,
  *                                nel periodo scritto in DatiOrari.gs, e
  *                                dimentica un lavoro a meta'
@@ -40,16 +44,20 @@
  *    quindi anche il permesso per il Calendario, anche se usi solo le email:
  *    e' normale. Le email partono con MailApp, l'etichetta la mette GmailApp
  *    e il tuo indirizzo lo dice Session. Il Calendario lo usano soltanto
- *    ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_ANNULLA_calendario, che
- *    toccano solo il calendario che indichi (uno tuo, non uno a cui sei
- *    iscritto, con quel nome esatto) e, dentro, solo gli eventi creati qui:
- *    ORARI_4_calendario li crea, ORARI_5_cambioOrario rifa' fino al giorno
- *    prima del cambio (poi toglie la serie vecchia) o toglie solo quelli con
- *    il contrassegno, ORARI_ANNULLA_calendario toglie quelli con il
- *    contrassegno o con la descrizione che comincia con [Campanella] (se Google
- *    non ha salvato il contrassegno; ma anche una copia fatta a mano di una
- *    lezione ha quella descrizione). Del calendario cambiano solo il colore
- *    scelto nell'applicazione e il fuso orario, se non e' quello dello script.
+ *    ORARI_4_calendario, ORARI_5_cambioOrario, ORARI_6_coloraLezioni e
+ *    ORARI_ANNULLA_calendario, che toccano solo il calendario che indichi
+ *    (uno tuo, non uno a cui sei iscritto, con quel nome esatto) e, dentro,
+ *    solo gli eventi creati qui: ORARI_4_calendario li crea, ORARI_5_cambioOrario
+ *    rifa' fino al giorno prima del cambio (poi toglie la serie vecchia) o
+ *    toglie solo quelli con il contrassegno, ORARI_6_coloraLezioni cambia
+ *    solo il colore di quelli con il contrassegno, ORARI_ANNULLA_calendario
+ *    toglie quelli con il contrassegno o con la descrizione che comincia con
+ *    [Campanella] (se Google non ha salvato il contrassegno; ma anche una
+ *    copia fatta a mano di una lezione ha quella descrizione). Gli eventi
+ *    creati qui hanno il colore della loro classe, scelto nell'applicazione
+ *    (calendario.colori in DatiOrari.gs). Del calendario cambiano solo il
+ *    colore scelto nell'applicazione e il fuso orario, se non e' quello dello
+ *    script.
  * ============================================================================
  */
 
@@ -58,10 +66,16 @@ var _ORARI_MAX_SECONDI   = 260;
 var _ORARI_CHIAVE        = 'CAMPANELLA_ORARI_PROGRESSO';
 var _ORARI_CHIAVE_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
 var _ORARI_CHIAVE_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';  // il lavoro a meta' sul calendario
+var _ORARI_CHIAVE_COLORI = 'CAMPANELLA_ORARI_COLORI_PROGRESSO';  // quello di ORARI_6_coloraLezioni
 var _ORARI_TRIGGER       = 'ORARI_2_invia';
 var _ORARI_TRIGGER_CLASSI = 'ORARI_3_inviaOrariClassi';
 var _ORARI_TRIGGER_CALENDARIO = 'ORARI_4_calendario';  // le riprese del calendario: la funzione stessa
 var _ORARI_TRIGGER_CAMBIO = 'ORARI_5_cambioOrario';
+var _ORARI_TRIGGER_COLORI = 'ORARI_6_coloraLezioni';
+// i colori degli eventi di Google Calendar (CalendarApp.EventColor, da "1" a
+// "11") con il nome che hanno nell'interfaccia italiana, per i messaggi
+var _ORARI_NOMI_COLORI   = ['', 'Lavanda', 'Salvia', 'Vinaccia', 'Fenicottero', 'Banana', 'Mandarino', 'Pavone',
+                            'Grafite', 'Mirtillo', 'Basilico', 'Pomodoro'];
 var _ORARI_PAUSA_MS      = 500;                // fra una modifica al calendario e l'altra
 var _ORARI_MAX_RIFIUTI   = 10;                 // limiti di Google di fila prima di smettere di riprovare
 var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
@@ -137,6 +151,7 @@ function _orariAnteprimaCalendario_(d) {
     righe.push('Serie settimanali da creare con ORARI_4_calendario: ' + piano.serie.length +
                ' (' + piano.lezioni + ' lezioni)');
     righe.push('Lezioni saltate nei giorni senza lezione: ' + piano.saltate);
+    righe = righe.concat(_orariAnteprimaColori_(c, piano));
     // il calendario c'e' gia', con un altro fuso: lo dico prima di ORARI_4 e ORARI_5
     var cal = _orariTrovaCalendario_(c.nome);
     var fuso = Session.getScriptTimeZone();
@@ -342,6 +357,14 @@ function _orariInvia_(tipo, e) {
 //  a che punto e' (con un'impronta del piano, per non mescolare due orari) e
 //  si riprogramma fra un minuto, come l'invio.
 //
+//  Ogni serie prende il colore della sua classe (calendario.colori), appena
+//  creata e prima del contrassegno. I colori non sono nell'impronta del
+//  piano: non cambiano quali lezioni ci sono, e un DatiOrari.gs rigenerato a
+//  meta' con altri colori non deve fermare una ripresa. Le serie che mancano
+//  prendono quelli di adesso, e il messaggio finale dice di dare anche alle
+//  altre quelli di adesso con ORARI_6_coloraLezioni. Un colore che Google
+//  non mette non ferma il lavoro: si conta, e il messaggio finale lo dice.
+//
 //  Google ripete una serie alla stessa ora nel fuso del calendario, non in
 //  quello dello script: il calendario si crea con il fuso dello script, e
 //  uno che c'e' gia' con un altro fuso (UTC, come quelli creati senza fuso
@@ -369,7 +392,7 @@ function ORARI_4_calendario(e) {
 //  serie nuova uguale (titolo, descrizione e luogo) fino al giorno prima,
 //  senza le settimane in cui la vecchia non aveva la lezione (cancellata o
 //  spostata a mano, o cambiata solo lei), un evento singolo per ogni lezione
-//  spostata, rinominata o annotata a mano, alla sua ora e com'e', e solo alla
+//  spostata, rinominata, annotata o colorata a mano, alla sua ora e com'e', e solo alla
 //  fine si toglie la vecchia. Le serie senza lezioni prima di
 //  quel giorno si tolgono, come gli eventi singoli da quel giorno in poi, e
 //  dal validoDal si mette l'orario nuovo. Le settimane prima restano come
@@ -383,6 +406,37 @@ function ORARI_4_calendario(e) {
 // ===========================================================================
 function ORARI_5_cambioOrario(e) {
   return _orariCalendarioConLock_(_ORARI_TRIGGER_CAMBIO, e);
+}
+
+// ===========================================================================
+//  6 - I COLORI DELLE CLASSI
+//  Ogni lezione ha il colore della sua classe, scelto nell'applicazione
+//  (calendario.colori in DatiOrari.gs): ORARI_4_calendario e
+//  ORARI_5_cambioOrario lo danno alle serie e agli eventi che creano. Questa
+//  funzione lo da' a quelli gia' messi, senza rifarli ne' spostarli: solo a
+//  quelli con il contrassegno, nel periodo di DatiOrari.gs. Le lezioni di una
+//  classe senza colore restano come sono (il messaggio dice quali ne hanno
+//  ancora uno di prima). Con tante serie puo' finire il tempo, o Google puo'
+//  chiedere di rallentare: si ricorda quelle gia' fatte e riprende da sola
+//  fra un minuto, come le altre, con lo stesso lock.
+// ===========================================================================
+function ORARI_6_coloraLezioni(e) {
+  // una ripresa toglie subito il proprio trigger (vedi _orariCalendarioConLock_)
+  if (e && e.triggerUid) _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(5000)) {
+    // un lavoro a meta' non lo lascio fermo (ma non uno fermato con ANNULLA_automazione)
+    var aMeta = _orariLavoroColori_();
+    var riprendo = !!aMeta && !aMeta.fermato;
+    if (riprendo) _programmaRipresaOrari_(_ORARI_TRIGGER_COLORI);
+    var occupato = 'Un\'altra esecuzione (il calendario, un invio degli orari o il riordino della posta) e\' ' +
+      'ancora in corso: ' +
+      (riprendo ? 'riprovo da solo fra un minuto, da dove ero arrivato.' : 'aspetta che finisca e riprova.');
+    Logger.log(occupato);
+    return occupato;
+  }
+  try { return _orariColori_(e); }
+  finally { lock.releaseLock(); }
 }
 
 function ORARI_ANNULLA_calendario() {
@@ -586,7 +640,8 @@ function _orariCalendario_(funzione, e) {
     }
     stato = { funzione: funzione, impronta: impronta, fase: cambio ? 'taglio' : 'crea', fatti: 0,
               validoDal: cambio ? c.validoDal : '', rifatte: 0, tolte: 0, eventiTolti: 0, rimesse: 0, spostate: [],
-              rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima, senzaContrassegno: [], nSenzaContrassegno: 0 };
+              rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima, senzaContrassegno: [], nSenzaContrassegno: 0,
+              coloriImpronta: _orariImprontaColori_(c), coloriNonMessi: [], nColoriNonMessi: 0 };
     prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato));
   }
   // rieseguita a mano dopo ANNULLA_automazione: si riparte, e le riprese tornano a valere
@@ -598,12 +653,23 @@ function _orariCalendario_(funzione, e) {
   // i conti del taglio, anche in un punto salvato prima che ci fossero
   if (!stato.spostate) { stato.spostate = []; stato.rimesse = 0; }
   if (!stato.rifatte) stato.rifatte = 0;
+  // i colori delle classi non sono nell'impronta (vedi sopra): cambiati a
+  // meta', le serie da qui in poi prendono quelli di adesso, e il messaggio
+  // finale dice di ricolorare le altre. Un punto salvato da una versione di
+  // prima non li ha: valgono quelli di adesso
+  if (!stato.coloriNonMessi) { stato.coloriNonMessi = []; stato.nColoriNonMessi = 0; }
+  var coloriOra = _orariImprontaColori_(c);
+  if (stato.coloriImpronta === undefined) stato.coloriImpronta = coloriOra;
+  if (stato.coloriImpronta !== coloriOra) {
+    stato.coloriCambiati = true;
+    stato.coloriImpronta = coloriOra;
+  }
 
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
   var salva = function () { prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato)); };
   try {
     if (stato.fase === 'taglio') {
-      if (!_orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva)) {
+      if (!_orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c)) {
         return _orariCalendarioInterrotto_(funzione, stato, piano, 'tempo', salva);
       }
       stato.fase = 'crea';
@@ -632,6 +698,17 @@ function _orariCalendario_(funzione, e) {
       stato.fatti++;
       stato.rifiuti = 0;
       salva();
+      // il colore della sua classe, prima del contrassegno: se poi il
+      // contrassegno non riesce, la serie lo riceve alla ripresa e il colore
+      // ce l'ha gia'. Un colore che Google non mette non ferma il lavoro
+      var colore = _orariColoreDi_(c, piano.serie[stato.fatti - 1].blocco.testo);
+      if (colore) {
+        try { serie.setColor(colore); }
+        catch (errColore) {
+          _orariColoreNonMesso_(stato, _orariEtichettaDelTratto_(_orariTrattoFatto_(piano.serie[stato.fatti - 1], c, d, doc)));
+          salva();
+        }
+      }
       serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
       stato.daContrassegnare.pop();
       // la prima serie che passa un cambio dell'ora dice se Google ripete le
@@ -673,7 +750,7 @@ function _orariCalendario_(funzione, e) {
  * (_ORARI_TAG_SOSTITUISCE: l'id della vecchia e il giorno prima del cambio);
  * (2) dalla serie nuova si tolgono le lezioni delle settimane in cui la
  * vecchia non aveva la lezione regolare (cancellata, spostata o cambiata solo
- * lei a mano); (3) ogni lezione spostata, rinominata o annotata a mano torna
+ * lei a mano); (3) ogni lezione spostata, rinominata, annotata o colorata a mano torna
  * come evento singolo, alla sua ora, con i due contrassegni; (4) solo alla fine si
  * toglie la serie vecchia. Le serie con il contrassegno senza lezioni prima
  * del validoDal, e gli eventi singoli dal validoDal in poi, si tolgono. Le
@@ -692,8 +769,15 @@ function _orariCalendario_(funzione, e) {
  * messaggio finale lo dice. Cosi' un lavoro interrotto (il tempo, i limiti di
  * Google) o rieseguito arriva allo stesso calendario. Torna false se finisce
  * il tempo.
+ *
+ * I pezzi rifatti prendono, appena creati e prima dei contrassegni, il colore
+ * della classe della serie vecchia (il suo titolo) in c.colori; se la classe
+ * non ne ha uno (non e' piu' nell'orario, o e' senza colore), quello che
+ * aveva la serie vecchia. Una lezione colorata a mano solo lei (un colore
+ * diverso da quello delle altre, r.coloreDiTutte) torna come evento singolo
+ * con il suo.
  */
-function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
+function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
   if (stato.appenaCreato) {
     // non ritrovato all'ora della sua prima lezione (tolto o spostato a mano
     // prima della ripresa): il taglio lo rifa', e il messaggio finale lo dice
@@ -736,12 +820,18 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
     } else {
       var r = cosa.rifai;
       var id = r.idNuova;
+      // i colori dei pezzi rifatti (vedi sopra)
+      var colore = _orariColoreDi_(c, r.titolo) || _orariColoreDiVoce_(voce) || r.coloreDiTutte;
       if (!id && r.inizio) {
         // (1) la serie nuova: il suo id nel punto salvato prima dei contrassegni
         var nuova = _orariSerieRifatta_(cal, r, fino);
         id = nuova.getId();
         stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };
         salva();
+        if (colore) {
+          try { nuova.setColor(colore); }
+          catch (errColore) { _orariColoreNonMesso_(stato, _orariEtichetta_(voce)); salva(); }
+        }
         nuova.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
         nuova.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
         stato.appenaCreato = null;
@@ -759,6 +849,12 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
         var singolo = _orariLezioneRifatta_(cal, r.spostate[m]);
         stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };
         salva();
+        var suo = _orariColoreDellaLezione_(r.spostate[m]);
+        var coloreSingolo = (suo && suo !== r.coloreDiTutte) ? suo : colore;
+        if (coloreSingolo) {
+          try { singolo.setColor(coloreSingolo); }
+          catch (errColoreSingolo) { _orariColoreNonMesso_(stato, _orariEtichettaLezione_(r.spostate[m])); salva(); }
+        }
         singolo.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
         singolo.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
         stato.appenaCreato = null;
@@ -851,16 +947,18 @@ function _orariPianoDelTaglio_(nostri, periodo, validoDal, fino, fuso) {
  * prima del validoDal e dopo. prima: quante lezioni ha prima del validoDal,
  * come le vede chi guarda il calendario. Quelle regolari (con la forma della
  * serie, voce.forma di _orariPrimaLezione_, con il titolo della serie e con
- * la descrizione e il luogo piu' frequenti fra le sue lezioni, come la
- * forma) fanno la serie nuova, con il titolo, la descrizione e il luogo della
- * vecchia: dalla prima (inizio, fine) ogni settimana alla stessa ora nel fuso
- * dello script, come la ripete Google in un calendario con quel fuso. buchi:
- * le settimane della serie nuova in cui la vecchia non ha una lezione
- * regolare (cancellata, spostata, rinominata o annotata a mano), da togliere.
- * spostate: le lezioni prima del validoDal non regolari (spostate, o con il
- * titolo, la descrizione o il luogo cambiati a mano solo per loro, come una
- * nota "VERIFICA", o una seconda alla stessa ora), da rimettere come eventi
- * singoli alla loro ora, come sono (titolo, descrizione e luogo loro).
+ * la descrizione, il luogo e il colore piu' frequenti fra le sue lezioni,
+ * come la forma) fanno la serie nuova, con il titolo, la descrizione e il
+ * luogo della vecchia: dalla prima (inizio, fine) ogni settimana alla stessa
+ * ora nel fuso dello script, come la ripete Google in un calendario con quel
+ * fuso. buchi: le settimane della serie nuova in cui la vecchia non ha una
+ * lezione regolare (cancellata, spostata, rinominata, annotata o colorata a
+ * mano), da togliere. spostate: le lezioni prima del validoDal non regolari
+ * (spostate, o con il titolo, la descrizione, il luogo o il colore cambiati a
+ * mano solo per loro, come una nota "VERIFICA", o una seconda alla stessa
+ * ora), da rimettere come eventi singoli alla loro ora, come sono (titolo,
+ * descrizione, luogo e colore loro). coloreDiTutte: il colore piu' frequente
+ * fra le lezioni, quello della serie come lo da' Google lezione per lezione.
  */
 function _orariRifacimento_(voce, validoDal, fino, fuso) {
   var titolo = voce.titolo;
@@ -868,24 +966,26 @@ function _orariRifacimento_(voce, validoDal, fino, fuso) {
   var luogo = '';
   try { luogo = String(voce.serie.getLocation() || ''); } catch (e2) { luogo = ''; }
   var r = { prima: 0, inizio: null, fine: null, titolo: titolo, descrizione: voce.descrizione, luogo: luogo,
-            buchi: [], spostate: [], idNuova: '', segno: '' };
-  // la descrizione e il luogo di tutta la serie: i piu' frequenti fra le sue
-  // lezioni (non quelli di getDescription della serie, che potrebbero essere
-  // scritti in un altro modo e farebbero di ogni lezione un evento singolo)
-  var descrizioni = [], luoghi = [];
+            coloreDiTutte: '', buchi: [], spostate: [], idNuova: '', segno: '' };
+  // la descrizione, il luogo e il colore di tutta la serie: i piu' frequenti
+  // fra le sue lezioni (non quelli della serie, che potrebbero essere scritti
+  // in un altro modo e farebbero di ogni lezione un evento singolo)
+  var descrizioni = [], luoghi = [], colori = [];
   for (var h = 0; h < voce.lezioni.length; h++) {
     descrizioni.push(_orariDescrizioneDi_(voce.lezioni[h]));
     luoghi.push(_orariLuogoDi_(voce.lezioni[h]));
+    colori.push(_orariColoreDellaLezione_(voce.lezioni[h]));
   }
   var descrizioneDiTutte = _orariPiuFrequente_(descrizioni, voce.descrizione);
   var luogoDiTutte = _orariPiuFrequente_(luoghi, luogo);
+  r.coloreDiTutte = _orariPiuFrequente_(colori, '');
   var regolari = [];
   for (var i = 0; i < voce.lezioni.length; i++) {
     var l = voce.lezioni[i];
     if (l.inizio >= validoDal) continue;
     r.prima++;
-    if (_orariForma_(l, fuso) === voce.forma && _orariTitoloDi_(l) === r.titolo &&
-        descrizioni[i] === descrizioneDiTutte && luoghi[i] === luogoDiTutte) regolari.push(l);
+    if (_orariForma_(l, fuso) === voce.forma && _orariTitoloDi_(l) === r.titolo && descrizioni[i] === descrizioneDiTutte &&
+        luoghi[i] === luogoDiTutte && colori[i] === r.coloreDiTutte) regolari.push(l);
     else r.spostate.push(l);
   }
   if (!regolari.length) return r;
@@ -1211,6 +1311,16 @@ function _orariCalendarioInterrotto_(funzione, stato, piano, motivo, salva) {
     ? 'mentre rifacevo l\'orario di prima fino al giorno prima del cambio: ' + stato.rifatte + ' serie rifatte e ' +
       stato.tolte + ' tolte'
     : stato.fatti + ' serie messe su ' + piano.serie.length;
+  return _orariInterrotto_(funzione, dove, stato, motivo, salva);
+}
+
+/**
+ * Per _orariCalendarioInterrotto_ e ORARI_6_coloraLezioni: il lavoro della
+ * funzione si ferma a un certo punto (dove, per il messaggio), per il tempo
+ * massimo o per un limite di Google (motivo). Riprende da solo, oppure
+ * aspetta che lo riesegua il docente; stato.rifiuti conta i limiti di fila.
+ */
+function _orariInterrotto_(funzione, dove, stato, motivo, salva) {
   var testo;
   if (motivo === 'giorno') {
     salva();
@@ -1256,9 +1366,10 @@ function _orariFineCalendario_(c, doc, periodo, piano, stato) {
     'Giorni senza lezione: ' + _orariSospensioniNelPeriodo_(periodo) + ' (giorni o periodi).\n' +
     'Lezioni saltate nei giorni senza lezione: ' + piano.saltate + '.' +
     (piano.blocchiFuori ? '\nSaltati ' + piano.blocchiFuori + ' blocchi (giorno non riconosciuto o fuori dal periodo).' : '') +
+    '\n' + _orariRigaColori_(c, _orariClassiDelPiano_(piano)) +
     '\n\nSe l\'orario cambia a meta\' anno, ORARI_5_cambioOrario lo cambia dalla data che scegli e lascia ' +
     'le settimane prima. Se qualcosa non va, ORARI_ANNULLA_calendario toglie solo questi eventi e lascia ' +
-    'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false);
+    'il resto del calendario com\'e\'.' + _orariAvvisoNonRitrovate_(stato, false) + _orariAvvisoColori_(stato);
 }
 
 /**
@@ -1288,11 +1399,12 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     'Serie dell\'orario di prima rifatte fino al ' + giornoPrima + ', con le lezioni come erano: ' + stato.rifatte + '\n' +
     'Serie dell\'orario di prima tolte (nessuna lezione prima del ' + dal + '): ' + stato.tolte + '\n' +
     (stato.eventiTolti ? 'Eventi singoli tolti (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' : '') +
-    (rimesse ? 'Lezioni spostate, rinominate o annotate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
+    (rimesse ? 'Lezioni spostate, rinominate, annotate o colorate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
                stato.spostate.join('; ') + (rimesse > stato.spostate.length ? '; ...' : '') + '\n' : '') +
     'Serie dell\'orario nuovo create: ' + piano.serie.length + ' (' + piano.lezioni + ' lezioni, fino al ' +
     c.fine + ')\n' +
     'Lezioni saltate nei giorni senza lezione: ' + piano.saltate + '\n' +
+    _orariRigaColori_(c, _orariClassiDelPiano_(piano)) + '\n' +
     (senzaContrassegno ? '\nSerie o lezioni singole con la descrizione di Campanella ma senza contrassegno, forse ' +
                          'copiate a mano: ' +
                          'non le ho toccate, controllale tu (' + senzaContrassegno + '): ' +
@@ -1303,9 +1415,12 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     '\nLe settimane prima del ' + dal + ' restano come erano, con le lezioni spostate o cancellate a mano. ' +
     'Google non lascia accorciare una serie: quelle con lezioni prima del cambio le ho rifatte fino al ' +
     giornoPrima + ' (le lezioni spostate a mano, o con il titolo, la descrizione o il luogo cambiati solo per loro, ' +
-    'come eventi singoli) e poi ho tolto le vecchie. Altre modifiche fatte a mano a una serie vecchia, come il ' +
-    'colore o un promemoria, non sono passate a quella rifatta: se ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
-    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoPezziNonRitrovati_(stato) + _orariAvvisoNonRitrovate_(stato, true);
+    'come eventi singoli) e poi ho tolto le vecchie. Le serie rifatte hanno il colore della loro classe (se in ' +
+    'DatiOrari.gs non ne ha uno, quello della serie vecchia), e le lezioni colorate a mano solo loro il loro. ' +
+    'Altre modifiche fatte a mano a una serie vecchia, come un promemoria, non sono passate a quella rifatta: se ' +
+    'ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
+    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoPezziNonRitrovati_(stato) + _orariAvvisoNonRitrovate_(stato, true) +
+    _orariAvvisoColori_(stato);
 }
 
 /** "3A, mercoledi' 2026-09-16 15:00": una lezione spostata a mano, nei messaggi. */
@@ -1336,11 +1451,13 @@ function _orariAnnullaCalendario_() {
   // quello che tolgo, anche se qui sotto qualcosa va storto. Del lavoro
   // resta qui solo il pezzo appena rifatto (vedi sopra)
   var prop = PropertiesService.getUserProperties();
-  var aMeta = !!prop.getProperty(_ORARI_CHIAVE_CALENDARIO);
+  var aMeta = !!prop.getProperty(_ORARI_CHIAVE_CALENDARIO) || !!prop.getProperty(_ORARI_CHIAVE_COLORI);
   var lavoro = _orariLavoroCalendario_();
   prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
+  prop.deleteProperty(_ORARI_CHIAVE_COLORI);
   _togliTriggerOrari_(_ORARI_TRIGGER_CALENDARIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_CAMBIO);
+  _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
   var nota = aMeta ? '\nDimenticato anche il lavoro a meta\' sul calendario, e tolte le sue riprese.' : '';
 
   var d = _orariDati_();
@@ -1411,6 +1528,332 @@ function _orariAvvisoPezzoDaCancellare_(inizio, rifiutato) {
     (rifiutato ? 'Google non mi ha lasciato darglielo adesso' : 'non l\'ho ritrovata a quell\'ora') + ': non l\'ho ' +
     'tolta. Se e\' ancora sul calendario (anche spostata), cancellala tu da Google Calendar (se e\' di una ' +
     'serie, tutti gli eventi di quella serie), altrimenti rimettendo l\'orario compare due volte.';
+}
+
+// --- i colori delle classi ----------------------------------------------------
+/** Il lavoro a meta' di ORARI_6_coloraLezioni, se c'e' e si capisce. */
+function _orariLavoroColori_() {
+  var testo = PropertiesService.getUserProperties().getProperty(_ORARI_CHIAVE_COLORI);
+  if (!testo) return null;
+  try {
+    var s = JSON.parse(testo);
+    if (s && s.funzione === _ORARI_TRIGGER_COLORI && Array.isArray(s.fatte)) return s;
+  } catch (err) { /* un punto illeggibile vale come nessun punto */ }
+  return null;
+}
+
+/**
+ * ORARI_6_coloraLezioni, con il lock gia' preso. Il punto salvato ha le serie
+ * e gli eventi gia' fatti (l'impronta del loro id, stato.fatte) e i conti; con
+ * altri colori in DatiOrari.gs (un'altra impronta dei colori) ricomincia da
+ * capo, perche' quelli gia' fatti avevano i colori di prima.
+ */
+function _orariColori_(e) {
+  var prop = PropertiesService.getUserProperties();
+  var salvato = _orariLavoroColori_();
+  var ripresa = !!(e && e.triggerUid);
+  // una ripresa programmata che non trova il suo lavoro non ricomincia da
+  // capo: e' gia' finito, oppure e' stato annullato
+  if (ripresa && !salvato) {
+    _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+    var niente = 'Niente da riprendere: i colori delle lezioni sono gia\' stati messi, oppure il lavoro e\' stato ' +
+                 'annullato.';
+    Logger.log(niente);
+    return niente;
+  }
+  // ANNULLA_automazione ha fermato il lavoro: una ripresa gia' partita non lo
+  // riprende. Rieseguita a mano la funzione riparte da dove era arrivata
+  if (ripresa && salvato.fermato) {
+    _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+    var fermo = 'Il lavoro sui colori delle lezioni e\' stato fermato con ANNULLA_automazione: non lo riprendo da ' +
+                'solo. Per finirlo riesegui ORARI_6_coloraLezioni, che non ricolora le lezioni gia\' fatte.';
+    Logger.log(fermo);
+    return fermo;
+  }
+
+  // prima di toccare il calendario: dati e date, controllati
+  var d = _orariDati_();
+  var c = _orariCalendarioConfig_(d);
+  var periodo = _orariPeriodo_(c);
+  var cal = _orariTrovaCalendario_(c.nome);
+  if (!cal) {
+    prop.deleteProperty(_ORARI_CHIAVE_COLORI);
+    _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+    throw new Error('Non c\'e\' nessun calendario chiamato "' + c.nome + '": ORARI_6_coloraLezioni colora le ' +
+      'lezioni messe con ORARI_4_calendario. Se non l\'hai mai messo, esegui ORARI_4_calendario, che da\' gia\' a ' +
+      'ogni serie il colore della sua classe.');
+  }
+  var colori = _orariImprontaColori_(c);
+  var stato = salvato;
+  if (!stato || stato.coloriImpronta !== colori) {
+    stato = { funzione: _ORARI_TRIGGER_COLORI, coloriImpronta: colori, fatte: [], colorate: 0, gia: 0,
+              nonMessi: 0, esempiNonMessi: [], rifiuti: 0 };
+  }
+  if (!Array.isArray(stato.esempiNonMessi)) stato.esempiNonMessi = [];
+  // rieseguita a mano dopo ANNULLA_automazione: si riparte, e le riprese tornano a valere
+  if (stato.fermato) stato.fermato = false;
+
+  var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
+  var salva = function () { prop.setProperty(_ORARI_CHIAVE_COLORI, JSON.stringify(stato)); };
+  var conti = null;
+  try {
+    conti = _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva);
+  } catch (err) {
+    salva();
+    var limite = _orariLimiteGoogle_(err);
+    if (!limite) throw err;          // un altro errore: il punto resta, e si vede
+    return _orariInterrotto_(_ORARI_TRIGGER_COLORI, _orariDoveColori_(stato), stato, limite, salva);
+  }
+  if (!conti) return _orariInterrotto_(_ORARI_TRIGGER_COLORI, _orariDoveColori_(stato), stato, 'tempo', salva);
+
+  prop.deleteProperty(_ORARI_CHIAVE_COLORI);
+  _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+  var testo = _orariFineColori_(c, stato, conti);
+  Logger.log(testo);
+  return testo;
+}
+
+/**
+ * Il lavoro di ORARI_6_coloraLezioni: ogni voce di _orariNostri_ nel periodo
+ * con il contrassegno prende il colore della sua classe (il titolo della
+ * serie, o dell'evento singolo) in c.colori, se ne ha uno e se non ce l'ha
+ * gia'. Quelle senza contrassegno (forse copiate a mano) e quelle di una
+ * classe senza colore restano come sono. Quelle gia' fatte (stato.fatte) si
+ * saltano. Un limite di Google ferma il lavoro (lo riprende la ripresa); un
+ * altro errore si conta e il lavoro va avanti. Torna i conti per il
+ * messaggio finale, o null se finisce il tempo.
+ */
+function _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva) {
+  var nostri = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine));
+  var conti = { tutte: 0, copie: 0, nSenza: 0, senza: [], nAncora: 0, ancora: [] };
+  for (var i = 0; i < nostri.length; i++) {
+    var voce = nostri[i];
+    if (!voce.contrassegno) {
+      // la sola descrizione di Campanella (forse una copia fatta a mano): la lascio com'e'
+      conti.copie++;
+      continue;
+    }
+    conti.tutte++;
+    var classe = _orariTitoloDellaVoce_(voce);
+    var colore = _orariColoreDi_(c, classe);
+    if (!colore) {
+      // una classe senza colore: la lascio com'e', e se ne ha uno di prima lo dico
+      conti.nSenza++;
+      if (conti.senza.indexOf(classe) < 0 && conti.senza.length < 10) conti.senza.push(classe);
+      var rimasto = _orariColoreDiVoce_(voce);
+      if (rimasto) {
+        conti.nAncora++;
+        if (conti.ancora.length < 10) conti.ancora.push(_orariEtichetta_(voce) + ' (' + _orariNomeColore_(rimasto) + ')');
+      }
+      continue;
+    }
+    var segno = _orariSegnoDellaVoce_(voce);
+    if (stato.fatte.indexOf(segno) >= 0) continue;          // fatta in un'esecuzione di prima
+    if (_orariColoreDiVoce_(voce) === colore) {
+      stato.gia++;
+      stato.fatte.push(segno);
+      continue;
+    }
+    if (Date.now() > scadenza) return null;
+    try {
+      if (voce.serie) voce.serie.setColor(colore);
+      else voce.evento.setColor(colore);
+      stato.colorate++;
+    } catch (err) {
+      if (_orariLimiteGoogle_(err)) throw err;
+      stato.nonMessi++;
+      if (stato.esempiNonMessi.length < 10) stato.esempiNonMessi.push(_orariEtichetta_(voce));
+    }
+    stato.fatte.push(segno);
+    stato.rifiuti = 0;
+    salva();
+    Utilities.sleep(_ORARI_PAUSA_MS);
+  }
+  return conti;
+}
+
+/** Per i messaggi di ORARI_6_coloraLezioni fermata a meta': quante ne ha colorate. */
+function _orariDoveColori_(stato) {
+  return (stato.colorate === 1 ? 'una serie o lezione colorata' : stato.colorate + ' serie o lezioni colorate') +
+         ' finora';
+}
+
+/** Il messaggio finale di ORARI_6_coloraLezioni. */
+function _orariFineColori_(c, stato, conti) {
+  var n = stato.nonMessi || 0;
+  return 'Colori delle classi nel calendario "' + c.nome + '", fra il ' + c.inizio + ' e il ' + c.fine + '.\n' +
+    'Serie ed eventi singoli di Campanella: ' + conti.tutte + '\n' +
+    'Colorati adesso con il colore della loro classe: ' + stato.colorate + '\n' +
+    'Avevano gia\' il colore della loro classe: ' + stato.gia + '\n' +
+    (conti.nSenza ? 'Di classi senza colore in DatiOrari.gs, lasciati come sono: ' + conti.nSenza + ' (' +
+                    conti.senza.join(', ') + ')\n' : '') +
+    (conti.nAncora ? '\n' + (conti.nAncora === 1 ? 'Uno di questi ha' : conti.nAncora + ' di questi hanno') +
+                     ' ancora un colore messo prima: ' + conti.ancora.join('; ') +
+                     (conti.nAncora > conti.ancora.length ? '; ...' : '') + '. Se vuoi che abbiano il colore del ' +
+                     'calendario, cambialo tu da Google Calendar (per una serie, a tutti gli eventi della serie); ' +
+                     'oppure scegli un colore per la classe in Campanella e riesegui ORARI_6_coloraLezioni.\n' : '') +
+    (conti.copie ? '\nCon la descrizione di Campanella ma senza contrassegno, forse copiati a mano: non li ho ' +
+                   'toccati (' + conti.copie + ').\n' : '') +
+    (n ? '\nAttenzione: Google non ha messo il colore a ' + (n === 1 ? 'una serie o lezione' : n + ' serie o lezioni') +
+         ': ' + stato.esempiNonMessi.join('; ') + (n > stato.esempiNonMessi.length ? '; ...' : '') + '. Riesegui ' +
+         'ORARI_6_coloraLezioni piu\' tardi.\n' : '') +
+    '\nLe lezioni non le ho rifatte ne\' spostate: ho cambiato solo il colore. I colori li scegli in Campanella ' +
+    '(Orari, passo 4, "Colori delle classi..."): per cambiarli rigenera DatiOrari.gs, incollalo e riesegui ' +
+    'ORARI_6_coloraLezioni.';
+}
+
+/** Il titolo di una voce di _orariNostri_: quello della serie (non di una sua lezione rinominata a mano), o dell'evento singolo. */
+function _orariTitoloDellaVoce_(voce) {
+  var t = '';
+  try { t = String((voce.serie ? voce.serie.getTitle() : voce.evento.getTitle()) || ''); } catch (e) { t = ''; }
+  return t || String(voce.titolo || '');
+}
+
+/** L'impronta dell'id di una voce di _orariNostri_ (la serie o l'evento singolo), per il punto salvato. */
+function _orariSegnoDellaVoce_(voce) {
+  var id = '';
+  try { id = String(voce.serie ? voce.serie.getId() : voce.evento.getId()); } catch (e) { id = ''; }
+  return _orariFnv_(id);
+}
+
+/** Il colore che ha adesso una voce di _orariNostri_ (la serie o l'evento singolo): da "1" a "11", '' = quello del calendario. */
+function _orariColoreDiVoce_(voce) {
+  try { return _orariColoreValido_(voce.serie ? voce.serie.getColor() : voce.evento.getColor()); } catch (e) { return ''; }
+}
+
+/** Il colore che ha adesso una lezione di una voce di _orariNostri_ (come getEvents la da'). */
+function _orariColoreDellaLezione_(lezione) {
+  try { return _orariColoreValido_(lezione.evento.getColor()); } catch (e) { return ''; }
+}
+
+/**
+ * Il colore della classe di una lezione (il titolo della serie, come nel
+ * tabellone) in c.colori: il valore di CalendarApp.EventColor, da "1" a
+ * "11"; '' se non ne ha uno giusto (allora le sue lezioni hanno il colore del
+ * calendario). La classe scritta con altre maiuscole o altri spazi e' la
+ * stessa.
+ */
+function _orariColoreDi_(c, titolo) {
+  var t = String(titolo == null ? '' : titolo).trim();
+  var v = _orariValoreColore_(c.colori, t);
+  if (v || !t) return v;
+  var chiave = _orariChiave_(t);
+  if (!chiave) return '';
+  for (var k in c.colori) {
+    if (_orariChiave_(k) !== chiave) continue;
+    v = _orariValoreColore_(c.colori, k);
+    if (v) return v;
+  }
+  return '';
+}
+
+/** Il colore di una classe in calendario.colori, se e' uno di quelli di Google Calendar; altrimenti ''. */
+function _orariValoreColore_(colori, classe) {
+  var v = '';
+  try { v = colori[classe]; } catch (e) { v = ''; }
+  return _orariColoreValido_(v);
+}
+
+/** "1".."11" (anche scritto come numero) se e' un colore degli eventi di Google Calendar, altrimenti ''. */
+function _orariColoreValido_(v) {
+  var s = (typeof v === 'string' || typeof v === 'number') ? String(v).trim() : '';
+  return /^(?:[1-9]|1[01])$/.test(s) ? s : '';
+}
+
+/** Il nome di un colore come nell'interfaccia di Google Calendar ("11" -> Pomodoro). */
+function _orariNomeColore_(v) {
+  return _ORARI_NOMI_COLORI[Number(_orariColoreValido_(v))] || 'colore del calendario';
+}
+
+/** Le classi dei blocchi del piano (i titoli delle serie), una volta sola, in ordine. */
+function _orariClassiDelPiano_(piano) {
+  var classi = [];
+  for (var i = 0; i < piano.serie.length; i++) {
+    var t = piano.serie[i].blocco.testo;
+    if (classi.indexOf(t) < 0) classi.push(t);
+  }
+  classi.sort(_orariOrdineClassi_);
+  return classi;
+}
+
+/** Le classi in ordine: prima il numero ("2B" prima di "10A"), poi il resto; "A disposizione" in fondo. */
+function _orariOrdineClassi_(a, b) {
+  var x = String(a), y = String(b);
+  var dx = (x === 'A disposizione') ? 1 : 0, dy = (y === 'A disposizione') ? 1 : 0;
+  if (dx !== dy) return dx - dy;
+  var nx = /^\d+/.exec(x), ny = /^\d+/.exec(y);
+  if (nx && ny && Number(nx[0]) !== Number(ny[0])) return Number(nx[0]) - Number(ny[0]);
+  if (!nx !== !ny) return nx ? -1 : 1;
+  var kx = x.toLowerCase(), ky = y.toLowerCase();
+  return (kx < ky) ? -1 : (kx > ky ? 1 : 0);
+}
+
+/** "Colori delle classi: 1A Pomodoro, 2B Mirtillo; del colore del calendario: 4D." */
+function _orariRigaColori_(c, classi) {
+  var con = [], senza = [];
+  for (var i = 0; i < classi.length; i++) {
+    var v = _orariColoreDi_(c, classi[i]);
+    if (v) con.push(classi[i] + ' ' + _orariNomeColore_(v));
+    else senza.push(classi[i]);
+  }
+  if (!con.length) return 'Colori delle classi: nessuno, tutte le lezioni hanno il colore del calendario.';
+  return 'Colori delle classi: ' + con.join(', ') + (senza.length ? '; del colore del calendario: ' + senza.join(', ') : '') +
+         '.';
+}
+
+/** Le righe dell'anteprima sui colori delle classi del piano, con quelli scritti male in DatiOrari.gs. */
+function _orariAnteprimaColori_(c, piano) {
+  var righe = [_orariRigaColori_(c, _orariClassiDelPiano_(piano))];
+  var sbagliati = [];
+  for (var k in c.colori) {
+    var v = c.colori[k];
+    var s = (v == null) ? '' : String(v).trim();
+    if (s !== '' && !_orariColoreValido_(v)) sbagliati.push(k + ' ("' + s + '")');
+  }
+  if (sbagliati.length) {
+    var uno = (sbagliati.length === 1);
+    righe.push('ATTENZIONE: in DatiOrari.gs ' + (uno ? 'il colore di ' : 'i colori di ') + sbagliati.join(', ') +
+               (uno ? ' non e\' uno' : ' non sono') + ' dei colori di Google Calendar (da 1 a 11): quelle lezioni ' +
+               'avranno il colore del calendario. Rigenera DatiOrari.gs dall\'applicazione.');
+  }
+  righe.push('I colori vanno sulle lezioni con ORARI_4_calendario e ORARI_5_cambioOrario; a quelle gia\' messe li da\' ' +
+             'ORARI_6_coloraLezioni.');
+  return righe;
+}
+
+/** L'impronta dei colori di DatiOrari.gs (solo quelli giusti): cambia se cambia un colore. */
+function _orariImprontaColori_(c) {
+  var parti = [];
+  for (var k in c.colori) {
+    var v = _orariValoreColore_(c.colori, k);
+    if (v) parti.push(k + '=' + v);
+  }
+  parti.sort();
+  return _orariFnv_(parti.join('\n'));
+}
+
+/** Per il messaggio finale: una serie o una lezione a cui Google non ha messo il colore della sua classe. */
+function _orariColoreNonMesso_(stato, etichetta) {
+  stato.nColoriNonMessi = (stato.nColoriNonMessi || 0) + 1;
+  if (!stato.coloriNonMessi) stato.coloriNonMessi = [];
+  if (stato.coloriNonMessi.length < 10) stato.coloriNonMessi.push(etichetta);
+}
+
+/** Per i messaggi finali di ORARI_4 e ORARI_5: i colori che Google non ha messo, e i colori cambiati a meta'. */
+function _orariAvvisoColori_(stato) {
+  var testo = '';
+  var n = stato.nColoriNonMessi || 0;
+  if (n) {
+    testo += '\n\nAttenzione: Google non ha messo il colore della classe a ' +
+      (n === 1 ? 'una serie o lezione' : n + ' serie o lezioni') + ': ' + stato.coloriNonMessi.join('; ') +
+      (n > stato.coloriNonMessi.length ? '; ...' : '') + '. Le lezioni ci sono lo stesso, con il colore del ' +
+      'calendario: per dar loro quello della classe esegui ORARI_6_coloraLezioni.';
+  }
+  if (stato.coloriCambiati) {
+    testo += '\n\nI colori delle classi in DatiOrari.gs sono cambiati a meta\' del lavoro: le serie messe prima ' +
+      'hanno ancora quelli di prima. Per dare a tutte le lezioni i colori di adesso esegui ORARI_6_coloraLezioni.';
+  }
+  return testo;
 }
 
 /**
@@ -1655,6 +2098,9 @@ function _orariCalendarioConfig_(d) {
     minutiOra: Math.max(5, Number(c.minutiOra) || 60),
     inizioOre: (c.inizioOre && c.inizioOre.length) ? c.inizioOre : ['08:00'],
     colore: String(c.colore || '').trim().toUpperCase(),
+    // il colore di ogni classe (CalendarApp.EventColor, da "1" a "11"): si
+    // legge solo con _orariColoreDi_, che scarta quelli sbagliati
+    colori: (c.colori && typeof c.colori === 'object') ? c.colori : {},
     sospensioni: (c.sospensioni && c.sospensioni.length) ? c.sospensioni : [],
     validoDal: String(c.validoDal || '').trim()
   };
@@ -1748,9 +2194,11 @@ function _orariSospeso_(chiave, sospensioni) {
 }
 
 /**
- * L'impronta del piano: cambia se cambia qualunque cosa che finisce sul
- * calendario (calendario, classi, giorni, ore, date, descrizioni). Una
- * ripresa con un'impronta diversa si ferma invece di mescolare due orari.
+ * L'impronta del piano: cambia se cambia qualunque cosa che decide quali
+ * lezioni finiscono sul calendario (calendario, classi, giorni, ore, date,
+ * descrizioni). Una ripresa con un'impronta diversa si ferma invece di
+ * mescolare due orari. I colori delle classi non ci sono: cambiati a meta'
+ * non mescolano due orari (vedi la sezione 4, e _orariImprontaColori_).
  */
 function _orariImpronta_(c, doc, d, piano, validoDal) {
   var parti = [c.nome, doc.nome, c.inizioOre.join(','), c.minutiOra, validoDal];
@@ -1759,13 +2207,17 @@ function _orariImpronta_(c, doc, d, piano, validoDal) {
     parti.push([s.blocco.testo, s.dal, s.al, s.blocco.oraDa, s.blocco.oraA,
                 _orariDescrizione_(doc.nome, s.blocco, d)].join('|'));
   }
-  var testo = parti.join('\n');
-  var h = 0x811c9dc5;                                  // FNV-1a a 32 bit
+  return _orariFnv_(parti.join('\n')) + '-' + piano.serie.length;
+}
+
+/** FNV-1a a 32 bit di un testo, in otto cifre esadecimali. */
+function _orariFnv_(testo) {
+  var h = 0x811c9dc5;
   for (var k = 0; k < testo.length; k++) {
     h ^= testo.charCodeAt(k);
     h = Math.imul(h, 0x01000193) >>> 0;
   }
-  return ('0000000' + h.toString(16)).slice(-8) + '-' + piano.serie.length;
+  return ('0000000' + h.toString(16)).slice(-8);
 }
 
 function _orariDocente_(d, nome) {

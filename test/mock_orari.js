@@ -14,7 +14,9 @@
  * per ogni tratto di settimane), la ripresa per il tempo massimo e per i
  * limiti di Google senza doppioni, l'impronta del piano, il cambio d'orario
  * (ORARI_5_cambioOrario, che rifa' le serie fino al giorno prima, anche con
- * lezioni spostate o cancellate a mano, e interrotto in ogni punto) e
+ * lezioni spostate o cancellate a mano, e interrotto in ogni punto), i
+ * colori delle classi (dati da ORARI_4 e ORARI_5 alle serie che creano, da
+ * ORARI_6_coloraLezioni a quelle gia' messe, con la sua ripresa) e
  * l'annullamento di un lavoro a meta'. Di partenza usa i dati inventati
  * di DatiOrari_esempio.gs; si puo' passare un altro file, per esempio quello
  * che test/prova_orario.ps1 genera con il generatore vero.
@@ -152,12 +154,19 @@ const ScriptApp = {
 // guasti(): alla n-esima chiamata di un'operazione parte l'errore scelto. Il
 // tempo che passa si simula con sogliaCalendario: ogni tante scritture
 // l'orologio va avanti di dieci minuti, oltre il tempo massimo di
-// un'esecuzione. scritture conta tutte le modifiche al calendario, per le
+// un'esecuzione (setTag e setColor non contano: per i colori c'e'
+// sogliaColori). scritture conta tutte le modifiche al calendario, per le
 // prove che vogliono che non si tocchi niente.
+// I colori degli eventi (non provati dal vivo): setColor su una serie o su un
+// evento singolo da' quel colore (da "1" a "11") e getColor lo dice ("" se ha
+// quello del calendario); una lezione di una serie ha il colore della serie,
+// o il suo se colorata a mano solo lei (colora).
 const calendari = [];
 let prossimoId = 1;
 let sogliaCalendario = Infinity;
 let scrittureDallUltimoSalto = 0;
+let sogliaColori = Infinity;         // come sogliaCalendario, ma contando solo setColor
+let coloriDallUltimoSalto = 0;
 let scritture = 0;                   // tutte le modifiche al calendario, dall'inizio delle prove
 const chiamate = {};                 // operazione -> quante volte e' stata chiamata
 let guastiPrevisti = [];             // { op, alla, messaggio }
@@ -175,10 +184,21 @@ function operazione(op, chi) {
   const g = guastiPrevisti.find(x => x.op === op && (x.su ? (x.su(chi) && ++x.viste === x.alla) : x.alla === chiamate[op]));
   if (g) throw new Error(g.messaggio);
   scritture++;
-  if (op !== 'setTag' && ++scrittureDallUltimoSalto >= sogliaCalendario) {
+  if (op === 'setColor') {
+    if (++coloriDallUltimoSalto >= sogliaColori) {
+      orologio += 10 * 60 * 1000;
+      coloriDallUltimoSalto = 0;
+    }
+  } else if (op !== 'setTag' && ++scrittureDallUltimoSalto >= sogliaCalendario) {
     orologio += 10 * 60 * 1000;
     scrittureDallUltimoSalto = 0;
   }
+}
+/** Un colore degli eventi di Google Calendar (CalendarApp.EventColor): da "1" a "11". */
+function coloreEvento(c) {
+  const s = String(c);
+  if (!/^(?:[1-9]|1[01])$/.test(s)) throw new Error('Colore non valido: ' + s);
+  return s;
 }
 /** Stessa ora, n settimane dopo: con le date del calendario, non con i millisecondi. */
 function settimaneDopo(t, n) {
@@ -198,11 +218,14 @@ class Serie {
     this.luogo = (opzioni && opzioni.location) || '';
     this.inizioOriginale = new Date(inizio.getTime());
     this.eccezioni = new Map();      // inizio originale (ms) -> { inizio, fine } spostata, o null cancellata
+    this.colore = '';                // quello del calendario
   }
   getId() { return this.id; }
   getTitle() { return this.titolo; }
   setTag(k, v) { operazione('setTag', this); this.tag[k] = v; return this; }
   getTag(k) { return this.tag[k] || null; }
+  setColor(c) { operazione('setColor', this); this.colore = coloreEvento(c); return this; }
+  getColor() { return this.colore; }
   setDescription(d) { this.descrizione = d; return this; }
   getDescription() { return this.descrizione; }
   getLocation() { return this.luogo; }
@@ -245,6 +268,12 @@ class Serie {
     this.eccezioni.set(t.getTime(), { inizio: t, fine: new Date(t.getTime() + (this.fine - this.inizio)),
                                       descrizione: cosa.descrizione, luogo: cosa.luogo });
   }
+  /** a mano: la lezione n colorata solo lei, alla sua ora */
+  colora(n, colore) {
+    const t = this.passo(n);
+    this.eccezioni.set(t.getTime(), { inizio: t, fine: new Date(t.getTime() + (this.fine - this.inizio)),
+                                      colore: coloreEvento(colore) });
+  }
   /**
    * le lezioni come le vede chi guarda il calendario: con quelle spostate,
    * senza quelle cancellate; chiave e' l'inizio che la lezione ha nella regola
@@ -257,7 +286,7 @@ class Serie {
       if (!this.eccezioni.has(chiave)) { fuori.push({ inizio: t, fine: new Date(t.getTime() + durata), chiave }); continue; }
       const x = this.eccezioni.get(chiave);
       if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()), chiave, titolo: x.titolo,
-                          descrizione: x.descrizione, luogo: x.luogo });
+                          descrizione: x.descrizione, luogo: x.luogo, colore: x.colore });
     }
     return fuori;
   }
@@ -271,10 +300,13 @@ class Evento {                                   // un evento singolo
     // quelli delle prove, senza opzioni, sono riunioni: non di Campanella
     this.descrizione = (opzioni && opzioni.description !== undefined) ? opzioni.description : 'riunione';
     this.luogo = (opzioni && opzioni.location) || '';
+    this.colore = '';
   }
   getId() { return this.id; }
   getTag(k) { return this.tag[k] || null; }
   setTag(k, v) { operazione('setTag', this); this.tag[k] = v; return this; }
+  setColor(c) { operazione('setColor', this); this.colore = coloreEvento(c); return this; }
+  getColor() { return this.colore; }
   getDescription() { return this.descrizione; }
   getLocation() { return this.luogo; }
   /** come in Google: anche un evento singolo ha la sua "serie", che non e' mai null */
@@ -336,13 +368,14 @@ class Calendario {
         if (l.inizio < da || l.inizio > a) continue;
         const inizio = new Date(l.inizio.getTime()), fine = new Date(l.fine.getTime()), chiave = l.chiave;
         const titolo = l.titolo || s.titolo;
-        // la descrizione e il luogo della lezione: i suoi, se cambiati solo per lei, se no quelli della serie
-        const descrizione = l.descrizione, luogo = l.luogo;
+        // la descrizione, il luogo e il colore della lezione: i suoi, se cambiati solo per lei, se no quelli della serie
+        const descrizione = l.descrizione, luogo = l.luogo, colore = l.colore;
         fuori.push({
           getId: () => s.getId(),
           getTag: k => s.getTag(k),
           getDescription: () => (descrizione !== undefined ? descrizione : s.getDescription()),
           getLocation: () => (luogo !== undefined ? luogo : s.getLocation()),
+          getColor: () => (colore !== undefined ? colore : s.getColor()),
           getEventSeries: () => s,
           isRecurringEvent: () => true,
           // come in Google: toglie solo questa lezione, la serie resta
@@ -462,12 +495,15 @@ const SEZIONI = [
   'CAMBIO D\'ORARIO', 'CAMBIO D\'ORARIO: RIPRESA E CASI LIMITE',
   'CAMBIO D\'ORARIO: DATA PRIMA DELL\'INIZIO, ANNO PRIMA NELLO STESSO CALENDARIO',
   'CAMBIO D\'ORARIO: LEZIONI SPOSTATE O CANCELLATE A MANO',
+  'COLORI DELLE CLASSI', 'COLORI NEL CAMBIO D\'ORARIO', 'ORARI_6_COLORALEZIONI',
+  'ORARI_6_COLORALEZIONI: RIPRESA, LIMITI DI GOOGLE E BLOCCO',
   'ANNULLA CALENDARIO DOPO UN LAVORO A META\'', 'ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE',
   'CONVIVENZA CON LA POSTA', 'ANNULLA_AUTOMAZIONE E UNA RIPRESA DEL CALENDARIO GIA\' PARTITA'
 ];
 // gli attrezzi del calendario, per le prove che stanno dopo la Posta
 let attrezziCalendario = null;
 const PROGRESSO_CALENDARIO = 'CAMPANELLA_ORARI_CALENDARIO_PROGRESSO';
+const PROGRESSO_COLORI = 'CAMPANELLA_ORARI_COLORI_PROGRESSO';
 const PROGRESSO = 'CAMPANELLA_ORARI_PROGRESSO';
 const PROGRESSO_CLASSI = 'CAMPANELLA_ORARI_CLASSI_PROGRESSO';
 
@@ -809,6 +845,9 @@ if (conCalendario) {
     trigger.length = 0;
     sogliaCalendario = Infinity;
     scrittureDallUltimoSalto = 0;
+    sogliaColori = Infinity;
+    coloriDallUltimoSalto = 0;
+    proprieta.delete(PROGRESSO_COLORI);
     guasti([]);
     orologio = 0;
     occorrenzeTolte.length = 0;
@@ -1830,7 +1869,7 @@ if (conCalendario) {
       // e fermato da un limite di Google a ogni operazione, una per volta
       const LIMITE = 'Service invoked too many times in a short time: calendar.';
       const diversiL = [];
-      for (const op of ['createEventSeries', 'setTag', 'deleteEvent', 'createEvent', 'deleteEventSeries']) {
+      for (const op of ['createEventSeries', 'setTag', 'deleteEvent', 'createEvent', 'deleteEventSeries', 'setColor']) {
         for (let alla = 1; alla <= 6; alla++) {
           const mx = conModificheAMano();
           docOriginale.celle = ruotata(celleOriginali);
@@ -2394,6 +2433,395 @@ if (conCalendario) {
       chiave(senzaData.inizio) + ')', alle(senzaData, 9, 5, 9));
   }
 
+  // --- i colori delle classi ------------------------------------------------------
+  // Ogni lezione ha il colore della sua classe (calendario.colori di
+  // DatiOrari.gs, da "1" a "11"): ORARI_4_calendario e ORARI_5_cambioOrario lo
+  // danno alle serie e agli eventi che creano, ORARI_6_coloraLezioni a quelli
+  // gia' messi. I dati hanno almeno due classi del piano con un colore; per le
+  // prove con una classe senza, all'ultima si toglie
+  intestazione('COLORI DELLE CLASSI');
+  const calendarioDati = contesto.ORARI.calendario;
+  const coloriDati = Object.assign({}, calendarioDati.colori || {});
+  const colorabile = v => (/^(?:[1-9]|1[01])$/.test(String(v == null ? '' : v).trim()) ? String(v).trim() : '');
+  const NOMI_COLORI = ['', 'Lavanda', 'Salvia', 'Vinaccia', 'Fenicottero', 'Banana', 'Mandarino', 'Pavone', 'Grafite',
+                       'Mirtillo', 'Basilico', 'Pomodoro'];
+  const colorate = [...new Set(piano.tratti.map(tr => tr.blocco.testo))].filter(k => colorabile(coloriDati[k]));
+  verifica('i dati hanno i colori di almeno due classi del piano (' +
+    colorate.map(k => k + ' ' + NOMI_COLORI[Number(coloriDati[k])]).join(', ') + ')', colorate.length >= 2);
+  /** Mette in DatiOrari.gs questi colori delle classi (quelli dei dati si rimettono con conColori(coloriDati)). */
+  const conColori = colori => { contesto.ORARI.calendario = Object.assign({}, calendarioDati, { colori }); };
+  const atteso = (colori, titolo) => colorabile(colori[titolo]);
+  /** Le serie di un calendario con un colore diverso da quello della loro classe. */
+  const coloriSbagliati = (calX, colori) => vive(calX).filter(s => s.getColor() !== atteso(colori, s.titolo));
+  const fuga = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const senzaColore = colorate[colorate.length - 1];
+  const coloriProva = Object.assign({}, coloriDati);
+  delete coloriProva[senzaColore];
+
+  azzeraCalendario();
+  conColori(coloriProva);
+  const esitoColori = contesto.ORARI_4_calendario();
+  const calK = calendari[0];
+  const sbagliateK = coloriSbagliati(calK, coloriProva);
+  verifica('ORARI_4_calendario da\' a ogni serie il colore della sua classe (' + vive(calK).length + ' serie' +
+    (sbagliateK.length ? '; sbagliate: ' + sbagliateK.map(s => s.titolo + ' ' + s.getColor()).join(', ') : '') + ')',
+    sbagliateK.length === 0 && vive(calK).length === piano.tratti.length);
+  verifica('  ...e alle serie di ' + senzaColore + ', senza colore, lascia quello del calendario',
+    vive(calK).some(s => s.titolo === senzaColore) &&
+    vive(calK).filter(s => s.titolo === senzaColore).every(s => s.getColor() === ''));
+  verifica('  ...senza cambiare il colore del calendario', !c.colore || calK.colore === CalendarApp.Color[c.colore]);
+  verifica('il messaggio finale dice i colori delle classi, con i nomi di Google Calendar',
+    colorate.slice(0, -1).every(k => esitoColori.indexOf(k + ' ' + NOMI_COLORI[Number(coloriDati[k])]) >= 0) &&
+    new RegExp('Colori delle classi: [^\\n]*; del colore del calendario: [^\\n]*' + fuga(senzaColore)).test(esitoColori));
+  const anteprimaColori = contesto.ORARI_1_anteprima();
+  verifica('ORARI_1_anteprima dice i colori delle classi, e che alle lezioni gia\' messe li da\' ORARI_6_coloraLezioni',
+    colorate.slice(0, -1).every(k => anteprimaColori.indexOf(k + ' ' + NOMI_COLORI[Number(coloriDati[k])]) >= 0) &&
+    /Colori delle classi: /.test(anteprimaColori) && /gia' messe li da' ORARI_6_coloraLezioni/.test(anteprimaColori) &&
+    !/ATTENZIONE: in DatiOrari/.test(anteprimaColori));
+  // colori scritti male (a mano): l'anteprima li nomina, e per lo script quella classe non ha colore
+  conColori(Object.assign({}, coloriProva, { [senzaColore]: 'rosso', 'CLASSE INVENTATA': '12' }));
+  const anteprimaSbagliati = contesto.ORARI_1_anteprima();
+  const configSbagliati = contesto._orariCalendarioConfig_(contesto.ORARI);
+  verifica('con colori che Google Calendar non ha ("rosso", "12") l\'anteprima li nomina e dice di rigenerare DatiOrari.gs',
+    /ATTENZIONE: in DatiOrari\.gs i colori di /.test(anteprimaSbagliati) &&
+    anteprimaSbagliati.indexOf(senzaColore + ' ("rosso")') >= 0 && anteprimaSbagliati.indexOf('CLASSE INVENTATA ("12")') >= 0 &&
+    /Rigenera DatiOrari\.gs/.test(anteprimaSbagliati));
+  verifica('  ...e per lo script quelle classi non hanno colore',
+    contesto._orariColoreDi_(configSbagliati, senzaColore) === '' && contesto._orariColoreDi_(configSbagliati, 'CLASSE INVENTATA') === '');
+  conColori({ [' ' + colorate[0].toLowerCase() + ' ']: 4 });
+  verifica('una classe scritta con altre maiuscole o altri spazi, e il colore scritto come numero, valgono',
+    contesto._orariColoreDi_(contesto._orariCalendarioConfig_(contesto.ORARI), colorate[0]) === '4');
+  conColori({});
+  verifica('senza colori, la riga dice che tutte le lezioni hanno il colore del calendario',
+    /Colori delle classi: nessuno, tutte le lezioni hanno il colore del calendario/.test(contesto.ORARI_1_anteprima()));
+
+  // un colore che Google non mette non ferma il lavoro: il messaggio dice
+  // quale serie, e ORARI_6_coloraLezioni glielo mette
+  for (const messaggio of ['Errore interno di prova', 'Rate Limit Exceeded']) {
+    azzeraCalendario();
+    conColori(coloriProva);
+    guasti([{ op: 'setColor', alla: 2, messaggio }]);
+    const esitoG = contesto.ORARI_4_calendario();
+    guasti([]);
+    const calCG = calendari[0];
+    const senza = coloriSbagliati(calCG, coloriProva);
+    verifica('Google non mette un colore ("' + messaggio + '"): il lavoro va fino in fondo, e il messaggio dice ' +
+      'quale serie e di eseguire ORARI_6_coloraLezioni',
+      vive(calCG).length === piano.tratti.length && vive(calCG).every(s => s.getTag('campanella') === 'orario') &&
+      senza.length === 1 && senza[0].getColor() === '' && !proprieta.has(PROGRESSO_CALENDARIO) &&
+      ripresaDi('ORARI_4_calendario').length === 0 && /non ha messo il colore della classe a una serie/.test(esitoG) &&
+      esitoG.indexOf(senza[0].titolo + ', ') >= 0 && /esegui ORARI_6_coloraLezioni/.test(esitoG));
+    const rimesso = contesto.ORARI_6_coloraLezioni();
+    verifica('  ...e ORARI_6_coloraLezioni glielo mette, toccando solo quella serie',
+      coloriSbagliati(calCG, coloriProva).length === 0 && (chiamate.setColor || 0) === 1 &&
+      numero(/Colorati adesso con il colore della loro classe: (\d+)/, rimesso) === 1);
+  }
+  // il colore arriva prima del contrassegno: se il contrassegno non riesce, la serie ce l'ha gia'
+  {
+    const n = piano.tratti.findIndex(tr => !!atteso(coloriProva, tr.blocco.testo));
+    azzeraCalendario();
+    conColori(coloriProva);
+    guasti([{ op: 'setTag', alla: n + 1, messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+    contesto.ORARI_4_calendario();
+    guasti([]);
+    const senzaTag = calendari[0].serie[n];
+    verifica('il colore arriva prima del contrassegno: se il contrassegno non riesce, la serie ha gia\' il colore della ' +
+      'sua classe', n >= 0 && !!senzaTag && !senzaTag.getTag('campanella') && !!senzaTag.getColor() &&
+      senzaTag.getColor() === atteso(coloriProva, senzaTag.titolo));
+    riprendiFinoInFondo('ORARI_4_calendario');
+    verifica('  ...e alla ripresa riceve il contrassegno, e tutte le serie hanno il loro colore',
+      !!senzaTag && senzaTag.getTag('campanella') === 'orario' && coloriSbagliati(calendari[0], coloriProva).length === 0 &&
+      !proprieta.has(PROGRESSO_CALENDARIO));
+  }
+  // i colori cambiati a meta' (un DatiOrari.gs rigenerato con altri colori)
+  // non sono nell'impronta del piano: la ripresa va avanti con quelli nuovi
+  {
+    azzeraCalendario();
+    conColori(coloriProva);
+    sogliaCalendario = 5;
+    contesto.ORARI_4_calendario();
+    sogliaCalendario = Infinity;
+    const prime = vive(calendari[0]).slice();
+    const [kx, ky] = colorate;
+    const scambiati = Object.assign({}, coloriProva, { [kx]: coloriProva[ky] || '', [ky]: coloriProva[kx] });
+    conColori(scambiati);
+    const ripresaColori = errore(() => riprendiFinoInFondo('ORARI_4_calendario'));
+    const fineScambio = registro[registro.length - 1];
+    verifica('i colori cambiati a meta\' non fermano la ripresa: non sono nell\'impronta del piano' +
+      (ripresaColori ? ' (invece: ' + ripresaColori.slice(0, 80) + ')' : ''),
+      ripresaColori === '' && vive(calendari[0]).length === piano.tratti.length && senzaDoppioni(calendari[0]) &&
+      !proprieta.has(PROGRESSO_CALENDARIO) && prime.length === 5);
+    verifica('  ...le serie messe dopo hanno i colori nuovi, e il messaggio finale dice di dare a tutte quelli di adesso ' +
+      'con ORARI_6_coloraLezioni',
+      vive(calendari[0]).filter(s => prime.indexOf(s) < 0).every(s => s.getColor() === atteso(scambiati, s.titolo)) &&
+      /cambiati a meta' del lavoro/.test(fineScambio) && /ORARI_6_coloraLezioni/.test(fineScambio));
+    contesto.ORARI_6_coloraLezioni();
+    verifica('  ...e ORARI_6_coloraLezioni da\' a tutte i colori di adesso', coloriSbagliati(calendari[0], scambiati).length === 0);
+  }
+  conColori(coloriDati);
+
+  intestazione('COLORI NEL CAMBIO D\'ORARIO');
+  if (validoDal) {
+    azzeraCalendario();
+    conColori(coloriProva);
+    contesto.ORARI_4_calendario();
+    const calV = calendari[0];
+    const sost = s => String(s.getTag('campanella_sostituisce') || '');
+    const attraverso = vive(calV).filter(s => chiave(s.inizio) < validoDal && chiave(s.ricorrenza.until) >= validoDal &&
+      s.inizi(giornoPrima).length >= 3);
+    // sA: di una classe che nel DatiOrari.gs nuovo non ha colore, colorata a
+    // mano tutta; sB: di una classe con un colore nuovo, con la prima lezione
+    // spostata a mano e la seconda colorata a mano solo lei
+    const sA = attraverso[0];
+    const sB = attraverso.find(s => !!sA && s.titolo !== sA.titolo);
+    verifica('ci sono due serie da rifare di due classi diverse', !!sA && !!sB);
+    if (sA && sB) {
+      const coloriCambio = Object.assign({}, coloriProva);
+      delete coloriCambio[sA.titolo];
+      const nuovoDiB = ['6', '7', '2', '1'].find(v => v !== coloriProva[sB.titolo]);
+      coloriCambio[sB.titolo] = nuovoDiB;
+      sA.colore = '5';                                     // tutta la serie, colorata a mano da Google Calendar
+      const pB = sB.inizio;
+      sB.sposta(0, new Date(pB.getFullYear(), pB.getMonth(), pB.getDate() + 2, 15, 0),
+                   new Date(pB.getFullYear(), pB.getMonth(), pB.getDate() + 2, 16, 0));
+      sB.colora(1, '3');
+      const primaV = lezioniSul(calV, primoGiorno, giornoPrima);
+      const vecchieV = vive(calV).slice();
+      conColori(coloriCambio);
+      docOriginale.celle = ruotata(celleOriginali);
+      const esitoV = contesto.ORARI_5_cambioOrario();
+      const rifattaA = vive(calV).find(s => sost(s).indexOf(sA.id + '|') === 0);
+      const rifattaB = vive(calV).find(s => sost(s).indexOf(sB.id + '|') === 0);
+      const singoliB = calV.eventi.filter(e => !e.cancellato && sost(e).indexOf(sB.id + '|') === 0);
+      const spostataB = singoliB.find(e => e.inizio.getHours() === 15);
+      const colorataB = singoliB.find(e => e.inizio.getTime() === settimaneDopo(sB.inizio, 1).getTime());
+      verifica('la serie rifatta di una classe con un colore nuovo in DatiOrari.gs prende quello (' + nuovoDiB + ')',
+        !!rifattaB && rifattaB.getColor() === nuovoDiB);
+      verifica('  ...e anche la sua lezione spostata a mano, rimessa come evento singolo',
+        !!spostataB && spostataB.getColor() === nuovoDiB);
+      verifica('  ...mentre quella colorata a mano solo lei torna come evento singolo, alla sua ora, con il suo colore',
+        !!colorataB && colorataB.getColor() === '3' && !!rifattaB &&
+        rifattaB.lezioni(giornoPrima).every(l => l.inizio.getTime() !== colorataB.inizio.getTime()));
+      verifica('la serie rifatta di una classe che in DatiOrari.gs non ha piu\' un colore tiene quello della vecchia',
+        !!rifattaA && rifattaA.getColor() === '5');
+      const nuoveV = vive(calV).filter(s => vecchieV.indexOf(s) < 0 && !sost(s));
+      verifica('le serie dell\'orario nuovo hanno il colore della loro classe (' + nuoveV.length + ')',
+        nuoveV.length === nuovoPiano.tratti.length && nuoveV.every(s => s.getColor() === atteso(coloriCambio, s.titolo)));
+      verifica('le lezioni prima del cambio restano come erano, e il messaggio conta anche la lezione colorata a mano fra ' +
+        'quelle rimesse come eventi singoli (2)', uguali(lezioniSul(calV, primoGiorno, giornoPrima), primaV) &&
+        numero(/colorate a mano, rimesse come eventi singoli alla loro ora: (\d+)/, esitoV) === 2 &&
+        /Le serie rifatte hanno il colore della loro classe/.test(esitoV));
+    }
+    // un colore che Google non mette nel taglio non ferma il cambio: il messaggio lo dice
+    azzeraCalendario();
+    conColori(coloriProva);
+    contesto.ORARI_4_calendario();
+    docOriginale.celle = ruotata(celleOriginali);
+    guasti([{ op: 'setColor', alla: 1, messaggio: 'Rate Limit Exceeded' }]);
+    const esitoGV = contesto.ORARI_5_cambioOrario();
+    guasti([]);
+    verifica('nel cambio d\'orario un colore che Google non mette non ferma il lavoro, e il messaggio lo dice',
+      !proprieta.has(PROGRESSO_CALENDARIO) && uguali(lezioniSul(calendari[0], primoGiorno, ultimoGiorno), attesoDopoCambio) &&
+      /non ha messo il colore della classe a una serie/.test(esitoGV) && /esegui ORARI_6_coloraLezioni/.test(esitoGV));
+    docOriginale.celle = celleOriginali.slice();
+    conColori(coloriDati);
+  }
+
+  intestazione('ORARI_6_COLORALEZIONI');
+  {
+    azzeraCalendario();
+    conColori(coloriProva);
+    contesto.ORARI_4_calendario();
+    const cal6 = calendari[0];
+    const k1 = colorate[0];
+    const v1 = ['4', '8'].find(v => v !== coloriProva[k1]);
+    const nuovi6 = Object.assign({}, coloriProva, { [k1]: v1, [senzaColore]: '5' });
+    const nostreNelPeriodo = calX => vive(calX).filter(s => s.getTag('campanella') === 'orario' && s.inizio >= primoGiorno);
+    const daCambiare = nostreNelPeriodo(cal6).filter(s => atteso(nuovi6, s.titolo) !== s.getColor()).length;
+    const giaGiuste = nostreNelPeriodo(cal6).filter(s => !!atteso(nuovi6, s.titolo) && atteso(nuovi6, s.titolo) === s.getColor())
+      .length;
+    const senzaColore6 = nostreNelPeriodo(cal6).filter(s => !atteso(nuovi6, s.titolo)).length;
+    // una copia fatta a mano (la sola descrizione), un evento non nostro, un
+    // evento singolo nostro della classe, e una serie nostra dell'anno prima
+    const d0 = new Date(primoGiorno.getFullYear(), primoGiorno.getMonth(), primoGiorno.getDate() + 1, 18, 0);
+    const copia6 = cal6.createEventSeries(k1, d0, new Date(d0.getTime() + 3600 * 1000),
+      CalendarApp.newRecurrence().addWeeklyRule().until(giorniDopo(primoGiorno, 30)),
+      { description: '[Campanella] Orario di ' + c.docente + ', copiata a mano' });
+    const riunione6 = cal6.createEvent('Collegio docenti', new Date(d0.getTime() + 24 * 3600 * 1000),
+                                       new Date(d0.getTime() + 26 * 3600 * 1000));
+    const singolo6 = cal6.createEvent(k1, new Date(d0.getTime() + 48 * 3600 * 1000), new Date(d0.getTime() + 49 * 3600 * 1000),
+                                      { description: '[Campanella] Orario di ' + c.docente + ', recupero' });
+    singolo6.setTag('campanella', 'orario');
+    const annoPrima = new Date(primoGiorno.getFullYear() - 1, primoGiorno.getMonth(), primoGiorno.getDate(), 8, 0);
+    const vecchia6 = cal6.createEventSeries(k1, annoPrima, new Date(annoPrima.getTime() + 3600 * 1000),
+      CalendarApp.newRecurrence().addWeeklyRule().until(new Date(annoPrima.getFullYear(), annoPrima.getMonth() + 2, 1)),
+      { description: '[Campanella] Orario di ' + c.docente + ', l\'anno prima' });
+    vecchia6.setTag('campanella', 'orario');
+    const lezioniPrima6 = lezioniSul(cal6, primoGiorno, ultimoGiorno);
+    const seriePrima6 = vive(cal6).length;
+    conColori(nuovi6);
+    guasti([]);
+    const esito6 = contesto.ORARI_6_coloraLezioni();
+    console.log(esito6);
+    verifica('ORARI_6_coloraLezioni da\' alle serie e agli eventi singoli con il contrassegno i colori di adesso, ' +
+      'cambiando solo quelli da cambiare (' + (daCambiare + 1) + ' su ' + (nostreNelPeriodo(cal6).length + 1) + ')',
+      nostreNelPeriodo(cal6).every(s => s.getColor() === atteso(nuovi6, s.titolo)) && singolo6.getColor() === v1 &&
+      (chiamate.setColor || 0) === daCambiare + 1);
+    verifica('  ...senza rifare, spostare o togliere niente',
+      uguali(lezioniSul(cal6, primoGiorno, ultimoGiorno), lezioniPrima6) && vive(cal6).length === seriePrima6 &&
+      (chiamate.createEventSeries || 0) + (chiamate.createEvent || 0) + (chiamate.deleteEventSeries || 0) +
+      (chiamate.deleteEvent || 0) + (chiamate.setTag || 0) === 0);
+    verifica('  ...e non tocca la copia fatta a mano, l\'evento non nostro e la serie dell\'anno prima',
+      copia6.getColor() === '' && riunione6.getColor() === '' && vecchia6.getColor() === '');
+    verifica('il messaggio dice quante ne ha colorate (' + (daCambiare + 1) + '), quante lo avevano gia\' (' + giaGiuste +
+      '), quante sono di classi senza colore (' + senzaColore6 + ') e la copia lasciata',
+      numero(/Colorati adesso con il colore della loro classe: (\d+)/, esito6) === daCambiare + 1 &&
+      numero(/Avevano gia' il colore della loro classe: (\d+)/, esito6) === giaGiuste &&
+      numero(/Di classi senza colore in DatiOrari\.gs, lasciati come sono: (\d+)/, esito6) === (senzaColore6 || -1) &&
+      /senza contrassegno, forse copiati a mano: non li ho toccati \(1\)/.test(esito6) &&
+      !proprieta.has(PROGRESSO_COLORI) && ripresaDi('ORARI_6_coloraLezioni').length === 0);
+    guasti([]);
+    const ancora6 = contesto.ORARI_6_coloraLezioni();
+    verifica('rieseguita con gli stessi colori non cambia niente',
+      (chiamate.setColor || 0) === 0 && numero(/Colorati adesso con il colore della loro classe: (\d+)/, ancora6) === 0);
+    // una classe che perde il colore: le sue lezioni restano come sono, e il messaggio lo dice
+    const senzaK1 = Object.assign({}, nuovi6);
+    delete senzaK1[k1];
+    conColori(senzaK1);
+    guasti([]);
+    const perso6 = contesto.ORARI_6_coloraLezioni();
+    verifica('una classe che non ha piu\' un colore: le sue lezioni restano come sono, e il messaggio dice che ne hanno ' +
+      'ancora uno messo prima e come toglierlo',
+      (chiamate.setColor || 0) === 0 && nostreNelPeriodo(cal6).filter(s => s.titolo === k1).every(s => s.getColor() === v1) &&
+      /ancora un colore messo prima/.test(perso6) && perso6.indexOf(k1 + ', ') >= 0 &&
+      perso6.indexOf('(' + NOMI_COLORI[Number(v1)] + ')') >= 0 && /da Google Calendar/.test(perso6));
+    azzeraCalendario();
+    const senzaCal6 = errore(() => contesto.ORARI_6_coloraLezioni());
+    verifica('senza il calendario si ferma e dice di eseguire ORARI_4_calendario',
+      /nessun calendario/.test(senzaCal6) && /ORARI_4_calendario/.test(senzaCal6) && !proprieta.has(PROGRESSO_COLORI));
+    conColori(coloriDati);
+  }
+
+  intestazione('ORARI_6_COLORALEZIONI: RIPRESA, LIMITI DI GOOGLE E BLOCCO');
+  /** Fa scattare la ripresa di ORARI_6_coloraLezioni finche' c'e' il suo lavoro (e la sua ripresa). */
+  function riprendiColori() {
+    let giri = 0;
+    while (proprieta.has(PROGRESSO_COLORI) && giri < 80 && trigger.some(t => t.fn === 'ORARI_6_coloraLezioni')) {
+      contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa dei colori ' + giri });
+      giri++;
+    }
+    return giri;
+  }
+  const salvatoColori = () => JSON.parse(proprieta.get(PROGRESSO_COLORI) || 'null');
+  /** L'orario messo con i colori dei dati, e poi in DatiOrari.gs i colori girati: ogni serie colorata e' da cambiare. */
+  function daRicolorare() {
+    azzeraCalendario();
+    conColori(coloriDati);
+    contesto.ORARI_4_calendario();
+    const giro = Object.assign({}, coloriDati);
+    colorate.forEach((k, i) => { giro[k] = coloriDati[colorate[(i + 1) % colorate.length]]; });
+    conColori(giro);
+    guasti([]);
+    return giro;
+  }
+  /** ORARI_6_coloraLezioni fermata dal tempo massimo dopo n colori, con la sua ripresa programmata. */
+  function coloriAMeta(n) {
+    sogliaColori = n;
+    coloriDallUltimoSalto = 0;
+    const testo = contesto.ORARI_6_coloraLezioni();
+    sogliaColori = Infinity;
+    orologio = 0;
+    return testo;
+  }
+  {
+    const giro = daRicolorare();
+    const daFare = coloriSbagliati(calendari[0], giro).length;
+    const aMeta6 = coloriAMeta(3);
+    verifica('al tempo massimo si ferma, lo dice e programma la sua ripresa fra un minuto (' + daFare + ' da colorare)',
+      /Tempo massimo/.test(aMeta6) && /fra un minuto/.test(aMeta6) && !!salvatoColori() && salvatoColori().colorate === 3 &&
+      ripresaDi('ORARI_6_coloraLezioni').length === 1 && ripresaDi('ORARI_6_coloraLezioni')[0].ms === 60000 && daFare > 3);
+    const giri6 = riprendiColori();
+    verifica('riprendendo (' + giri6 + ' volte) finisce: ogni serie ha il colore nuovo, e nessuna e\' colorata due volte',
+      giri6 >= 1 && !proprieta.has(PROGRESSO_COLORI) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
+      coloriSbagliati(calendari[0], giro).length === 0 && (chiamate.setColor || 0) === daFare &&
+      numero(/Colorati adesso con il colore della loro classe: (\d+)/, registro[registro.length - 1]) === daFare);
+    trigger.push({ fn: 'ORARI_6_coloraLezioni', ms: 60000 });
+    const niente6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'rimasto' });
+    verifica('una ripresa che non trova niente da riprendere non colora niente, e toglie il trigger',
+      /Niente da riprendere/.test(niente6) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
+      (chiamate.setColor || 0) === daFare);
+  }
+  for (const [messaggio, domani] of [['Rate Limit Exceeded', false], ['Service invoked too many times for one day: calendar.', true]]) {
+    const giro = daRicolorare();
+    guasti([{ op: 'setColor', alla: 3, messaggio }]);
+    const r6 = contesto.ORARI_6_coloraLezioni();
+    verifica('"' + messaggio.slice(0, 44) + '...": si ferma e lo dice, ' +
+      (domani ? 'senza riprese, e di rieseguirlo domani' : 'e riprende fra un minuto'),
+      !!salvatoColori() && salvatoColori().colorate === 2 &&
+      (domani ? /domani/.test(r6) && ripresaDi('ORARI_6_coloraLezioni').length === 0
+              : /fra un minuto/.test(r6) && ripresaDi('ORARI_6_coloraLezioni').length === 1));
+    guasti([]);
+    if (domani) contesto.ORARI_6_coloraLezioni();
+    else riprendiColori();
+    verifica('  ...e ' + (domani ? 'rieseguito a mano' : 'riprendendo') + ' finisce',
+      !proprieta.has(PROGRESSO_COLORI) && coloriSbagliati(calendari[0], giro).length === 0);
+  }
+  {
+    const giro = daRicolorare();
+    guasti([{ op: 'setColor', alla: 2, messaggio: 'Errore interno di prova' }]);
+    const altro6 = contesto.ORARI_6_coloraLezioni();
+    guasti([]);
+    verifica('un altro errore su un colore non ferma il lavoro: le altre hanno il colore nuovo, e il messaggio dice ' +
+      'quella rimasta e di rieseguire piu\' tardi', !proprieta.has(PROGRESSO_COLORI) &&
+      coloriSbagliati(calendari[0], giro).length === 1 && /non ha messo il colore a una serie o lezione/.test(altro6) &&
+      /Riesegui ORARI_6_coloraLezioni piu' tardi/.test(altro6));
+    contesto.ORARI_6_coloraLezioni();
+    verifica('  ...e rieseguita glielo mette', coloriSbagliati(calendari[0], giro).length === 0);
+  }
+  {
+    // i colori cambiati fra un'esecuzione e la sua ripresa: ricomincia da capo
+    daRicolorare();
+    coloriAMeta(2);
+    conColori(coloriDati);
+    riprendiColori();
+    verifica('DatiOrari.gs con altri colori fra un\'esecuzione e la ripresa: ricomincia, e ogni serie ha i colori di adesso',
+      !proprieta.has(PROGRESSO_COLORI) && coloriSbagliati(calendari[0], coloriDati).length === 0);
+  }
+  {
+    // il blocco preso da un'altra esecuzione
+    daRicolorare();
+    coloriAMeta(2);
+    trigger.length = 0;
+    lockOccupato = true;
+    const primaDelBlocco6 = chiamate.setColor || 0;
+    const occupato6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'ripresa' });
+    verifica('una ripresa che trova il blocco preso si riprogramma fra un minuto, senza colorare niente',
+      /fra un minuto/.test(occupato6) && ripresaDi('ORARI_6_coloraLezioni').length === 1 &&
+      (chiamate.setColor || 0) === primaDelBlocco6);
+    lockOccupato = false;
+    riprendiColori();
+    lockOccupato = true;
+    const occupato6b = contesto.ORARI_6_coloraLezioni();
+    lockOccupato = false;
+    verifica('  ...e senza un lavoro a meta\' dice di riprovare e non programma niente',
+      !proprieta.has(PROGRESSO_COLORI) && /riprova/.test(occupato6b) && ripresaDi('ORARI_6_coloraLezioni').length === 0);
+  }
+  {
+    // ORARI_ANNULLA_calendario dimentica anche il lavoro sui colori
+    daRicolorare();
+    coloriAMeta(2);
+    const annulla6 = contesto.ORARI_ANNULLA_calendario();
+    verifica('ORARI_ANNULLA_calendario dimentica anche un ORARI_6_coloraLezioni a meta\', ne toglie la ripresa e lo dice',
+      !proprieta.has(PROGRESSO_COLORI) && ripresaDi('ORARI_6_coloraLezioni').length === 0 && /a meta'/.test(annulla6) &&
+      vive(calendari[0]).length === 0);
+    proprieta.set(PROGRESSO_COLORI, '{non e\' JSON');
+    const illeggibile6 = contesto.ORARI_6_coloraLezioni();
+    verifica('un punto salvato illeggibile vale come nessun punto',
+      /Serie ed eventi singoli di Campanella: 0/.test(illeggibile6) && !proprieta.has(PROGRESSO_COLORI));
+  }
+  conColori(coloriDati);
+  contesto.ORARI.calendario = calendarioDati;
+
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');
   azzeraCalendario();
   sogliaCalendario = 5;
@@ -2460,7 +2888,8 @@ if (conCalendario) {
   contesto.ORARI_4_calendario();
   verifica('un altro errore si vede cosi\' com\'e\'', errore(() => contesto.ORARI_ANNULLA_calendario()) === 'Errore interno di prova');
   azzeraCalendario();
-  attrezziCalendario = { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo };
+  attrezziCalendario = { azzeraCalendario, vive, salvato, ripresaDi, piano, errore, riprendiFinoInFondo,
+                         daRicolorare, coloriAMeta, salvatoColori, coloriSbagliati, conColori, coloriDati, calendarioDati };
 }
 
 intestazione('CONVIVENZA CON LA POSTA');
@@ -2485,15 +2914,16 @@ const interneVisibili = [...nomiOrari].filter(n =>
 verifica('le funzioni interne finiscono con "_"' +
   (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''), interneVisibili.length === 0);
 ['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
- 'ORARI_5_cambioOrario', 'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
+ 'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
   verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));
 // ANNULLA_automazione della Posta spegne tutto il progetto, dicono documenti e
 // nota per il DPO: anche ogni ripresa degli orari (var _ORARI_TRIGGER...). Se
 // Orari.gs ne aggiunge una, qui ci se ne accorge.
 const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]);
-verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + '), anche quelle del calendario',
-  riprese.length >= 4 && riprese.every(n => typeof contesto[n] === 'function') &&
-  riprese.indexOf('ORARI_4_calendario') >= 0 && riprese.indexOf('ORARI_5_cambioOrario') >= 0);
+verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + '), anche quelle del calendario e dei colori',
+  riprese.length >= 5 && riprese.every(n => typeof contesto[n] === 'function') &&
+  riprese.indexOf('ORARI_4_calendario') >= 0 && riprese.indexOf('ORARI_5_cambioOrario') >= 0 &&
+  riprese.indexOf('ORARI_6_coloraLezioni') >= 0);
 vm.runInContext(posta, contesto, { filename: 'Organizzazione_Gmail.gs' });
 trigger.length = 0;
 riprese.forEach(fn => trigger.push({ fn, ms: 60000 }));
@@ -2651,6 +3081,26 @@ if (attrezziCalendario) {
   contesto.ORARI_4_calendario();
   verifica('  ...e rieseguito a mano finisce da dove era arrivato',
     !salvato() && ripresaDi('ORARI_4_calendario').length === 0 && vive(calendari[0]).length === piano.tratti.length);
+
+  // lo stesso per ORARI_6_coloraLezioni a meta': ANNULLA_automazione ne toglie
+  // la ripresa e segna fermato il suo lavoro; una ripresa gia' partita non lo
+  // riprende, rieseguita a mano lo finisce
+  const { daRicolorare, coloriAMeta, salvatoColori, coloriSbagliati, conColori, coloriDati, calendarioDati } = attrezziCalendario;
+  const giro = daRicolorare();
+  coloriAMeta(2);
+  const spenta6 = contesto.ANNULLA_automazione();
+  verifica('ANNULLA_automazione toglie la ripresa di ORARI_6_coloraLezioni, segna fermato il suo lavoro e lo dice',
+    ripresaDi('ORARI_6_coloraLezioni').length === 0 && !!salvatoColori() && salvatoColori().fermato === true &&
+    /ORARI_6_coloraLezioni/.test(spenta6));
+  const primaDellaPartita = chiamate.setColor || 0;
+  const partita6 = contesto.ORARI_6_coloraLezioni({ triggerUid: 'gia partita' });
+  verifica('  ...una sua ripresa gia\' partita non colora niente e non si riprogramma',
+    /ANNULLA_automazione/.test(partita6) && ripresaDi('ORARI_6_coloraLezioni').length === 0 &&
+    (chiamate.setColor || 0) === primaDellaPartita && !!salvatoColori() && salvatoColori().colorate === 2);
+  contesto.ORARI_6_coloraLezioni();
+  verifica('  ...e rieseguita a mano finisce', !salvatoColori() && coloriSbagliati(calendari[0], giro).length === 0);
+  conColori(coloriDati);
+  contesto.ORARI.calendario = calendarioDati;
   azzeraCalendario();
 } else {
   verifica('le prove del calendario sono arrivate in fondo (servono a questa)', false);

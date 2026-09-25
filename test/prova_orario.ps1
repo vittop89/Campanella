@@ -892,6 +892,26 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
             (Nome '11') -eq 'Pomodoro' -and (Nome '9') -eq 'Mirtillo' -and (Nome '10') -eq 'Basilico' -and
             (Nome '8') -eq 'Grafite' -and (Nome '1') -eq 'Lavanda' -and (Nome '') -eq 'colore del calendario' -and
             $tCL.GetMethod('Esadecimale', $FS).Invoke($null, @('9')) -eq '#3f51b5')
+        # l'ordine delle classi e' lo stesso qui (la finestra dei colori, il
+        # riepilogo) e in Orari.gs (l'anteprima e i messaggi)
+        $esempio = @('10A', '2B', 'A disposizione', '1a', '3B LSA', '2A', 'B1', '003C', 'b0')
+        $lista = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($k in $esempio) { $lista.Add($k) }
+        $ordineCs = ($tCL.GetMethod('Ordinate', $FS).Invoke($null, @(, $lista.PSObject.BaseObject))) -join '|'
+        $ordina = Join-Path $tmp 'ordina_classi.js'
+        [System.IO.File]::WriteAllText($ordina, @'
+// ordina le classi con _orariOrdineClassi_ di Orari.gs
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).sort(contesto._orariOrdineClassi_).join('|'));
+'@, $utf8)
+        $elenco = Join-Path $tmp 'classi.txt'
+        [System.IO.File]::WriteAllText($elenco, ($esempio -join "`n"), $utf8)
+        $ordineJs = [string](& node $ordina (Join-Path (Split-Path -Parent $qui) 'src\risorse\Orari.gs') $elenco | Select-Object -Last 1)
+        Verifica "le classi sono nello stesso ordine qui e in Orari.gs ($ordineCs)" (
+            $ordineCs -eq $ordineJs -and $ordineCs -eq '1a|2A|2B|003C|3B LSA|10A|b0|B1|A disposizione')
         # senza docente: nessun colore, e DatiOrari.gs non ha il calendario
         $s2 = NuovoStato
         Verifica "senza il docente del calendario i colori non si toccano" (

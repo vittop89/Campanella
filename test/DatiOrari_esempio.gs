@@ -52,6 +52,9 @@ var ORARI = {
     minutiOra: 60,
     inizioOre: ["08:00", "09:00", "10:00", "11:10", "12:10", "13:10"],
     colore:    "BLUE",
+    // il colore delle lezioni di ogni classe (CalendarApp.EventColor, da 1 a
+    // 11): 4D non ne ha uno, e le sue lezioni hanno il colore del calendario
+    colori:    { "1A": "11", "2B": "9", "3C": "10" },
     // i giorni senza lezione: feste isolate, un ponte, vacanze lunghe. Pasqua e
     // Pasquetta stanno da sole (niente vacanze di Pasqua): Pasquetta spezza i
     // blocchi del lunedi' e lascia interi quelli del mercoledi'
