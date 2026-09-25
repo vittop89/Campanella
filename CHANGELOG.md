@@ -375,6 +375,54 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
 - The guide of step 4, the instructions and the technical note say how the
   colours work and when to run ORARI_6_coloraLezioni.
 
+**Orari: the timetable on the Google Calendar of another account**
+
+- Step 4 asks "Dove metti l'orario": in the school account, in the same
+  project as the mail script (the default, as before), or in another Google
+  account, for example the personal one, for whoever always uses that
+  calendar. The choice is in the settings (`calAltroAccount`, not personal
+  data).
+- With another account the menu of the step gives "Codice solo calendario
+  (Calendario.gs)", "Dati del tuo orario (DatiOrari.gs, solo il tuo)" and a
+  step-by-step guide for that account: open script.google.com with that
+  account, a new project, Project settings -> time zone of Rome, the two
+  files, run ORARI_4_calendario and authorise it (Calendar and triggers
+  only). The timetable emails, if wanted, stay in the school project, where
+  ORARI_4_calendario is not to be run; when the timetable changes, the data
+  go into both projects again.
+- Calendario.gs is made by the app from Orari.gs (SoloCalendario.cs). The
+  parts that only serve the emails (ORARI_2_invia, ORARI_3_inviaOrariClassi,
+  ORARI_ANNULLA_invio, building the messages, the label of the sent ones,
+  the teacher's address with Session.getActiveUser, MailApp, GmailApp) are
+  marked in Orari.gs by comments on their own lines, `// [SOLO EMAIL]` and
+  `// [FINE SOLO EMAIL]`, and left out; the lines between
+  `// [SOLO CALENDARIO.GS]` and `// [FINE SOLO CALENDARIO.GS]`, comments in
+  Orari.gs, become code there (the preview's "Calendario.gs versione 1.6.0",
+  and "il calendario" as the only other job that can hold the lock). Its own
+  header (src/risorse/Calendario_intestazione.txt) says what it does, for
+  which account and which permissions Google asks. The calendar functions
+  keep their names (ORARI_1_anteprima, ORARI_4_calendario,
+  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_ANNULLA_calendario), so
+  the instructions hold for both. The app gives no Calendario.gs with a
+  marker left open, or naming, even in a comment, MailApp, GmailApp, Gmail,
+  sendEmail, getActiveUser, getEffectiveUser, UrlFetchApp, DriveApp,
+  DocumentApp, SpreadsheetApp or FormApp: Google would ask for that
+  permission in the other account.
+- ORARI_1_anteprima has a calendar part that uses neither MailApp nor the
+  address, and says so when DatiOrari.gs has no calendar block. The
+  messages about another job holding the lock name the jobs of the script
+  they are in.
+- The DatiOrari.gs for the other account has only the teacher chosen in step
+  4: their row of the timetable, the days, the hours and the calendar block
+  (days without lessons, change date, colours). No other teacher, no class
+  timetables, no email subjects or note, no title of the timetable; its
+  header says so. The variable is still ORARI. Copied or saved, its class
+  colours stay in the settings, as with DatiOrari.gs.
+- The instructions, the technical note for principal and DPO (only the
+  teacher's own timetable, classes and hours end up in the other account,
+  nothing about colleagues; the permissions asked there; how to switch it
+  off) and PRIVACY.md say so.
+
 **Posta: a label for each of your classes**
 
 - Step 4 has "Le mie classi...": one rule per class, with a label such as
@@ -686,6 +734,30 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   classes, and with the name typed by prefix), DatiOrari.gs copied, and the
   window, also with 16 classes and with a colour chosen equal to another
   class's.
+- The calendar in another account: test/solo_calendario.js applies in
+  JavaScript the rule of SoloCalendario.Genera, and prova_orario.ps1 checks
+  that the app's Calendario.gs is the same, character by character. New
+  test/prova_solo_calendario.js, in tutte.ps1: Calendario.gs names none of
+  those services, not even in a comment, has the five calendar functions and
+  none of the email ones, no marker left and its own header; the data have
+  one teacher only; mock_orari.js --solo-calendario runs the calendar
+  sections on Calendario.gs with one teacher's data, in a project without
+  MailApp and GmailApp and with a Session that only gives the time zone,
+  plus the preview of Calendario.gs and its checks alone; and a marker left
+  open, a calendar-only line without "// ", the email functions without
+  markers, MailApp or DriveApp in a calendar part must fail.
+  invarianti_script.js checks Calendario.gs (the one of solo_calendario.js,
+  or the app's with --calendario) with the same calendar rules, no
+  sendEmail, no CONFIG, Session only for getScriptTimeZone, and, as for
+  Orari.gs, every function and constant of the script that it names declared
+  in the file; the ways around it must fail. nomi_funzioni.js wants the
+  public functions of Calendario.gs in its header and its resumes on its own
+  functions. prova_orario.ps1 makes both files with the real generator from
+  the example timetable, checks that the data have none of the other
+  teachers' surnames, runs prova_solo_calendario.js and invarianti_script.js
+  --calendario on them, and checks the guide for the other account;
+  prova_stato.ps1 the choice in the settings; prova_disposizione.ps1 the
+  choice in step 4, the menu, its previews and the layout.
 
 ## 1.5.3 — 24 September 2026
 
