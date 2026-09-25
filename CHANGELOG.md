@@ -186,7 +186,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   while the data file cannot be read).
   ORARI_1_anteprima prints the script's time zone, warns when it is not
   Europe/Rome (Project settings -> Time zone), and says when the calendar
-  has another zone and whether it already holds lessons. A 1.5 calendar
+  has another zone and whether it already holds lessons. While the
+  script's zone is not Europe/Rome (a new project takes the account's zone,
+  so the other account's one may have another), ORARI_4_calendario,
+  ORARI_5_cambioOrario and ORARI_7_colloqui stop before touching the
+  calendar and say where to change it (before, ORARI_4_calendario created
+  the calendar in that zone, with every lesson at another time). A 1.5 calendar
   whose zone the teacher changed by hand in Google Calendar's settings says
   the script's zone, but its series keep repeating at the same UTC time:
   when Campanella's series in the period that cross a change of the clock
@@ -387,9 +392,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   step-by-step guide for that account: open script.google.com with that
   account, a new project, Project settings -> time zone of Rome, the two
   files, run ORARI_4_calendario and authorise it (Calendar and triggers
-  only). The timetable emails, if wanted, stay in the school project, where
-  ORARI_4_calendario is not to be run; when the timetable changes, the data
-  go into both projects again.
+  only). The timetable emails, if wanted, stay in the school project, whose
+  DatiOrari.gs then has no calendar block (`calendario: null` and
+  `calendarioAltroAccount: true`: no meetings, no Meet links), so there
+  ORARI_1_anteprima says where the calendar is and the calendar functions
+  stop without touching anything; when the timetable changes, the data go
+  into both projects again.
 - Calendario.gs is made by the app from Orari.gs (SoloCalendario.cs). The
   parts that only serve the emails (ORARI_2_invia, ORARI_3_inviaOrariClassi,
   ORARI_ANNULLA_invio, building the messages, the label of the sent ones,
@@ -417,7 +425,18 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   (days without lessons, change date, colours). No other teacher, no class
   timetables, no email subjects or note, no title of the timetable; its
   header says so. The variable is still ORARI. Copied or saved, its class
-  colours stay in the settings, as with DatiOrari.gs.
+  colours stay in the settings, as with DatiOrari.gs. Calendario.gs stops
+  before touching the calendar, also in ORARI_1_anteprima, when given the
+  DatiOrari.gs of the whole timetable (more than one teacher, the class
+  timetables, the email subjects or note), and says to paste the "Dati del
+  tuo orario" instead.
+- A teacher's name written as its start (`ROSSI` for `ROSSI M.`) counts only
+  when one teacher of the timetable starts that way: with two (`ROSSI A.`
+  and `ROSSI M.`) none is chosen, the data for the other account are not
+  given, the summary of step 4 and the status bar ask to choose the exact
+  name from the list, and the script stops with the same request (before,
+  the first in alphabetical order was taken: a colleague's timetable and
+  surname ended up in the other account).
 - The instructions, the technical note for principal and DPO (only the
   teacher's own timetable, classes and hours end up in the other account,
   nothing about colleagues; the permissions asked there; how to switch it
@@ -437,25 +456,47 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   words or without the year); `niente colloqui dal 14/12/2026 al
   09/01/2027` (or `colloqui sospesi dal ... al ...`, `niente colloqui il
   20/05/2027`) is a period without meetings. The link is the first https://
-  address of the line, and becomes the location of the event; the rest is
-  the name (by default Ricevimento, or Colloqui for a day). Dates are read
-  by the same reader as the days without lessons (Calendario.cs), not by a
-  second one.
+  address of the line (also written `Https://`: the scheme is written in
+  lower case, as the script wants it), and becomes the location of the
+  event; the rest is the name (by default Ricevimento, or Colloqui for a
+  day). The dates of a weekly meeting may also come after `ogni` or the
+  name, as circulars write them (`ogni giovedi 10:10-11:10 Ricevimento dal
+  12/10/2026 al 22/05/2027`). One entry per line: a line with another date,
+  `fino al` (the end only), another weekday or another time in the name, a
+  period without meetings inside it (`sospeso dal ... al ...`), two links
+  or an `http://` one is not understood, with the reason, instead of ending
+  up in the title and on the calendar for the whole period. Hours with a
+  dot after a date (`15/12/2026 16.10-18.10`) and `alle 10:10-11:10` are
+  hours. Dates are read by the same reader as the days without lessons
+  (Calendario.cs), not by a second one.
 - "Importa da un file..." reads a .csv or .xlsx (Xlsx.cs) and adds its
   lines at the end of the box, which stays the only source: the columns are
-  found from the header, `data` or `giorno` (a date or a weekday), `dalle`
-  and `alle` (or `inizio` and `fine`), `cosa` or `descrizione`, `link`;
-  dates and times saved by Excel as numbers work; rows with neither a date
-  nor a weekday are skipped, and the status bar says how many.
+  found from the header, `data` or `giorno`, `dalle` and `alle` (or
+  `inizio` and `fine`), `cosa`, `descrizione` or `titolo`, `link`, and
+  `dal` and `al` for a weekly meeting; dates and times saved by Excel as
+  numbers work. A date, also with its weekday (`giovedi 17/12/2026`, in
+  either column, or the weekday in the other one), is one day, written with
+  the weekday so the box says whether it matches; only a weekday alone is a
+  weekly meeting; a cell not understood stays in the line, which the box
+  shows in amber. Rows with neither a date nor a weekday are skipped, and
+  the status bar says how many. Lines already in the box are not added
+  again (the same file imported twice), and the status bar says how many.
+  A file with columns about people (cognome, nome, classe, genitore,
+  email, telefono...) is not imported: it is a list of bookings, and the
+  message says they stay in the electronic register (before, "nome" was
+  taken as the title, and a list of bookings put students' names on the
+  calendar and in DatiOrari.gs).
 - Under the box, the same read-only list as the days without lessons: how
   every line was read (`riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per
   tutto il periodo, con il link del Meet`, `riga 2: non capita: ...`).
   In amber the doubtful lines: without a time, with only the start, or with
   the end before the start (kept in the box, but not put on the calendar),
   on a weekday that is not in the timetable, with a weekday that does not
-  match the date, outside the period, or with a link that is not Google
-  Meet (a warning, not an error: it goes on the calendar), and the lines not
-  understood. The summary counts the meetings (weekly ones, their series,
+  match the date, outside the period, with a cadence or an exception in the
+  name (`a settimane alterne`, `tranne`: it goes on the calendar every
+  week), or with a link that is not Google Meet (a warning, not an error:
+  it goes on the calendar), the lines not understood, and an entry equal to
+  one above, which goes on the calendar and in DatiOrari.gs once. The summary counts the meetings (weekly ones, their series,
   meetings and days) and the lines to check.
 - ORARI_4_calendario puts them after the lessons: the weekly meeting like
   the lessons, one series per stretch of weeks, skipping the days without
@@ -464,7 +505,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   there). Title is the name, location the link, the description starts with
   "[Campanella] Colloqui" and gives the link; the mark is Campanella's, with
   its own value (`colloquio`), and the colour is the meetings' own.
-  ORARI_1_anteprima says how many meetings will go on the calendar;
+  ORARI_1_anteprima says how many meetings will go on the calendar.
+  ORARI_4_calendario run again on a calendar that already holds the
+  timetable says first, for whoever only added or changed the meetings, to
+  run ORARI_7_colloqui, which does not touch the lessons (ORARI_ANNULLA
+  and ORARI_4 again would lose the lessons changed by hand);
   ORARI_5_cambioOrario treats them like the lessons (done again up to the
   day before, then those of DatiOrari.gs from the date);
   ORARI_6_coloraLezioni gives them the meetings' colour;
@@ -859,6 +904,18 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   colour the classes do not use; prova_disposizione.ps1: the section, its
   list, the summary, the import and the "Colloqui" row of the colours
   window; nomi_funzioni.js and prova_solo_calendario.js: ORARI_7_colloqui.
+  Then: prova_orario.ps1 the dates after `ogni`, the dotted hours, the lines
+  with another entry in the name, `Https://`, the same entry twice, the
+  import of lists of bookings (refused), of dates with the weekday, of the
+  `dal` and `al` columns and of a file already imported, two teachers
+  starting the same way, and the school's DatiOrari.gs with the calendar in
+  another account; mock_orari.js (also --solo-calendario) the script in
+  another time zone for ORARI_4, ORARI_5 and ORARI_7, two teachers starting
+  the same way, the school's DatiOrari.gs without a calendar block,
+  `Https://`, ORARI_4_calendario run again after adding the meetings and
+  ORARI_7_colloqui after it, and, in Calendario.gs, the DatiOrari.gs of the
+  whole timetable; prova_disposizione.ps1 the import of lines already in
+  the box.
 
 ## 1.5.3 — 24 September 2026
 
