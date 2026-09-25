@@ -299,7 +299,10 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      tratto della serie appena creata. Nel taglio lo ricevono (con quello
 //      "sostituisce") solo la serie e gli eventi singoli appena rifatti, e alla
 //      ripresa lo stesso pezzo ritrovato con l'id che il punto salvato ha preso
-//      proprio da quello appena creato (appenaCreato). Anche queste funzioni
+//      proprio da quello appena creato (appenaCreato): fra gli eventi all'ora
+//      della sua prima lezione, anche quelli che non sembrano di Campanella
+//      (copia la descrizione della serie vecchia, che il docente puo' aver
+//      riscritto), solo dopo la guardia sull'id. Anche queste funzioni
 //      hanno un'impronta, e cosi' quelle che creano (_orariCreaSerie_,
 //      _orariSerieRifatta_, _orariLezioneRifatta_): danno solo quello che
 //      hanno appena creato, non un evento trovato sul calendario;
@@ -335,14 +338,18 @@ const CALENDARIO_ORARI = {
     // il contrassegno: alla serie appena creata, o a quella del tratto a cui
     // Google non l'ha salvato, ritrovata da _orariNostri_; nel taglio alla
     // serie e all'evento singolo appena rifatti, o allo stesso pezzo ritrovato
+    // per id (la serie della lezione trovata, o l'evento singolo)
     setTag:                  { funzioni: ['_orariCalendario_', '_orariRimettiContrassegno_', '_orariTaglia_',
                                           '_orariRimettiContrassegniAlPezzo_'],
                                ricevente: { _orariCalendario_: 'serie', _orariRimettiContrassegno_: 'voce.serie',
                                             _orariTaglia_: ['nuova', 'singolo'],
-                                            _orariRimettiContrassegniAlPezzo_: ['voce.serie', 'voce.evento'] } },
+                                            _orariRimettiContrassegniAlPezzo_: ['serie', 'ev'] } },
     setColor:                { funzioni: ['_orariCalendario_'], ricevente: 'cal' },
-    getEvents:               { funzioni: ['_orariNostri_'], ricevente: 'cal' },
-    getEventSeries:          { funzioni: ['_orariNostri_'], ricevente: 'ev' },
+    // gli eventi del calendario: quelli di Campanella, e il pezzo appena
+    // rifatto dal taglio, ritrovato per id all'ora della sua prima lezione
+    getEvents:               { funzioni: ['_orariNostri_', '_orariRimettiContrassegniAlPezzo_'], ricevente: 'cal' },
+    getEventSeries:          { funzioni: ['_orariNostri_', '_orariRimettiContrassegniAlPezzo_', '_orariEventoDelPezzo_'],
+                               ricevente: 'ev' },
     createEventSeries:       { funzioni: ['_orariCreaSerie_', '_orariSerieRifatta_'], ricevente: 'cal' },
     // una lezione spostata a mano, rimessa dal taglio come evento singolo
     createEvent:             { funzioni: ['_orariLezioneRifatta_'], ricevente: 'cal' },
@@ -365,8 +372,8 @@ const CALENDARIO_ORARI = {
     _orariTogliBuco_: { nostri: 'var nostri = _orariNostri_(cal, inizio, new Date(inizio.getTime() + 60 * 1000));',
                         voce: 'var voce = nostri[i];', lezione: 'var lezione = voce.lezioni[j];' },
     _orariRimettiContrassegniAlPezzo_: {
-      nostri: 'var nostri = _orariNostri_(cal, new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));',
-      voce: 'var voce = nostri[i];' },
+      aQuellOra: 'var aQuellOra = cal.getEvents(new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));',
+      ev: 'var ev = aQuellOra[i];', serie: 'var serie = ev.getEventSeries();' },
     _orariNostri_: { eventi: 'var eventi = cal.getEvents(inizio, fine);', ev: 'var ev = eventi[i];' }
   },
   // le variabili che decidono che cosa e' nostro: si assegnano solo cosi'
@@ -425,7 +432,7 @@ const CALENDARIO_ORARI = {
   // creato (non un evento gia' sul calendario, trovato con _orariNostri_)
   impronte: { _orariNostri_: '1a5c2151b4f6b3d1', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
               _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba',
-              _orariRimettiContrassegniAlPezzo_: 'ca368d820da8655a', _orariVoceConId_: 'e68138d4acbf6278',
+              _orariRimettiContrassegniAlPezzo_: '69809ce4dac4f891', _orariEventoDelPezzo_: '66a159089aeeda43',
               _orariTogliBuco_: '9d0eeba55245a8ec', _orariSerieConId_: '95b32d0bab72b4e9',
               _orariCreaSerie_: 'bff3a5584343d4ae', _orariSerieRifatta_: '3d9ca1e38d93eb2c',
               _orariLezioneRifatta_: '903ebd9813519d30' },
@@ -436,7 +443,8 @@ const CALENDARIO_ORARI = {
                      prima: ['deleteEventSeries', 'deleteEvent', 'setTag'] },
     _orariRimettiContrassegno_: { guardia: 'if (!_orariSerieDelTratto_(voce, tratto)) continue;', prima: ['setTag'] },
     _orariTogliBuco_: { guardia: 'if (!_orariSerieConId_(voce, id)) continue;', prima: ['deleteEvent'] },
-    _orariRimettiContrassegniAlPezzo_: { guardia: 'if (!_orariVoceConId_(voce, pezzo.id)) continue;', prima: ['setTag'] }
+    _orariRimettiContrassegniAlPezzo_: { guardia: 'if (!_orariEventoDelPezzo_(ev, pezzo.id)) continue;',
+                                         prima: ['setTag', 'getEventSeries'] }
   },
   // i nomi nel punto salvato che decidono chi riceve il contrassegno: si
   // nominano solo in queste istruzioni, ognuna nella sua funzione (per quelle
@@ -468,6 +476,7 @@ const CALENDARIO_ORARI = {
       istruzioni: [
         { funzione: '_orariTaglia_', istruzione: 'stato.appenaCreato' },
         { funzione: '_orariTaglia_', istruzione: 'cal, stato.appenaCreato' },
+        { funzione: '_orariTaglia_', istruzione: 'stato, stato.appenaCreato.inizio' },
         { funzione: '_orariTaglia_', istruzione: 'stato.appenaCreato = null;' },
         { funzione: '_orariTaglia_',
           istruzione: 'stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };' },
@@ -481,7 +490,7 @@ const CALENDARIO_ORARI = {
   ],
   senzaAnnidate: ['_orariTaglia_', '_orariAnnullaCalendario_', '_orariNostri_', '_orariRimettiContrassegno_',
                   '_orariSerieDelTratto_', '_orariTrattoFatto_', '_orariTogliBuco_', '_orariSerieConId_',
-                  '_orariRimettiContrassegniAlPezzo_', '_orariVoceConId_', '_orariPianoDelTaglio_',
+                  '_orariRimettiContrassegniAlPezzo_', '_orariEventoDelPezzo_', '_orariPianoDelTaglio_',
                   '_orariRifacimento_', '_orariSerieRifatta_', '_orariLezioneRifatta_'],
   // non si nominano nemmeno: metodi degli eventi e dei calendari che nessuno
   // usa (setRecurrence: in Google non cambia niente), altre strade per
@@ -1601,7 +1610,7 @@ function provaDellaProva() {
   const NUOVA = 'var nuova = _orariSerieRifatta_(cal, r, fino);';
   const GUARDIA_BUCO = 'if (!_orariSerieConId_(voce, id)) continue;';
   const LEZIONE_BUCO = 'var lezione = voce.lezioni[j];';
-  const GUARDIA_PEZZO = 'if (!_orariVoceConId_(voce, pezzo.id)) continue;';
+  const GUARDIA_PEZZO = 'if (!_orariEventoDelPezzo_(ev, pezzo.id)) continue;';
   deveFallire('Orari.gs', 'un evento singolo creato fuori da _orariLezioneRifatta_ viene trovato',
     inserisci(orari, 'function ORARI_4_calendario(e) {',
       '\n  _orariTrovaCalendario_(\'Orario\').createEvent(\'x\', new Date(), new Date());'),
@@ -1656,11 +1665,25 @@ function provaDellaProva() {
     sostituisci(orari, RIFATTA, RIFATTA + ' stato.appenaCreato = { id: voce.serie.getId(), inizio: 0, segno: \'\' };'),
     'appenaCreato nominato fuori dalle istruzioni ammesse');
   deveFallire('Orari.gs', 'alla ripresa, il contrassegno rimesso a un pezzo senza la guardia viene trovato',
-    sostituisci(orari, GUARDIA_PEZZO, 'if (!_orariVoceConId_(voce, pezzo.id) && false) continue;'),
+    sostituisci(orari, GUARDIA_PEZZO, 'if (!_orariEventoDelPezzo_(ev, pezzo.id) && false) continue;'),
     'in _orariRimettiContrassegniAlPezzo_ manca la guardia');
-  deveFallire('Orari.gs', '  ...o con la guardia che riconosce qualunque voce',
-    sostituisci(orari, 'return !!id && String(suo) === String(id);', 'return true;'),
-    'il testo di _orariVoceConId_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...o con la guardia che riconosce qualunque evento',
+    sostituisci(orari, 'return !!id && !!suo && String(suo) === String(id);', 'return true;'),
+    'il testo di _orariEventoDelPezzo_ non e\' quello controllato');
+  deveFallire('Orari.gs', '  ...o dato a un evento trovato prima della guardia',
+    inserisci(orari, 'var ev = aQuellOra[i];', '\n    ev.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);'),
+    'in _orariRimettiContrassegniAlPezzo_ setTag viene prima della guardia');
+  deveFallire('Orari.gs', '  ...o alla serie di un evento trovato, presa prima della guardia',
+    sostituisci(orari, GUARDIA_PEZZO, 'var altra = ev.getEventSeries();\n    ' + GUARDIA_PEZZO),
+    'in _orariRimettiContrassegniAlPezzo_ getEventSeries viene prima della guardia');
+  deveFallire('Orari.gs', '  ...o cercato in tutto il calendario, non solo all\'ora della sua prima lezione',
+    sostituisci(orari, 'var aQuellOra = cal.getEvents(new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));',
+      'var aQuellOra = cal.getEvents(new Date(2000, 0, 1), new Date(2100, 0, 1));'),
+    'in _orariRimettiContrassegniAlPezzo_ aQuellOra si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...e getEvents in un\'altra funzione',
+    inserisci(orari, 'function _orariEventoDelPezzo_(ev, id) {',
+      '\n  var tutti = _orariTrovaCalendario_(\'x\').getEvents(new Date(), new Date());'),
+    'getEvents fuori da _orariNostri_ e _orariRimettiContrassegniAlPezzo_');
   deveFallire('Orari.gs', 'il secondo contrassegno uguale al primo viene trovato',
     sostituisci(orari, 'var _ORARI_TAG_SOSTITUISCE = \'campanella_sostituisce\';', 'var _ORARI_TAG_SOSTITUISCE = _ORARI_TAG;'),
     'la costante _ORARI_TAG_SOSTITUISCE va dichiarata una volta sola');

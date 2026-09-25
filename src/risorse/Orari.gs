@@ -654,13 +654,17 @@ function _orariCalendario_(funzione, e) {
  * un'altra (un cambio ricominciato da capo con altri dati) si tolgono prima
  * di lei. Un pezzo appena creato, a cui Google non ha ancora salvato i
  * contrassegni, ha l'id nel punto salvato (stato.appenaCreato), e glieli
- * rimette la ripresa. Cosi' un lavoro interrotto (il tempo, i limiti di
+ * rimette la ripresa, che lo ritrova per id anche se la sua descrizione (quella
+ * della serie vecchia) non comincia con [Campanella]; se non lo ritrova, il
+ * messaggio finale lo dice. Cosi' un lavoro interrotto (il tempo, i limiti di
  * Google) o rieseguito arriva allo stesso calendario. Torna false se finisce
  * il tempo.
  */
 function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
   if (stato.appenaCreato) {
-    _orariRimettiContrassegniAlPezzo_(cal, stato.appenaCreato);
+    // non ritrovato all'ora della sua prima lezione (tolto o spostato a mano
+    // prima della ripresa): il taglio lo rifa', e il messaggio finale lo dice
+    if (!_orariRimettiContrassegniAlPezzo_(cal, stato.appenaCreato)) _orariPezzoNonRitrovato_(stato, stato.appenaCreato.inizio);
     stato.appenaCreato = null;
     salva();
   }
@@ -989,32 +993,66 @@ function _orariSerieConId_(voce, id) {
 /**
  * La ripresa di un taglio fermato subito dopo aver creato un pezzo (la serie
  * nuova o un evento singolo), prima che Google ne salvasse i contrassegni:
- * lo ritrova fra quelli di Campanella all'ora della sua prima lezione, con
- * l'id salvato in stato.appenaCreato (pezzo), e glieli rimette. Senza, il
- * taglio non lo riconoscerebbe e lo rifarebbe (lezioni doppie). False se non
- * l'ha ritrovato.
+ * lo ritrova fra gli eventi all'ora della sua prima lezione, con l'id salvato
+ * in stato.appenaCreato (pezzo), e glieli rimette. Senza, il taglio non lo
+ * riconoscerebbe e lo rifarebbe (lezioni doppie). Lo cerca fra tutti, non
+ * solo fra quelli di Campanella: il pezzo copia la descrizione della serie
+ * vecchia, o della lezione, che il docente puo' aver riscritto (senza
+ * [Campanella] in testa), e senza contrassegno _orariNostri_ non lo
+ * vedrebbe. L'id, preso proprio da quello appena creato, basta: e' suo. False
+ * se non l'ha ritrovato.
  */
 function _orariRimettiContrassegniAlPezzo_(cal, pezzo) {
-  var nostri = _orariNostri_(cal, new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));
-  for (var i = 0; i < nostri.length; i++) {
-    var voce = nostri[i];
-    if (!_orariVoceConId_(voce, pezzo.id)) continue;
-    if (voce.serie) {
-      voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
-      voce.serie.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
+  var aQuellOra = cal.getEvents(new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));
+  for (var i = 0; i < aQuellOra.length; i++) {
+    var ev = aQuellOra[i];
+    if (!_orariEventoDelPezzo_(ev, pezzo.id)) continue;
+    if (ev.isRecurringEvent()) {
+      var serie = ev.getEventSeries();
+      serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      serie.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
     } else {
-      voce.evento.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
-      voce.evento.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
+      ev.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      ev.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
     }
     return true;
   }
   return false;
 }
 
-/** Vero se la voce di _orariNostri_ (una serie o un evento singolo) ha quell'id. */
-function _orariVoceConId_(voce, id) {
-  var suo = voce.serie ? voce.serie.getId() : voce.evento.getId();
-  return !!id && String(suo) === String(id);
+/**
+ * Vero se l'evento trovato e' il pezzo con quell'id: una lezione della serie
+ * con quell'id (getEventSeries().getId(), come la serie appena creata), o
+ * l'evento singolo con quell'id.
+ */
+function _orariEventoDelPezzo_(ev, id) {
+  var suo = '';
+  try { suo = ev.isRecurringEvent() ? ev.getEventSeries().getId() : ev.getId(); } catch (e) { suo = ''; }
+  return !!id && !!suo && String(suo) === String(id);
+}
+
+/** Per il messaggio finale del cambio: un pezzo appena rifatto che la ripresa non ha ritrovato (inizio in ms). */
+function _orariPezzoNonRitrovato_(stato, inizio) {
+  if (!stato.pezziNonRitrovati) stato.pezziNonRitrovati = [];
+  var g = new Date(inizio);
+  var hh = g.getHours(), mm = g.getMinutes();
+  if (stato.pezziNonRitrovati.length < 10) {
+    stato.pezziNonRitrovati.push(_orariChiaveData_(g) + ' ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm);
+  }
+  stato.nPezziNonRitrovati = (stato.nPezziNonRitrovati || 0) + 1;
+}
+
+/** Per il messaggio finale del cambio: i pezzi appena rifatti che la ripresa non ha ritrovato, con il rimedio. */
+function _orariAvvisoPezziNonRitrovati_(stato) {
+  var n = stato.nPezziNonRitrovati || 0;
+  if (!n) return '';
+  var una = (n === 1);
+  return '\n\nAttenzione: il lavoro si era fermato appena dopo aver rifatto ' + (una ? 'la lezione' : 'le lezioni') +
+    ' del ' + stato.pezziNonRitrovati.join(', ') + (n > stato.pezziNonRitrovati.length ? ', ...' : '') + ' (e le ' +
+    'settimane dopo, se era una serie), prima di darle il contrassegno di Campanella, e alla ripresa non ' +
+    (una ? 'l\'ho ritrovata' : 'le ho ritrovate') + ' a quell\'ora: ' + (una ? 'l\'ho rifatta' : 'le ho rifatte') +
+    '. Se adesso una lezione compare due volte, cancellane una tu da Google Calendar (se e\' di una serie, tutti ' +
+    'gli eventi di quella serie).';
 }
 
 /**
@@ -1229,7 +1267,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     giornoPrima + ' (le lezioni spostate a mano, o con il titolo, la descrizione o il luogo cambiati solo per loro, ' +
     'come eventi singoli) e poi ho tolto le vecchie. Altre modifiche fatte a mano a una serie vecchia, come il ' +
     'colore o un promemoria, non sono passate a quella rifatta: se ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
-    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
+    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoPezziNonRitrovati_(stato) + _orariAvvisoNonRitrovate_(stato, true);
 }
 
 /** "3A, mercoledi' 2026-09-16 15:00": una lezione spostata a mano, nei messaggi. */

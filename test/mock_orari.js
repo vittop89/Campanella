@@ -153,12 +153,13 @@ const conSetRecurrence = [];         // le serie su cui e' stato chiamato setRec
 const occorrenzeTolte = [];          // deleteEvent su una sola lezione di una serie
 
 function guasti(elenco) {
-  guastiPrevisti = elenco.slice();
+  // con "su" il guasto parte alla n-esima chiamata su un oggetto che va bene a su (una serie, un evento singolo)
+  guastiPrevisti = elenco.map(g => Object.assign({ viste: 0 }, g));
   for (const k of Object.keys(chiamate)) delete chiamate[k];
 }
-function operazione(op) {
+function operazione(op, chi) {
   chiamate[op] = (chiamate[op] || 0) + 1;
-  const g = guastiPrevisti.find(x => x.op === op && x.alla === chiamate[op]);
+  const g = guastiPrevisti.find(x => x.op === op && (x.su ? (x.su(chi) && ++x.viste === x.alla) : x.alla === chiamate[op]));
   if (g) throw new Error(g.messaggio);
   scritture++;
   if (op !== 'setTag' && ++scrittureDallUltimoSalto >= sogliaCalendario) {
@@ -186,7 +187,7 @@ class Serie {
   }
   getId() { return this.id; }
   getTitle() { return this.titolo; }
-  setTag(k, v) { operazione('setTag'); this.tag[k] = v; return this; }
+  setTag(k, v) { operazione('setTag', this); this.tag[k] = v; return this; }
   getTag(k) { return this.tag[k] || null; }
   setDescription(d) { this.descrizione = d; return this; }
   getDescription() { return this.descrizione; }
@@ -259,7 +260,7 @@ class Evento {                                   // un evento singolo
   }
   getId() { return this.id; }
   getTag(k) { return this.tag[k] || null; }
-  setTag(k, v) { operazione('setTag'); this.tag[k] = v; return this; }
+  setTag(k, v) { operazione('setTag', this); this.tag[k] = v; return this; }
   getDescription() { return this.descrizione; }
   getLocation() { return this.luogo; }
   /** come in Google: anche un evento singolo ha la sua "serie", che non e' mai null */
@@ -1835,6 +1836,67 @@ if (conCalendario) {
         verifica('con la descrizione di ogni lezione scritta in un altro modo da quella della serie, la serie si rifa\' ' +
           'lo stesso, senza eventi singoli', !!nuovaF && nuovaF.lezioni(giornoPrima).length === sF.inizi(giornoPrima).length &&
           calF.eventi.filter(e => !e.cancellato && sostituisce(e)).length === 0 && !/rimesse come eventi singoli/.test(esitoF));
+        docOriginale.celle = celleOriginali.slice();
+      }
+      // un pezzo appena rifatto a cui Google non salva il contrassegno, con una
+      // descrizione riscritta a mano che non comincia con [Campanella]: la serie
+      // rifatta di una serie con la descrizione cambiata per tutta la serie, o
+      // una lezione con una descrizione solo sua, rimessa come evento singolo.
+      // La ripresa lo ritrova per id e gli rimette i contrassegni: niente
+      // lezioni doppie, e ORARI_ANNULLA_calendario lo toglie
+      for (const [cosa, su] of [['della serie rifatta', x => x instanceof Serie],
+                                ['della lezione rimessa come evento singolo', x => x instanceof Evento]]) {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calP = calendari[0];
+        const [sP, sQ] = vive(calP).filter(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sP.descrizione = 'Aula 12, LIM. Portare il registro.';
+        sQ.annota(1, { descrizione: 'Compito in classe' });
+        /** Tutti gli eventi prima del cambio, anche quelli che non sembrano di Campanella. */
+        const tutti = calX => calX.getEvents(settimanaPrima, new Date(giornoPrima.getFullYear(), giornoPrima.getMonth(),
+          giornoPrima.getDate(), 23, 59, 59)).map(e => chiave(e.getStartTime()) + ' ' + ora(minutiDi(e.getStartTime())) + ' ' +
+          e.getTitle() + ' | ' + e.getDescription()).sort();
+        const primaP = tutti(calP);
+        docOriginale.celle = ruotata(celleOriginali);
+        guasti([{ op: 'setTag', alla: 1, su, messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+        contesto.ORARI_5_cambioOrario();
+        const appenaP = salvato() && salvato().appenaCreato;
+        guasti([]);
+        const giriP = riprendiFinoInFondo('ORARI_5_cambioOrario');
+        const dopoP = tutti(calP);
+        const pezzo = appenaP && (calP.serie.find(x => x.id === appenaP.id) || calP.eventi.find(x => x.id === appenaP.id));
+        verifica('il contrassegno ' + cosa + ', con una descrizione riscritta a mano, non riesce: alla ripresa (' + giriP +
+          ') lo ritrovo per id e glielo rimetto, senza lezioni doppie (' + primaP.length + ')' + (uguali(dopoP, primaP) ? '' :
+          ' (doppie: ' + dopoP.filter((x, i, tt) => tt.indexOf(x) !== i).join(' ;; ') + ')'),
+          !!pezzo && !(pezzo.cancellata || pezzo.cancellato) && pezzo.getTag('campanella') === 'orario' &&
+          /\|/.test(sostituisce(pezzo)) && su(pezzo) && !proprieta.has(PROGRESSO_CALENDARIO) && uguali(dopoP, primaP));
+        contesto.ORARI_ANNULLA_calendario();
+        verifica('  ...e ORARI_ANNULLA_calendario lo toglie: nel periodo non resta niente',
+          calP.getEvents(settimanaPrima, ultimoGiorno).length === 0);
+        docOriginale.celle = celleOriginali.slice();
+      }
+      // ...e se prima della ripresa il docente ne ha spostato la prima lezione, a
+      // quell'ora non lo ritrovo: il taglio lo rifa', e il messaggio finale lo
+      // dice, con la data, e dice di cancellare la lezione se compare due volte
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        docOriginale.celle = ruotata(celleOriginali);
+        guasti([{ op: 'setTag', alla: 1, su: x => x instanceof Serie,
+                  messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+        contesto.ORARI_5_cambioOrario();
+        guasti([]);
+        const appenaS = salvato() && salvato().appenaCreato;
+        const orfanaS = appenaS && calendari[0].serie.find(x => x.id === appenaS.id);
+        const t0 = orfanaS ? orfanaS.inizio : new Date(0);
+        if (orfanaS) orfanaS.sposta(0, new Date(t0.getFullYear(), t0.getMonth(), t0.getDate(), 18, 0),
+                                       new Date(t0.getFullYear(), t0.getMonth(), t0.getDate(), 19, 0));
+        const fineS = contesto.ORARI_5_cambioOrario({ triggerUid: 'ripresa' });
+        verifica('il pezzo appena rifatto, senza contrassegni, con la prima lezione spostata a mano prima della ripresa: ' +
+          'il messaggio finale dice che non l\'ho ritrovato, con la data, e di cancellare la lezione doppia',
+          !!orfanaS && /non l'ho ritrovata/.test(fineS) && fineS.indexOf(chiave(t0) + ' ' + ora(minutiDi(t0))) >= 0 &&
+          /cancellane una tu/.test(fineS) && !proprieta.has(PROGRESSO_CALENDARIO));
         docOriginale.celle = celleOriginali.slice();
       }
 
