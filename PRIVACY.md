@@ -107,8 +107,12 @@ entra nella stanza. Per questo il testo dei colloqui sta con i dati
 personali (con i dati nel Drive, non nel file accanto al programma), e il
 `DatiOrari.gs` che li contiene tienilo per te. Niente nomi di studenti o di
 genitori: le prenotazioni restano nel registro elettronico, e Campanella non
-le legge (un file con colonne di persone, come cognome, nome, classe,
-genitore o email, non lo importa: è un elenco di prenotazioni).
+le legge (un file con colonne di persone, come cognome, nome, genitore,
+email o prenotato da, non lo importa: è un elenco di prenotazioni; e
+nemmeno l'orario di ricevimento di tutti i docenti, con la colonna
+docente, che porterebbe sul tuo calendario i ricevimenti e i link dei
+colleghi). I nomi scritti dentro la descrizione di un colloquio non li
+riconosce: guarda il file prima di importarlo.
 
 **Le connessioni del programma.** Campanella si collega a internet solo
 quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a

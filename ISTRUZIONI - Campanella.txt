@@ -542,24 +542,41 @@ ORARI - le email a te e il calendario
    15:00-18:00 Colloqui generali https://meet.google.com/..., anche "dalle
    15 alle 18" o "15-18") e i periodi senza colloqui (niente colloqui dal
    14/12/2026 al 09/01/2027, o colloqui sospesi dal ... al ...). Il link e'
-   il primo indirizzo https:// della riga, e sul calendario diventa il
+   il primo indirizzo https:// della riga (quello del Meet anche senza
+   https://, come meet.google.com/...), e sul calendario diventa il
    luogo dell'evento; il resto e' il nome (di partenza Ricevimento o
    Colloqui). Una voce per riga: una riga con un'altra data, "fino al", un
-   altro giorno della settimana, un'altra ora, due link o un link http://
-   non la capisce, invece di mettere il resto nel titolo. "Importa da un
-   file..." prende le righe da un .csv o da un .xlsx con le colonne data
-   (o giorno: una data, anche con il giorno della settimana, o il giorno
-   da solo per il ricevimento), dalle, alle, cosa (o descrizione), link e,
-   per un ricevimento, dal e al, e aggiunge in fondo alla casella quelle
-   che non ci sono gia': la casella resta l'unica fonte. Un file con i nomi
-   delle persone (cognome, nome, classe, genitore, email...) non lo
-   importa: e' un elenco di prenotazioni. Sotto la casella Campanella
-   mostra come ha letto ogni riga; in ambra quelle da guardare: non
-   capite, senza ora o con la fine prima dell'inizio, uguali a una di
-   sopra (restano nella casella ma sul calendario non vanno), in un giorno
-   che non e' nell'orario, fuori dal periodo, con una cadenza come "a
-   settimane alterne" (sul calendario vanno ogni settimana) o con un link
-   che non e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
+   altro giorno della settimana (anche abbreviato), un'altra ora (anche
+   "e 12-13"), due link o un link http:// non la capisce, invece di
+   mettere il resto nel titolo. Le date del ricevimento scritte dopo
+   valgono solo da sole: "(dal 14/12 al 09/01 sospeso)", "(scrutini dal
+   25/01 al 05/02)" o "in presenza dal 12/10 al 18/12 poi online" non le
+   capisce, perche' sul calendario il ricevimento andrebbe solo in quelle
+   settimane; i periodi senza colloqui scrivili su una riga loro.
+   "Importa da un file..." prende le righe da un .csv o da un .xlsx con
+   le colonne data (o giorno: una data, anche con il giorno della
+   settimana, o il giorno da solo per il ricevimento), dalle e alle (o
+   ora, con la fascia 15:00-18:00), cosa (o descrizione), link, classe
+   (va nel nome, fra parentesi) e, per un ricevimento, dal e al, e
+   aggiunge in fondo alla casella quelle che non ci sono gia': la casella
+   resta l'unica fonte. Un file con i nomi delle persone (cognome, nome,
+   genitore, email, prenotato da...) non lo importa: e' un elenco di
+   prenotazioni. Nemmeno l'orario di ricevimento di tutti i docenti
+   pubblicato dalla scuola (con la colonna docente o prof.): porterebbe
+   sul tuo calendario i ricevimenti e i link dei colleghi; scrivi il tuo
+   nella casella, o tieni nel file solo le tue righe, senza quella
+   colonna. I nomi scritti dentro la colonna cosa ("Colloquio con la
+   mamma di ...") non li riconosce: guarda il file prima di importarlo.
+   Sotto la casella Campanella mostra come ha letto ogni riga; in ambra
+   quelle da guardare: non capite, senza ora o con la fine prima
+   dell'inizio, uguali a una di sopra (restano nella casella ma sul
+   calendario non vanno), in un giorno che non e' nell'orario, fuori dal
+   periodo, di notte o a tarda sera (dalle 3 alle 6 e' di notte: il
+   pomeriggio si scrive 15-18), con una cadenza come "a settimane
+   alterne" o "ogni 15 giorni", o un periodo a parole come "fino a
+   maggio" o "primo quadrimestre" (sul calendario vanno ogni settimana,
+   per tutto il periodo: scrivi le date davanti), o con un link che non
+   e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
    colloqui con l'orario: il ricevimento come le lezioni, a tratti (niente
    colloqui nei giorni senza lezione e in quelli senza colloqui), le
    giornate come eventi singoli (una giornata c'e' anche in un periodo
