@@ -8,8 +8,9 @@
  * MODULO_ANNULLA...). Sono testo: se una funzione cambia nome in un .gs, le
  * istruzioni restano sbagliate senza che nessuno se ne accorga. Qui:
  *
- *   1. ogni nome citato in src/*.cs, docs/*.md, README*.md, PRIVACY.md e
- *      "ISTRUZIONI - Campanella.txt" deve esistere come funzione in
+ *   1. ogni nome citato in src/*.cs, docs/*.md, README*.md, PRIVACY.md,
+ *      "ISTRUZIONI - Campanella.txt" e nell'intestazione di Calendario.gs
+ *      (src/risorse/Calendario_intestazione.txt) deve esistere come funzione in
  *      src/risorse/*.gs. Valgono anche le forme brevi che i testi usano:
  *      "PASSO_3" (inizio di un nome, fino a un "_"), "ANNULLA_..." e
  *      "PASSO_3_riordinaPosta..." (con i puntini);
@@ -17,12 +18,17 @@
  *      funzione che esiste nel suo progetto (Posta e Orari stanno insieme);
  *   3. ogni funzione pubblica di Orari.gs (ORARI_...) sta nell'elenco in cima
  *      al file e nelle istruzioni, e ogni sua ripresa la conosce anche la
- *      Posta, perche' ANNULLA_automazione la spenga.
+ *      Posta, perche' ANNULLA_automazione la spenga;
+ *   4. Calendario.gs, la versione solo calendario di Orari.gs per un altro
+ *      account (test/solo_calendario.js), ha nella sua intestazione ogni sua
+ *      funzione pubblica, e ogni sua ripresa chiama una funzione che ha lei:
+ *      nel progetto dell'altro account non c'e' altro.
  */
 
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { calendarioDiOggi } = require('./solo_calendario');
 
 const radice = path.join(__dirname, '..');
 const risorse = path.join(radice, 'src', 'risorse');
@@ -70,6 +76,8 @@ function fileDaControllare() {
   aggiungi('src', f => /\.cs$/.test(f));
   aggiungi('docs', f => /\.md$/.test(f));
   aggiungi('.', f => /^README.*\.md$/.test(f) || f === 'PRIVACY.md' || f === 'ISTRUZIONI - Campanella.txt');
+  // l'intestazione di Calendario.gs: il docente la legge nell'editor
+  aggiungi(path.join('src', 'risorse'), f => f === 'Calendario_intestazione.txt');
   return fuori;
 }
 
@@ -162,6 +170,34 @@ verifica('ogni ripresa di Orari.gs la conosce anche ANNULLA_automazione della Po
   (nonSpente.length ? ' (non conosce: ' + nonSpente.join(', ') + ')' : ''), nonSpente.length === 0);
 
 // ---------------------------------------------------------------------------
+//  4. CALENDARIO.GS: LE SUE FUNZIONI NELLA SUA INTESTAZIONE, LE SUE RIPRESE SUE
+//  Nel progetto dell'altro account ci sono solo Calendario.gs e i dati: ogni
+//  sua funzione pubblica la spiega la sua intestazione, e una ripresa verso
+//  una funzione delle email (che li' non c'e') fallirebbe ogni minuto.
+// ---------------------------------------------------------------------------
+/** Le funzioni ORARI_ di Calendario.gs che la sua intestazione non nomina, e le riprese verso funzioni che non ha. */
+function calendarioNonDetto(cal) {
+  const fine = cal.indexOf('*/');
+  const suaIntestazione = fine > 0 ? cal.slice(0, fine) : '';
+  const sue = new Set([...cal.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)].map(m => m[1]));
+  const fuori = [];
+  for (const n of sue) {
+    if (/^ORARI_/.test(n) && suaIntestazione.indexOf(n) < 0) fuori.push(n + ' (intestazione di Calendario.gs)');
+  }
+  for (const m of cal.matchAll(/^var\s+(\w*TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)) {
+    if (!sue.has(m[3])) fuori.push(m[1] + ' riprende ' + m[3] + ', che in Calendario.gs non c\'e\'');
+  }
+  return fuori;
+}
+intestazione('CALENDARIO.GS: LE SUE FUNZIONI NELLA SUA INTESTAZIONE, E LE SUE RIPRESE');
+const testoCalendario = calendarioDiOggi();
+const pubblicheCal = [...testoCalendario.matchAll(/^function\s+(ORARI_[A-Za-z0-9_]*[A-Za-z0-9])\s*\(/gm)].map(m => m[1]);
+const nonDettoCal = calendarioNonDetto(testoCalendario);
+verifica('le ' + pubblicheCal.length + ' funzioni pubbliche di Calendario.gs (' + pubblicheCal.join(', ') + ') stanno nella ' +
+  'sua intestazione, e le sue riprese chiamano funzioni sue' + (nonDettoCal.length ? ' (no: ' + nonDettoCal.join('; ') + ')' : ''),
+  pubblicheCal.length === 5 && nonDettoCal.length === 0);
+
+// ---------------------------------------------------------------------------
 //  LA PROVA DELLA PROVA: un nome sbagliato deve essere trovato
 // ---------------------------------------------------------------------------
 intestazione('LA PROVA DELLA PROVA');
@@ -170,6 +206,11 @@ verifica('una funzione degli orari nuova, non scritta nell\'intestazione ne\' ne
 verifica('e una ripresa nuova degli orari che la Posta non spegne',
   ripreseNonSpente(testoOrari.replace(/^var _ORARI_TRIGGER_COLORI\s*=\s*'[^']+';/m,
     'var _ORARI_TRIGGER_COLORI = \'ORARI_9_prova\';'), testoPosta).join() === 'ORARI_9_prova');
+verifica('una funzione nuova di Calendario.gs, non scritta nella sua intestazione, viene trovata',
+  calendarioNonDetto(testoCalendario + '\nfunction ORARI_9_prova() {\n}\n').join() === 'ORARI_9_prova (intestazione di Calendario.gs)');
+verifica('e una sua ripresa verso una funzione delle email',
+  calendarioNonDetto(testoCalendario.replace(/^var _ORARI_TRIGGER_COLORI\s*=\s*'[^']+';/m,
+    'var _ORARI_TRIGGER_COLORI = \'ORARI_2_invia\';')).length === 1);
 verifica('un nome inventato non passa', !esiste('PASSO_3_riordinaTutto', ''));
 verifica('un nome vecchio (ORARI_3_abbinaIndirizzi) non passa', !esiste('ORARI_3_abbinaIndirizzi', ''));
 verifica('la forma breve "PASSO_3" passa', esiste('PASSO_3', ' '));

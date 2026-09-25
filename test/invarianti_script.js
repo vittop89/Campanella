@@ -62,7 +62,16 @@
  *     dell'altro, cosi' le regole di un file non si aggirano passando
  *     dall'altro (gli orari non arrivano agli studenti delle classi, e i loro
  *     nomi non li scrivono nemmeno fra virgolette; la posta non tocca il
- *     calendario).
+ *     calendario);
+ *   - Calendario.gs, la versione solo calendario di Orari.gs che Campanella
+ *     prepara per il Google Calendar di un altro account (test/solo_calendario.js),
+ *     ha le stesse regole del calendario, ma sta da sola nel progetto di
+ *     quell'account: niente email, niente Gmail, niente CONFIG, di Session
+ *     solo il fuso orario, e ogni funzione o costante dello script che nomina
+ *     la dichiara lei (le parti tolte non lasciano riferimenti rotti; lo
+ *     stesso vale per Orari.gs). Di partenza e' quella di
+ *     test/solo_calendario.js; con --calendario FILE quella dell'applicazione,
+ *     che test/prova_orario.ps1 passa qui.
  *
  * Poi la prova della prova: su copie modificate in memoria (e, per il banco
  * test/mock_apps_script.js, su una copia temporanea del motore) un
@@ -106,6 +115,7 @@ const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const figlio = require('child_process');
+const { calendarioDiOggi } = require('./solo_calendario');
 
 const radice = path.join(__dirname, '..');
 const risorse = path.join(radice, 'src', 'risorse');
@@ -581,7 +591,31 @@ const REGOLE = {
     // Organizzazione_Gmail.gs sta nello stesso progetto: le sue funzioni qui
     // non si usano, e quelle che danno gli studenti delle classi (i suoi
     // nomiSoloIn) nemmeno fra virgolette
-    nomiDi: 'Organizzazione_Gmail.gs'
+    nomiDi: 'Organizzazione_Gmail.gs',
+    // ogni funzione e costante dello script che nomina la dichiara lui
+    tuttoDichiarato: true
+  },
+  // la versione solo calendario di Orari.gs, per il Google Calendar di un
+  // altro account: sta da sola nel progetto di quell'account, con i dati del
+  // solo docente. Niente email e niente Gmail (niente sendEmail, nessun
+  // destinatario), niente CONFIG della Posta, di Session solo il fuso orario
+  // (non l'indirizzo), e tutto quello che nomina lo dichiara lei. Il
+  // calendario ha le regole di Orari.gs
+  'Calendario.gs': {
+    servizi: ['CalendarApp', 'ScriptApp', 'PropertiesService', 'LockService', 'Session', 'Utilities', 'Logger']
+      .concat(JS.filter(x => x !== 'Object'), ['ORARI']),
+    sessione: ['getScriptTimeZone'],
+    cancellazioni: ['deleteProperty', 'deleteTrigger', 'deleteEventSeries', 'deleteEvent'],
+    destinatari: [],
+    senzaEmail: true,
+    tuttoDichiarato: true,
+    etichetteDiSistema: [],
+    gmailApi: [],
+    gmailApiSoloIn: {},
+    // JSON.parse solo dove si legge il punto salvato del calendario: quello
+    // degli invii (_orariInvia_) qui non c'e'
+    calendario: Object.assign({}, CALENDARIO_ORARI,
+      { jsonParse: CALENDARIO_ORARI.jsonParse.filter(f => f !== '_orariInvia_') })
   }
 };
 
@@ -1204,6 +1238,30 @@ function controlla(nomeFile, sorgenteIntero) {
   // il calendario degli orari (CALENDARIO_ORARI)
   if (regole.calendario) fuori.push(...controllaCalendario(regole.calendario, codice, nudo, corpi, riga, regole.servizi));
 
+  // Session solo per quello che serve (in Calendario.gs il fuso orario, non
+  // l'indirizzo), sempre con il punto e il nome del metodo
+  if (regole.sessione) {
+    const sessione = /(?<![\w$.])Session\b(?:\s*\.\s*([A-Za-z_$][\w$]*))?/g;
+    while ((m = sessione.exec(nudo))) {
+      if (!m[1] || regole.sessione.indexOf(m[1]) < 0) {
+        fuori.push('Session solo per ' + regole.sessione.join(', ') + ' (riga ' + riga(m.index) + ': ' +
+                   (m[1] || 'presa come valore') + ')');
+      }
+    }
+  }
+
+  // ogni funzione e costante dello script che nomina (_nome_, _ORARI_..., ORARI_...)
+  // la dichiara il file stesso: una parte tolta non lascia riferimenti rotti
+  if (regole.tuttoDichiarato) {
+    const nominato = /(?<![\w$.])(_[A-Za-z0-9_$]*|ORARI_[A-Za-z0-9_$]*)(?![\w$])/g;
+    const visti = new Set();
+    while ((m = nominato.exec(nudo))) {
+      if (dichiarati.has(m[1]) || visti.has(m[1])) continue;
+      visti.add(m[1]);
+      fuori.push('nominato ma non dichiarato qui: ' + m[1] + ' (riga ' + riga(m.index) + ')');
+    }
+  }
+
   // i nomi che si usano solo dentro certe funzioni (gli studenti delle
   // classi): fuori, anche solo nominati, anche dopo un punto (this.X) o fra
   // virgolette (this['X']), sono una violazione. Le funzioni ammesse ci sono
@@ -1282,7 +1340,9 @@ function controlla(nomeFile, sorgenteIntero) {
       fuori.push('email verso un destinatario non ammesso: ' + chi + ' (riga ' + riga(m.index) + ')');
     }
   }
-  if (invii === 0) fuori.push('nessun sendEmail trovato: il controllo dei destinatari non vale piu\'');
+  if (regole.senzaEmail) {
+    if (invii > 0) fuori.push('sendEmail in uno script senza email: ' + invii + ' volte');
+  } else if (invii === 0) fuori.push('nessun sendEmail trovato: il controllo dei destinatari non vale piu\'');
 
   // etichette di sistema (filtri di Gmail): solo quelle ammesse
   for (const s of stringhe) {
@@ -1326,8 +1386,12 @@ function controlla(nomeFile, sorgenteIntero) {
 //  1. GLI SCRIPT DI OGGI RISPETTANO LE PROMESSE
 // ---------------------------------------------------------------------------
 const sorgenti = {};
+// Calendario.gs: con --calendario FILE quello dell'applicazione (lo passa
+// test/prova_orario.ps1), se no quello che la sua regola da' da Orari.gs
+const conCalendario = process.argv.indexOf('--calendario');
 for (const nome of Object.keys(REGOLE)) {
-  sorgenti[nome] = fs.readFileSync(path.join(risorse, nome), 'utf8');
+  if (nome !== 'Calendario.gs') sorgenti[nome] = fs.readFileSync(path.join(risorse, nome), 'utf8');
+  else sorgenti[nome] = (conCalendario > 1) ? fs.readFileSync(process.argv[conCalendario + 1], 'utf8') : calendarioDiOggi();
 }
 
 function scriptDiOggi() {
@@ -1999,6 +2063,37 @@ function provaDellaProva() {
   const aCapo = orari.split('\r\n').join('\n').replace(/\n/g, '\r\n');
   verifica('  ...ma non gli a capo, gli spazi o i commenti', controlla('Orari.gs', aCapo).length === 0 &&
     controlla('Orari.gs', sostituisci(orari, 'var perSerie = {};', 'var   perSerie = {};   // le serie')).length === 0);
+  deveFallire('Orari.gs', 'una funzione dello script chiamata ma non dichiarata (tolta) viene trovata',
+    inserisci(orari, 'function ORARI_4_calendario(e) {', '\n  _orariCheNonCe_(e);'),
+    'nominato ma non dichiarato qui: _orariCheNonCe_');
+
+  // Calendario.gs: la versione solo calendario, per un altro account
+  const cal = sorgenti['Calendario.gs'];
+  const QUATTRO = 'function ORARI_4_calendario(e) {';
+  deveFallire('Calendario.gs', 'in Calendario.gs MailApp viene trovato',
+    inserisci(cal, QUATTRO, '\n  MailApp.getRemainingDailyQuota();'), 'servizio non ammesso: MailApp');
+  deveFallire('Calendario.gs', '  ...e GmailApp', inserisci(cal, QUATTRO, '\n  GmailApp.search(\'in:inbox\');'),
+    'servizio non ammesso: GmailApp');
+  deveFallire('Calendario.gs', '  ...e l\'indirizzo del docente con Session.getActiveUser',
+    inserisci(cal, QUATTRO, '\n  Logger.log(Session.getActiveUser().getEmail());'), 'Session solo per getScriptTimeZone');
+  deveFallire('Calendario.gs', '  ...anche con Session presa come valore',
+    inserisci(cal, QUATTRO, '\n  var s = Session; s.getEffectiveUser();'), 'Session solo per getScriptTimeZone');
+  deveFallire('Calendario.gs', '  ...e un\'email, anche a se stessi',
+    inserisci(cal, QUATTRO, '\n  X.sendEmail(\'io@scuola-esempio.edu.it\', \'a\', \'b\');'),
+    'sendEmail in uno script senza email');
+  deveFallire('Calendario.gs', '  ...e CONFIG della Posta', inserisci(cal, QUATTRO, '\n  var p = CONFIG.prefissoEtichette;'),
+    'servizio non ammesso: CONFIG');
+  deveFallire('Calendario.gs', '  ...e una funzione delle email, che in Calendario.gs non c\'e\'',
+    inserisci(cal, QUATTRO, '\n  _daMandare_(_orariDati_());'), 'nominato ma non dichiarato qui: _daMandare_');
+  deveFallire('Calendario.gs', '  ...e una costante delle email',
+    inserisci(cal, QUATTRO, '\n  _togliTriggerOrari_(_ORARI_TRIGGER_CLASSI);'),
+    'nominato ma non dichiarato qui: _ORARI_TRIGGER_CLASSI');
+  deveFallire('Calendario.gs', '  ...e setRecurrence, come in Orari.gs (le regole del calendario sono le stesse)',
+    inserisci(cal, QUATTRO, '\n  var r = CalendarApp.newRecurrence(); x.setRecurrence(r);'),
+    'nome non ammesso negli orari: setRecurrence');
+  deveFallire('Calendario.gs', '  ...e un evento creato fuori da _orariLezioneRifatta_',
+    inserisci(cal, QUATTRO, '\n  _orariTrovaCalendario_(\'Orario\').createEvent(\'x\', new Date(), new Date());'),
+    'createEvent fuori da _orariLezioneRifatta_');
 }
 
 // ---------------------------------------------------------------------------
@@ -2272,6 +2367,17 @@ async function estrattori() {
 
 // ---------------------------------------------------------------------------
 async function principale() {
+  if (conCalendario > 1) {
+    // il Calendario.gs dell'applicazione (test/prova_orario.ps1): le sue regole, e basta
+    intestazione('IL CALENDARIO.GS DELL\'APPLICAZIONE');
+    const v = controlla('Calendario.gs', sorgenti['Calendario.gs']);
+    verifica('Calendario.gs (' + process.argv[conCalendario + 1] + '): nessuna violazione', v.length === 0);
+    v.forEach(x => console.log('        ' + x));
+    intestazione('RISULTATO');
+    if (fallimenti === 0) console.log('  Tutte le prove superate.');
+    else { console.log('  PROVE FALLITE: ' + fallimenti); process.exitCode = 1; }
+    return;
+  }
   scriptDiOggi();
   provaDellaProva();
   bancoConGuasti();
