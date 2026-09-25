@@ -1782,7 +1782,8 @@ namespace Campanella
             sb.AppendLine("del periodo dopo aver messo l'orario, rimetti quelle di prima: gli eventi");
             sb.AppendLine("fuori dal periodo non li trova. Dopo, ORARI_4_calendario rimette l'orario");
             sb.AppendLine("da capo. Se riesegui  ORARI_4_calendario  sopra un orario gia' messo, si");
-            sb.AppendLine("ferma e te lo dice: non mette le lezioni due volte.");
+            sb.AppendLine("ferma e te lo dice: non mette le lezioni due volte. Se hai solo aggiunto i");
+            sb.AppendLine("colloqui, per loro c'e'  ORARI_7_colloqui.");
             sb.AppendLine();
             sb.AppendLine("COME VENGONO GLI EVENTI");
             sb.AppendLine("-----------------------");

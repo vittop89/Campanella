@@ -1035,6 +1035,10 @@ if (conCalendario) {
   verifica('la seconda volta si ferma e dice di annullare prima, o di usare il cambio d\'orario',
     /gia' \d+ serie/.test(secondaVolta) && /ORARI_ANNULLA_calendario/.test(secondaVolta) &&
     /ORARI_5_cambioOrario/.test(secondaVolta));
+  verifica('  ...e per primo, per chi ha solo aggiunto o cambiato i colloqui, ORARI_7_colloqui, che non tocca le lezioni',
+    /Se hai solo aggiunto o cambiato i colloqui con le famiglie, esegui ORARI_7_colloqui: li mette da oggi senza toccare le lezioni\./.test(secondaVolta) &&
+    secondaVolta.indexOf('ORARI_7_colloqui') < secondaVolta.indexOf('ORARI_5_cambioOrario') &&
+    secondaVolta.indexOf('ORARI_7_colloqui') < secondaVolta.indexOf('ORARI_ANNULLA_calendario'));
   verifica('senza raddoppiare le lezioni (' + cal.serie.length + ' serie)', cal.serie.length === piano.tratti.length);
   verifica('e senza creare un altro calendario', calendari.length === 1);
 
@@ -3300,6 +3304,31 @@ if (conCalendario) {
       conMaiuscola === '' && !!calH && uguali(soloLezioniSul(calH, primoGiorno, ultimoGiorno), piano.lezioni) &&
       serieColloqui(calH).length > 0 && serieColloqui(calH).every(s => s.getLocation() === LINK_A &&
         String(s.getDescription()).indexOf(LINK_A) > 0));
+    // l'orario messo senza colloqui (anche con la 1.5), poi i colloqui scritti:
+    // ORARI_4_calendario rieseguito si ferma e dice, per primo, di ORARI_7_colloqui,
+    // che li mette da oggi senza toccare le lezioni
+    azzeraCalendario();
+    contesto.ORARI.calendario = calendarioDati;
+    contesto.ORARI_4_calendario();
+    const calSenza = calendari[0];
+    const lezioniSenza = soloLezioniSul(calSenza, primoGiorno, ultimoGiorno);
+    conColloqui(colloquiProva);
+    const primaDiRimettere = scritture;
+    const rimettere = errore(() => contesto.ORARI_4_calendario());
+    verifica('orario gia\' messo e colloqui aggiunti dopo: ORARI_4_calendario si ferma, non tocca niente e dice per ' +
+      'primo di eseguire ORARI_7_colloqui',
+      /gia' \d+ serie/.test(rimettere) && scritture === primaDiRimettere && colloquiSul(calSenza, primoGiorno, ultimoGiorno).length === 0 &&
+      /solo aggiunto o cambiato i colloqui con le famiglie, esegui ORARI_7_colloqui/.test(rimettere) &&
+      rimettere.indexOf('ORARI_7_colloqui') < rimettere.indexOf('ORARI_5_cambioOrario'));
+    oggiFinto = new Date(2027, 0, 20, 9, 30);
+    contesto.ORARI_7_colloqui();
+    const daOggi = colloquiAttesi(colloquiProva, new Date(2027, 0, 20));
+    verifica('  ...e ORARI_7_colloqui li mette da oggi, con le lezioni com\'erano',
+      uguali(soloLezioniSul(calSenza, primoGiorno, ultimoGiorno), lezioniSenza) &&
+      uguali(colloquiSul(calSenza, primoGiorno, ultimoGiorno), daOggi.incontri));
+    oggiFinto = null;
+    azzeraCalendario();
+    conColloqui(colloquiProva);
   }
 
   intestazione('COLLOQUI: ORARI_7_COLLOQUI');

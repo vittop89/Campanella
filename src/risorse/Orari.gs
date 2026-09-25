@@ -781,9 +781,11 @@ function _orariCalendario_(funzione, e) {
         throw new Error('Nel calendario "' + c.nome + '" ci sono gia\' ' + gia + ' serie di eventi ' +
           'messe da Campanella fra il ' + c.inizio + ' e il ' + c.fine + ': rimettendole, ogni ' +
           'lezione comparirebbe due volte.\n' +
+          'Se hai solo aggiunto o cambiato i colloqui con le famiglie, esegui ORARI_7_colloqui: li mette da oggi ' +
+          'senza toccare le lezioni.\n' +
           'Se l\'orario e\' cambiato, usa ORARI_5_cambioOrario con la data da cui vale il nuovo (le ' +
-          'settimane prima restano), oppure esegui prima ORARI_ANNULLA_calendario (toglie tutto) e poi di ' +
-          'nuovo ORARI_4_calendario.');
+          'settimane prima restano), oppure esegui prima ORARI_ANNULLA_calendario (toglie tutto, anche le ' +
+          'lezioni spostate o cambiate a mano) e poi di nuovo ORARI_4_calendario.');
       }
     }
     if (!taglia && c.colore) {
