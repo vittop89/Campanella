@@ -1119,6 +1119,32 @@ if (conCalendario) {
 
   // --- il fuso: Google ripete le serie alla stessa ora del fuso del calendario --
   intestazione('CALENDARIO: IL FUSO ORARIO');
+  // lo script con un altro fuso (il fuso di partenza di un progetto nuovo
+  // dipende dall'account): ORARI_4, ORARI_5 e ORARI_7 si fermano prima di
+  // toccare il calendario, invece di crearlo in quel fuso con le lezioni a un'altra ora
+  azzeraCalendario();
+  fusoScript = 'UTC';
+  const fusoAltro = errore(() => contesto.ORARI_4_calendario());
+  verifica('con lo script in un altro fuso (UTC) ORARI_4_calendario si ferma, dice dove cambiarlo e non crea il calendario',
+    /Mi fermo: il fuso orario dello script non e' quello dell'Italia \(Europe\/Rome\): e' UTC/.test(fusoAltro) &&
+    /Impostazioni progetto/.test(fusoAltro) && /Fuso orario -> quello con Roma/.test(fusoAltro) &&
+    /Non ho toccato il calendario/.test(fusoAltro) && calendari.length === 0 && !proprieta.has(PROGRESSO_CALENDARIO) &&
+    ripresaDi('ORARI_4_calendario').length === 0);
+  fusoScript = FUSO_BANCO;
+  contesto.ORARI_4_calendario();
+  const calPrimaDelFuso = calendari[0];
+  const lezioniPrimaDelFuso = lezioniSul(calPrimaDelFuso, primoGiorno, ultimoGiorno);
+  fusoScript = 'UTC';
+  for (const fn of ['ORARI_5_cambioOrario', 'ORARI_7_colloqui']) {
+    if (fn === 'ORARI_5_cambioOrario' && !c.validoDal) continue;
+    const primaFuso = scritture;
+    const e = errore(() => contesto[fn]());
+    verifica('  ...e cosi\' ' + fn + ', senza toccare le lezioni gia\' messe',
+      /Mi fermo: il fuso orario dello script/.test(e) && e.indexOf('Poi riesegui ' + fn) >= 0 &&
+      scritture === primaFuso && !proprieta.has(PROGRESSO_CALENDARIO) &&
+      uguali(lezioniSul(calPrimaDelFuso, primoGiorno, ultimoGiorno), lezioniPrimaDelFuso));
+  }
+  fusoScript = FUSO_BANCO;
   azzeraCalendario();
   contesto.ORARI_4_calendario();
   const calFuso = calendari[0];

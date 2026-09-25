@@ -135,7 +135,9 @@ var _ORARI_TAG_SOSTITUISCE = 'campanella_sostituisce';
 var _ORARI_TAG_CLASSE    = 'campanella_classe';
 var _ORARI_TAG_COLORE    = 'campanella_colore';
 var _ORARI_COLORE_A_MANO = 'a mano';
-var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';      // quello delle scuole italiane: l'anteprima avvisa se lo script ne ha un altro
+// quello delle scuole italiane: con un altro fuso dello script l'anteprima
+// avvisa, e ORARI_4, ORARI_5 e ORARI_7 si fermano (_orariFusoDelloScript_)
+var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';
 
 
 // ===========================================================================
@@ -152,15 +154,10 @@ function ORARI_1_anteprima() {
   // righe.push('ANTEPRIMA - sul calendario non viene messo niente.');
   // righe.push('Calendario.gs versione ' + _ORARI_VERSIONE);
   // [FINE SOLO CALENDARIO.GS] --------------------------------------------------
-  var fuso = Session.getScriptTimeZone();
-  righe.push('Fuso orario dello script: ' + fuso);
-  if (fuso !== _ORARI_FUSO_SCUOLA) {
-    // il calendario prende il fuso dello script: le lezioni finirebbero a un'altra ora
-    righe.push('ATTENZIONE: il fuso orario dello script non e\' quello dell\'Italia (' + _ORARI_FUSO_SCUOLA + '): ' +
-               'le ore delle lezioni sul calendario sarebbero lette in quel fuso, e le lezioni comparirebbero a ' +
-               'un\'altra ora. Cambialo nell\'editor: Impostazioni progetto (l\'ingranaggio a sinistra) -> Fuso ' +
-               'orario -> quello con Roma, poi riesegui ORARI_1_anteprima.');
-  }
+  righe.push('Fuso orario dello script: ' + Session.getScriptTimeZone());
+  // il calendario prende il fuso dello script: le lezioni finirebbero a un'altra ora
+  var fusoSbagliato = _orariFusoDelloScript_();
+  if (fusoSbagliato) righe.push('ATTENZIONE: ' + fusoSbagliato + ' Poi riesegui ORARI_1_anteprima.');
   righe.push('');
   righe.push('Periodo: ' + (d.periodo || '(non indicato)'));
   righe.push('Docenti nel file: ' + d.docenti.length);
@@ -222,6 +219,21 @@ function _orariAnteprimaMessaggio_(d, elenco) {
   return righe;
 }
 // [FINE SOLO EMAIL] ------------------------------------------------------------
+
+/**
+ * Il fuso orario dello script non e' quello delle scuole italiane
+ * (_ORARI_FUSO_SCUOLA): il calendario nasce con il fuso dello script, e le
+ * lezioni finirebbero a un'altra ora. Il perche' e dove si cambia, o '' se il
+ * fuso e' giusto. ORARI_1_anteprima lo dice; ORARI_4_calendario,
+ * ORARI_5_cambioOrario e ORARI_7_colloqui si fermano prima di toccare il calendario.
+ */
+function _orariFusoDelloScript_() {
+  if (Session.getScriptTimeZone() === _ORARI_FUSO_SCUOLA) return '';
+  return 'il fuso orario dello script non e\' quello dell\'Italia (' + _ORARI_FUSO_SCUOLA + '): e\' ' +
+    Session.getScriptTimeZone() + ', e le ore delle lezioni sul calendario sarebbero lette in quel fuso: le lezioni ' +
+    'comparirebbero a un\'altra ora. Cambialo nell\'editor: Impostazioni progetto (l\'ingranaggio a sinistra) -> ' +
+    'Fuso orario -> quello con Roma.';
+}
 
 /** Le righe dell'anteprima sul calendario: giorni senza lezione, serie, lezioni saltate, cambio d'orario. */
 function _orariAnteprimaCalendario_(d) {
@@ -454,7 +466,10 @@ function _orariInvia_(tipo, e) {
 //  non mette non ferma il lavoro: si conta, e il messaggio finale lo dice.
 //
 //  Google ripete una serie alla stessa ora nel fuso del calendario, non in
-//  quello dello script: il calendario si crea con il fuso dello script, e
+//  quello dello script: il calendario si crea con il fuso dello script (che
+//  deve essere quello dell'Italia: con un altro, e un progetto nuovo di un
+//  altro account puo' averlo, ORARI_4, ORARI_5 e ORARI_7 si fermano prima
+//  di toccare il calendario, _orariFusoDelloScript_), e
 //  uno che c'e' gia' con un altro fuso (UTC, come quelli creati senza fuso
 //  da Campanella 1.5) lo prende prima di ricevere lezioni. Se ne ha gia'
 //  qualcuna, lo script si ferma e spiega come sistemare: dalla fine dell'ora
@@ -673,6 +688,13 @@ function _orariCalendario_(funzione, e) {
   var c = _orariCalendarioConfig_(d);
   var doc = _orariDocente_(d, c.docente);
   var periodo = _orariPeriodo_(c);
+  // e il fuso dello script: il calendario nasce con quello, e le serie si
+  // ripetono all'ora di quel fuso (un progetto nuovo di un altro account puo'
+  // averne un altro)
+  var fusoSbagliato = _orariFusoDelloScript_();
+  if (fusoSbagliato) {
+    throw new Error('Mi fermo: ' + fusoSbagliato + ' Poi riesegui ' + funzione + '. Non ho toccato il calendario.');
+  }
   var dal = periodo.inizio;
   var validoDal = null;
   if (cambio) {
