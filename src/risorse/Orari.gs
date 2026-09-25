@@ -1322,12 +1322,22 @@ function _orariEtichettaLezione_(lezione) {
  * tante serie puo' finire il tempo, o Google puo' chiedere di rallentare: si
  * ferma, dice quanti ne ha tolti e di rieseguirlo (rieseguito, ritrova solo
  * quelli che restano). Non si riprogramma da solo: e' il docente che toglie.
+ * Un cambio d'orario fermato appena dopo aver rifatto un pezzo (la serie
+ * nuova o un evento singolo), prima che Google ne salvasse i contrassegni,
+ * ha l'id del pezzo nel punto salvato (appenaCreato): prima di cercare gli
+ * eventi di Campanella gli rimette i contrassegni, come la ripresa
+ * (_orariRimettiContrassegniAlPezzo_), cosi' si toglie con il resto anche
+ * se la sua descrizione, copiata da una serie o da una lezione riscritta a
+ * mano, non comincia con [Campanella]. Se non lo ritrova, il messaggio lo
+ * dice, con la data, e dice di cancellarlo a mano.
  */
 function _orariAnnullaCalendario_() {
   // prima il lavoro a meta' e le sue riprese: cosi' nessuna ripresa rimette
-  // quello che tolgo, anche se qui sotto qualcosa va storto
+  // quello che tolgo, anche se qui sotto qualcosa va storto. Del lavoro
+  // resta qui solo il pezzo appena rifatto (vedi sopra)
   var prop = PropertiesService.getUserProperties();
   var aMeta = !!prop.getProperty(_ORARI_CHIAVE_CALENDARIO);
+  var lavoro = _orariLavoroCalendario_();
   prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_CALENDARIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_CAMBIO);
@@ -1343,6 +1353,14 @@ function _orariAnnullaCalendario_() {
   }
   var inizio = _orariData_(c.inizio) || new Date(2000, 0, 1);
   var fine = _orariFineGiornata_(_orariData_(c.fine) || new Date(2100, 0, 1));
+  // il pezzo appena rifatto senza contrassegni: con quelli _orariNostri_ lo
+  // vede, e si toglie con il resto; se non lo ritrovo (o Google rifiuta), lo dico
+  var pezzo = '';
+  if (lavoro && lavoro.appenaCreato) {
+    var ritrovato = false;
+    try { ritrovato = _orariRimettiContrassegniAlPezzo_(cal, lavoro.appenaCreato); } catch (err0) { ritrovato = false; }
+    if (!ritrovato) pezzo = _orariAvvisoPezzoDaCancellare_(lavoro.appenaCreato.inizio);
+  }
 
   var nostri = _orariNostri_(cal, inizio, fine);
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
@@ -1369,13 +1387,28 @@ function _orariAnnullaCalendario_() {
             ': tolti ' + tolti + ' eventi su ' + nostri.length + ' messi da Campanella nel calendario "' + c.nome +
             '"' + periodo + '.\nRiesegui ORARI_ANNULLA_calendario ' +
             (motivo === 'giorno' ? 'domani' : motivo === 'limite' ? 'fra qualche minuto' : 'adesso') +
-            ': toglie quelli che restano.' + nota;
+            ': toglie quelli che restano.' + nota + pezzo;
   } else {
     testo = 'Tolti ' + tolti + ' eventi messi da Campanella dal calendario "' + c.nome + '"' + periodo +
-            '. Il calendario e gli altri eventi restano.' + nota;
+            '. Il calendario e gli altri eventi restano.' + nota + pezzo;
   }
   Logger.log(testo);
   return testo;
+}
+
+/**
+ * Per il messaggio di ORARI_ANNULLA_calendario: il pezzo appena rifatto da
+ * un cambio d'orario (inizio in ms) che non ho ritrovato per dargli i
+ * contrassegni, e quindi non ho tolto. Il docente lo cancella a mano.
+ */
+function _orariAvvisoPezzoDaCancellare_(inizio) {
+  var g = new Date(inizio);
+  var hh = g.getHours(), mm = g.getMinutes();
+  return '\nAttenzione: un cambio d\'orario si era fermato appena dopo aver rifatto la lezione del ' +
+    _orariChiaveData_(g) + ' ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm + ' (e le settimane ' +
+    'dopo, se era una serie), prima di darle il contrassegno di Campanella, e non l\'ho ritrovata a quell\'ora per ' +
+    'toglierla. Se e\' ancora sul calendario (anche spostata), cancellala tu da Google Calendar (se e\' di una ' +
+    'serie, tutti gli eventi di quella serie), altrimenti rimettendo l\'orario compare due volte.';
 }
 
 /**

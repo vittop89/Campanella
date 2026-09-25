@@ -302,7 +302,8 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      proprio da quello appena creato (appenaCreato): fra gli eventi all'ora
 //      della sua prima lezione, anche quelli che non sembrano di Campanella
 //      (copia la descrizione della serie vecchia, che il docente puo' aver
-//      riscritto), solo dopo la guardia sull'id. Anche queste funzioni
+//      riscritto), solo dopo la guardia sull'id (lo stesso fa
+//      ORARI_ANNULLA_calendario, per toglierlo con il resto). Anche queste funzioni
 //      hanno un'impronta, e cosi' quelle che creano (_orariCreaSerie_,
 //      _orariSerieRifatta_, _orariLezioneRifatta_): danno solo quello che
 //      hanno appena creato, non un evento trovato sul calendario;
@@ -484,7 +485,12 @@ const CALENDARIO_ORARI = {
           istruzione: 'stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };' },
         { funzione: '_orariPezzoAppenaRifatto_', istruzione: '!salvato || !salvato.appenaCreato' },
         { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'cal, salvato.appenaCreato' },
-        { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'salvato.appenaCreato.inizio' }
+        { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'salvato.appenaCreato.inizio' },
+        // ORARI_ANNULLA_calendario: il pezzo del lavoro che dimentica riceve i
+        // contrassegni prima di _orariNostri_, cosi' si toglie con il resto
+        { funzione: '_orariAnnullaCalendario_', istruzione: 'lavoro && lavoro.appenaCreato' },
+        { funzione: '_orariAnnullaCalendario_', istruzione: 'cal, lavoro.appenaCreato' },
+        { funzione: '_orariAnnullaCalendario_', istruzione: 'lavoro.appenaCreato.inizio' }
       ]
     }
   ],

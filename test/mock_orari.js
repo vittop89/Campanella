@@ -2065,6 +2065,65 @@ if (conCalendario) {
           /cancellane una tu/.test(fineS) && !proprieta.has(PROGRESSO_CALENDARIO));
         docOriginale.celle = celleOriginali.slice();
       }
+      // lo stesso pezzo appena rifatto senza contrassegni, con la descrizione
+      // riscritta a mano, ma invece della ripresa il docente esegue
+      // ORARI_ANNULLA_calendario: prima di dimenticare il lavoro gli rimette i
+      // contrassegni (lo ritrova per id), e cosi' lo toglie con il resto
+      const fineUltimo = new Date(ultimoGiorno.getFullYear(), ultimoGiorno.getMonth(), ultimoGiorno.getDate(), 23, 59, 59);
+      for (const [cosa, su] of [['la serie rifatta', x => x instanceof Serie],
+                                ['la lezione rimessa come evento singolo', x => x instanceof Evento]]) {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calO = calendari[0];
+        const [sO, sR] = vive(calO).filter(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sO.descrizione = 'Portare il libro di laboratorio';
+        sR.annota(1, { descrizione: 'Compito in classe' });
+        docOriginale.celle = ruotata(celleOriginali);
+        guasti([{ op: 'setTag', alla: 1, su, messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+        contesto.ORARI_5_cambioOrario();
+        const appenaO = salvato() && salvato().appenaCreato;
+        guasti([]);
+        const pezzoO = appenaO && (calO.serie.find(x => x.id === appenaO.id) || calO.eventi.find(x => x.id === appenaO.id));
+        const annullaO = contesto.ORARI_ANNULLA_calendario();
+        verifica('il cambio si ferma appena dopo aver rifatto ' + cosa + ', senza contrassegni e con la descrizione ' +
+          'riscritta a mano; ORARI_ANNULLA_calendario la ritrova per id e la toglie con il resto: nel periodo non resta niente',
+          !!pezzoO && su(pezzoO) && !!(pezzoO.cancellata || pezzoO.cancellato) && /Tolti \d+ eventi/.test(annullaO) &&
+          !/cancellala tu/.test(annullaO) && calO.getEvents(settimanaPrima, fineUltimo).length === 0 &&
+          !proprieta.has(PROGRESSO_CALENDARIO));
+        docOriginale.celle = celleOriginali.slice();
+        contesto.ORARI_4_calendario();
+        verifica('  ...e ORARI_4_calendario rimette l\'orario una volta sola, senza lezioni doppie',
+          uguali(lezioniSul(calO, primoGiorno, ultimoGiorno), piano.lezioni) &&
+          calO.getEvents(settimanaPrima, fineUltimo).length === piano.lezioni.length);
+      }
+      // ...e se prima di ORARI_ANNULLA_calendario il docente ne ha spostato la
+      // prima lezione, a quell'ora non lo ritrova: il messaggio lo dice, con la
+      // data, e dice di cancellarlo a mano
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calQ = calendari[0];
+        const sQ = vive(calQ).find(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sQ.descrizione = 'Portare il libro di laboratorio';
+        docOriginale.celle = ruotata(celleOriginali);
+        guasti([{ op: 'setTag', alla: 1, su: x => x instanceof Serie && x !== sQ && x.descrizione === sQ.descrizione,
+                  messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+        contesto.ORARI_5_cambioOrario();
+        guasti([]);
+        const appenaQ = salvato() && salvato().appenaCreato;
+        const orfanaQ = appenaQ && calQ.serie.find(x => x.id === appenaQ.id);
+        const tQ = orfanaQ ? orfanaQ.inizio : new Date(0);
+        if (orfanaQ) orfanaQ.sposta(0, new Date(tQ.getFullYear(), tQ.getMonth(), tQ.getDate(), 18, 0),
+                                       new Date(tQ.getFullYear(), tQ.getMonth(), tQ.getDate(), 19, 0));
+        const annullaQ = contesto.ORARI_ANNULLA_calendario();
+        verifica('il pezzo appena rifatto con la prima lezione spostata a mano prima di ORARI_ANNULLA_calendario: il ' +
+          'messaggio dice che non l\'ho ritrovato, con la data, e di cancellarlo tu',
+          !!orfanaQ && !orfanaQ.cancellata && /non l'ho ritrovata/.test(annullaQ) &&
+          annullaQ.indexOf(chiave(tQ)) >= 0 && /cancellala tu/.test(annullaQ) && !proprieta.has(PROGRESSO_CALENDARIO));
+        docOriginale.celle = celleOriginali.slice();
+      }
 
       // ORARI_ANNULLA_calendario toglie anche gli eventi singoli rimessi dal cambio
       const mA = conModificheAMano();
