@@ -402,8 +402,8 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   header (src/risorse/Calendario_intestazione.txt) says what it does, for
   which account and which permissions Google asks. The calendar functions
   keep their names (ORARI_1_anteprima, ORARI_4_calendario,
-  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_ANNULLA_calendario), so
-  the instructions hold for both. The app gives no Calendario.gs with a
+  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_7_colloqui,
+  ORARI_ANNULLA_calendario), so the instructions hold for both. The app gives no Calendario.gs with a
   marker left open, or naming, even in a comment, MailApp, GmailApp, Gmail,
   sendEmail, getActiveUser, getEffectiveUser, UrlFetchApp, DriveApp,
   DocumentApp, SpreadsheetApp or FormApp: Google would ask for that
@@ -422,6 +422,79 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   teacher's own timetable, classes and hours end up in the other account,
   nothing about colleagues; the permissions asked there; how to switch it
   off) and PRIVACY.md say so.
+
+**Orari: parents' meetings (colloqui) on the calendar, with the Meet link**
+
+- Step 4 has "Colloqui con le famiglie", under the days without lessons: a
+  box with one line per entry, and the teacher's weekly meeting hour, the
+  days of the general meetings and the periods without meetings go on the
+  calendar with the timetable. `ogni giovedi 10:10-11:10 Ricevimento
+  https://meet.google.com/...` is a weekly meeting for the whole period, or
+  between its own dates with `dal 12/10/2026 al 22/05/2027` in front (also
+  `tutti i giovedi`, or the name in front); `15/12/2026 15:00-18:00 Colloqui
+  generali https://meet.google.com/...` is one day (also `dalle 15 alle 18`,
+  `15-18`, `ore 15-18`, the weekday before or after the date, the date in
+  words or without the year); `niente colloqui dal 14/12/2026 al
+  09/01/2027` (or `colloqui sospesi dal ... al ...`, `niente colloqui il
+  20/05/2027`) is a period without meetings. The link is the first https://
+  address of the line, and becomes the location of the event; the rest is
+  the name (by default Ricevimento, or Colloqui for a day). Dates are read
+  by the same reader as the days without lessons (Calendario.cs), not by a
+  second one.
+- "Importa da un file..." reads a .csv or .xlsx (Xlsx.cs) and adds its
+  lines at the end of the box, which stays the only source: the columns are
+  found from the header, `data` or `giorno` (a date or a weekday), `dalle`
+  and `alle` (or `inizio` and `fine`), `cosa` or `descrizione`, `link`;
+  dates and times saved by Excel as numbers work; rows with neither a date
+  nor a weekday are skipped, and the status bar says how many.
+- Under the box, the same read-only list as the days without lessons: how
+  every line was read (`riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per
+  tutto il periodo, con il link del Meet`, `riga 2: non capita: ...`).
+  In amber the doubtful lines: without a time, with only the start, or with
+  the end before the start (kept in the box, but not put on the calendar),
+  on a weekday that is not in the timetable, with a weekday that does not
+  match the date, outside the period, or with a link that is not Google
+  Meet (a warning, not an error: it goes on the calendar), and the lines not
+  understood. The summary counts the meetings (weekly ones, their series,
+  meetings and days) and the lines to check.
+- ORARI_4_calendario puts them after the lessons: the weekly meeting like
+  the lessons, one series per stretch of weeks, skipping the days without
+  lessons and the periods without meetings; the days as single events, also
+  inside a period without meetings (general meetings usually fall right
+  there). Title is the name, location the link, the description starts with
+  "[Campanella] Colloqui" and gives the link; the mark is Campanella's, with
+  its own value (`colloquio`), and the colour is the meetings' own.
+  ORARI_1_anteprima says how many meetings will go on the calendar;
+  ORARI_5_cambioOrario treats them like the lessons (done again up to the
+  day before, then those of DatiOrari.gs from the date);
+  ORARI_6_coloraLezioni gives them the meetings' colour;
+  ORARI_ANNULLA_calendario removes them with the lessons.
+- New function ORARI_7_colloqui, in Orari.gs and Calendario.gs: when only
+  the meetings change it updates them from today on, without touching the
+  lessons, by the same technique as the timetable change (today as the
+  date): the weekly meetings with sessions before today are done again up
+  to yesterday, sessions moved or changed by hand before today come back as
+  they are, then the meetings of DatiOrari.gs from today. Only events with
+  the mark are touched. It takes the lock, resumes by itself (the day is the
+  one it started on, also after midnight), stops with DatiOrari.gs changed
+  halfway, and the other calendar functions wait for it; ANNULLA_automazione
+  of the mail script removes its resume and names it.
+- The resume fingerprint of the plan includes the meetings (without
+  meetings it is the one of before, so a job left halfway by an earlier
+  version still finishes).
+- "Colori delle classi..." has a "Colloqui" row after the classes, when
+  there are meetings: by default a colour the classes do not use.
+- DatiOrari.gs (also the one for the other account) has in the calendar
+  block `colloqui` (weekly ones with weekday, times, their dates if any,
+  name and link; single days; periods without meetings; dates yyyy-mm-dd,
+  times hh:mm; only the lines that go on the calendar) and
+  `coloreColloqui`; its header says the Meet links open the teacher's
+  rooms. The text of the box follows the personal data (`calColloqui`, next
+  to the days without lessons), since the links are access links.
+- Parents' bookings are not handled: they stay in the electronic register
+  (ClasseViva); the calendar only has when and where. The instructions, the
+  guide of step 4, the headers of Orari.gs and Calendario.gs, the technical
+  note for principal and DPO and PRIVACY.md say so.
 
 **Posta: a label for each of your classes**
 
@@ -738,7 +811,7 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   JavaScript the rule of SoloCalendario.Genera, and prova_orario.ps1 checks
   that the app's Calendario.gs is the same, character by character. New
   test/prova_solo_calendario.js, in tutte.ps1: Calendario.gs names none of
-  those services, not even in a comment, has the five calendar functions and
+  those services, not even in a comment, has the six calendar functions and
   none of the email ones, no marker left and its own header; the data have
   one teacher only; mock_orari.js --solo-calendario runs the calendar
   sections on Calendario.gs with one teacher's data, in a project without
@@ -758,6 +831,34 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   --calendario on them, and checks the guide for the other account;
   prova_stato.ps1 the choice in the settings; prova_disposizione.ps1 the
   choice in step 4, the menu, its previews and the layout.
+- Parents' meetings: new sections of mock_orari.js (also with
+  --solo-calendario) check the meetings put by ORARI_4_calendario (series
+  per stretch, skipping days without lessons and periods without meetings,
+  single days, location = link, mark and colour, lessons unchanged, a mark
+  Google did not save, wrong data stopping before touching the calendar),
+  ORARI_7_colloqui (lessons and past meetings untouched, a session moved by
+  hand before today put back as a single event, a copy made by hand left
+  and named, same result when run again the same day or the next, stopped
+  by time and resumed after midnight, the lock, the other functions waiting
+  for it, DatiOrari.gs changed halfway, ORARI_ANNULLA_calendario, no
+  calendar, after the end and before the start of the period), the
+  timetable change and ORARI_6_coloraLezioni with meetings; the meetings of
+  the data (DatiOrari_esempio.gs has some) are put aside at the start and
+  checked at the end. The fake `Date` can fix today for `new Date()`.
+  invarianti_script.js: meetings follow the rules of the lessons (created
+  only in _orariCreaColloquio_, mark and colour only on the meeting just
+  created or found again after the guard, the second value of the mark
+  among the forms of _orariNostri_ and among the constants, fingerprints of
+  the new functions), and the ways around it must fail. prova_orario.ps1:
+  how the lines are read (also the doubtful ones and those not
+  understood), the plan, the import from test/colloqui_esempio.csv and
+  test/colloqui_esempio.xlsx (invented data), `colloqui` and
+  `coloreColloqui` in both generated DatiOrari.gs, and the same numbers of
+  meetings in the app and in the script. prova_stato.ps1: the box follows
+  the personal data, and the meetings' colour comes after every class with a
+  colour the classes do not use; prova_disposizione.ps1: the section, its
+  list, the summary, the import and the "Colloqui" row of the colours
+  window; nomi_funzioni.js and prova_solo_calendario.js: ORARI_7_colloqui.
 
 ## 1.5.3 — 24 September 2026
 
