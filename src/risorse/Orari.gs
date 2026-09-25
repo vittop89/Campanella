@@ -147,6 +147,10 @@ function _orariAnteprimaCalendario_(d) {
                           : 'Il calendario "' + c.nome + '" ha il fuso orario ' + (suo || '(nessuno)') + ', non ' + fuso +
                             ': ORARI_4_calendario (o ORARI_5_cambioOrario) gli mette ' + fuso + ' prima di mettere ' +
                             'le lezioni.');
+    } else if (cal) {
+      // il fuso giusto, ma serie messe quando ne aveva un altro (cambiato a mano)
+      var diPrima = _orariSerieNelFusoDiPrima_(cal, c, periodo);
+      if (diPrima) righe.push('Calendario da sistemare. ' + diPrima);
     }
     if (c.validoDal) {
       var validoDal = _orariValidoDal_(c, periodo);
@@ -343,7 +347,10 @@ function _orariInvia_(tipo, e) {
 //  uno che c'e' gia' con un altro fuso (UTC, come quelli creati senza fuso
 //  da Campanella 1.5) lo prende prima di ricevere lezioni. Se ne ha gia'
 //  qualcuna, lo script si ferma e spiega come sistemare: dalla fine dell'ora
-//  legale quelle lezioni comparirebbero un'ora prima. Che le serie create
+//  legale quelle lezioni comparirebbero un'ora prima. Si ferma anche se il
+//  calendario ha gia' il fuso dello script ma le serie di Campanella che
+//  passano un cambio dell'ora hanno le lezioni alla stessa ora UTC: il fuso
+//  cambiato a mano in Google Calendar non cambia le serie gia' messe. Che le serie create
 //  dopo setTimeZone seguano il fuso nuovo nessuno l'ha provato dal vivo:
 //  dopo setTimeZone il calendario si riprende da Google e se ne guarda il
 //  fuso, e in ogni lavoro la prima serie che passa un cambio dell'ora deve
@@ -1763,12 +1770,19 @@ function _orariTrovaCalendario_(nome) {
  * 6 UTC, e dalla fine dell'ora legale (l'ultima domenica di ottobre) compare
  * alle 7. Se il fuso e' un altro e nel periodo non ci sono lezioni di
  * Campanella, glielo imposta e torna il fuso di prima; se ci sono, si ferma
- * senza toccare niente e spiega come sistemare. '' se era gia' giusto.
+ * senza toccare niente e spiega come sistemare. '' se era gia' giusto: ma
+ * anche allora si ferma se ci sono serie di Campanella nate con un altro
+ * fuso (un calendario della 1.5 a cui il docente ha cambiato il fuso a mano:
+ * le serie gia' messe restano nel loro, _orariSerieNelFusoDiPrima_).
  */
 function _orariSistemaFuso_(cal, c, periodo) {
   var fuso = Session.getScriptTimeZone();
   var suo = String(cal.getTimeZone() || '');
-  if (suo === fuso) return '';
+  if (suo === fuso) {
+    var diPrima = _orariSerieNelFusoDiPrima_(cal, c, periodo);
+    if (diPrima) throw new Error(diPrima + '\nNon ho aggiunto, cambiato ne\' tolto niente.');
+    return '';
+  }
   var problema = _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso);
   if (problema) throw new Error(problema + '\nNon ho aggiunto, cambiato ne\' tolto niente.');
   cal.setTimeZone(fuso);
@@ -1879,12 +1893,108 @@ function _orariLezioniNelFusoSbagliato_(cal, c, periodo, suo, fuso) {
     'script, e ci sono gia\' ' + gia + ' serie o lezioni messe da Campanella fra il ' + c.inizio + ' e il ' + c.fine +
     ' (con una versione di prima, che creava il calendario senza fuso). Google ripete le lezioni alla stessa ora ' +
     'del fuso del calendario: con UTC, dalla fine dell\'ora legale (l\'ultima domenica di ottobre) compaiono ' +
-    'un\'ora prima.\nPer sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni messe da Campanella nel ' +
-    'periodo, e poi ORARI_4_calendario, che mette al calendario il fuso giusto e rimette l\'orario (se Google non ' +
-    'lo lascia cambiare, ORARI_4_calendario se ne accorge, si ferma e dice come fare con un calendario nuovo). Cosi\' si ' +
-    'perdono le modifiche fatte a mano alle lezioni (spostate, cancellate, cambiate): se ne avevi fatte, rifalle ' +
-    'dopo. Se l\'orario e\' gia\' cambiato a meta\' anno, rimetti prima con ORARI_4_calendario il DatiOrari.gs ' +
-    'dell\'orario di prima, poi incolla quello nuovo ed esegui ORARI_5_cambioOrario.';
+    'un\'ora prima. Cambiare il fuso del calendario dalle impostazioni di Google Calendar non basta: le lezioni ' +
+    'gia\' messe restano nel fuso di prima.\nPer sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni ' +
+    'messe da Campanella nel periodo, e poi ORARI_4_calendario, che mette al calendario il fuso giusto e rimette ' +
+    'l\'orario (se Google non lo lascia cambiare, ORARI_4_calendario se ne accorge, si ferma e dice come fare con un ' +
+    'calendario nuovo). ' + _orariDopoIlRimedio_();
+}
+
+/**
+ * Le serie di Campanella nel periodo nate con un altro fuso, in un
+ * calendario che ha gia' quello dello script (cal): un calendario della 1.5,
+ * nato in UTC, a cui il docente ha cambiato il fuso dalle impostazioni di
+ * Google Calendar. Le serie gia' messe restano nel fuso che il calendario
+ * aveva quando sono nate (_orariSerieNataInUnAltroFuso_), e dalla fine
+ * dell'ora legale le lezioni compaiono un'ora prima. Che cosa succede, con
+ * una lezione per esempio, e come si sistema; '' se non ce ne sono. Per
+ * ORARI_1_anteprima e per _orariSistemaFuso_.
+ */
+function _orariSerieNelFusoDiPrima_(cal, c, periodo) {
+  var fuso = Session.getScriptTimeZone();
+  var nostri = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine));
+  var quante = 0, esempio = null;
+  for (var i = 0; i < nostri.length; i++) {
+    if (!nostri[i].lezioni) continue;                  // un evento singolo: da solo non si ripete
+    var prova = _orariSerieNataInUnAltroFuso_(nostri[i], fuso);
+    if (!prova) continue;
+    quante++;
+    if (!esempio) esempio = { voce: nostri[i], sbagliata: prova.sbagliata, attesa: prova.attesa };
+  }
+  if (!quante) return '';
+  var una = (quante === 1);
+  var l = esempio.sbagliata;
+  return 'Il calendario "' + c.nome + '" ha il fuso orario ' + fuso + ', come lo script, ma ' +
+    (una ? 'una serie messa' : quante + ' serie messe') + ' da Campanella fra il ' + c.inizio + ' e il ' + c.fine +
+    (una ? ' ripete' : ' ripetono') + ' le lezioni alla stessa ora del fuso che il calendario aveva quando ' +
+    (una ? 'e\' stata messa' : 'sono state messe') + ' (UTC, con Campanella 1.5 o prima, che creava il calendario ' +
+    'senza fuso): dalla fine dell\'ora legale (l\'ultima domenica di ottobre) le lezioni compaiono un\'ora prima. ' +
+    'Per esempio ' + _orariEtichetta_(esempio.voce) + ': la lezione del ' + _orariChiaveData_(l.inizio) + ' e\' alle ' +
+    Utilities.formatDate(l.inizio, fuso, 'HH:mm') + ' invece che alle ' + esempio.attesa + '. Cambiare il fuso del ' +
+    'calendario dalle impostazioni di Google Calendar non basta: le lezioni gia\' messe restano nel fuso di prima.\n' +
+    'Per sistemare: esegui ORARI_ANNULLA_calendario, che toglie le lezioni messe da Campanella nel periodo, e poi ' +
+    'ORARI_4_calendario, che rimette l\'orario nel fuso del calendario (se Google non lo tiene, ORARI_4_calendario ' +
+    'se ne accorge dalla prima serie che passa un cambio dell\'ora, si ferma e dice come fare con un calendario ' +
+    'nuovo). ' + _orariDopoIlRimedio_();
+}
+
+/** La fine del rimedio per le lezioni nel fuso sbagliato: le modifiche a mano si perdono, e l'orario cambiato a meta' anno. */
+function _orariDopoIlRimedio_() {
+  return 'Cosi\' si perdono le modifiche fatte a mano alle lezioni (spostate, cancellate, cambiate): se ne avevi ' +
+    'fatte, rifalle dopo. Se l\'orario e\' gia\' cambiato a meta\' anno, rimetti prima con ORARI_4_calendario il ' +
+    'DatiOrari.gs dell\'orario di prima, poi incolla quello nuovo ed esegui ORARI_5_cambioOrario.';
+}
+
+/**
+ * Se una serie di Campanella (una voce di _orariNostri_) e' nata in un
+ * calendario con un altro fuso. Una serie si ripete alla stessa ora del fuso
+ * che il calendario aveva quando e' nata: nata in UTC, dopo un cambio
+ * dell'ora ha le lezioni alla stessa ora UTC e a un'altra ora nel fuso dello
+ * script (fuso). Le lezioni si dividono per lo scarto fra le due ore (uno
+ * con l'ora legale, uno senza): la serie e' nata in un altro fuso se in un
+ * gruppo diverso da quello della prima lezione l'ora piu' frequente UTC e'
+ * la stessa di quel gruppo, e quella nel fuso dello script no (conta la piu'
+ * frequente: una lezione spostata a mano non decide). Torna { sbagliata,
+ * attesa }: la prima lezione a un'altra ora, e l'ora delle lezioni come la
+ * prima; null se la serie va bene o non passa un cambio dell'ora.
+ */
+function _orariSerieNataInUnAltroFuso_(voce, fuso) {
+  var gruppi = [], primo = 0;
+  for (var i = 0; i < voce.lezioni.length; i++) {
+    var l = voce.lezioni[i];
+    if (l.inizio < voce.lezioni[primo].inizio) primo = i;
+    var qui = Utilities.formatDate(l.inizio, fuso, 'HH:mm');
+    var utc = Utilities.formatDate(l.inizio, 'UTC', 'HH:mm');
+    var scarto = (_orariMinutiDi_(qui) - _orariMinutiDi_(utc) + 24 * 60) % (24 * 60);
+    var g = -1;
+    for (var k = 0; k < gruppi.length; k++) if (gruppi[k].scarto === scarto) g = k;
+    if (g < 0) {
+      gruppi.push({ scarto: scarto, qui: [], utc: [], lezioni: [] });
+      g = gruppi.length - 1;
+    }
+    gruppi[g].qui.push(qui);
+    gruppi[g].utc.push(utc);
+    gruppi[g].lezioni.push(l);
+  }
+  if (gruppi.length < 2) return null;
+  var suo = null;
+  for (var h = 0; h < gruppi.length; h++) if (gruppi[h].lezioni.indexOf(voce.lezioni[primo]) >= 0) suo = gruppi[h];
+  var attesa = _orariPiuFrequente_(suo.qui, '');
+  var utcAttesa = _orariPiuFrequente_(suo.utc, '');
+  for (var j = 0; j < gruppi.length; j++) {
+    var altro = gruppi[j];
+    if (altro === suo) continue;
+    if (_orariPiuFrequente_(altro.utc, '') !== utcAttesa || _orariPiuFrequente_(altro.qui, '') === attesa) continue;
+    for (var m = 0; m < altro.lezioni.length; m++) {
+      if (altro.qui[m] !== attesa) return { sbagliata: altro.lezioni[m], attesa: attesa };
+    }
+  }
+  return null;
+}
+
+/** "08:50" -> minuti dalla mezzanotte. */
+function _orariMinutiDi_(hhmm) {
+  return Number(String(hhmm).slice(0, 2)) * 60 + Number(String(hhmm).slice(3, 5));
 }
 
 /** "2026-09-14" -> Date a mezzanotte, nel fuso dello script. null se non e' una data. */

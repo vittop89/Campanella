@@ -949,6 +949,8 @@ if (conCalendario) {
   const oreDi = s => [...new Set(s.lezioni(ultimoGiorno).map(l => ora(minutiDi(l.inizio))))];
   verifica('le serie che passano il 25/10 (' + aCavallo.length + ') tengono la stessa ora prima e dopo la fine dell\'ora legale',
     aCavallo.length > 0 && aCavallo.every(s => oreDi(s).length === 1 && oreDi(s)[0] === ora(minutiDi(s.inizio))));
+  verifica('  ...e l\'anteprima non dice che il calendario e\' da sistemare',
+    !/Calendario da sistemare/.test(contesto.ORARI_1_anteprima()));
   // la forma di una lezione si guarda nel fuso del calendario: in UTC le
   // lezioni dopo il 25/10, un'ora prima a Roma, non sono spostate
   {
@@ -965,17 +967,21 @@ if (conCalendario) {
 
   // un calendario messo da Campanella 1.5: creato senza fuso (UTC), con le
   // serie dell'orario alla stessa ora UTC. Dal 26/10 le lezioni sono un'ora prima
-  azzeraCalendario();
-  const cal15 = CalendarApp.createCalendar(c.nome);
-  for (const tr of piano.tratti) {
-    const d0 = dataDa(tr.dal), d1 = dataDa(tr.al);
-    const s15 = cal15.createEventSeries(tr.blocco.testo,
-      new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), 0, minutiDellOra(tr.blocco.oraDa)),
-      new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), 0, minutiDellOra(tr.blocco.oraA) + minuti),
-      CalendarApp.newRecurrence().addWeeklyRule().until(new Date(d1.getFullYear(), d1.getMonth(), d1.getDate(), 23, 59, 59)),
-      { description: '[Campanella] Orario di ' + c.docente + ' (messo con la 1.5)' });
-    s15.setTag('campanella', 'orario');
+  function calendarioDella15() {
+    const calX = CalendarApp.createCalendar(c.nome);
+    for (const tr of piano.tratti) {
+      const d0 = dataDa(tr.dal), d1 = dataDa(tr.al);
+      const s15 = calX.createEventSeries(tr.blocco.testo,
+        new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), 0, minutiDellOra(tr.blocco.oraDa)),
+        new Date(d0.getFullYear(), d0.getMonth(), d0.getDate(), 0, minutiDellOra(tr.blocco.oraA) + minuti),
+        CalendarApp.newRecurrence().addWeeklyRule().until(new Date(d1.getFullYear(), d1.getMonth(), d1.getDate(), 23, 59, 59)),
+        { description: '[Campanella] Orario di ' + c.docente + ' (messo con la 1.5)' });
+      s15.setTag('campanella', 'orario');
+    }
+    return calX;
   }
+  azzeraCalendario();
+  const cal15 = calendarioDella15();
   const sbagliate = lezioniSul(cal15, primoGiorno, ultimoGiorno);
   const primaDel25 = l => l.slice(0, 10) < '2026-10-25';
   verifica('in un calendario UTC le lezioni sono giuste fino al 25/10 e poi un\'ora prima: il finto calendario fa come Google',
@@ -1002,6 +1008,57 @@ if (conCalendario) {
   verifica('  ...e le lezioni restano alla loro ora anche dopo il 25/10, e il messaggio dice che l\'ha controllato ' +
     'su una serie che passa il cambio dell\'ora',
     uguali(lezioniSul(cal15, primoGiorno, ultimoGiorno), piano.lezioni) && /controllato: in una serie che lo passa/.test(rimesso));
+
+  // lo stesso calendario della 1.5, ma il docente, letto che ha il fuso UTC,
+  // gliel'ha cambiato dalle impostazioni di Google Calendar: il calendario
+  // dice Europe/Rome, ma le serie gia' messe restano nel fuso in cui sono
+  // nate (la supposizione del finto, vedi sopra), e dal 26/10 le lezioni
+  // sono ancora un'ora prima. Lo script guarda le serie, non solo il fuso del
+  // calendario: l'anteprima lo dice, ORARI_4 e ORARI_5 si fermano, con il rimedio
+  azzeraCalendario();
+  const calCambiato = calendarioDella15();
+  calCambiato.setTimeZone(FUSO_BANCO);
+  const serieCambiato = vive(calCambiato).length;
+  verifica('il fuso cambiato a mano non sposta le lezioni gia\' messe: dal 26/10 sono ancora un\'ora prima',
+    calCambiato.getTimeZone() === FUSO_BANCO && uguali(lezioniSul(calCambiato, primoGiorno, ultimoGiorno), sbagliate));
+  const antCambiato = contesto.ORARI_1_anteprima();
+  verifica('ORARI_1_anteprima dice che il calendario e\' da sistemare anche se ha gia\' il fuso ' + FUSO_BANCO +
+    ': le serie di prima restano nel loro fuso, un\'ora prima, e cambiarlo a mano non basta; con il rimedio',
+    /Calendario da sistemare\. Il calendario "[^"]+" ha il fuso orario Europe\/Rome, come lo script, ma \d+ serie messe da Campanella [^\n]* ripetono le lezioni/.test(antCambiato) &&
+    /un'ora prima/.test(antCambiato) && /non basta/.test(antCambiato) && /ORARI_ANNULLA_calendario/.test(antCambiato) &&
+    /poi ORARI_4_calendario/.test(antCambiato) && /invece che alle/.test(antCambiato));
+  for (const [fn, come] of [['ORARI_4_calendario', 'mette'], ['ORARI_5_cambioOrario', 'cambia']]) {
+    if (fn === 'ORARI_5_cambioOrario' && !c.validoDal) continue;
+    const primaDelCambiato = scritture;
+    const e = errore(() => contesto[fn]());
+    verifica('  ...' + fn + ' si ferma con la stessa spiegazione e non ' + come + ' niente' + (e ? '' : ' (invece nessun errore)'),
+      /ha il fuso orario Europe\/Rome, come lo script, ma/.test(e) && /un'ora prima/.test(e) && /non basta/.test(e) &&
+      /ORARI_ANNULLA_calendario/.test(e) && /poi ORARI_4_calendario/.test(e) && /modifiche fatte a mano/.test(e) &&
+      /Non ho aggiunto/.test(e) && vive(calCambiato).length === serieCambiato && scritture === primaDelCambiato &&
+      !proprieta.has(PROGRESSO_CALENDARIO) && uguali(lezioniSul(calCambiato, primoGiorno, ultimoGiorno), sbagliate));
+  }
+  contesto.ORARI_ANNULLA_calendario();
+  const rimessoCambiato = contesto.ORARI_4_calendario();
+  verifica('  ...e con il rimedio (ORARI_ANNULLA_calendario, poi ORARI_4_calendario) nello stesso calendario le lezioni ' +
+    'sono alla loro ora anche dopo il 25/10',
+    calendari.length === 1 && /Uso il calendario/.test(rimessoCambiato) &&
+    uguali(lezioniSul(calCambiato, primoGiorno, ultimoGiorno), piano.lezioni) &&
+    !/Calendario da sistemare/.test(contesto.ORARI_1_anteprima()));
+  // quale serie e' nata in un altro fuso: conta l'ora piu' frequente fra le
+  // lezioni dopo il cambio dell'ora, non una lezione spostata a mano
+  {
+    const lez = (mese, giorno, ora0) => ({ inizio: new Date(2026, mese, giorno, ora0, 0), fine: new Date(2026, mese, giorno, ora0 + 1, 0) });
+    const nataInUtc = { lezioni: [lez(9, 12, 8), lez(9, 19, 8), lez(9, 26, 7), lez(10, 2, 7), lez(10, 9, 7)] };
+    const provaUtc = contesto._orariSerieNataInUnAltroFuso_(nataInUtc, FUSO_BANCO);
+    verifica('una serie alla stessa ora UTC prima e dopo il 25/10 e\' nata in un altro fuso: la lezione del 26/10 e\' alle ' +
+      '7 invece che alle 8', !!provaUtc && provaUtc.sbagliata === nataInUtc.lezioni[2] && provaUtc.attesa === '08:00');
+    const spostataUnOra = { lezioni: [lez(9, 12, 8), lez(9, 19, 8), lez(9, 26, 7), lez(10, 2, 8), lez(10, 9, 8)] };
+    verifica('  ...mentre una serie di Roma con una lezione dopo il 25/10 spostata a mano un\'ora prima no',
+      contesto._orariSerieNataInUnAltroFuso_(spostataUnOra, FUSO_BANCO) === null);
+    const senzaCambio = { lezioni: [lez(9, 5, 8), lez(9, 12, 8), lez(9, 19, 8)] };
+    verifica('  ...e una che non passa un cambio dell\'ora nemmeno',
+      contesto._orariSerieNataInUnAltroFuso_(senzaCambio, FUSO_BANCO) === null);
+  }
   // un calendario UTC senza lezioni di Campanella (creato a mano): prende il
   // fuso dello script prima di ricevere le lezioni. L'anteprima lo dice prima
   azzeraCalendario();
