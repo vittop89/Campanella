@@ -742,19 +742,24 @@ static class ProvaStato
     // impostazioni. Si rileggono uguali (a capo compresi) e di partenza sono vuoti.
     // Anche dove va l'orario (l'account della scuola, di partenza, o un altro,
     // con Calendario.gs) e' solo una scelta: sta nelle impostazioni e si rilegge.
+    // I colloqui con le famiglie sono testo libero con i link del Meet, che
+    // aprono le stanze del docente: seguono anche loro i dati personali.
     static void CalendarioAndataERitorno()
     {
         string c = Cartella("Campanella");
         ScriviImpostazioni(true, c, null);
         Scrivi(FileDati(c), ToJson(DatiCon(Persona("BIANCHI ANNA", "anna.bianchi@scuola.example"))));
         Stato s = Carica();
-        Verifica("di partenza niente giorni senza lezione e nessun cambio d'orario",
-            Testo(s, "CalSospensioni") == "" && Testo(s, "CalValidoDal") == "");
+        Verifica("di partenza niente giorni senza lezione, nessun colloquio e nessun cambio d'orario",
+            Testo(s, "CalSospensioni") == "" && Testo(s, "CalColloqui") == "" && Testo(s, "CalValidoDal") == "");
         Verifica("di partenza l'orario va nell'account della scuola", Testo(s, "CalAltroAccount") == "False");
         string sospensioni = "01/11/2026 Tutti i Santi\r\n23/12/2026-06/01/2027 Vacanze di \"Natale\"\r\n" +
                              "12/03/2027 permesso di BIANCHI\r\n# una nota\r\n";
+        string colloqui = "ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij\r\n" +
+                          "15/12/2026 15:00-18:00 Colloqui generali \"serali\" https://meet.google.com/kmn-pqrs-tuv\r\n" +
+                          "niente colloqui dal 14/12/2026 al 09/01/2027\r\n# una nota\r\n";
         if (!Metti(s, "CalSospensioni", sospensioni) || !Metti(s, "CalValidoDal", "2026-10-05") ||
-            !Metti(s, "CalAltroAccount", true)) return;
+            !Metti(s, "CalAltroAccount", true) || !Metti(s, "CalColloqui", colloqui)) return;
         s.Salva();
         Verifica("Salva riesce", s.UltimoErrore == "");
         Dictionary<string, object> imp = Json(Impostazioni());
@@ -764,12 +769,16 @@ static class ProvaStato
         Verifica("e campanella.json non li ha (ha solo la data del cambio)",
             !imp.ContainsKey("calSospensioni") && Str(imp, "calValidoDal") == "2026-10-05" &&
             File.ReadAllText(Impostazioni()).IndexOf("BIANCHI") < 0);
+        Verifica("i colloqui, con i link del Meet, stanno nel file dei dati, e campanella.json non li ha",
+            Str(dati, "calColloqui") == colloqui && !imp.ContainsKey("calColloqui") &&
+            File.ReadAllText(Impostazioni()).IndexOf("meet.google.com") < 0);
         Verifica("l'orario in un altro account sta nelle impostazioni, non nel file dei dati",
             imp.ContainsKey("calAltroAccount") && imp["calAltroAccount"] is bool && (bool)imp["calAltroAccount"] &&
             !dati.ContainsKey("calAltroAccount"));
         Stato t = Carica();
         Verifica("si rileggono uguali, a capo compresi",
             Testo(t, "CalSospensioni") == sospensioni && Testo(t, "CalValidoDal") == "2026-10-05");
+        Verifica("e cosi' i colloqui, a capo e virgolette compresi", Testo(t, "CalColloqui") == colloqui);
         Verifica("e l'orario resta in un altro account", Testo(t, "CalAltroAccount") == "True");
         Metti(t, "CalValidoDal", "");
         Metti(t, "CalAltroAccount", false);
@@ -779,12 +788,14 @@ static class ProvaStato
         string errore;
         t.SpostaDati(false, "", out errore);
         Verifica("riportati i dati accanto al programma, vanno con loro in campanella.json",
-            Str(Json(Impostazioni()), "calSospensioni") == sospensioni && Testo(Carica(), "CalSospensioni") == sospensioni);
+            Str(Json(Impostazioni()), "calSospensioni") == sospensioni && Testo(Carica(), "CalSospensioni") == sospensioni &&
+            Str(Json(Impostazioni()), "calColloqui") == colloqui && Testo(Carica(), "CalColloqui") == colloqui);
         Stato u = Carica();
         string c2 = Cartella("Campanella2");
         u.SpostaDati(true, c2, out errore);
         Verifica("e rimandati nel Drive, lasciano campanella.json (" + errore + ")",
-            !Json(Impostazioni()).ContainsKey("calSospensioni") && Str(Json(FileDati(c2)), "calSospensioni") == sospensioni);
+            !Json(Impostazioni()).ContainsKey("calSospensioni") && Str(Json(FileDati(c2)), "calSospensioni") == sospensioni &&
+            !Json(Impostazioni()).ContainsKey("calColloqui") && Str(Json(FileDati(c2)), "calColloqui") == colloqui);
     }
 
     // i colori delle etichette si salvano e si rileggono, anche "nessun colore"
@@ -1210,6 +1221,32 @@ static class ProvaStato
         Verifica("  ...e lo stesso per quelli sul calendario (" +
                  string.Join(", ", new List<string>(scrittiPuliti.Keys).ToArray()) + ")",
             scrittiPuliti.Count == 3 && scrittiPuliti["2B"] == "9" && scrittiPuliti["3C"] == "5" && scrittiPuliti["4D"] == "");
+
+        // i colloqui con le famiglie hanno un colore loro, con quelli delle
+        // classi: vengono dopo tutte (anche dopo le ore a disposizione) e di
+        // partenza ne prendono uno che le classi non usano. Nel file sono una
+        // voce come le altre, e si rileggono
+        Type cl = typeof(Stato).Assembly.GetType("Campanella.ColoriLezioni");
+        MethodInfo ordinate = (cl == null) ? null : cl.GetMethod("Ordinate", BindingFlags.Public | BindingFlags.Static);
+        MethodInfo completa = (cl == null) ? null : cl.GetMethod("Completa", BindingFlags.Public | BindingFlags.Static);
+        FieldInfo nomeColloqui = (cl == null) ? null : cl.GetField("Colloqui", BindingFlags.Public | BindingFlags.Static);
+        Verifica("c'e' ColoriLezioni.Colloqui", ordinate != null && completa != null && nomeColloqui != null);
+        if (ordinate == null || completa == null || nomeColloqui == null) return;
+        string k = (string)nomeColloqui.GetValue(null);
+        List<string> voci = new List<string>(new string[] { k, "2B", "A disposizione", "Zeta", "1A" });
+        List<string> inOrdine = (List<string>)ordinate.Invoke(null, new object[] { voci });
+        Verifica("i colloqui vengono dopo tutte le classi, anche dopo le ore a disposizione (" +
+                 string.Join(", ", inOrdine.ToArray()) + ")",
+            k == "Colloqui" && string.Join("|", inOrdine.ToArray()) == "1A|2B|Zeta|A disposizione|Colloqui");
+        Dictionary<string, string> conColloqui = new Dictionary<string, string>();
+        completa.Invoke(null, new object[] { conColloqui, new List<string>(), voci, new Dictionary<string, string>() });
+        List<string> dellaClassi = new List<string>();
+        foreach (string v in voci) if (v != k) dellaClassi.Add(conColloqui[v]);
+        Verifica("e di partenza hanno un colore che le classi non usano (" + conColloqui[k] + ")",
+            conColloqui[k] != "" && !dellaClassi.Contains(conColloqui[k]));
+        ColoriLezioni(u)[k] = "5";
+        u.Salva();
+        Verifica("il colore dei colloqui si rilegge come quelli delle classi", ColoriLezioni(Carica())[k] == "5");
     }
 
     static Dictionary<string, string> ColoriScritti(Stato s)

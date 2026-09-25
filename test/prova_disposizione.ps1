@@ -1025,6 +1025,79 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
         $txtSosp.Text = $sospProva
         [System.Windows.Forms.Application]::DoEvents()
     }
+    # i colloqui con le famiglie: sotto i giorni senza lezione, la casella, il
+    # bottone per importarli da un file e la lista di come ho letto ogni riga
+    # (in ambra quelle da guardare), sopra il cambio d'orario. Il riepilogo li
+    # conta, e i colori hanno anche la riga Colloqui
+    $campoColl = $tPO.GetField('txtColloqui', $FIp)
+    $campoLstColl = $tPO.GetField('lstColloqui', $FIp)
+    $txtColl = if ($null -ne $campoColl) { $campoColl.GetValue($orari) } else { $null }
+    $lstColl = if ($null -ne $campoLstColl) { $campoLstColl.GetValue($orari) } else { $null }
+    $btnImporta = $null
+    foreach ($c in $pannelloOrari.Controls) { if ($c -is [System.Windows.Forms.Button] -and $c.Text -eq 'Importa da un file...') { $btnImporta = $c } }
+    Verifica "sotto i giorni senza lezione ci sono i colloqui: la casella, 'Importa da un file...' accanto e la lista, sopra il cambio d'orario" (
+        $null -ne $txtColl -and $null -ne $lstColl -and $null -ne $btnImporta -and $txtColl.Multiline -and
+        $txtColl.Top -ge $lstLette.Bottom -and $btnImporta.Left -gt $txtColl.Right -and $btnImporta.Top -ge $lstLette.Bottom -and
+        $lstColl.Top -ge $txtColl.Bottom -and $lstColl.Bottom -le $chkCambio.Top)
+    if ($null -ne $txtColl -and $null -ne $lstColl) {
+        $collProva = @(
+            '# i miei colloqui (link inventati)',
+            'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
+            '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv',
+            '16/12/2026 Colloqui senza ora',
+            'ogni domenica 9-10',
+            'questa riga non si capisce, e il riepilogo deve restare nel suo spazio anche se e'' molto lunga lunga lunga',
+            'niente colloqui dal 14/12/2026 al 09/01/2027') -join "`r`n"
+        $txtColl.Text = $collProva
+        [System.Windows.Forms.Application]::DoEvents()
+        $vociColl = @($lstColl.Items | ForEach-Object { $_.ToString() })
+        Verifica "la lista dice come ha letto ogni riga dei colloqui ($($vociColl.Count): $($vociColl -join ' | '))" (
+            $vociColl.Count -eq 6 -and
+            $vociColl[0] -eq "riga 2: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, con il link del Meet" -and
+            $vociColl[1] -eq 'riga 3: mar 15/12/2026 15:00-18:00, Colloqui generali, con il link del Meet' -and
+            $vociColl[4] -match '^riga 6: non capita: ' -and
+            $vociColl[5] -eq 'riga 7: niente colloqui dal lun 14/12/2026 al sab 09/01/2027 (27 giorni)')
+        $collInAmbra = @($lstColl.Items | Where-Object { $_.DaGuardare }).Count
+        Verifica "in ambra quelle da guardare: senza ora, di domenica, non capita ($collInAmbra)" ($collInAmbra -eq 3)
+        $testoRiepK = ($lblRiep.Text -replace '\s+', ' ')
+        Write-Host "          riepilogo: $testoRiepK"
+        Verifica "il riepilogo conta i colloqui e le righe da guardare" (
+            $testoRiepK -match 'Colloqui con le famiglie: 2 ricevimenti settimanali \(\d+ serie, \d+ incontri\) e 1 giornata' -and
+            $testoRiepK -match '3 righe dei colloqui sono da guardare' -and [string]$lblRiep.Tag -eq 'avviso')
+        Verifica "e nei colori delle classi c'e' anche quello dei colloqui, dopo le classi ($(if ($riepColori) { $riepColori.Text }))" (
+            $null -ne $riepColori -and $riepColori.Text -match 'Colloqui \S' -and
+            $riepColori.Text.IndexOf('Colloqui') -gt $riepColori.Text.IndexOf($classiRossi[$classiRossi.Count - 1]))
+        Verifica "i colloqui vanno nelle impostazioni come testo dei dati personali (CalColloqui)" (
+            [string]$tStato.GetField('CalColloqui', $FI).GetValue($stato) -eq $collProva)
+        ControllaPannello $pannelloOrari 'Orari / 4 con i colloqui'
+        ControllaAiuti $pannelloOrari 'Orari / 4 con i colloqui'
+        # "Importa da un file...": le righe del file in fondo alla casella, e la barra lo dice
+        $tCollK = $asm.GetType('Campanella.Colloqui')
+        $argImp = New-Object 'object[]' 4
+        $argImp[0] = [string](Join-Path $radice 'test\colloqui_esempio.csv')
+        $argImp[1] = [DateTime]::new(2026, 9, 14)
+        $argImp[2] = 0
+        $argImp[3] = ''
+        $righeImp = $tCollK.GetMethod('Importa', $FS).Invoke($null, $argImp)
+        $tPO.GetMethod('AggiungiColloqui', $FIp).Invoke($orari, @($righeImp, [string]'colloqui_esempio.csv', [int]$argImp[2])) | Out-Null
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "importate le righe di test\colloqui_esempio.csv in fondo alla casella, e la barra dice quante e quella saltata ($($lblStato.Text))" (
+            $txtColl.Text.StartsWith($collProva) -and $txtColl.Text.EndsWith('ogni martedi 15:00-16:00 Ricevimento pomeridiano') -and
+            $lblStato.Text -match 'Importate 4 righe da colloqui_esempio\.csv' -and $lblStato.Text -match 'saltata' -and
+            @($lstColl.Items).Count -eq 10)
+        ControllaPannello $pannelloOrari 'Orari / 4 con i colloqui importati'
+        if ($Immagini) {
+            $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
+            $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
+            $bmp.Save((Join-Path $cartella '38-Orari-4-colloqui.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+        }
+        $txtColl.Text = ''
+        [System.Windows.Forms.Application]::DoEvents()
+        Verifica "senza colloqui la lista lo dice, e il riepilogo non li nomina" (
+            @($lstColl.Items).Count -eq 1 -and ([string]$lstColl.Items[0]) -match '^Nessun colloquio' -and
+            $lblRiep.Text -notmatch 'Colloqui con le famiglie')
+    }
     if ($Immagini) {
         $bmp = New-Object System.Drawing.Bitmap($guscio.Width, $guscio.Height)
         $guscio.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $guscio.Width, $guscio.Height)))
@@ -1079,7 +1152,7 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
         $lblRiep.Text -match '01/11/2025' -and [string]$lblRiep.Tag -eq 'avviso')
     ControllaPannello $pannelloOrari 'Orari / 4 con una riga fuori dal periodo'
     # tutto come prima
-    foreach ($c in @('CalDocente', 'CalNome', 'CalSospensioni', 'CalValidoDal')) { $tStato.GetField($c, $FI).SetValue($stato, '') }
+    foreach ($c in @('CalDocente', 'CalNome', 'CalSospensioni', 'CalColloqui', 'CalValidoDal')) { $tStato.GetField($c, $FI).SetValue($stato, '') }
     $tPO.GetMethod('MostraCalendario', $FIp).Invoke($orari, @()) | Out-Null
 }
 
@@ -1166,6 +1239,17 @@ if ($null -ne $tFCC) {
     Verifica "  ...e scelto Pomodoro anche per la 1A, tutte e due restano Pomodoro ($(ColoriDi $fsc))" (
         (ColoriDi $fsc) -eq '1A=11,2A=11,3A=10' -and $qsc['1A'].Valore -eq '11')
     $fsc.Close(); $fsc.Dispose()
+    # con i colloqui: la riga Colloqui dopo tutte le classi, di partenza con un
+    # colore che le classi non usano, e la spiegazione lo dice
+    $fk = FinestraColori @('Colloqui', '2B', 'A disposizione', '1A') @{} @()
+    $spiegaK = @($fk.Controls | Where-Object { $_ -is [System.Windows.Forms.Label] -and $_.Text -match 'riga Colloqui' })
+    $coloriClassiK = @($fk.Classi | Where-Object { $_ -ne 'Colloqui' } | ForEach-Object { $fk.Colori[$_] })
+    Verifica "con i colloqui la finestra ha la riga Colloqui dopo tutte, con un colore che le classi non usano, e lo spiega ($(ColoriDi $fk))" (
+        ($fk.Classi -join ',') -eq '1A,2B,A disposizione,Colloqui' -and $fk.Colori['Colloqui'] -ne '' -and
+        $coloriClassiK -notcontains $fk.Colori['Colloqui'] -and $spiegaK.Count -eq 1)
+    ControllaPannello $fk 'Colori delle classi, con i colloqui'
+    ControllaPannello $fk.Righe 'Colori delle classi, con i colloqui, le righe'
+    $fk.Close(); $fk.Dispose()
     # tante classi: le righe scorrono, la finestra resta alta uguale
     $molte = @(1..16 | ForEach-Object { "$($_)A" })
     $fm = FinestraColori $molte @{} @()

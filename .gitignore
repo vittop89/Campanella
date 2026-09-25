@@ -19,6 +19,9 @@ test/Configurazione_prova.gs
 *.xls
 *.csv
 !test/tabellone_esempio.csv
+# i colloqui inventati per le prove dell'import (Orari, passo 4)
+!test/colloqui_esempio.csv
+!test/colloqui_esempio.xlsx
 !test/DatiOrari_esempio.gs
 personale*
 documenti/

@@ -745,6 +745,154 @@ console.log(JSON.stringify({
         Verifica "senza giorni senza lezione: una serie per blocco, fino all'ultima settimana" (($p.Serie -join '|') -eq '3C 2027-03-02..2027-03-30 (5)' -and $p.Saltate -eq 0)
     }
 
+    # --- i colloqui con le famiglie: le righe scritte dal docente ----------
+    # Colloqui.LeggiRighe(testo, inizio del periodo, giorni dell'orario): come
+    # e' stata letta ogni riga. Le date come i giorni senza lezione (lo stesso
+    # lettore), il link e' il primo https:// della riga, il resto e' il nome.
+    # In ambra quelle da guardare: senza ora, con la fine prima dell'inizio
+    # (non vanno sul calendario), in un giorno che non e' nell'orario, con un
+    # link che non e' di Google Meet (valgono lo stesso), fuori dal periodo
+    Write-Host "`nI COLLOQUI: LE RIGHE" -ForegroundColor Cyan
+    $tCol = $asm.GetType('Campanella.Colloqui')
+    Verifica "c'e' Colloqui, con LeggiRighe, Descrivi, DaGuardare, Piano, ScriviDatiGs, Importa e RigheDaFoglio" (
+        $null -ne $tCol -and $null -ne $tCol.GetMethod('LeggiRighe', $FS) -and $null -ne $tCol.GetMethod('Descrivi', $FS) -and
+        $null -ne $tCol.GetMethod('DaGuardare', $FS) -and $null -ne $tCol.GetMethod('Piano', $FS) -and
+        $null -ne $tCol.GetMethod('ScriviDatiGs', $FS) -and $null -ne $tCol.GetMethod('Importa', $FS) -and
+        $null -ne $tCol.GetMethod('RigheDaFoglio', $FS))
+    if ($null -ne $tCol) {
+        # l'orario va dal lunedi' al venerdi' (0..4, come RisultatoOrario.IndiciGiorni)
+        $cinqueGiorni = New-Object 'System.Collections.Generic.List[int]'
+        foreach ($g in 0..4) { $cinqueGiorni.Add($g) }
+        $inizioK = DataIso '2026-09-14'
+        $fineK = DataIso '2027-06-10'
+        # una riga sola: come la mostra la pagina, se va sul calendario e se va guardata
+        function RigaColloquio([string]$testo) {
+            $lette = $tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($testo, $inizioK, $cinqueGiorni.PSObject.BaseObject))
+            $r = @($lette)[0]
+            @{ Detta = [string]$tCol.GetMethod('Descrivi', $FS).Invoke($null, @($r, $inizioK, $fineK));
+               Buona = [bool]$r.Buona; Guarda = [bool]$tCol.GetMethod('DaGuardare', $FS).Invoke($null, @($r, $inizioK, $fineK)) }
+        }
+        $meet = 'https://meet.google.com/abc-defg-hij'
+        $ie = [string][char]0xEC
+        $casiK = @(
+            # testo, come la pagina la mostra, va sul calendario, va guardata
+            @("ogni giovedi 10:10-11:10 Ricevimento $meet",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, con il link del Meet", $true, $false),
+            @("dal 12/10/2026 al 22/05/2027 ogni gioved$ie 10.10 - 11.10 Ricevimento ($meet).",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, dal lun 12/10/2026 al sab 22/05/2027, con il link del Meet", $true, $false),
+            @('Ricevimento ogni martedi dalle 15 alle 16',
+              "riga 1: ogni martedi' 15:00-16:00, Ricevimento, per tutto il periodo, senza link", $true, $false),
+            @('tutti i venerdi 9-10',
+              "riga 1: ogni venerdi' 09:00-10:00, Ricevimento, per tutto il periodo, senza link", $true, $false),
+            @("15/12/2026 15:00-18:00 Colloqui generali $meet",
+              'riga 1: mar 15/12/2026 15:00-18:00, Colloqui generali, con il link del Meet', $true, $false),
+            @('15/12/2026 dalle 15 alle 18', 'riga 1: mar 15/12/2026 15:00-18:00, Colloqui, senza link', $true, $false),
+            @('15/12/2026 15-18 Colloqui generali', 'riga 1: mar 15/12/2026 15:00-18:00, Colloqui generali, senza link', $true, $false),
+            @('mar 15/12/2026 ore 15-18', 'riga 1: mar 15/12/2026 15:00-18:00, Colloqui, senza link', $true, $false),
+            @('15 dicembre 2026 15:00 - 18:00 Colloqui', 'riga 1: mar 15/12/2026 15:00-18:00, Colloqui, senza link', $true, $false),
+            @('15/12 15-18', 'riga 1: mar 15/12/2026 15:00-18:00, Colloqui, senza link', $true, $false),
+            @('niente colloqui dal 14/12/2026 al 09/01/2027',
+              'riga 1: niente colloqui dal lun 14/12/2026 al sab 09/01/2027 (27 giorni)', $true, $false),
+            @('colloqui sospesi dal 23/12 al 06/01',
+              'riga 1: niente colloqui dal mer 23/12/2026 al mer 06/01/2027 (15 giorni)', $true, $false),
+            @('niente colloqui il 20/05/2027', 'riga 1: niente colloqui il gio 20/05/2027 (1 giorno)', $true, $false),
+            # le righe dubbie: capite, ma in ambra
+            @('16/12/2026 Colloqui generali',
+              "riga 1: mer 16/12/2026 senza ora, Colloqui generali, senza link   <- senza ora: sul calendario non va finche' non scrivi l'ora, come 15:00-18:00", $false, $true),
+            @('16/12/2026 alle 15:00 Colloqui',
+              "riga 1: mer 16/12/2026 dalle 15:00, senza fine, Colloqui, senza link   <- c'e' solo l'ora di inizio: scrivi anche la fine, come 15:00-18:00; cosi' sul calendario non va", $false, $true),
+            @('17/12/2026 18:00-15:00',
+              "riga 1: gio 17/12/2026 18:00-15:00, Colloqui, senza link   <- l'ora di fine viene prima di quella di inizio: sul calendario non va", $false, $true),
+            @('ogni sabato 9-10',
+              "riga 1: ogni sabato 09:00-10:00, Ricevimento, per tutto il periodo, senza link   <- il sabato non e' fra i giorni dell'orario", $true, $true),
+            @('20/12/2026 16:00-19:00',
+              "riga 1: dom 20/12/2026 16:00-19:00, Colloqui, senza link   <- cade di domenica, che non e' fra i giorni dell'orario", $true, $true),
+            @('mer 15/12/2026 15-18',
+              "riga 1: mar 15/12/2026 15:00-18:00, Colloqui, senza link   <- il 15/12/2026 e' martedi', non mercoledi'", $true, $true),
+            @('15/12/2026 15-18 Colloqui https://zoom.us/j/123456',
+              "riga 1: mar 15/12/2026 15:00-18:00, Colloqui, con un link   <- il link non e' di Google Meet: controlla che sia quello giusto", $true, $true),
+            @('15/12/2025 15-18',
+              "riga 1: lun 15/12/2025 15:00-18:00, Colloqui, senza link   <- fuori dal periodo: controlla l'anno", $true, $true)
+        )
+        foreach ($c in $casiK) {
+            $k = RigaColloquio $c[0]
+            Verifica "'$($c[0])' -> '$($k.Detta)'" ($k.Detta -eq $c[1] -and $k.Buona -eq $c[2] -and $k.Guarda -eq $c[3])
+        }
+        $nonCapiteK = @(
+            @('ogni settimana 10-11', 'dopo "ogni" ci vuole il giorno della settimana'),
+            @('Colloqui 15/12/2026 15-18', 'non capisco'),
+            @('31/02/2027 15-18', 'la data non esiste'),
+            @('15/12/2026 25:00-26:00', "l'ora non esiste"),
+            @('niente colloqui', 'manca quando'),
+            @('niente colloqui dal 09/01/2027 al 14/12/2026', "la fine viene prima dell'inizio"),
+            @('dal 12/10/2026 ogni giovedi 10-11', 'le date del ricevimento non si capiscono'),
+            @('15/12/2026 e 16/12/2026 15-18', 'una giornata per riga')
+        )
+        foreach ($c in $nonCapiteK) {
+            $k = RigaColloquio $c[0]
+            Verifica "'$($c[0])' non si capisce, e dice perche' ('$($k.Detta)')" (
+                $k.Detta -match '^riga 1: non capita: ' -and $k.Detta.Contains($c[1]) -and -not $k.Buona -and $k.Guarda)
+        }
+        # le note e le righe vuote non contano; ogni riga ha il suo numero
+        $varie = "# i miei colloqui`r`n`r`nogni giovedi 10:10-11:10`r`nquesta no"
+        $lette = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($varie, $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+        Verifica "le note e le righe vuote non contano, e ogni riga ha il suo numero (3 e 4)" (
+            $lette.Count -eq 2 -and $lette[0].Numero -eq 3 -and $lette[1].Numero -eq 4)
+        # senza orario (nessun giorno) nessun avviso sui giorni
+        $senzaOrario = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @('ogni sabato 9-10', $inizioK, $null)))
+        Verifica "senza l'orario caricato, nessun avviso sui giorni" ($senzaOrario[0].Avvisi.Count -eq 0 -and $senzaOrario[0].Buona)
+
+        # il piano: il ricevimento salta i giorni senza lezione e quelli senza
+        # colloqui, le giornate contano se cadono nel periodo
+        $testoPiano = @(
+            'ogni giovedi 10:10-11:10 Ricevimento',
+            'dal 12/01/2027 al 23/02/2027 ogni martedi 15-15.30 Ricevimento pomeridiano',
+            '15/12/2026 15-18 Colloqui generali',
+            '16/12/2025 15-18 anno scorso',
+            '16/12/2026 senza ora',
+            'niente colloqui dal 10/12/2026 al 09/01/2027',
+            'niente colloqui dal 15/05/2027 al 10/06/2027') -join "`r`n"
+        $sospPiano = LeggiRighe "16/02/2027 Carnevale" '2026-09-14'
+        $lettePiano = $tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($testoPiano, $inizioK, $cinqueGiorni.PSObject.BaseObject))
+        $pk = $tCol.GetMethod('Piano', $FS).Invoke($null, @($lettePiano, $inizioK, $fineK, $sospPiano.Lista))
+        Verifica "il piano dei colloqui: 2 ricevimenti in 4 serie, 1 giornata (quella dell'anno scorso fuori, quella senza ora no), 10 saltati ($($pk.Settimanali), $($pk.Serie), $($pk.Singoli), $($pk.Fuori), $($pk.Saltati), $($pk.Incontri) incontri)" (
+            $pk.Settimanali -eq 2 -and $pk.Serie -eq 4 -and $pk.Singoli -eq 1 -and $pk.Fuori -eq 1 -and $pk.Saltati -eq 10 -and
+            $pk.Incontri -eq 37)
+
+        # --- l'import da un file: le colonne dall'intestazione --------------
+        Write-Host "`nI COLLOQUI: L'IMPORT DA UN FILE .CSV O .XLSX" -ForegroundColor Cyan
+        function Importa([string]$percorso) {
+            $a = New-Object 'object[]' 4
+            $a[0] = $percorso
+            $a[1] = $inizioK
+            $a[2] = 0
+            $a[3] = ''
+            $righe = @($tCol.GetMethod('Importa', $FS).Invoke($null, $a))
+            @{ Righe = $righe; Saltate = [int]$a[2]; Errore = [string]$a[3] }
+        }
+        $dalCsv = Importa (Join-Path $qui 'colloqui_esempio.csv')
+        Verifica "dal CSV (Data, Giorno, Dalle, Alle, Cosa, Link): le righe per la casella, una saltata senza data ne' giorno ($($dalCsv.Righe -join ' | '))" (
+            $dalCsv.Errore -eq '' -and $dalCsv.Saltate -eq 1 -and ($dalCsv.Righe -join '|') -eq (
+                'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij|' +
+                '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv|' +
+                '13/04/2027 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv|' +
+                'ogni martedi 15:00-16:00 Ricevimento pomeridiano'))
+        $dalXlsx = Importa (Join-Path $qui 'colloqui_esempio.xlsx')
+        Verifica "dall'xlsx (Giorno con date e nomi, Inizio, Fine, Descrizione, Link; date e ore come numeri di Excel) ($($dalXlsx.Righe -join ' | '))" (
+            $dalXlsx.Errore -eq '' -and $dalXlsx.Saltate -eq 1 -and ($dalXlsx.Righe -join '|') -eq (
+                'ogni venerdi 11:10-12:10 Ricevimento https://meet.google.com/wxy-zabc-def|' +
+                '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv|' +
+                '10/03/2027 16:00-19:00 Colloqui di marzo'))
+        $tutteImportate = ($dalCsv.Righe + $dalXlsx.Righe) -join "`r`n"
+        $letteImportate = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($tutteImportate, $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+        Verifica "e le righe importate si leggono tutte, e vanno sul calendario ($($letteImportate.Count))" (
+            $letteImportate.Count -eq 7 -and @($letteImportate | Where-Object { -not $_.Buona }).Count -eq 0)
+        $senzaIntestazione = Importa (ScriviCsv 'senza_intestazione.csv' @('15/12/2026;15:00;18:00;Colloqui'))
+        Verifica "un file senza l'intestazione dei colloqui: niente righe, e dice quali colonne ci vogliono ($($senzaIntestazione.Errore))" (
+            $senzaIntestazione.Righe.Count -eq 0 -and $senzaIntestazione.Errore -match 'intestazione' -and
+            $senzaIntestazione.Errore -match '"data"')
+    }
+
     # --- DatiOrari.gs porta i giorni senza lezione e la data del cambio -----
     Write-Host "`nDATIORARI.GS: GIORNI SENZA LEZIONE E CAMBIO D'ORARIO" -ForegroundColor Cyan
     $leggiCal = Join-Path $tmp 'leggi_calendario.js'
@@ -794,6 +942,80 @@ console.log(JSON.stringify({
     $r = CalendarioGenerato $s
     Verifica "senza giorni senza lezione e senza cambio: un elenco vuoto e validoDal vuoto" (
         $null -ne $r -and $null -ne $r.sospensioni -and @($r.sospensioni).Count -eq 0 -and $r.validoDal -eq '')
+
+    # --- DatiOrari.gs porta i colloqui e il loro colore ---------------------
+    # Solo le righe che vanno sul calendario, con le date aaaa-mm-gg e le ore
+    # hh:mm; le altre (senza ora, non capite) restano nella casella. Il colore
+    # dei colloqui sta con quelli delle classi (la riga Colloqui): di partenza
+    # uno che le classi non usano. Senza colloqui, elenchi vuoti e nessun colore
+    Write-Host "`nDATIORARI.GS: I COLLOQUI" -ForegroundColor Cyan
+    $leggiColloqui = Join-Path $tmp 'leggi_colloqui.js'
+    [System.IO.File]::WriteAllText($leggiColloqui, @'
+// carica DatiOrari.gs e stampa i colloqui del calendario e i colori
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const c = contesto.ORARI && contesto.ORARI.calendario;
+console.log(JSON.stringify({
+  colloqui: c && c.colloqui ? c.colloqui : null,
+  coloreColloqui: c && typeof c.coloreColloqui === 'string' ? c.coloreColloqui : null,
+  colori: c && c.colori ? c.colori : null
+}));
+'@, $utf8)
+    function ColloquiGenerati($s, [bool]$delDocente) {
+        $oK = AnalizzaFile $File
+        if ($delDocente) {
+            $b = New-Object 'object[]' 2
+            $b[0] = $oK.PSObject.BaseObject
+            $b[1] = $s.PSObject.BaseObject
+            $gs = [string]$tAn.GetMethod('GeneraDatiDelDocenteGs', $FS).Invoke($null, $b)
+        } else { $gs = GeneraDati $oK $s $false }
+        $f = Join-Path $tmp 'DatiOrari_colloqui.gs'
+        [System.IO.File]::WriteAllText($f, $gs, $utf8)
+        $esito = & node $leggiColloqui $f
+        if ($LASTEXITCODE -ne 0 -or -not $esito) { return $null }
+        ($esito | Select-Object -Last 1) | ConvertFrom-Json
+    }
+    $s = NuovoStato
+    $s.CalDocente = [string]($o.Docenti() | Where-Object { $o.OreDi($_) -gt 0 } | Select-Object -First 1)
+    $s.CalInizio = '2026-09-14'
+    $s.CalFine = '2027-06-10'
+    $s.CalColloqui = @(
+        '# i miei colloqui (link inventati)',
+        'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
+        'dal 12/01/2027 al 23/02/2027 ogni martedi 15-15.30 Ricevimento "pomeridiano" \ prova',
+        '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv',
+        '16/12/2026 senza ora',
+        'questa no',
+        'niente colloqui dal 14/12/2026 al 09/01/2027') -join "`r`n"
+    foreach ($delDocente in @($false, $true)) {
+        $dove = if ($delDocente) { 'nel DatiOrari.gs del solo docente' } else { 'nel DatiOrari.gs di tutto il tabellone' }
+        $r = ColloquiGenerati $s $delDocente
+        Verifica "$dove i colloqui si caricano" ($null -ne $r -and $null -ne $r.colloqui)
+        if ($null -eq $r -or $null -eq $r.colloqui) { continue }
+        $sett = @($r.colloqui.settimanali | ForEach-Object { $_.giorno + ' ' + $_.dalle + '-' + $_.alle + ' ' + $_.dal + '..' + $_.al + ' ' + $_.nome + ' ' + $_.link })
+        $sing = @($r.colloqui.singoli | ForEach-Object { $_.data + ' ' + $_.dalle + '-' + $_.alle + ' ' + $_.nome + ' ' + $_.link })
+        $sosp = @($r.colloqui.sospensioni | ForEach-Object { $_.dal + '..' + $_.al })
+        Verifica "  ...solo le righe che vanno sul calendario, date aaaa-mm-gg e ore hh:mm ($($sett -join ' | '); $($sing -join ' | '); $($sosp -join ' | '))" (
+            ($sett -join '|') -eq ('giovedi 10:10-11:10 .. Ricevimento https://meet.google.com/abc-defg-hij|' +
+                                   'martedi 15:00-15:30 2027-01-12..2027-02-23 Ricevimento "pomeridiano" \ prova ') -and
+            ($sing -join '|') -eq '2026-12-15 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv' -and
+            ($sosp -join '|') -eq '2026-12-14..2027-01-09')
+        Verifica "  ...e il colore dei colloqui, uno che le classi non usano ($($r.coloreColloqui); classi: $(@($r.colori.PSObject.Properties | ForEach-Object { $_.Value }) -join ','))" (
+            $r.coloreColloqui -match '^(?:[1-9]|1[01])$' -and
+            @($r.colori.PSObject.Properties | Where-Object { $_.Value -eq $r.coloreColloqui }).Count -eq 0 -and
+            @($r.colori.PSObject.Properties | Where-Object { $_.Name -eq 'Colloqui' }).Count -eq 0)
+    }
+    $intestazioneK = [regex]::Replace((GeneraDati (AnalizzaFile $File) $s $false).Split(@('*/'), 2, [StringSplitOptions]::None)[0], '\s+', ' ')
+    Verifica "l'intestazione di DatiOrari.gs dice dei colloqui e che i link del Meet sono tuoi" (
+        $intestazioneK -match 'i tuoi colloqui con le famiglie' -and $intestazioneK -match 'link del Meet' -and
+        $intestazioneK -match 'tieni il file per te')
+    $s.CalColloqui = ''
+    $r = ColloquiGenerati $s $false
+    Verifica "senza colloqui: elenchi vuoti e nessun colore dei colloqui" (
+        $null -ne $r -and $null -ne $r.colloqui -and @($r.colloqui.settimanali).Count -eq 0 -and
+        @($r.colloqui.singoli).Count -eq 0 -and @($r.colloqui.sospensioni).Count -eq 0 -and $r.coloreColloqui -eq '')
 
     # --- i colori delle classi: di partenza, e poi sempre gli stessi ---------
     # Ogni classe dell'orario del docente ha il colore delle sue lezioni sul
@@ -1068,9 +1290,18 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
         '02/06/2027 Festa della Repubblica',
         'questa riga non si capisce') -join "`r`n"
     $s.CalValidoDal = '2026-10-05'
+    # e i colloqui, con link inventati: una riga senza ora resta fuori da DatiOrari.gs
+    $s.CalColloqui = @(
+        'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
+        'dal 11/01/2027 al 26/02/2027 ogni lunedi 15-16 Ricevimento del pomeriggio',
+        '15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv',
+        '13/04/2027 dalle 15 alle 18 Colloqui generali https://meet.google.com/kmn-pqrs-tuv',
+        '14/04/2027 Colloqui senza ora',
+        'niente colloqui dal 14/12/2026 al 09/01/2027',
+        'niente colloqui dal 17/05/2027 al 10/06/2027') -join "`r`n"
     $generato = Join-Path $tmp 'DatiOrari_generato.gs'
     [System.IO.File]::WriteAllText($generato, (GeneraDati $o $s $true), $utf8)
-    Write-Host "  (calendario di $($s.CalDocente), cambio d'orario dal $($s.CalValidoDal))"
+    Write-Host "  (calendario di $($s.CalDocente), cambio d'orario dal $($s.CalValidoDal), con i colloqui)"
     $uscita = & node (Join-Path $qui 'mock_orari.js') $generato
     $esitoBanco = $LASTEXITCODE
     $uscita | Where-Object { $_ -match 'FALLITO|PROVE FALLITE|Tutte le prove' } | ForEach-Object { Write-Host "          $_" }
@@ -1112,6 +1343,19 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
         $pCambio = PianoCs $s.CalValidoDal
         Verifica "e anche dal cambio d'orario ($($pCambio.Serie.Count) e $nSerieCambioJs serie, $($pCambio.Saltate) e $nSaltateCambioJs saltate)" (
             $pCambio.Serie.Count -eq $nSerieCambioJs -and $pCambio.Saltate -eq $nSaltateCambioJs)
+        # i colloqui: il piano di Campanella (Colloqui.Piano, per il riepilogo)
+        # e quello che lo script mette sul calendario
+        $nSerieK = -1; $nGiornateK = -1; $nIncontriK = -1
+        $riga = [string]($uscita | Where-Object { $_ -match '^\s*COLLOQUI: \d+ serie' } | Select-Object -First 1)
+        if ($riga -match 'COLLOQUI: (\d+) serie, (\d+) giornate, (\d+) incontri') {
+            $nSerieK = [int]$Matches[1]; $nGiornateK = [int]$Matches[2]; $nIncontriK = [int]$Matches[3]
+        }
+        $tColK = $asm.GetType('Campanella.Colloqui')
+        $letteK = $tColK.GetMethod('LeggiRighe', $FS).Invoke($null, @([string]$s.CalColloqui, (DataIso $s.CalInizio), $o.IndiciGiorni.PSObject.BaseObject))
+        $pK = $tColK.GetMethod('Piano', $FS).Invoke($null, @($letteK, (DataIso $s.CalInizio), (DataIso $s.CalFine), $sospCs.Lista))
+        Verifica "i colloqui sono gli stessi qui e in Orari.gs ($($pK.Serie) e $nSerieK serie, $($pK.Singoli) e $nGiornateK giornate, $($pK.Incontri) e $nIncontriK incontri)" (
+            $pK.Serie -eq $nSerieK -and $pK.Singoli -eq $nGiornateK -and $pK.Incontri -eq $nIncontriK -and $nSerieK -ge 3 -and
+            $nGiornateK -eq 2)
     }
 
     # --- il calendario in un altro account ----------------------------------
