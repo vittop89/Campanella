@@ -3288,6 +3288,18 @@ if (conCalendario) {
       verifica('con dati sbagliati si ferma prima di toccare il calendario e dice di rigenerare DatiOrari.gs ("' +
         attesa + '")', detto.indexOf(attesa) >= 0 && /rigenera/.test(detto) && calendari.length === 0);
     }
+    // un link scritto "Https://" (Campanella lo capisce): vale, con lo schema in
+    // minuscolo, e non ferma le lezioni
+    azzeraCalendario();
+    conColloqui({ settimanali: [{ giorno: 'giovedi', dalle: '10:10', alle: '11:10', dal: '', al: '', nome: 'Ricevimento',
+                                  link: 'Https://meet.google.com/abc-defg-hij' }] });
+    const conMaiuscola = errore(() => contesto.ORARI_4_calendario());
+    const calH = calendari[0];
+    verifica('un link "Https://meet.google.com/..." vale: le lezioni e il ricevimento ci sono, con il link in minuscolo ' +
+      'come luogo e nella descrizione' + (conMaiuscola ? ' (invece: ' + conMaiuscola + ')' : ''),
+      conMaiuscola === '' && !!calH && uguali(soloLezioniSul(calH, primoGiorno, ultimoGiorno), piano.lezioni) &&
+      serieColloqui(calH).length > 0 && serieColloqui(calH).every(s => s.getLocation() === LINK_A &&
+        String(s.getDescription()).indexOf(LINK_A) > 0));
   }
 
   intestazione('COLLOQUI: ORARI_7_COLLOQUI');

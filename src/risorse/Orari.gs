@@ -2667,10 +2667,12 @@ function _orariColloquioLetto_(x, cosa) {
       '"): rigenera il file dall\'applicazione.');
   }
   var link = String(v.link || '').trim();
-  if (link && !/^https:\/\/\S+$/.test(link)) {
+  if (link && !/^https:\/\/\S+$/i.test(link)) {
     throw new Error('In DatiOrari.gs ' + cosa + ' ha un link che non e\' un indirizzo https:// ("' + link + '"): ' +
       'rigenera il file dall\'applicazione.');
   }
+  // "Https://...": lo schema in minuscolo, come lo scrive l'applicazione
+  if (link) link = 'https://' + link.slice('https://'.length);
   return { nome: String(v.nome || '').trim() || _ORARI_NOME_COLLOQUI, giorno: String(v.giorno || ''),
            dal: String(v.dal || '').trim(), al: String(v.al || '').trim(), link: link,
            dalle: ('0' + Number(md[1])).slice(-2) + ':' + md[2], alle: ('0' + Number(ma[1])).slice(-2) + ':' + ma[2] };
