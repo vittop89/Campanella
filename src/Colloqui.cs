@@ -9,7 +9,10 @@
 //      15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/...
 //      niente colloqui dal 14/12/2026 al 09/01/2027
 //
-//  Il link e' il primo https:// della riga, il resto e' il nome. Lo script
+//  Il link e' il primo https:// della riga, il resto e' il nome. Una voce per
+//  riga: una data, un altro giorno della settimana o un'altra ora nel nome
+//  non si capiscono (le date del ricevimento, "dal ... al ...", valgono anche
+//  dopo "ogni"), e una voce uguale a una di sopra resta nella casella. Lo script
 //  (Orari.gs e Calendario.gs: ORARI_4_calendario, ORARI_7_colloqui) mette il
 //  ricevimento settimanale a tratti come le lezioni, senza i giorni senza
 //  lezione e quelli senza colloqui, e le giornate come eventi singoli, con il
@@ -57,17 +60,19 @@ namespace Campanella
         public Colloquio Voce;                // null: non capita
         public string Motivo = "";
         public List<string> Avvisi = new List<string>();
+        public int UgualeA;                   // uguale alla voce di quella riga (0: a nessuna)
 
         /// <summary>
         /// Va sul calendario (e in DatiOrari.gs): un periodo senza colloqui,
         /// o un colloquio con l'ora di inizio e quella di fine, dopo. Senza ora,
-        /// o con la fine prima dell'inizio, resta solo nella casella.
+        /// o con la fine prima dell'inizio, resta solo nella casella; e anche
+        /// una voce uguale a una di sopra, che sul calendario c'e' gia'.
         /// </summary>
         public bool Buona
         {
             get
             {
-                if (Voce == null) return false;
+                if (Voce == null || UgualeA > 0) return false;
                 if (Voce.Tipo == TipoColloquio.Sospensione) return true;
                 return Voce.Dalle != "" && Voce.Alle != "" && string.CompareOrdinal(Voce.Alle, Voce.Dalle) > 0;
             }
@@ -118,9 +123,9 @@ namespace Campanella
             @"(?:colloqui|ricevimento|ricevimenti)\s+sospes[oi]|sospensione\s+(?:dei\s+|del\s+)?(?:colloqui|ricevimento))(?!\p{L})",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        // l'ora: "10:10-11:10", "10.10 - 11.10", "dalle 15 alle 18", "15-18", "ore 15-18"
+        // l'ora: "10:10-11:10", "10.10 - 11.10", "dalle 15 alle 18", "15-18", "ore 15-18", "alle 10:10-11:10"
         static readonly Regex DalleAlle = new Regex(
-            @"(?<![0-9:.\p{L}])(?<prima>(?:dalle|ore|h)\s*(?:ore\s*)?)?(?<h1>[0-9]{1,2})(?:[:.](?<m1>[0-9]{2}))?" +
+            @"(?<![0-9:.\p{L}])(?<prima>(?:dalle|alle|ore|h)\s*(?:ore\s*)?)?(?<h1>[0-9]{1,2})(?:[:.](?<m1>[0-9]{2}))?" +
             @"\s*(?:-|–|—|alle(?:\s+ore)?|fino\s+alle)\s*(?<h2>[0-9]{1,2})(?:[:.](?<m2>[0-9]{2}))?(?![0-9])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         // un'ora sola: "alle 15:00", "15:00", "ore 15"
@@ -129,9 +134,39 @@ namespace Campanella
             @"(?<h1>[0-9]{1,2})[:.](?<m1>[0-9]{2}))(?![0-9])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        // il link: il primo indirizzo https:// della riga
+        // il link: il primo indirizzo https:// della riga (anche "Https://": lo
+        // schema si riscrive in minuscolo, come lo vuole lo script)
         static readonly Regex Link = new Regex(@"https://[^\s<>""]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         static readonly Regex DiMeet = new Regex(@"^https://meet\.google\.com/", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // un link senza la s: "http://meet.google.com/..."
+        static readonly Regex LinkHttp = new Regex(@"(?<!\p{L})http://", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        // --- una voce per riga: quello che nel nome dice un'altra voce ---------
+        // le date del ricevimento scritte dopo "ogni" o nel nome: "dal 12/10/2026
+        // al 22/05/2027", "a partire dal 12/10/2026" (da "dal" le legge Calendario.LeggiRiga)
+        static readonly Regex DalNelNome = new Regex(@"(?<!\p{L})(?:a\s+partire\s+)?(?<dal>dal)\s+(?=[0-9])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // prima di quelle date, parole che dicono un periodo senza colloqui:
+        // "(sospeso dal 14/12 al 09/01)" non sono le date del ricevimento
+        static readonly Regex SenzaPrimaDelPeriodo = new Regex(
+            @"(?<!\p{L})(?:sospes[oiae]|sospensione|niente|nessun[oa]?|tranne|eccetto|escluso|esclusi|esclusa|escluse|" +
+            @"salvo|pausa)(?!\p{L})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // la sola fine del ricevimento: "fino al 22/05/2027", "sino al 22 maggio"
+        static readonly Regex FinoAlNelNome = new Regex(@"(?<!\p{L})(?:fino|sino)\s+(?:al|all['’])\s*(?=[0-9])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // un giorno della settimana scritto per intero
+        static readonly Regex GiornoNelNome = new Regex(
+            @"(?<!\p{L})(?<g>(?:luned|marted|mercoled|gioved|venerd)(?:i'|i|ì)|sabato|domenica)(?!\p{L})",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // un'altra ora: "9:10", "16.10", "alle 18", "ore 9"
+        static readonly Regex OraNelNome = new Regex(
+            @"(?<![0-9.,:/])(?:[01]?[0-9]|2[0-3])[:.][0-5][0-9](?![0-9])|(?<!\p{L})(?:dalle|alle|ore|h)\s*[0-9]{1,2}(?![0-9])",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        // una cadenza o un'eccezione del ricevimento: sul calendario va ogni settimana
+        static readonly Regex CadenzaNelNome = new Regex(
+            @"(?<!\p{L})(?:altern[eia]|alternat[eia]|tranne|eccetto|escluso|esclusi|esclusa|escluse|quindicinal[ei]|" +
+            @"mensil[ei]|del\s+mese|a\s+settimane)(?!\p{L})",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         /// <summary>L'avviso di un link che non e' di Google Meet: vale lo stesso, ma va guardato.</summary>
         public const string AvvisoLink = "il link non e' di Google Meet: controlla che sia quello giusto";
@@ -153,7 +188,9 @@ namespace Campanella
         /// scritte senza (come per i giorni senza lezione); giorniOrario (0 =
         /// lunedi', RisultatoOrario.IndiciGiorni) i giorni in cui c'e' lezione:
         /// un colloquio in un altro giorno ha un avviso. Senza orario (null o
-        /// vuoto), nessun avviso sui giorni.
+        /// vuoto), nessun avviso sui giorni. Un colloquio uguale a uno di una
+        /// riga di sopra (lo stesso file importato due volte) ha un avviso, e
+        /// sul calendario non va: c'e' gia'.
         /// </summary>
         public static List<RigaColloquio> LeggiRighe(string testo, DateTime inizioPeriodo, List<int> giorniOrario)
         {
@@ -167,9 +204,31 @@ namespace Campanella
                 r.Numero = i + 1;
                 r.Testo = riga;
                 LeggiUna(riga, inizioPeriodo, giorniOrario, r);
+                // uguale a una di sopra che va sul calendario: sul calendario comparirebbe due volte
+                if (r.Buona && r.Voce.Tipo != TipoColloquio.Sospensione)
+                {
+                    foreach (RigaColloquio prima in fuori)
+                    {
+                        if (!prima.Buona || !Uguali(prima.Voce, r.Voce)) continue;
+                        r.UgualeA = prima.Numero;
+                        r.Avvisi.Add("uguale alla riga " + prima.Numero + ": sul calendario va una volta sola");
+                        break;
+                    }
+                }
                 fuori.Add(r);
             }
             return fuori;
+        }
+
+        /// <summary>Due colloqui uguali: lo stesso giorno o le stesse date, le stesse ore, lo stesso nome e lo stesso link.</summary>
+        static bool Uguali(Colloquio a, Colloquio b)
+        {
+            if (a.Tipo != b.Tipo || a.Dalle != b.Dalle || a.Alle != b.Alle || a.ConDate != b.ConDate) return false;
+            if (!string.Equals(a.Nome, b.Nome, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(a.Link, b.Link, StringComparison.Ordinal)) return false;
+            if (a.Tipo == TipoColloquio.Settimanale && a.Giorno != b.Giorno) return false;
+            if (a.Tipo == TipoColloquio.Giornata || a.ConDate) return a.Dal.Date == b.Dal.Date && a.Al.Date == b.Al.Date;
+            return true;
         }
 
         /// <summary>Vero se il testo ha almeno un colloquio che va sul calendario (e il loro colore serve).</summary>
@@ -199,6 +258,19 @@ namespace Campanella
             {
                 link = ml.Value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}', '>', '\'');
                 s = (s.Substring(0, ml.Index) + " " + s.Substring(ml.Index + link.Length)).Trim();
+                // "Https://...": lo schema in minuscolo, come lo vuole lo script
+                link = "https://" + link.Substring("https://".Length);
+            }
+            // un secondo link, o uno senza la s, finirebbe nel nome
+            if (Link.IsMatch(s))
+            {
+                NonCapita(r, "c'e' piu' di un link: una voce per riga, ognuna con il suo");
+                return;
+            }
+            if (LinkHttp.IsMatch(s))
+            {
+                NonCapita(r, "il link comincia con http://: scrivilo con https://, come https://meet.google.com/abc-defg-hij");
+                return;
             }
 
             // un periodo senza colloqui: le date come i giorni senza lezione
@@ -256,7 +328,14 @@ namespace Campanella
                     else nomeDavanti = prima;       // "Ricevimento ogni giovedi ..."
                 }
                 string motivo;
-                if (!OreENome(nomeDavanti + " " + s.Substring(mo.Index + mo.Length), w, r, out motivo))
+                if (!OreENome(nomeDavanti + " " + s.Substring(mo.Index + mo.Length), w, r, out motivo) ||
+                    !DateDopo(w, inizioPeriodo, out motivo))
+                {
+                    NonCapita(r, motivo);
+                    return;
+                }
+                motivo = AltraVoceNelNome(w);
+                if (motivo != "")
                 {
                     NonCapita(r, motivo);
                     return;
@@ -267,6 +346,7 @@ namespace Campanella
                 if (giorniOrario != null && giorniOrario.Count > 0 && !giorniOrario.Contains(w.Giorno))
                     r.Avvisi.Add((w.Giorno == 6 ? "la " : "il ") + NomiGiorniDetti[w.Giorno] + " non e' fra i giorni dell'orario");
                 if (link != "" && !DiMeet.IsMatch(link)) r.Avvisi.Add(AvvisoLink);
+                if (CadenzaNelNome.IsMatch(w.Nome)) r.Avvisi.Add(AvvisoCadenza);
                 return;
             }
             if (OgniSenzaGiorno.IsMatch(s))
@@ -296,12 +376,15 @@ namespace Campanella
                 Match md = GiornoDavanti.Match(dopo);
                 if (md.Success) { giornoScritto = IndiceGiorno(md.Groups["g"].Value); dopo = dopo.Substring(md.Length); }
             }
-            // un'altra data dopo la prima: due giornate su una riga, o un periodo
+            // un'altra data dopo la prima: due giornate su una riga, o un periodo.
+            // Con il punto solo se ha l'anno: "16.10-18.10" sono le ore
             DateTime altra;
             int l2;
             string p2;
-            if (Calendario.DataAllInizio(Regex.Replace(dopo, @"^(?:e|al|fino\s+al)\s+", "",
-                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant), inizioPeriodo, out altra, out l2, out p2))
+            string dopoLaData = Regex.Replace(dopo, @"^(?:e|al|fino\s+al)\s+", "",
+                                              RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (Calendario.DataAllInizio(dopoLaData, inizioPeriodo, out altra, out l2, out p2) &&
+                !Regex.IsMatch(dopoLaData.Substring(0, l2), @"^[0-9]{1,2}\.[0-9]{1,2}$"))
             {
                 NonCapita(r, "una giornata per riga: per un ricevimento con le sue date scrivi dal 12/10/2026 al " +
                              "22/05/2027 ogni giovedi 10:10-11:10");
@@ -313,6 +396,12 @@ namespace Campanella
             u.Al = data;
             string motivoOre;
             if (!OreENome(dopo, u, r, out motivoOre))
+            {
+                NonCapita(r, motivoOre);
+                return;
+            }
+            motivoOre = AltraVoceNelNome(u);
+            if (motivoOre != "")
             {
                 NonCapita(r, motivoOre);
                 return;
@@ -375,6 +464,92 @@ namespace Campanella
             }
             x.Nome = Pulito(t);
             return true;
+        }
+
+        /// <summary>
+        /// Le date di un ricevimento scritte dopo "ogni" o nel nome, come
+        /// nelle circolari: "ogni giovedi 10:10-11:10 Ricevimento dal 12/10/2026
+        /// al 22/05/2027", "Ricevimento dal 12/10/2026 al 22/05/2027 ogni giovedi
+        /// 10:10-11:10": dal nome passano alle date (ConDate), lette come quelle
+        /// scritte davanti. False, con il motivo, se non si capiscono, se sono
+        /// scritte due volte, se c'e' solo l'inizio ("a partire dal") o se
+        /// sono un periodo senza colloqui ("sospeso dal ... al ...").
+        /// </summary>
+        static bool DateDopo(Colloquio w, DateTime inizioPeriodo, out string motivo)
+        {
+            motivo = "";
+            Match md = DalNelNome.Match(w.Nome);
+            if (!md.Success) return true;
+            string prima = w.Nome.Substring(0, md.Index);
+            if (SenzaPrimaDelPeriodo.IsMatch(prima))
+            {
+                motivo = "nel nome c'e' un periodo senza colloqui: scrivilo su una riga sua, come niente colloqui dal " +
+                         "14/12/2026 al 09/01/2027";
+                return false;
+            }
+            if (w.ConDate)
+            {
+                motivo = "le date del ricevimento sono scritte due volte: scrivile una volta sola, come dal 12/10/2026 al " +
+                         "22/05/2027 ogni giovedi 10:10-11:10";
+                return false;
+            }
+            RigaLetta p = Calendario.LeggiRiga(w.Nome.Substring(md.Groups["dal"].Index), inizioPeriodo);
+            if (p.Giorni == null)
+            {
+                // "a partire dal 12/10/2026", "dal 12 ottobre al 22 maggio"
+                motivo = "le date del ricevimento non si capiscono: scrivile tutte e due in cifre, come dal 12/10/2026 " +
+                         "al 22/05/2027 ogni giovedi 10:10-11:10";
+                return false;
+            }
+            if (p.Giorni.Al.Date == p.Giorni.Dal.Date)
+            {
+                motivo = "il ricevimento va da una data a un'altra, come dal 12/10/2026 al 22/05/2027 ogni giovedi " +
+                         "10:10-11:10; una giornata sola si scrive 15/12/2026 15:00-18:00";
+                return false;
+            }
+            w.ConDate = true;
+            w.Dal = p.Giorni.Dal;
+            w.Al = p.Giorni.Al;
+            w.Nome = Pulito(prima + " " + p.Giorni.Nome);
+            return true;
+        }
+
+        /// <summary>L'avviso di un ricevimento con una cadenza o un'eccezione nel nome.</summary>
+        public const string AvvisoCadenza = "nel nome c'e' una cadenza o un'eccezione (settimane alterne, tranne...): sul " +
+                                            "calendario il ricevimento va ogni settimana; i giorni senza colloqui scrivili " +
+                                            "su una riga loro, come niente colloqui il 24/12/2026";
+
+        /// <summary>
+        /// Nel nome di un colloquio (x.Nome, senza le ore e il link) quello che
+        /// dice un'altra voce: una data, "fino al", un altro giorno della
+        /// settimana, un'altra ora. Il motivo per cui la riga non si capisce, o
+        /// "". Una voce per riga: sul calendario il resto finirebbe nel titolo.
+        /// </summary>
+        static string AltraVoceNelNome(Colloquio x)
+        {
+            bool settimanale = (x.Tipo == TipoColloquio.Settimanale);
+            string nome = x.Nome ?? "";
+            if (settimanale && FinoAlNelNome.IsMatch(nome))
+                return "c'e' solo la fine del ricevimento: scrivi le due date, come dal 12/10/2026 al 22/05/2027 ogni " +
+                       "giovedi 10:10-11:10";
+            if (Calendario.CeUnaData(nome))
+                return settimanale
+                    ? "nel nome c'e' una data: le date del ricevimento scrivile come dal 12/10/2026 al 22/05/2027 ogni " +
+                      "giovedi 10:10-11:10, e un giorno senza colloqui su una riga sua (niente colloqui il 24/12/2026)"
+                    : "nel nome c'e' un'altra data: una giornata per riga, come 15/12/2026 15:00-18:00 Colloqui " +
+                      "generali e sotto 16/12/2026 15:00-18:00 Colloqui generali";
+            if (settimanale)
+            {
+                foreach (Match g in GiornoNelNome.Matches(nome))
+                {
+                    if (IndiceGiorno(g.Groups["g"].Value) == x.Giorno) continue;
+                    return "nel nome c'e' un altro giorno della settimana: una voce per riga, come ogni giovedi " +
+                           "10:10-11:10 Ricevimento e sotto ogni venerdi 09:10-10:10 Ricevimento";
+                }
+            }
+            if (OraNelNome.IsMatch(nome))
+                return "nel nome c'e' un'altra ora: una voce per riga, con le ore scritte come 15:00-18:00";
+            return "";
         }
 
         /// <summary>"15" e "" -> "15:00", "9" e "05" -> "09:05"; false se l'ora non esiste.</summary>

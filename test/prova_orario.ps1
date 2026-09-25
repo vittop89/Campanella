@@ -774,6 +774,8 @@ console.log(JSON.stringify({
         }
         $meet = 'https://meet.google.com/abc-defg-hij'
         $ie = [string][char]0xEC
+        $campoCadenza = $tCol.GetField('AvvisoCadenza', $FS)
+        $avvisoCadenza = if ($null -ne $campoCadenza) { [string]$campoCadenza.GetValue($null) } else { '(manca Colloqui.AvvisoCadenza)' }
         $casiK = @(
             # testo, come la pagina la mostra, va sul calendario, va guardata
             @("ogni giovedi 10:10-11:10 Ricevimento $meet",
@@ -812,7 +814,28 @@ console.log(JSON.stringify({
             @('15/12/2026 15-18 Colloqui https://zoom.us/j/123456',
               "riga 1: mar 15/12/2026 15:00-18:00, Colloqui, con un link   <- il link non e' di Google Meet: controlla che sia quello giusto", $true, $true),
             @('15/12/2025 15-18',
-              "riga 1: lun 15/12/2025 15:00-18:00, Colloqui, senza link   <- fuori dal periodo: controlla l'anno", $true, $true)
+              "riga 1: lun 15/12/2025 15:00-18:00, Colloqui, senza link   <- fuori dal periodo: controlla l'anno", $true, $true),
+            # le date del ricevimento anche dopo "ogni" o nel nome, come nelle circolari
+            @('ogni giovedi dal 12/10/2026 al 22/05/2027 10:10-11:10 Ricevimento',
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, dal lun 12/10/2026 al sab 22/05/2027, senza link", $true, $false),
+            @('ogni giovedi 10:10-11:10 Ricevimento dal 12/10/2026 al 22/05/2027',
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, dal lun 12/10/2026 al sab 22/05/2027, senza link", $true, $false),
+            @('Ricevimento dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10',
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, dal lun 12/10/2026 al sab 22/05/2027, senza link", $true, $false),
+            # "alle" davanti alle ore non e' il nome; "Https://" e' un link
+            @('ogni giovedi alle 10:10-11:10',
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, senza link", $true, $false),
+            @("ogni gioved$ie 10:10-11:10 Ricevimento Https://meet.google.com/abc-defg-hij",
+              "riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per tutto il periodo, con il link del Meet", $true, $false),
+            # le ore con il punto dopo la data: non sono una seconda data
+            @('15/12/2026 10.10-11.10 Colloqui generali', 'riga 1: mar 15/12/2026 10:10-11:10, Colloqui generali, senza link', $true, $false),
+            @('15/12/2026 16.10-18.10', 'riga 1: mar 15/12/2026 16:10-18:10, Colloqui, senza link', $true, $false),
+            @('martedi 15/12/2026 9.10-12.10', 'riga 1: mar 15/12/2026 09:10-12:10, Colloqui, senza link', $true, $false),
+            @('15 dicembre 2026 10.10 - 11.10', 'riga 1: mar 15/12/2026 10:10-11:10, Colloqui, senza link', $true, $false),
+            # una cadenza o un'eccezione: sul calendario va ogni settimana, in ambra
+            @('ogni martedi a settimane alterne 15:00-16:00',
+              ("riga 1: ogni martedi' 15:00-16:00, a settimane alterne, per tutto il periodo, senza link   <- " + $avvisoCadenza),
+              $true, $true)
         )
         foreach ($c in $casiK) {
             $k = RigaColloquio $c[0]
@@ -826,7 +849,22 @@ console.log(JSON.stringify({
             @('niente colloqui', 'manca quando'),
             @('niente colloqui dal 09/01/2027 al 14/12/2026', "la fine viene prima dell'inizio"),
             @('dal 12/10/2026 ogni giovedi 10-11', 'le date del ricevimento non si capiscono'),
-            @('15/12/2026 e 16/12/2026 15-18', 'una giornata per riga')
+            @('15/12/2026 e 16/12/2026 15-18', 'una giornata per riga'),
+            # una voce per riga: date, limiti, un altro giorno o un'altra ora nel nome non finiscono nel titolo
+            @('ogni giovedi 10:10-11:10 Ricevimento fino al 22/05/2027', "c'e' solo la fine del ricevimento"),
+            @('ogni giovedi 10:10-11:10 Ricevimento a partire dal 12/10/2026', 'le date del ricevimento non si capiscono'),
+            @('ogni giovedi 10:10-11:10 Ricevimento dal 12 ottobre al 22 maggio', 'le date del ricevimento non si capiscono'),
+            @('dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento dal 01/11/2026 al 30/11/2026', 'scritte due volte'),
+            @('ogni giovedi 10:10-11:10 Ricevimento (sospeso dal 14/12 al 09/01)', "c'e' un periodo senza colloqui"),
+            @('ogni giovedi 10:10-11:10 Ricevimento tranne il 24/12/2026', "nel nome c'e' una data"),
+            @("ogni gioved$ie 10:10-11:10 e ogni venerd$ie 9-10 Ricevimento", "c'e' un altro giorno della settimana"),
+            @('ogni lunedi e giovedi 10-11', "c'e' un altro giorno della settimana"),
+            @('15/12/2026 15:00-18:00 Colloqui generali, 16/12/2026 15:00-18:00 Colloqui generali', "c'e' un'altra data"),
+            @('15/12/2026 15:00-18:00 e 16/12/2026 15:00-18:00 Colloqui generali', "c'e' un'altra data"),
+            @('15/12/2026 15:00-18:00 Colloqui generali (secondo turno 16/12/2026)', "c'e' un'altra data"),
+            @('15/12/2026 15:00 Colloqui fino alle 18:00', "c'e' un'altra ora"),
+            @('15/12/2026 15:00-18:00 Colloqui http://meet.google.com/abc-defg-hij', 'http://'),
+            @('15/12/2026 15-18 Colloqui https://meet.google.com/abc-defg-hij https://meet.google.com/kmn-pqrs-tuv', "piu' di un link")
         )
         foreach ($c in $nonCapiteK) {
             $k = RigaColloquio $c[0]
@@ -841,6 +879,36 @@ console.log(JSON.stringify({
         # senza orario (nessun giorno) nessun avviso sui giorni
         $senzaOrario = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @('ogni sabato 9-10', $inizioK, $null)))
         Verifica "senza l'orario caricato, nessun avviso sui giorni" ($senzaOrario[0].Avvisi.Count -eq 0 -and $senzaOrario[0].Buona)
+
+        # la stessa voce due volte (lo stesso file importato due volte): la
+        # seconda e' in ambra, dice quale, e non va sul calendario ne' in
+        # DatiOrari.gs; un link "Https://" ci va con lo schema in minuscolo
+        $doppie = @(
+            'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
+            '15/12/2026 15:00-18:00 Colloqui generali',
+            'ogni  GIOVEDI 10.10-11.10 ricevimento Https://meet.google.com/abc-defg-hij',
+            '15/12/2026 15-18 Colloqui generali',
+            '15/12/2026 15-18 Colloqui generali, altra aula') -join "`r`n"
+        $listaD = $tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($doppie, $inizioK, $cinqueGiorni.PSObject.BaseObject))
+        $letteD = @($listaD)
+        $detteD = @($letteD | ForEach-Object { [string]$tCol.GetMethod('Descrivi', $FS).Invoke($null, @($_.PSObject.BaseObject, $inizioK, $fineK)) })
+        Verifica "una voce uguale a una di sopra e' in ambra, dice quale e non va sul calendario ($($detteD[2]) | $($detteD[3]))" (
+            $letteD.Count -eq 5 -and $letteD[0].Buona -and $letteD[1].Buona -and -not $letteD[2].Buona -and -not $letteD[3].Buona -and
+            $letteD[4].Buona -and $letteD[2].UgualeA -eq 1 -and $letteD[3].UgualeA -eq 2 -and
+            $detteD[2].EndsWith('<- uguale alla riga 1: sul calendario va una volta sola') -and
+            $detteD[3].EndsWith('<- uguale alla riga 2: sul calendario va una volta sola') -and
+            [bool]$tCol.GetMethod('DaGuardare', $FS).Invoke($null, @($letteD[2], $inizioK, $fineK)))
+        $sbD = New-Object System.Text.StringBuilder
+        $tCol.GetMethod('ScriviDatiGs', $FS).Invoke($null, @($sbD.PSObject.BaseObject, $doppie, $inizioK)) | Out-Null
+        $gsD = $sbD.ToString()
+        $pD = $tCol.GetMethod('Piano', $FS).Invoke($null, @($listaD, $inizioK, $fineK, $null))
+        Verifica "  ...in DatiOrari.gs e nel piano va una volta sola (1 ricevimento, 2 giornate: $($pD.Settimanali), $($pD.Singoli))" (
+            ([regex]::Matches($gsD, 'giorno: "giovedi"')).Count -eq 1 -and ([regex]::Matches($gsD, 'data: "2026-12-15"')).Count -eq 2 -and
+            $pD.Settimanali -eq 1 -and $pD.Singoli -eq 2)
+        $sbH = New-Object System.Text.StringBuilder
+        $tCol.GetMethod('ScriviDatiGs', $FS).Invoke($null, @($sbH.PSObject.BaseObject, 'ogni giovedi 10:10-11:10 Ricevimento Https://meet.google.com/abc-defg-hij', $inizioK)) | Out-Null
+        Verifica "un link scritto Https:// va in DatiOrari.gs con lo schema in minuscolo, come lo vuole lo script" (
+            $sbH.ToString().Contains('link: "https://meet.google.com/abc-defg-hij"') -and -not $sbH.ToString().Contains('Https'))
 
         # il piano: il ricevimento salta i giorni senza lezione e quelli senza
         # colloqui, le giornate contano se cadono nel periodo
@@ -885,8 +953,10 @@ console.log(JSON.stringify({
                 '10/03/2027 16:00-19:00 Colloqui di marzo'))
         $tutteImportate = ($dalCsv.Righe + $dalXlsx.Righe) -join "`r`n"
         $letteImportate = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($tutteImportate, $inizioK, $cinqueGiorni.PSObject.BaseObject)))
-        Verifica "e le righe importate si leggono tutte, e vanno sul calendario ($($letteImportate.Count))" (
-            $letteImportate.Count -eq 7 -and @($letteImportate | Where-Object { -not $_.Buona }).Count -eq 0)
+        # la giornata del 15/12 e' in tutti e due i file: la seconda volta e' in ambra, e sul calendario va una volta sola
+        Verifica "e le righe importate si leggono tutte, e vanno sul calendario, la giornata che e' in tutti e due i file una volta sola ($($letteImportate.Count))" (
+            $letteImportate.Count -eq 7 -and @($letteImportate | Where-Object { $null -eq $_.Voce }).Count -eq 0 -and
+            @($letteImportate | Where-Object { -not $_.Buona }).Count -eq 1 -and $letteImportate[5].UgualeA -eq 2)
         $senzaIntestazione = Importa (ScriviCsv 'senza_intestazione.csv' @('15/12/2026;15:00;18:00;Colloqui'))
         Verifica "un file senza l'intestazione dei colloqui: niente righe, e dice quali colonne ci vogliono ($($senzaIntestazione.Errore))" (
             $senzaIntestazione.Righe.Count -eq 0 -and $senzaIntestazione.Errore -match 'intestazione' -and

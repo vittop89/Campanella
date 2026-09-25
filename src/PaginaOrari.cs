@@ -836,13 +836,18 @@ namespace Campanella
                 "link e' il primo indirizzo https:// della riga e sul calendario diventa il luogo dell'evento; il " +
                 "resto e' il nome (di partenza \"Ricevimento\" per quello di ogni settimana, \"Colloqui\" per una " +
                 "giornata). Senza date, il ricevimento vale per tutto il periodo e, come le lezioni, salta i giorni " +
-                "senza lezione e quelli senza colloqui. Una giornata scritta a parte c'e' anche in un periodo senza " +
-                "colloqui: i colloqui generali di solito cadono proprio li'.\r\n\r\n" +
+                "senza lezione e quelli senza colloqui; le sue date si scrivono anche dopo, come nelle circolari " +
+                "(ogni giovedi 10:10-11:10 Ricevimento dal 12/10/2026 al 22/05/2027). Una giornata scritta a parte " +
+                "c'e' anche in un periodo senza colloqui: i colloqui generali di solito cadono proprio li'. Una voce " +
+                "per riga: un'altra data, un altro giorno della settimana o un'altra ora nel nome non li capisco, " +
+                "invece di metterli nel titolo.\r\n\r\n" +
                 "\"Importa da un file...\" legge un .csv o un .xlsx con le colonne data (o giorno), dalle, alle, " +
                 "cosa (o descrizione) e link, e aggiunge le sue righe qui: la casella resta l'unica fonte.\r\n\r\n" +
                 "Sotto c'e' come ho letto ogni riga. In ambra quelle da guardare: non capite, senza ora o con la " +
-                "fine prima dell'inizio (restano qui, ma sul calendario non vanno), in un giorno che non e' " +
-                "nell'orario, fuori dal periodo, o con un link che non e' di Google Meet (vale lo stesso).\r\n\r\n" +
+                "fine prima dell'inizio, uguali a una di sopra (restano qui, ma sul calendario non vanno), in un " +
+                "giorno che non e' nell'orario, fuori dal periodo, con una cadenza come \"a settimane alterne\" " +
+                "(sul calendario vanno ogni settimana) o con un link che non e' di Google Meet (vale lo " +
+                "stesso).\r\n\r\n" +
                 "I colloqui vanno sul calendario con ORARI_4_calendario, insieme all'orario; se cambiano solo loro, " +
                 "ORARI_7_colloqui li aggiorna da oggi in poi, senza toccare le lezioni. Hanno un colore loro: la riga " +
                 "Colloqui in \"Colori delle classi...\".\r\n\r\n" +

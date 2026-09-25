@@ -348,6 +348,17 @@ namespace Campanella
             return true;
         }
 
+        /// <summary>
+        /// Vero se nel testo c'e' una data: in cifre (15/12, 15/12/2026,
+        /// 2026-12-15, con il punto solo con l'anno, 15.12.2026) o a parole (15
+        /// dicembre, 15 dic. 2026). Per i colloqui: una data nel nome e' un'altra voce.
+        /// </summary>
+        public static bool CeUnaData(string testo)
+        {
+            string s = testo ?? "";
+            return DataNelNome.IsMatch(s) || DataAParole.IsMatch(s);
+        }
+
         static void NonCapita(RigaLetta r, string motivo)
         {
             r.Giorni = null;
