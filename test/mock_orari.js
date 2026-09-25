@@ -2124,6 +2124,33 @@ if (conCalendario) {
           annullaQ.indexOf(chiave(tQ)) >= 0 && /cancellala tu/.test(annullaQ) && !proprieta.has(PROGRESSO_CALENDARIO));
         docOriginale.celle = celleOriginali.slice();
       }
+      // ...e se Google rifiuta ancora il contrassegno mentre ORARI_ANNULLA_calendario
+      // glielo rimette: toglie il resto, e il messaggio dice che Google non
+      // l'ha lasciato fare, con la data, e di cancellarlo tu
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calR = calendari[0];
+        const sR = vive(calR).find(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 3);
+        sR.descrizione = 'Portare il libro di laboratorio';
+        docOriginale.celle = ruotata(celleOriginali);
+        const rifiuto = { op: 'setTag', alla: 1, su: x => x instanceof Serie && x !== sR && x.descrizione === sR.descrizione,
+                          messaggio: 'Service invoked too many times in a short time: calendar.' };
+        guasti([rifiuto]);
+        contesto.ORARI_5_cambioOrario();
+        const appenaR = salvato() && salvato().appenaCreato;
+        const orfanaR = appenaR && calR.serie.find(x => x.id === appenaR.id);
+        guasti([rifiuto]);
+        const annullaR = contesto.ORARI_ANNULLA_calendario();
+        guasti([]);
+        verifica('Google rifiuta il contrassegno anche mentre ORARI_ANNULLA_calendario lo rimette al pezzo: tolto il ' +
+          'resto, il messaggio dice che Google non l\'ha lasciato fare, con la data, e di cancellarlo tu',
+          !!orfanaR && !orfanaR.cancellata && /Tolti \d+ eventi/.test(annullaR) && /Google non mi ha lasciato/.test(annullaR) &&
+          annullaR.indexOf(chiave(orfanaR.inizio)) >= 0 && /cancellala tu/.test(annullaR) &&
+          vive(calR).length === 1 && !proprieta.has(PROGRESSO_CALENDARIO));
+        docOriginale.celle = celleOriginali.slice();
+      }
 
       // ORARI_ANNULLA_calendario toglie anche gli eventi singoli rimessi dal cambio
       const mA = conModificheAMano();

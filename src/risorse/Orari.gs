@@ -1357,9 +1357,9 @@ function _orariAnnullaCalendario_() {
   // vede, e si toglie con il resto; se non lo ritrovo (o Google rifiuta), lo dico
   var pezzo = '';
   if (lavoro && lavoro.appenaCreato) {
-    var ritrovato = false;
-    try { ritrovato = _orariRimettiContrassegniAlPezzo_(cal, lavoro.appenaCreato); } catch (err0) { ritrovato = false; }
-    if (!ritrovato) pezzo = _orariAvvisoPezzoDaCancellare_(lavoro.appenaCreato.inizio);
+    var ritrovato = false, rifiutato = false;
+    try { ritrovato = _orariRimettiContrassegniAlPezzo_(cal, lavoro.appenaCreato); } catch (err0) { rifiutato = true; }
+    if (!ritrovato) pezzo = _orariAvvisoPezzoDaCancellare_(lavoro.appenaCreato.inizio, rifiutato);
   }
 
   var nostri = _orariNostri_(cal, inizio, fine);
@@ -1399,15 +1399,17 @@ function _orariAnnullaCalendario_() {
 /**
  * Per il messaggio di ORARI_ANNULLA_calendario: il pezzo appena rifatto da
  * un cambio d'orario (inizio in ms) che non ho ritrovato per dargli i
- * contrassegni, e quindi non ho tolto. Il docente lo cancella a mano.
+ * contrassegni (o Google non mi ha lasciato darglieli: rifiutato), e quindi
+ * non ho tolto. Il docente lo cancella a mano.
  */
-function _orariAvvisoPezzoDaCancellare_(inizio) {
+function _orariAvvisoPezzoDaCancellare_(inizio, rifiutato) {
   var g = new Date(inizio);
   var hh = g.getHours(), mm = g.getMinutes();
   return '\nAttenzione: un cambio d\'orario si era fermato appena dopo aver rifatto la lezione del ' +
     _orariChiaveData_(g) + ' ' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm + ' (e le settimane ' +
-    'dopo, se era una serie), prima di darle il contrassegno di Campanella, e non l\'ho ritrovata a quell\'ora per ' +
-    'toglierla. Se e\' ancora sul calendario (anche spostata), cancellala tu da Google Calendar (se e\' di una ' +
+    'dopo, se era una serie), prima di darle il contrassegno di Campanella, e ' +
+    (rifiutato ? 'Google non mi ha lasciato darglielo adesso' : 'non l\'ho ritrovata a quell\'ora') + ': non l\'ho ' +
+    'tolta. Se e\' ancora sul calendario (anche spostata), cancellala tu da Google Calendar (se e\' di una ' +
     'serie, tutti gli eventi di quella serie), altrimenti rimettendo l\'orario compare due volte.';
 }
 

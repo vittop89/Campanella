@@ -490,7 +490,7 @@ const CALENDARIO_ORARI = {
         // contrassegni prima di _orariNostri_, cosi' si toglie con il resto
         { funzione: '_orariAnnullaCalendario_', istruzione: 'lavoro && lavoro.appenaCreato' },
         { funzione: '_orariAnnullaCalendario_', istruzione: 'cal, lavoro.appenaCreato' },
-        { funzione: '_orariAnnullaCalendario_', istruzione: 'lavoro.appenaCreato.inizio' }
+        { funzione: '_orariAnnullaCalendario_', istruzione: 'lavoro.appenaCreato.inizio, rifiutato' }
       ]
     }
   ],
