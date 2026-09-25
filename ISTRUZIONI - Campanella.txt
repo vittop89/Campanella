@@ -501,14 +501,14 @@ ORARI - le email a te e il calendario
    nella spunta. Le settimane prima restano come sono, anche le lezioni
    spostate o cancellate a mano, e da quella data c'e' l'orario nuovo.
    Google non lascia accorciare una serie: quelle con lezioni prima e dopo
-   la data le rifa' fino al giorno prima (le lezioni spostate a mano
-   tornano come eventi singoli, alla loro ora) e toglie le vecchie. Altre
-   modifiche fatte a mano a una serie, come il colore o un promemoria, non
-   passano a quella rifatta. Rieseguita con la stessa data, o ripresa dopo
-   un'interruzione, da' lo stesso risultato. Tocca solo gli eventi con il
-   contrassegno di Campanella: una copia fatta a mano di una lezione la
-   lascia e te la nomina. Serve anche per un giorno senza lezione aggiunto
-   dopo, con lo stesso orario.
+   la data le rifa' fino al giorno prima (le lezioni spostate o
+   rinominate a mano tornano come eventi singoli, alla loro ora) e toglie
+   le vecchie. Altre modifiche fatte a mano a una serie, come il colore o
+   un promemoria, non passano a quella rifatta. Rieseguita con la stessa
+   data, o ripresa dopo un'interruzione, da' lo stesso risultato. Tocca
+   solo gli eventi con il contrassegno di Campanella: una copia fatta a
+   mano di una lezione la lascia e te la nomina. Serve anche per un giorno
+   senza lezione aggiunto dopo, con lo stesso orario.
    ORARI_ANNULLA_calendario toglie invece gli eventi messi dallo script
    nel periodo indicato in DatiOrari.gs (anche le lezioni spostate che il
    cambio d'orario ha rimesso come eventi singoli, e le copie fatte a mano

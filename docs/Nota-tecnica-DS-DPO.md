@@ -71,11 +71,11 @@ Quattro funzioni, tutte facoltative e indipendenti:
   docente) rifà fino al giorno prima della data indicata le serie
   dell'orario messe dallo script che hanno lezioni prima e dopo quella data
   (Google non permette di accorciarle: crea una serie uguale che finisce il
-  giorno prima, con le lezioni spostate a mano come eventi singoli, e poi
-  toglie la vecchia) e toglie quelle senza lezioni prima di quella data:
-  sempre e solo eventi con il contrassegno, e mai prima dell'inizio del
-  periodo indicato (gli anni scolastici precedenti nello stesso calendario
-  restano).
+  giorno prima, con le lezioni spostate o rinominate a mano come eventi
+  singoli, e poi toglie la vecchia) e toglie quelle senza lezioni prima di
+  quella data: sempre e solo eventi con il contrassegno, e mai prima
+  dell'inizio del periodo indicato (gli anni scolastici precedenti nello
+  stesso calendario restano).
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -196,10 +196,11 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   dopo quella data (Google non permette di accorciare una serie: lo script
   ne crea una uguale fino al giorno prima, con il contrassegno e un secondo
   contrassegno che dice quale serie sostituisce, ne toglie le lezioni che
-  il docente aveva cancellato o spostato, rimette quelle spostate come
-  eventi singoli alla loro ora e solo alla fine toglie la serie vecchia), o
-  le toglie, se non hanno lezioni prima di quella data, e inserisce l'orario
-  nuovo da quella data; e `ORARI_ANNULLA_calendario`, che rimuove solo
+  il docente aveva cancellato, spostato o rinominato, rimette quelle
+  spostate o rinominate come eventi singoli alla loro ora e solo alla fine
+  toglie la serie vecchia), o le toglie, se non hanno lezioni prima di
+  quella data, e inserisce l'orario nuovo da quella data; e
+  `ORARI_ANNULLA_calendario`, che rimuove solo
   quelli, nel periodo indicato. Il cambio d'orario rifà o toglie soltanto
   eventi con il contrassegno; l'annullamento anche quelli con la descrizione
   che comincia con «[Campanella]» (se Google non ha salvato il contrassegno,

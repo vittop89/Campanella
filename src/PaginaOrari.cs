@@ -1164,12 +1164,12 @@ namespace Campanella
             sb.AppendLine("    anche le lezioni spostate o cancellate a mano, e da quel giorno c'e'");
             sb.AppendLine("    l'orario nuovo. Google non lascia accorciare una serie: quelle");
             sb.AppendLine("    dell'orario di prima le rifa' fino al giorno prima (le lezioni");
-            sb.AppendLine("    spostate a mano tornano come eventi singoli, alla loro ora) e toglie le");
-            sb.AppendLine("    vecchie. Altre modifiche fatte a mano a una serie, come il colore, non");
-            sb.AppendLine("    passano a quella rifatta. Rieseguita con la stessa data da' lo stesso");
-            sb.AppendLine("    risultato, e anche lei riprende da sola se si ferma. Tocca solo gli");
-            sb.AppendLine("    eventi con il contrassegno: una copia fatta a mano di una lezione la");
-            sb.AppendLine("    lascia e te la nomina.");
+            sb.AppendLine("    spostate o rinominate a mano tornano come eventi singoli, alla loro");
+            sb.AppendLine("    ora) e toglie le vecchie. Altre modifiche fatte a mano a una serie,");
+            sb.AppendLine("    come il colore, non passano a quella rifatta. Rieseguita con la stessa");
+            sb.AppendLine("    data da' lo stesso risultato, e anche lei riprende da sola se si ferma.");
+            sb.AppendLine("    Tocca solo gli eventi con il contrassegno: una copia fatta a mano di una");
+            sb.AppendLine("    lezione la lascia e te la nomina.");
             sb.AppendLine();
             sb.AppendLine("ORARI_ANNULLA_calendario  resta per togliere tutto: solo gli eventi messi");
             sb.AppendLine("da qui (e le loro copie fatte a mano), nel periodo indicato; il calendario");

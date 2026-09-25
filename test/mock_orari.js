@@ -181,6 +181,7 @@ class Serie {
     this.eccezioni = new Map();      // inizio originale (ms) -> { inizio, fine } spostata, o null cancellata
   }
   getId() { return this.id; }
+  getTitle() { return this.titolo; }
   setTag(k, v) { operazione('setTag'); this.tag[k] = v; return this; }
   getTag(k) { return this.tag[k] || null; }
   setDescription(d) { this.descrizione = d; return this; }
@@ -213,6 +214,11 @@ class Serie {
   /** a mano, dall'interfaccia di Google: la lezione n (0 = la prima) spostata, o cancellata */
   sposta(n, inizio, fine) { this.eccezioni.set(this.passo(n).getTime(), { inizio, fine }); }
   cancella(n) { this.eccezioni.set(this.passo(n).getTime(), null); }
+  /** a mano: la lezione n rinominata (solo lei), alla sua ora */
+  rinomina(n, titolo) {
+    const t = this.passo(n);
+    this.eccezioni.set(t.getTime(), { inizio: t, fine: new Date(t.getTime() + (this.fine - this.inizio)), titolo });
+  }
   /**
    * le lezioni come le vede chi guarda il calendario: con quelle spostate,
    * senza quelle cancellate; chiave e' l'inizio che la lezione ha nella regola
@@ -224,7 +230,7 @@ class Serie {
       const chiave = t.getTime();
       if (!this.eccezioni.has(chiave)) { fuori.push({ inizio: t, fine: new Date(t.getTime() + durata), chiave }); continue; }
       const x = this.eccezioni.get(chiave);
-      if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()), chiave });
+      if (x) fuori.push({ inizio: new Date(x.inizio.getTime()), fine: new Date(x.fine.getTime()), chiave, titolo: x.titolo });
     }
     return fuori;
   }
@@ -293,6 +299,7 @@ class Calendario {
       for (const l of s.lezioni(limite)) {
         if (l.inizio < da || l.inizio > a) continue;
         const inizio = new Date(l.inizio.getTime()), fine = new Date(l.fine.getTime()), chiave = l.chiave;
+        const titolo = l.titolo || s.titolo;
         fuori.push({
           getId: () => s.getId(),
           getTag: k => s.getTag(k),
@@ -305,7 +312,7 @@ class Calendario {
           setTime: (i, f) => { operazione('setTime'); s.eccezioni.set(chiave, { inizio: new Date(i.getTime()), fine: new Date(f.getTime()) }); },
           getStartTime: () => new Date(inizio.getTime()),
           getEndTime: () => new Date(fine.getTime()),
-          getTitle: () => s.titolo
+          getTitle: () => titolo
         });
       }
     }
@@ -1737,6 +1744,27 @@ if (conCalendario) {
           orfanaSenza && presa && /cambiato/.test(errAppena) && !/compare due volte/.test(errAppena) && orfana.cancellata &&
           senzaDoppioni(mx.cal) && uguali(lezioniSul(mx.cal, settimanaPrima, ultimoGiorno), attesoX));
         contesto.ORARI.calendario = salvaX;
+      }
+
+      // una lezione rinominata a mano, alla sua ora: resta com'e', come evento
+      // singolo, e la serie rifatta ha il titolo della serie
+      {
+        azzeraCalendario();
+        contesto.ORARI_4_calendario();
+        const calR = calendari[0];
+        const sR = vive(calR).find(x => chiave(x.inizio) < validoDal && chiave(x.ricorrenza.until) >= validoDal &&
+          x.inizi(giornoPrima).length >= 2);
+        sR.rinomina(1, sR.titolo + ' verifica');
+        const primaR = lezioniSul(calR, settimanaPrima, giornoPrima);
+        docOriginale.celle = ruotata(celleOriginali);
+        const esitoR = contesto.ORARI_5_cambioOrario();
+        const nuovaR = vive(calR).find(x => sostituisce(x).indexOf(sR.id + '|') === 0);
+        verifica('una lezione rinominata a mano ("' + sR.titolo + ' verifica") resta com\'e\', come evento singolo, e ' +
+          'la serie rifatta ha il titolo della serie', uguali(lezioniSul(calR, settimanaPrima, giornoPrima), primaR) &&
+          primaR.some(l => / verifica$/.test(l)) && !!nuovaR && nuovaR.titolo === sR.titolo &&
+          calR.eventi.some(e => !e.cancellato && e.titolo === sR.titolo + ' verifica' && sostituisce(e)) &&
+          numero(/rimesse come eventi singoli alla loro ora: (\d+)/, esitoR) === 1);
+        docOriginale.celle = celleOriginali.slice();
       }
 
       // ORARI_ANNULLA_calendario toglie anche gli eventi singoli rimessi dal cambio

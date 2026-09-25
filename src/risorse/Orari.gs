@@ -811,30 +811,33 @@ function _orariPianoDelTaglio_(nostri, periodo, validoDal, fino, fuso) {
  * Come rifare fino al giorno prima del cambio (fino) una serie con lezioni
  * prima del validoDal e dopo. prima: quante lezioni ha prima del validoDal,
  * come le vede chi guarda il calendario. Quelle regolari (con la forma della
- * serie, voce.forma di _orariPrimaLezione_) fanno la serie nuova: dalla
- * prima (inizio, fine, titolo) ogni settimana alla stessa ora nel fuso dello
- * script, come la ripete Google in un calendario con quel fuso. buchi: le
- * settimane della serie nuova in cui la vecchia non ha una lezione regolare
- * (cancellata o spostata a mano), da togliere. spostate: le lezioni prima
- * del validoDal non regolari (o una seconda alla stessa ora), da rimettere
- * come eventi singoli alla loro ora.
+ * serie, voce.forma di _orariPrimaLezione_, e con il titolo della serie)
+ * fanno la serie nuova, con il titolo e la descrizione della vecchia: dalla
+ * prima (inizio, fine) ogni settimana alla stessa ora nel fuso dello script,
+ * come la ripete Google in un calendario con quel fuso. buchi: le settimane
+ * della serie nuova in cui la vecchia non ha una lezione regolare
+ * (cancellata, spostata o rinominata a mano), da togliere. spostate: le
+ * lezioni prima del validoDal non regolari (spostate, o con il titolo
+ * cambiato a mano, o una seconda alla stessa ora), da rimettere come eventi
+ * singoli alla loro ora, come sono (titolo e descrizione loro).
  */
 function _orariRifacimento_(voce, validoDal, fino, fuso) {
-  var r = { prima: 0, inizio: null, fine: null, titolo: voce.titolo, descrizione: voce.descrizione,
+  var titolo = voce.titolo;
+  try { titolo = String(voce.serie.getTitle() || '') || voce.titolo; } catch (e) { titolo = voce.titolo; }
+  var r = { prima: 0, inizio: null, fine: null, titolo: titolo, descrizione: voce.descrizione,
             buchi: [], spostate: [], idNuova: '', segno: '' };
   var regolari = [];
   for (var i = 0; i < voce.lezioni.length; i++) {
     var l = voce.lezioni[i];
     if (l.inizio >= validoDal) continue;
     r.prima++;
-    if (_orariForma_(l, fuso) === voce.forma) regolari.push(l);
+    if (_orariForma_(l, fuso) === voce.forma && _orariTitoloDi_(l) === r.titolo) regolari.push(l);
     else r.spostate.push(l);
   }
   if (!regolari.length) return r;
   var p = regolari[0].inizio;
   r.inizio = p;
   r.fine = regolari[0].fine;
-  r.titolo = _orariTitoloDi_(regolari[0]) || voce.titolo;
   var j = 0;
   for (var k = 0; ; k++) {
     var t = new Date(p.getFullYear(), p.getMonth(), p.getDate() + 7 * k, p.getHours(), p.getMinutes(), p.getSeconds());
@@ -895,17 +898,21 @@ function _orariTitoloDi_(lezione) {
   try { return String(lezione.evento.getTitle() || ''); } catch (e) { return ''; }
 }
 
+/** La descrizione di una lezione di _orariNostri_, come la vede chi guarda il calendario. */
+function _orariDescrizioneDi_(lezione) {
+  try { return String(lezione.evento.getDescription() || ''); } catch (e) { return ''; }
+}
+
 /** (1) del taglio: la serie nuova, come la vecchia (titolo e descrizione), dalla prima lezione regolare a fino. */
 function _orariSerieRifatta_(cal, r, fino) {
   var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fino);
   return cal.createEventSeries(r.titolo, r.inizio, r.fine, ricorrenza, { description: r.descrizione });
 }
 
-/** (3) del taglio: una lezione spostata a mano, come evento singolo alla sua ora, con il suo titolo e descrizione. */
+/** (3) del taglio: una lezione spostata o rinominata a mano, come evento singolo alla sua ora, con titolo e descrizione. */
 function _orariLezioneRifatta_(cal, lezione) {
-  var descrizione = '';
-  try { descrizione = String(lezione.evento.getDescription() || ''); } catch (e) { descrizione = ''; }
-  return cal.createEvent(_orariTitoloDi_(lezione), lezione.inizio, lezione.fine, { description: descrizione });
+  return cal.createEvent(_orariTitoloDi_(lezione), lezione.inizio, lezione.fine,
+                         { description: _orariDescrizioneDi_(lezione) });
 }
 
 /**
@@ -1162,7 +1169,7 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
     'Serie dell\'orario di prima rifatte fino al ' + giornoPrima + ', con le lezioni come erano: ' + stato.rifatte + '\n' +
     'Serie dell\'orario di prima tolte (nessuna lezione prima del ' + dal + '): ' + stato.tolte + '\n' +
     (stato.eventiTolti ? 'Eventi singoli tolti (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' : '') +
-    (rimesse ? 'Lezioni spostate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
+    (rimesse ? 'Lezioni spostate o rinominate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
                stato.spostate.join('; ') + (rimesse > stato.spostate.length ? '; ...' : '') + '\n' : '') +
     'Serie dell\'orario nuovo create: ' + piano.serie.length + ' (' + piano.lezioni + ' lezioni, fino al ' +
     c.fine + ')\n' +
@@ -1176,10 +1183,10 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
               'eseguito su questo calendario. L\'orario nuovo c\'e\' lo stesso, dal ' + dal + '.\n' : '') +
     '\nLe settimane prima del ' + dal + ' restano come erano, con le lezioni spostate o cancellate a mano. ' +
     'Google non lascia accorciare una serie: quelle con lezioni prima del cambio le ho rifatte fino al ' +
-    giornoPrima + ' (le lezioni spostate a mano come eventi singoli) e poi ho tolto le vecchie. Altre modifiche ' +
-    'fatte a mano a una serie vecchia, come il colore o un promemoria, non sono passate a quella rifatta: se ne ' +
-    'avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data e riesegui ' +
-    'ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
+    giornoPrima + ' (le lezioni spostate o rinominate a mano come eventi singoli) e poi ho tolto le vecchie. ' +
+    'Altre modifiche fatte a mano a una serie vecchia, come il colore o un promemoria, non sono passate a quella ' +
+    'rifatta: se ne avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data ' +
+    'e riesegui ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
 }
 
 /** "3A, mercoledi' 2026-09-16 15:00": una lezione spostata a mano, nei messaggi. */

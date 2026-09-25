@@ -74,47 +74,47 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   date is done again up to the day before: a new series with the same title
   and description, from its first regular lesson (the most frequent day,
   time and length) every week until the day before at 23:59:59; from it the
-  lessons of the weeks where the old series had no regular lesson (cancelled
-  or moved by hand) are removed (deleteEvent on one lesson of a series
-  removes only that one, tried live); every lesson moved by hand before the
-  date comes back as a single event at its own time, with its title and
-  description; only then the old series is removed. Series with no lesson
-  before the date are removed, and so are the single events with the mark
-  from that date on; then the new timetable goes on from that date. The
-  series and events done again carry the mark and a second one,
-  campanella_sostituisce, with the id of the old series and the day before:
-  a job stopped halfway (time, Google's limits) or run again finds what it
-  already did, does not do it twice and ends with the same calendar, and
-  what was done for another date (a change started over with another
-  DatiOrari.gs) is removed before its old series. The id of a piece just
-  created goes in the saved point before its marks, so a resume after a
+  lessons of the weeks where the old series had no regular lesson
+  (cancelled, moved or renamed by hand) are removed (deleteEvent on one
+  lesson of a series removes only that one, tried live); every lesson moved
+  or renamed by hand before the date comes back as a single event at its own
+  time, with its own title and description; only then the old series is
+  removed. Series with no lesson before the date are removed, and so are the
+  single events with the mark from that date on; then the new timetable goes
+  on from that date. The series and events done again carry the mark and a
+  second one, campanella_sostituisce, with the id of the old series and the
+  day before: a job stopped halfway (time, Google's limits) or run again
+  finds what it already did, does not do it twice and ends with the same
+  calendar, and what was done for another date (a change started over with
+  another DatiOrari.gs) is removed before its old series. The id of a piece
+  just created goes in the saved point before its marks, so a resume after a
   refused mark puts them back instead of creating the piece again (and a
   change started over puts them back before forgetting the job). A date
   before the start of the period counts as the start: earlier school years
   in the same calendar (the default name "Orario COGNOME" is the same every
   year) are not touched, and preview and message say that the new timetable
-  holds for the whole period. The first lesson of a series, for the
-  messages and to recognise a series just put, is the first with its most
-  frequent day, time and length, as many weeks earlier as there are lessons
-  moved by hand before it (counted, not measured) or moved past the next
-  week; a lesson moved before the first regular one with a week missing in
-  between (the first lesson moved by one to three days and the second
-  cancelled) stays in the week it falls in, when Campanella could have put
-  a lesson there (from the start of the period, not on a day off). The
-  description of every series says the day of its first lesson (`serie dal
-  2026-10-12`): a series never starts before it. With two shapes equally
-  frequent (only in very short series) the weekday written in the
-  description, where Campanella put the series, decides, then the earliest
-  lesson. Only events with the mark are done again or removed; a series or
-  a single lesson recognised only by the description (a copy made by hand)
-  is left and named. The final message says how many series were done again
-  up to the day before, removed and created, how many single events were
-  removed, which lessons moved by hand came back as single events, how many
-  lessons were skipped, and that other changes made by hand to an old series
-  (its colour, a reminder) do not pass to the new one. When DatiOrari.gs
-  changes halfway to a later date, the error says that the old lessons
-  between the two dates of the series already done again or removed do not
-  come back, and how to have them (ORARI_ANNULLA_calendario,
+  holds for the whole period. The first lesson of a series, for the messages
+  and to recognise a series just put, is the first with its most frequent
+  day, time and length, as many weeks earlier as there are lessons moved by
+  hand before it (counted, not measured) or moved past the next week; a
+  lesson moved before the first regular one with a week missing in between
+  (the first lesson moved by one to three days and the second cancelled)
+  stays in the week it falls in, when Campanella could have put a lesson
+  there (from the start of the period, not on a day off). The description of
+  every series says the day of its first lesson (`serie dal 2026-10-12`): a
+  series never starts before it. With two shapes equally frequent (only in
+  very short series) the weekday written in the description, where
+  Campanella put the series, decides, then the earliest lesson. Only events
+  with the mark are done again or removed; a series or a single lesson
+  recognised only by the description (a copy made by hand) is left and
+  named. The final message says how many series were done again up to the
+  day before, removed and created, how many single events were removed,
+  which lessons moved or renamed by hand came back as single events, how
+  many lessons were skipped, and that other changes made by hand to an old
+  series (its colour, a reminder) do not pass to the new one. When
+  DatiOrari.gs changes halfway to a later date, the error says that the old
+  lessons between the two dates of the series already done again or removed
+  do not come back, and how to have them (ORARI_ANNULLA_calendario,
   ORARI_4_calendario with the previous DatiOrari.gs, then
   ORARI_5_cambioOrario). It also serves for a day off added after the
   timetable was put on the calendar.
@@ -382,13 +382,13 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
 
 **For developers**
 
-- mock_orari.js runs in the Europe/Rome time zone, with daylight saving time,
-  also in the CI in UTC (a weekly step in milliseconds would go unnoticed
-  there). The fake Calendar does what Google does, as tried live on 25
-  September 2026: a calendar created without timeZone is in UTC, with it in
-  that zone (getTimeZone, setTimeZone); a series repeats every week until
-  `until`, in the zone the calendar had when it was created (in UTC at the
-  same UTC time, so an hour earlier in Rome after 25 October);
+- mock_orari.js runs in the Europe/Rome time zone, with daylight saving
+  time, also in the CI in UTC (a weekly step in milliseconds would go
+  unnoticed there). The fake Calendar does what Google does, as tried live
+  on 25 September 2026: a calendar created without timeZone is in UTC, with
+  it in that zone (getTimeZone, setTimeZone); a series repeats every week
+  until `until`, in the zone the calendar had when it was created (in UTC at
+  the same UTC time, so an hour earlier in Rome after 25 October);
   setRecurrence changes nothing (the calls are remembered, and the end of
   the tests checks there were none); deleteEvent on a lesson of a series
   removes only that one; single events have ids, marks and the description
@@ -398,31 +398,31 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   regardless of case, and a non-null "series" for single events, as Google.
   Assumed, not tried live and said so in its comment: setTimeZone does not
   change the series already there, and setTime moves one lesson only. New
-  sections: the time zone (the calendar created in the script's zone,
-  series across 25 October at the same time, a 1.5 calendar in UTC with the
+  sections: the time zone (the calendar created in the script's zone, series
+  across 25 October at the same time, a 1.5 calendar in UTC with the
   timetable, which makes both functions stop, an empty UTC calendar that
-  takes the zone, the shape of lessons in the calendar's zone),
-  days without lessons (an isolated holiday, a long break, a Monday block
-  split by Easter Monday and a Wednesday one that is not, days outside the
-  period), which calendar is used, resume for time and for Google's limits
-  without duplicates, lock, changed DatiOrari.gs, timetable change (done
-  again up to the day before with the second mark, removed, created, weeks
-  before untouched, no old lesson after the date, same result when run
-  again or resumed halfway, a refused mark on a series just done again, a
-  date before the start with last year in the same calendar, a "Dal" moved
-  forward, lessons moved or cancelled by hand, also by four days, before
-  the start of the period, past the next week or two out of four, the first
-  one moved by one to three days with the second cancelled, with the moved
-  lessons back as single events and the week of a cancelled one removed
-  from the new series, stopped by time after each of the first eight
-  changes and by Google's limits at each of the first six calls of every
-  operation and always ending with the same calendar, DatiOrari.gs changed
-  halfway to a week later or earlier, ORARI_ANNULLA_calendario removing the
-  single events too, a series and a single lesson copied by hand), undo of
-  a job half done, undo stopped by time or
-  by Google's limits, ANNULLA_automazione with a resume already started
-  and the other calendar function run by hand, and a resume that ends with
-  an error that is not one of Google's limits.
+  takes the zone, the shape of lessons in the calendar's zone), days without
+  lessons (an isolated holiday, a long break, a Monday block split by Easter
+  Monday and a Wednesday one that is not, days outside the period), which
+  calendar is used, resume for time and for Google's limits without
+  duplicates, lock, changed DatiOrari.gs, timetable change (done again up to
+  the day before with the second mark, removed, created, weeks before
+  untouched, no old lesson after the date, same result when run again or
+  resumed halfway, a refused mark on a series just done again, a date before
+  the start with last year in the same calendar, a "Dal" moved forward,
+  lessons moved or cancelled by hand, also by four days, before the start of
+  the period, past the next week or two out of four, the first one moved by
+  one to three days with the second cancelled, a lesson renamed by hand,
+  with the moved and renamed lessons back as single events and the week of a
+  cancelled one removed from the new series, stopped by time after each of
+  the first eight changes and by Google's limits at each of the first six
+  calls of every operation and always ending with the same calendar,
+  DatiOrari.gs changed halfway to a week later or earlier,
+  ORARI_ANNULLA_calendario removing the single events too, a series and a
+  single lesson copied by hand), undo of a job half done, undo stopped by
+  time or by Google's limits, ANNULLA_automazione with a resume already
+  started and the other calendar function run by hand, and a resume that
+  ends with an error that is not one of Google's limits.
 - invarianti_script.js checks the calendar by shape (CALENDARIO_ORARI): only
   four members of CalendarApp; every method that reads, creates, changes or
   removes events only in a few functions, on a receiver written exactly so,
