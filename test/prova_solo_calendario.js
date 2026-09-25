@@ -55,7 +55,7 @@ function intestazione(t) { console.log('\n' + '='.repeat(72) + '\n  ' + t + '\n'
 const VIETATI = ['MailApp', 'GmailApp', 'Gmail', 'sendEmail', 'Session.getActiveUser', 'getActiveUser',
                  'getEffectiveUser', 'UrlFetchApp', 'DriveApp', 'DocumentApp', 'SpreadsheetApp', 'FormApp'];
 const DEL_CALENDARIO = ['ORARI_1_anteprima', 'ORARI_4_calendario', 'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni',
-                        'ORARI_ANNULLA_calendario'];
+                        'ORARI_7_colloqui', 'ORARI_ANNULLA_calendario'];
 const DELLE_EMAIL = ['ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_ANNULLA_invio'];
 
 /** I nomi vietati che il testo nomina. */

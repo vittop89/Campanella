@@ -70,6 +70,25 @@ var ORARI = {
       { dal: "2027-05-01", al: "2027-05-01", nome: "Festa del Lavoro" },
       { dal: "2027-06-02", al: "2027-06-02", nome: "Festa della Repubblica" }
     ],
+    // i colloqui con le famiglie (ORARI_4_calendario; se cambiano, ORARI_7_colloqui):
+    // il ricevimento del giovedi', a tratti fra i giorni senza lezione e quelli
+    // senza colloqui, una giornata dentro il periodo senza colloqui (c'e' lo
+    // stesso). Link inventati. test/mock_orari.js li prova nelle sue sezioni dei
+    // colloqui, con i suoi; questi alla fine
+    colloqui: {
+      settimanali: [
+        { giorno: "giovedi", dalle: "10:10", alle: "11:10", dal: "", al: "", nome: "Ricevimento",
+          link: "https://meet.google.com/abc-defg-hij" }
+      ],
+      singoli: [
+        { data: "2026-12-15", dalle: "15:00", alle: "18:00", nome: "Colloqui generali",
+          link: "https://meet.google.com/kmn-pqrs-tuv" }
+      ],
+      sospensioni: [
+        { dal: "2026-12-14", al: "2027-01-09" }
+      ]
+    },
+    coloreColloqui: "5",         // Banana, che le classi non usano
     validoDal: "2026-10-05"      // l'orario cambiato vale da qui (ORARI_5_cambioOrario), un lunedi'
   }
 };

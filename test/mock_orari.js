@@ -16,7 +16,11 @@
  * (ORARI_5_cambioOrario, che rifa' le serie fino al giorno prima, anche con
  * lezioni spostate o cancellate a mano, e interrotto in ogni punto), i
  * colori delle classi (dati da ORARI_4 e ORARI_5 alle serie che creano, da
- * ORARI_6_coloraLezioni a quelle gia' messe, con la sua ripresa) e
+ * ORARI_6_coloraLezioni a quelle gia' messe, con la sua ripresa), i
+ * colloqui con le famiglie (messi da ORARI_4_calendario a tratti, come le
+ * lezioni, con il link del Meet come luogo; aggiornati da oggi da
+ * ORARI_7_colloqui senza toccare le lezioni; rifatti dal cambio d'orario,
+ * colorati da ORARI_6_coloraLezioni, tolti da ORARI_ANNULLA_calendario) e
  * l'annullamento di un lavoro a meta'. Di partenza usa i dati inventati
  * di DatiOrari_esempio.gs; si puo' passare un altro file, per esempio quello
  * che test/prova_orario.ps1 genera con il generatore vero.
@@ -504,12 +508,18 @@ function formatta(data, fuso, modello) {
 }
 const Utilities = { sleep: () => { pause++; }, formatDate: formatta };
 
+// il giorno di oggi per new Date() senza argomenti (ORARI_7_colloqui aggiorna
+// i colloqui da oggi): null e' quello vero, una data lo fissa per le prove
+let oggiFinto = null;
 const DateFinta = new Proxy(Date, {
   get(target, prop) {
     if (prop === 'now') return () => target.now() + orologio;
     return Reflect.get(target, prop);
   },
-  construct(target, args) { return new target(...args); }
+  construct(target, args) {
+    if (!args.length && oggiFinto) return new target(oggiFinto.getTime());
+    return new target(...args);
+  }
 });
 
 const contesto = vm.createContext(SOLO_CALENDARIO ? {
@@ -555,6 +565,7 @@ const SEZIONI_CALENDARIO = [
   'COLORI DELLE CLASSI', 'COLORI NEL CAMBIO D\'ORARIO', 'ORARI_6_COLORALEZIONI',
   'ORARI_6_COLORALEZIONI: RIPRESA, LIMITI DI GOOGLE E BLOCCO',
   'ORARI_6_COLORALEZIONI CON UN LAVORO DEL CALENDARIO A META\'',
+  'COLLOQUI CON LE FAMIGLIE', 'COLLOQUI: ORARI_7_COLLOQUI', 'COLLOQUI: CAMBIO D\'ORARIO E COLORI',
   'ANNULLA CALENDARIO DOPO UN LAVORO A META\'', 'ANNULLA CALENDARIO: TEMPO MASSIMO E LIMITI DI GOOGLE'
 ];
 // con --solo-calendario, al posto delle email e della Posta, le prove di Calendario.gs
@@ -575,6 +586,12 @@ verifica('le prove girano nel fuso di Roma, con l\'ora legale (' + Intl.DateTime
   new Date(2027, 0, 15).getTimezoneOffset() === -60 && new Date(2027, 6, 15).getTimezoneOffset() === -120);
 
 const D = contesto.ORARI;
+// i colloqui con le famiglie, se i dati li hanno (quelli che test/prova_orario.ps1
+// genera con Campanella): li provano le loro sezioni, alla fine del calendario.
+// Le altre contano le lezioni, e partono senza
+const colloquiDeiDati = (D.calendario && D.calendario.colloqui) ? D.calendario.colloqui : null;
+const coloreColloquiDeiDati = D.calendario ? D.calendario.coloreColloqui : undefined;
+if (D.calendario) { delete D.calendario.colloqui; delete D.calendario.coloreColloqui; }
 const conOre = D.docenti.filter(d => d.celle.some(c => c)).length;
 console.log('Dati: ' + D.docenti.length + ' docenti (' + conOre + ' con ore), ' +
             (D.classi ? D.classi.length : 0) + ' classi, ' +
@@ -3061,6 +3078,416 @@ if (conCalendario) {
   conColori(coloriDati);
   contesto.ORARI.calendario = calendarioDati;
 
+  // --- i colloqui con le famiglie ---------------------------------------------
+  // ORARI_4_calendario mette, dopo le lezioni, i colloqui di DatiOrari.gs
+  // (calendario.colloqui): il ricevimento di ogni settimana a tratti, come le
+  // lezioni (niente nei giorni senza lezione e in quelli senza colloqui), le
+  // giornate singole come eventi singoli, con il link del Meet come luogo.
+  // Qui i colloqui sono inventati, con link inventati; quelli dei dati (se ci
+  // sono) li ha messi da parte l'inizio, e li prova l'ultima sezione
+  const LINK_A = 'https://meet.google.com/abc-defg-hij';
+  const LINK_B = 'https://meet.google.com/kmn-pqrs-tuv';
+  const LINK_C = 'https://meet.google.com/wxy-zabc-def';
+  const colloquiProva = {
+    settimanali: [
+      // il giovedi' per tutto il periodo
+      { giorno: 'giovedi', dalle: '10:10', alle: '11:10', dal: '', al: '', nome: 'Ricevimento', link: LINK_A },
+      // il martedi' pomeriggio solo fra gennaio e febbraio, senza link: il 16 febbraio e' Carnevale
+      { giorno: 'martedi', dalle: '15:00', alle: '15:30', dal: '2027-01-12', al: '2027-02-23',
+        nome: 'Ricevimento pomeridiano', link: '' }
+    ],
+    singoli: [
+      // dentro il periodo senza colloqui: una giornata scritta apposta c'e' lo stesso
+      { data: '2026-12-15', dalle: '15:00', alle: '18:00', nome: 'Colloqui generali', link: LINK_B },
+      { data: '2027-04-13', dalle: '15:00', alle: '18:00', nome: 'Colloqui generali', link: LINK_B },
+      // l'anno scorso: fuori dal periodo, non si mette
+      { data: '2025-12-16', dalle: '15:00', alle: '18:00', nome: 'Colloqui dell\'anno scorso', link: LINK_B }
+    ],
+    sospensioni: [{ dal: '2026-12-10', al: '2027-01-09' }, { dal: '2027-05-15', al: '2027-06-10' }]
+  };
+  // i colloqui cambiati: il ricevimento passa al venerdi' con un altro link,
+  // la giornata di aprile va via e ne arriva una a marzo
+  const colloquiNuovi = {
+    settimanali: [
+      { giorno: 'venerdi', dalle: '11:10', alle: '12:10', dal: '', al: '', nome: 'Ricevimento', link: LINK_C },
+      colloquiProva.settimanali[1]
+    ],
+    singoli: [colloquiProva.singoli[0],
+              { data: '2027-03-10', dalle: '16:00', alle: '19:00', nome: 'Colloqui di marzo', link: LINK_B }],
+    sospensioni: colloquiProva.sospensioni
+  };
+  /** Mette in DatiOrari.gs questi colloqui e questo colore dei colloqui (di partenza Banana, "5"). */
+  const conColloqui = (k, colore) => {
+    contesto.ORARI.calendario = Object.assign({}, calendarioDati, { colloqui: k,
+      coloreColloqui: (colore === undefined) ? '5' : colore });
+  };
+  /** Di Campanella: con il contrassegno delle lezioni o dei colloqui, o con la descrizione. */
+  const diCampanella = e => ['orario', 'colloquio'].indexOf(e.getTag('campanella')) >= 0 ||
+    String(e.getDescription() || '').indexOf('[Campanella]') === 0;
+  /** Un colloquio: dal contrassegno, o senza dalla descrizione. */
+  const diColloquio = e => (e.getTag('campanella') ? e.getTag('campanella') === 'colloquio'
+    : String(e.getDescription() || '').indexOf('[Campanella] Colloqui') === 0);
+  /** Le lezioni di Campanella (senza i colloqui), come lezioniSul. */
+  function soloLezioniSul(calX, da, a) {
+    const fine = new Date(a.getFullYear(), a.getMonth(), a.getDate(), 23, 59, 59);
+    return calX.getEvents(da, fine).filter(e => diCampanella(e) && !diColloquio(e))
+      .map(e => chiave(e.getStartTime()) + ' ' + ora(minutiDi(e.getStartTime())) + '-' +
+                ora(minutiDi(e.getEndTime())) + ' ' + e.getTitle())
+      .sort();
+  }
+  /** I colloqui sul calendario, dal giorno al giorno compresi: "aaaa-mm-gg hh:mm-hh:mm nome|luogo", in ordine. */
+  function colloquiSul(calX, da, a) {
+    const fine = new Date(a.getFullYear(), a.getMonth(), a.getDate(), 23, 59, 59);
+    return calX.getEvents(da, fine).filter(e => diCampanella(e) && diColloquio(e))
+      .map(e => chiave(e.getStartTime()) + ' ' + ora(minutiDi(e.getStartTime())) + '-' +
+                ora(minutiDi(e.getEndTime())) + ' ' + e.getTitle() + '|' + e.getLocation())
+      .sort();
+  }
+  /**
+   * I colloqui attesi dal giorno dal, ricavati qui senza guardare lo script,
+   * nella forma di colloquiSul, e quante serie (tratti) per il ricevimento.
+   */
+  function colloquiAttesi(k, dal) {
+    const incontri = [];
+    let tratti = 0;
+    const fermi = (k.sospensioni || []).map(s => ({ dal: s.dal, al: s.al || s.dal }));
+    const fermo = g => fermi.some(s => s.dal <= g && g <= s.al);
+    for (const w of k.settimanali || []) {
+      const gs = giornoSettimana(w.giorno);
+      let t = w.dal ? dataDa(w.dal) : primoGiorno;
+      if (t < dal) t = dal;
+      t = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+      const fine = (w.al && dataDa(w.al) < ultimoGiorno) ? dataDa(w.al) : ultimoGiorno;
+      while (t.getDay() !== gs) t = giorniDopo(t, 1);
+      let aperto = false;
+      for (; t <= fine; t = giorniDopo(t, 7)) {
+        const g = chiave(t);
+        if (sospeso(g) || fermo(g)) { aperto = false; continue; }
+        if (!aperto) { tratti++; aperto = true; }
+        incontri.push(g + ' ' + w.dalle + '-' + w.alle + ' ' + w.nome + '|' + (w.link || ''));
+      }
+    }
+    for (const u of k.singoli || []) {
+      if (u.data < c.inizio || u.data > c.fine || u.data < chiave(dal)) continue;
+      incontri.push(u.data + ' ' + u.dalle + '-' + u.alle + ' ' + u.nome + '|' + (u.link || ''));
+    }
+    return { incontri: incontri.sort(), tratti };
+  }
+  const serieColloqui = calX => vive(calX).filter(s => s.getTag('campanella') === 'colloquio');
+  const giornateColloqui = calX => calX.eventi.filter(e => !e.cancellato && e.getTag('campanella') === 'colloquio');
+
+  intestazione('COLLOQUI CON LE FAMIGLIE');
+  {
+    azzeraCalendario();
+    oggiFinto = null;
+    conColloqui(colloquiProva);
+    const attesi = colloquiAttesi(colloquiProva, primoGiorno);
+    verifica('i colloqui di prova provano i casi: il martedi\' di Carnevale e i giovedi\' senza colloqui saltati, la ' +
+      'giornata di dicembre dentro il periodo senza colloqui, quella dell\'anno scorso fuori (' + attesi.incontri.length +
+      ' incontri, ' + attesi.tratti + ' serie)',
+      !attesi.incontri.some(x => /^2027-02-16 /.test(x)) && attesi.incontri.some(x => /^2027-02-09 15:00/.test(x)) &&
+      !attesi.incontri.some(x => /^2026-12-17 /.test(x) || /^2027-05-20 /.test(x)) &&
+      attesi.incontri.some(x => /^2026-12-03 10:10/.test(x)) && attesi.incontri.some(x => /^2026-12-15 15:00/.test(x)) &&
+      !attesi.incontri.some(x => /^2025-/.test(x)) && attesi.tratti === 4);
+    const anteprima = contesto.ORARI_1_anteprima();
+    verifica('ORARI_1_anteprima dice i colloqui che ORARI_4_calendario mettera\', quello fuori dal periodo e il loro colore',
+      new RegExp('Colloqui da mettere con ORARI_4_calendario: 2 ricevimenti settimanali \\(' + attesi.tratti + ' serie, ' +
+        (attesi.incontri.length - 2) + ' incontri\\), 2 giornate singole').test(anteprima) &&
+      /1 giornata fuori dal periodo/.test(anteprima) && /Colore dei colloqui: Banana/.test(anteprima));
+    const esito = contesto.ORARI_4_calendario();
+    console.log(esito);
+    const calC = calendari[0];
+    verifica('ORARI_4_calendario mette le lezioni come senza colloqui (' + piano.lezioni.length + ')',
+      uguali(soloLezioniSul(calC, primoGiorno, ultimoGiorno), piano.lezioni) &&
+      vive(calC).filter(s => s.getTag('campanella') === 'orario').length === piano.tratti.length);
+    const messi = colloquiSul(calC, primoGiorno, ultimoGiorno);
+    verifica('e i colloqui del piano, giorno, ora, nome e link, non uno di piu\' (' + messi.length + ' su ' +
+      attesi.incontri.length + ')', uguali(messi, attesi.incontri));
+    const serie = serieColloqui(calC), giornate = giornateColloqui(calC);
+    verifica('il ricevimento e\' a tratti: una serie per tratto di settimane (' + serie.length + '), ogni settimana fino ' +
+      'all\'ultimo incontro alle 23:59:59, con il contrassegno dei colloqui',
+      serie.length === attesi.tratti && serie.every(s => !!s.ricorrenza && s.ricorrenza.weekly &&
+        s.ricorrenza.until.getHours() === 23 && s.ricorrenza.until.getMinutes() === 59 &&
+        s.ricorrenza.until.getSeconds() === 59 && s.fuso === FUSO_BANCO));
+    verifica('le giornate singole sono eventi singoli con il contrassegno dei colloqui (2), anche quella dentro il periodo ' +
+      'senza colloqui; quella dell\'anno scorso no',
+      giornate.length === 2 && giornate.some(e => chiave(e.inizio) === '2026-12-15') &&
+      !calC.eventi.some(e => chiave(e.inizio) === '2025-12-16'));
+    verifica('il luogo e\' il link del Meet (senza link, nessun luogo); la descrizione comincia con [Campanella] Colloqui ' +
+      'e dice il link; il titolo e\' il nome',
+      serie.concat(giornate).every(x => String(x.getDescription()).indexOf('[Campanella] Colloqui') === 0 &&
+        (x.getLocation() === '' || String(x.getDescription()).indexOf(x.getLocation()) > 0)) &&
+      serie.filter(s => s.titolo === 'Ricevimento').every(s => s.getLocation() === LINK_A) &&
+      serie.filter(s => s.titolo === 'Ricevimento pomeridiano').every(s => s.getLocation() === '') &&
+      giornate.every(e => e.getLocation() === LINK_B && e.titolo === 'Colloqui generali'));
+    verifica('i colloqui hanno il colore dei colloqui (Banana)', serie.concat(giornate).every(x => x.getColor() === '5'));
+    verifica('il messaggio dice i colloqui messi, di ORARI_7_colloqui e che le prenotazioni restano nel registro',
+      new RegExp('Colloqui messi: 2 ricevimenti settimanali \\(' + attesi.tratti + ' serie').test(esito) &&
+      /ORARI_7_colloqui/.test(esito) && /registro elettronico/.test(esito));
+    const seconda = errore(() => contesto.ORARI_4_calendario());
+    verifica('rieseguito si ferma, anche per i colloqui, senza raddoppiarli',
+      /gia' \d+ serie/.test(seconda) && uguali(colloquiSul(calC, primoGiorno, ultimoGiorno), attesi.incontri));
+    const altrui = calC.createEvent('Colloquio con la dirigente', new Date(2026, 10, 12, 15, 0), new Date(2026, 10, 12, 16, 0));
+    contesto.ORARI_ANNULLA_calendario();
+    verifica('ORARI_ANNULLA_calendario toglie anche i colloqui, serie e giornate, e lascia gli altri eventi',
+      serie.every(s => s.cancellata) && giornate.every(e => e.cancellato) &&
+      colloquiSul(calC, primoGiorno, ultimoGiorno).length === 0 && !altrui.cancellato);
+
+    // i colloqui che Google non contrassegna (un limite proprio sul contrassegno):
+    // la ripresa lo rimette, alla serie e alla giornata singola, senza doppioni
+    for (const titolo of ['Ricevimento', 'Colloqui generali']) {
+      azzeraCalendario();
+      conColloqui(colloquiProva);
+      guasti([{ op: 'setTag', alla: 1, su: x => x.titolo === titolo,
+                messaggio: 'Service invoked too many times in a short time: calendar.' }]);
+      const fermo = contesto.ORARI_4_calendario();
+      guasti([]);
+      const calG = calendari[0];
+      const senza = serieColloqui(calG).length + giornateColloqui(calG).length;
+      riprendiFinoInFondo('ORARI_4_calendario');
+      verifica('Google non salva il contrassegno di "' + titolo + '": la ripresa glielo rimette, senza doppioni',
+        /fra un minuto/.test(fermo) && senza < attesi.tratti + 2 &&
+        serieColloqui(calG).length === attesi.tratti && giornateColloqui(calG).length === 2 &&
+        uguali(colloquiSul(calG, primoGiorno, ultimoGiorno), attesi.incontri) && !proprieta.has(PROGRESSO_CALENDARIO));
+    }
+
+    // dati sbagliati (un DatiOrari.gs cambiato a mano): si ferma prima di toccare il calendario
+    const sbagliati = [
+      [{ settimanali: [{ giorno: 'giovedi', dalle: '11:10', alle: '10:10', nome: 'x', link: LINK_A }] },
+       'ricevimento settimanale numero 1 non ha le ore giuste'],
+      [{ settimanali: [{ giorno: 'giovedi', dalle: '10:10', alle: '11:10', nome: 'x', link: 'javascript:alert(1)' }] },
+       'non e\' un indirizzo https://'],
+      [{ settimanali: [{ giorno: 'ognigiorno', dalle: '10:10', alle: '11:10', nome: 'x', link: '' }] },
+       'ricevimento settimanale numero 1 non si capisce'],
+      [{ singoli: [{ data: '15/12/2026', dalle: '15:00', alle: '18:00', nome: 'x', link: '' }] },
+       'giornata di colloqui numero 1 non ha una data'],
+      [{ sospensioni: [{ dal: '2027-01-09', al: '2026-12-10' }] }, 'periodo senza colloqui numero 1 non si capisce']
+    ];
+    for (const [k, attesa] of sbagliati) {
+      azzeraCalendario();
+      conColloqui(k);
+      const detto = errore(() => contesto.ORARI_4_calendario());
+      verifica('con dati sbagliati si ferma prima di toccare il calendario e dice di rigenerare DatiOrari.gs ("' +
+        attesa + '")', detto.indexOf(attesa) >= 0 && /rigenera/.test(detto) && calendari.length === 0);
+    }
+  }
+
+  intestazione('COLLOQUI: ORARI_7_COLLOQUI');
+  {
+    const OGGI = '2027-01-20';                  // un mercoledi'
+    const oggi = dataDa(OGGI), ieri = giorniDopo(oggi, -1);
+    azzeraCalendario();
+    conColloqui(colloquiProva);
+    contesto.ORARI_4_calendario();
+    const cal7 = calendari[0];
+    oggiFinto = new Date(2027, 0, 20, 9, 30);
+    // a mano, prima di oggi: il primo incontro del secondo tratto del giovedi'
+    // (14 gennaio) spostato al venerdi'; dopo oggi, una copia fatta a mano
+    const giovedi = serieColloqui(cal7).find(s => s.titolo === 'Ricevimento' && chiave(s.inizio) === '2027-01-14');
+    giovedi.sposta(0, new Date(2027, 0, 15, 12, 0), new Date(2027, 0, 15, 13, 0));
+    const copia = cal7.createEvent('Colloquio straordinario', new Date(2027, 1, 3, 16, 0), new Date(2027, 1, 3, 17, 0),
+      { description: '[Campanella] Colloqui con le famiglie, copiato a mano' });
+    const lezioni = soloLezioniSul(cal7, primoGiorno, ultimoGiorno);
+    const serieLezioni = vive(cal7).filter(s => s.getTag('campanella') === 'orario');
+    const primaDiOggi = colloquiSul(cal7, primoGiorno, ieri);
+    const nuovi = colloquiAttesi(colloquiNuovi, oggi);
+    verifica('prima di oggi c\'e\' l\'incontro spostato a mano, e il giovedi\' ha incontri prima e dopo oggi',
+      primaDiOggi.indexOf('2027-01-15 12:00-13:00 Ricevimento|' + LINK_A) >= 0 && !!giovedi &&
+      chiave(giovedi.ricorrenza.until) > OGGI);
+    conColloqui(colloquiNuovi);
+    const esito = contesto.ORARI_7_colloqui();
+    console.log(esito);
+    verifica('le lezioni restano tutte come sono (' + lezioni.length + '): nessuna serie dell\'orario rifatta o tolta',
+      uguali(soloLezioniSul(cal7, primoGiorno, ultimoGiorno), lezioni) && serieLezioni.every(s => !s.cancellata) &&
+      vive(cal7).filter(s => s.getTag('campanella') === 'orario').length === serieLezioni.length);
+    verifica('i colloqui prima di oggi restano come erano, anche l\'incontro spostato a mano (' + primaDiOggi.length + ')',
+      uguali(colloquiSul(cal7, primoGiorno, ieri), primaDiOggi));
+    verifica('da oggi ci sono proprio i colloqui nuovi (' + nuovi.incontri.length + '), e la copia fatta a mano',
+      uguali(colloquiSul(cal7, oggi, ultimoGiorno).filter(x => x.indexOf('Colloquio straordinario') < 0), nuovi.incontri) &&
+      !copia.cancellato);
+    const rimesso = cal7.eventi.find(e => !e.cancellato && chiave(e.inizio) === '2027-01-15');
+    verifica('l\'incontro spostato torna come evento singolo alla sua ora, con il contrassegno dei colloqui e quello ' +
+      'che dice che cosa sostituisce, senza la classe',
+      !!rimesso && rimesso.getTag('campanella') === 'colloquio' && !!rimesso.getTag('campanella_sostituisce') &&
+      !rimesso.getTag('campanella_classe') && rimesso.getLocation() === LINK_A && giovedi.cancellata);
+    verifica('i ricevimenti rifatti fino a ieri hanno il contrassegno dei colloqui e il loro colore',
+      serieColloqui(cal7).filter(s => s.getTag('campanella_sostituisce')).length === 1 &&
+      serieColloqui(cal7).concat(giornateColloqui(cal7)).every(x => x.getColor() === '5'));
+    // rifatti: il giovedi' (con il solo incontro spostato, rimesso da solo) e il
+    // martedi' fino a ieri; tolto: il secondo tratto del martedi', tutto dopo oggi
+    verifica('il messaggio dice da quando, quanti ricevimenti ha rifatto fino a ieri (2) e tolto (1), quante giornate ' +
+      'ha tolto (1), la copia a mano e che le lezioni non le ha toccate',
+      /Colloqui aggiornati dal 2027-01-20/.test(esito) &&
+      numero(/rifatti fino al 2027-01-19[^:]*: (\d+)/, esito) === 2 &&
+      numero(/Ricevimenti di prima tolti[^:]*: (\d+)/, esito) === 1 &&
+      numero(/Giornate di colloqui tolte[^:]*: (\d+)/, esito) === 1 &&
+      /senza contrassegno/.test(esito) && esito.indexOf('Colloquio straordinario') >= 0 &&
+      /lezioni non le ho toccate/.test(esito) && /registro elettronico/.test(esito));
+    verifica('lavoro finito: niente a meta\', nessuna ripresa', !salvato() && ripresaDi('ORARI_7_colloqui').length === 0);
+    const dopo = colloquiSul(cal7, primoGiorno, ultimoGiorno);
+    contesto.ORARI_7_colloqui();
+    verifica('rieseguito lo stesso giorno da\' lo stesso calendario, senza doppioni',
+      uguali(colloquiSul(cal7, primoGiorno, ultimoGiorno), dopo) && senzaDoppioni(cal7) &&
+      uguali(soloLezioniSul(cal7, primoGiorno, ultimoGiorno), lezioni));
+    // il giorno dopo, con gli stessi dati: niente cambia
+    oggiFinto = new Date(2027, 0, 21, 8, 0);
+    contesto.ORARI_7_colloqui();
+    verifica('  ...e anche il giorno dopo', uguali(colloquiSul(cal7, primoGiorno, ultimoGiorno), dopo) &&
+      uguali(soloLezioniSul(cal7, primoGiorno, ultimoGiorno), lezioni));
+    contesto.ORARI_ANNULLA_calendario();
+    verifica('ORARI_ANNULLA_calendario toglie anche i colloqui rifatti e quelli rimessi come eventi singoli',
+      colloquiSul(cal7, primoGiorno, ultimoGiorno).filter(x => x.indexOf('Colloquio straordinario') < 0).length === 0 &&
+      soloLezioniSul(cal7, primoGiorno, ultimoGiorno).length === 0);
+
+    // interrotto dal tempo massimo, e ripreso dopo la mezzanotte: finisce il
+    // lavoro del giorno in cui era cominciato
+    azzeraCalendario();
+    oggiFinto = new Date(2027, 0, 20, 23, 50);
+    conColloqui(colloquiProva);
+    contesto.ORARI_4_calendario();
+    const calR = calendari[0];
+    const attesoR = colloquiSul(calR, primoGiorno, ieri).concat(nuovi.incontri).sort();
+    conColloqui(colloquiNuovi);
+    sogliaCalendario = 2;
+    const parziale = contesto.ORARI_7_colloqui();
+    sogliaCalendario = Infinity;
+    verifica('al tempo massimo si ferma, si ricorda il giorno e riprende da solo fra un minuto',
+      /Tempo massimo/.test(parziale) && ripresaDi('ORARI_7_colloqui').length === 1 && !!salvato() &&
+      salvato().funzione === 'ORARI_7_colloqui' && salvato().validoDal === OGGI);
+    // con il lavoro a meta' le altre funzioni del calendario si fermano e lo dicono
+    const quattro = errore(() => contesto.ORARI_4_calendario());
+    const cinque = errore(() => contesto.ORARI_5_cambioOrario());
+    const sei = errore(() => contesto.ORARI_6_coloraLezioni());
+    verifica('con l\'aggiornamento dei colloqui a meta\' ORARI_4, ORARI_5 e ORARI_6 si fermano e nominano ORARI_7_colloqui',
+      [quattro, cinque, sei].every(t => /aggiornamento dei colloqui a meta'/.test(t) && /ORARI_7_colloqui/.test(t)) &&
+      salvato().funzione === 'ORARI_7_colloqui');
+    lockOccupato = true;
+    const scritte = scritture;
+    const occupato = contesto.ORARI_7_colloqui({ triggerUid: 'ripresa col blocco preso' });
+    lockOccupato = false;
+    verifica('una ripresa con il blocco occupato non tocca niente e si riprogramma',
+      /in corso/.test(occupato) && scritture === scritte && ripresaDi('ORARI_7_colloqui').length === 1);
+    oggiFinto = new Date(2027, 0, 21, 0, 30);
+    orologio = 0;
+    const giri = riprendiFinoInFondo('ORARI_7_colloqui');
+    verifica('riprendendo dopo la mezzanotte finisce il lavoro del 20 gennaio, senza doppioni (' + giri + ' riprese)',
+      uguali(colloquiSul(calR, primoGiorno, ultimoGiorno), attesoR) && senzaDoppioni(calR) &&
+      uguali(soloLezioniSul(calR, primoGiorno, ultimoGiorno), piano.lezioni) && !salvato() &&
+      ripresaDi('ORARI_7_colloqui').length === 0);
+
+    // DatiOrari.gs cambiato a meta': dimentica il lavoro e dice di rieseguirlo
+    azzeraCalendario();
+    oggiFinto = new Date(2027, 0, 20, 9, 30);
+    conColloqui(colloquiProva);
+    contesto.ORARI_4_calendario();
+    const calD = calendari[0];
+    conColloqui(colloquiNuovi);
+    sogliaCalendario = 2;
+    contesto.ORARI_7_colloqui();
+    sogliaCalendario = Infinity;
+    orologio = 0;
+    conColloqui(colloquiProva);
+    const cambiato = errore(() => contesto.ORARI_7_colloqui({ triggerUid: 'ripresa' }));
+    verifica('con i colloqui cambiati a meta\' la ripresa si ferma, dimentica il lavoro e dice di rieseguire ORARI_7_colloqui',
+      /cambiato a meta'/.test(cambiato) && /Riesegui ORARI_7_colloqui/.test(cambiato) && !salvato() &&
+      ripresaDi('ORARI_7_colloqui').length === 0);
+    contesto.ORARI_7_colloqui();
+    const tornati = colloquiAttesi(colloquiProva, oggi).incontri;
+    verifica('  ...e rieseguito mette i colloqui di adesso da oggi, senza doppioni',
+      uguali(colloquiSul(calD, oggi, ultimoGiorno), tornati) && senzaDoppioni(calD));
+
+    // ORARI_ANNULLA_calendario con l'aggiornamento a meta': toglie la ripresa e dimentica
+    conColloqui(colloquiNuovi);
+    sogliaCalendario = 2;
+    contesto.ORARI_7_colloqui();
+    sogliaCalendario = Infinity;
+    orologio = 0;
+    contesto.ORARI_ANNULLA_calendario();
+    verifica('ORARI_ANNULLA_calendario dimentica l\'aggiornamento a meta\' e ne toglie la ripresa',
+      !salvato() && ripresaDi('ORARI_7_colloqui').length === 0 &&
+      colloquiSul(calD, primoGiorno, ultimoGiorno).length === 0);
+
+    // i casi limite: senza calendario, dopo la fine del periodo, prima dell'inizio
+    azzeraCalendario();
+    const senzaCal = errore(() => contesto.ORARI_7_colloqui());
+    verifica('senza il calendario si ferma e dice di eseguire ORARI_4_calendario',
+      /nessun calendario/.test(senzaCal) && /ORARI_4_calendario/.test(senzaCal) && calendari.length === 0);
+    conColloqui(colloquiProva);
+    contesto.ORARI_4_calendario();
+    const calL = calendari[0];
+    const tutti = colloquiSul(calL, primoGiorno, ultimoGiorno);
+    conColloqui(colloquiNuovi);
+    oggiFinto = new Date(2027, 6, 1, 9, 0);
+    const scritteFine = scritture;
+    const finito = errore(() => contesto.ORARI_7_colloqui());
+    verifica('dopo la fine del periodo non tocca niente e lo dice',
+      /e' finito/.test(finito) && scritture === scritteFine && uguali(colloquiSul(calL, primoGiorno, ultimoGiorno), tutti));
+    oggiFinto = new Date(2026, 7, 20, 9, 0);
+    contesto.ORARI_7_colloqui();
+    verifica('prima dell\'inizio del periodo li aggiorna tutti, dall\'inizio, e le lezioni restano',
+      uguali(colloquiSul(calL, primoGiorno, ultimoGiorno), colloquiAttesi(colloquiNuovi, primoGiorno).incontri) &&
+      uguali(soloLezioniSul(calL, primoGiorno, ultimoGiorno), piano.lezioni));
+    oggiFinto = null;
+  }
+
+  intestazione('COLLOQUI: CAMBIO D\'ORARIO E COLORI');
+  {
+    if (validoDal) {
+      // ORARI_5_cambioOrario tratta i colloqui come le lezioni: rifa' le
+      // settimane prima del cambio e dal cambio mette quelli dei dati
+      azzeraCalendario();
+      conColloqui(colloquiProva);
+      contesto.ORARI_4_calendario();
+      const calC = calendari[0];
+      const primaDelCambio = colloquiSul(calC, primoGiorno, giornoPrima);
+      docOriginale.celle = ruotata(celleOriginali);
+      conColloqui(colloquiNuovi);
+      const esito = contesto.ORARI_5_cambioOrario();
+      console.log(esito);
+      const nuoviDalCambio = colloquiAttesi(colloquiNuovi, vd).incontri;
+      verifica('nel cambio d\'orario i colloqui prima del ' + validoDal + ' restano come erano (' + primaDelCambio.length +
+        '), e dal ' + validoDal + ' ci sono quelli nuovi (' + nuoviDalCambio.length + ')',
+        uguali(colloquiSul(calC, primoGiorno, giornoPrima), primaDelCambio) &&
+        uguali(colloquiSul(calC, vd, ultimoGiorno), nuoviDalCambio));
+      verifica('  ...e le lezioni sono quelle del cambio', uguali(soloLezioniSul(calC, primoGiorno, ultimoGiorno), attesoDopoCambio));
+      verifica('  ...e il messaggio dice i colloqui dal giorno del cambio',
+        new RegExp('Colloqui dal ' + validoDal + ': 2 ricevimenti settimanali').test(esito));
+      // e ORARI_6_coloraLezioni da' ai colloqui il colore dei colloqui, alle lezioni quello delle classi
+      conColloqui(colloquiNuovi, '7');
+      const colorate = contesto.ORARI_6_coloraLezioni();
+      verifica('ORARI_6_coloraLezioni da\' a tutti i colloqui il colore dei colloqui nuovo (Pavone), e alle lezioni ' +
+        'lascia quello della loro classe',
+        serieColloqui(calC).concat(giornateColloqui(calC)).every(x => x.getColor() === '7') &&
+        vive(calC).filter(s => s.getTag('campanella') === 'orario' && !s.getTag('campanella_sostituisce'))
+          .every(s => s.getColor() === atteso(coloriDati, s.titolo)) && /Colorati adesso/.test(colorate));
+      // senza colore dei colloqui li lascia come sono, e lo dice
+      conColloqui(colloquiNuovi, '');
+      const senzaColore = contesto.ORARI_6_coloraLezioni();
+      verifica('  ...e senza un colore dei colloqui li lascia come sono, e lo dice',
+        serieColloqui(calC).concat(giornateColloqui(calC)).every(x => x.getColor() === '7') &&
+        /lasciati come sono: \d+ \([^)]*Colloqui/.test(senzaColore));
+      docOriginale.celle = celleOriginali.slice();
+    } else {
+      verifica('i dati hanno la data del cambio d\'orario (serve a questa sezione)', false);
+    }
+    // i colloqui dei dati (generati da Campanella, in test/prova_orario.ps1): vanno sul calendario come dice il piano
+    if (colloquiDeiDati) {
+      azzeraCalendario();
+      conColloqui(colloquiDeiDati, coloreColloquiDeiDati);
+      contesto.ORARI_4_calendario();
+      const attesiDati = colloquiAttesi(colloquiDeiDati, primoGiorno);
+      // test/prova_orario.ps1 confronta questi numeri con quelli di Campanella
+      console.log('  COLLOQUI: ' + serieColloqui(calendari[0]).length + ' serie, ' + giornateColloqui(calendari[0]).length +
+        ' giornate, ' + colloquiSul(calendari[0], primoGiorno, ultimoGiorno).length + ' incontri');
+      verifica('i colloqui di DatiOrari.gs vanno sul calendario come dice il piano (' + attesiDati.incontri.length + ')',
+        attesiDati.incontri.length > 0 && uguali(colloquiSul(calendari[0], primoGiorno, ultimoGiorno), attesiDati.incontri) &&
+        serieColloqui(calendari[0]).length === attesiDati.tratti);
+    }
+    oggiFinto = null;
+    azzeraCalendario();
+    contesto.ORARI.calendario = calendarioDati;
+  }
+
   intestazione('ANNULLA CALENDARIO DOPO UN LAVORO A META\'');
   azzeraCalendario();
   sogliaCalendario = 5;
@@ -3154,16 +3581,17 @@ if (!SOLO_CALENDARIO) {
   verifica('le funzioni interne finiscono con "_"' +
     (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''), interneVisibili.length === 0);
   ['ORARI_1_anteprima', 'ORARI_2_invia', 'ORARI_3_inviaOrariClassi', 'ORARI_4_calendario',
-   'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_ANNULLA_calendario', 'ORARI_ANNULLA_invio'].forEach(n =>
+   'ORARI_5_cambioOrario', 'ORARI_6_coloraLezioni', 'ORARI_7_colloqui', 'ORARI_ANNULLA_calendario',
+   'ORARI_ANNULLA_invio'].forEach(n =>
     verifica('c\'e\' la funzione ' + n + ', citata dall\'app e dai documenti', typeof contesto[n] === 'function'));
   // ANNULLA_automazione della Posta spegne tutto il progetto, dicono documenti e
   // nota per il DPO: anche ogni ripresa degli orari (var _ORARI_TRIGGER...). Se
   // Orari.gs ne aggiunge una, qui ci se ne accorge.
   const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]);
   verifica('le riprese degli orari lette da Orari.gs (' + riprese.join(', ') + '), anche quelle del calendario e dei colori',
-    riprese.length >= 5 && riprese.every(n => typeof contesto[n] === 'function') &&
+    riprese.length >= 6 && riprese.every(n => typeof contesto[n] === 'function') &&
     riprese.indexOf('ORARI_4_calendario') >= 0 && riprese.indexOf('ORARI_5_cambioOrario') >= 0 &&
-    riprese.indexOf('ORARI_6_coloraLezioni') >= 0);
+    riprese.indexOf('ORARI_6_coloraLezioni') >= 0 && riprese.indexOf('ORARI_7_colloqui') >= 0);
   vm.runInContext(posta, contesto, { filename: 'Organizzazione_Gmail.gs' });
   trigger.length = 0;
   riprese.forEach(fn => trigger.push({ fn, ms: 60000 }));
@@ -3354,13 +3782,14 @@ if (!SOLO_CALENDARIO) {
     .map(m => m[1] || m[2]));
   const pubbliche = [...nomi].filter(n => /^ORARI_/.test(n) && typeof contesto[n] === 'function').sort();
   verifica('le funzioni pubbliche sono quelle del calendario, con i nomi di Orari.gs (' + pubbliche.join(', ') + ')',
-    pubbliche.join() === 'ORARI_1_anteprima,ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni,ORARI_ANNULLA_calendario');
+    pubbliche.join() === 'ORARI_1_anteprima,ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni,' +
+      'ORARI_7_colloqui,ORARI_ANNULLA_calendario');
   const interneVisibili = [...nomi].filter(n => typeof contesto[n] === 'function' && !/^ORARI_/.test(n) && !/_$/.test(n));
   verifica('le funzioni interne finiscono con "_"' + (interneVisibili.length ? ' (non: ' + interneVisibili.join(', ') + ')' : ''),
     interneVisibili.length === 0);
   const riprese = [...codice.matchAll(/^var\s+(_ORARI_TRIGGER\w*)\s*=\s*(['"])([^'"]+)\2/gm)].map(m => m[3]).sort();
   verifica('le sue riprese sono quelle del calendario, e ognuna e\' una sua funzione (' + riprese.join(', ') + ')',
-    riprese.join() === 'ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni' &&
+    riprese.join() === 'ORARI_4_calendario,ORARI_5_cambioOrario,ORARI_6_coloraLezioni,ORARI_7_colloqui' &&
     riprese.every(n => typeof contesto[n] === 'function'));
   verifica('nel progetto non ci sono ne\' MailApp ne\' GmailApp, e in tutte le prove nessuna email e\' partita',
     typeof contesto.MailApp === 'undefined' && typeof contesto.GmailApp === 'undefined' && mandate.length === 0 &&

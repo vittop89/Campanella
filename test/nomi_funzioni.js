@@ -134,7 +134,7 @@ for (const f of script) {
 // ---------------------------------------------------------------------------
 //  3. LE FUNZIONI DEGLI ORARI: DETTE AL DOCENTE, E SPENTE DALLA POSTA
 //  Ogni funzione pubblica di Orari.gs (ORARI_...) sta nell'elenco in cima al
-//  file e nelle istruzioni: una funzione nuova, come ORARI_6_coloraLezioni,
+//  file e nelle istruzioni: una funzione nuova, come ORARI_7_colloqui,
 //  non resta senza spiegazione. E ogni sua ripresa (var _ORARI_TRIGGER...)
 //  la conosce anche la Posta (var _TRIGGER_ORARI...), perche'
 //  ANNULLA_automazione, che spegne tutto il progetto, la tolga.
@@ -164,7 +164,8 @@ const pubbliche = [...testoOrari.matchAll(/^function\s+(ORARI_[A-Za-z0-9_]*[A-Za
 const nonDette = funzioniOrariNonDette(testoOrari, ISTRUZIONI);
 verifica('le ' + pubbliche.length + ' funzioni pubbliche di Orari.gs (' + pubbliche.join(', ') + ') stanno nella sua ' +
   'intestazione e nelle istruzioni' + (nonDette.length ? ' (mancano: ' + nonDette.join(', ') + ')' : ''),
-  pubbliche.length >= 8 && pubbliche.indexOf('ORARI_6_coloraLezioni') >= 0 && nonDette.length === 0);
+  pubbliche.length >= 9 && pubbliche.indexOf('ORARI_6_coloraLezioni') >= 0 && pubbliche.indexOf('ORARI_7_colloqui') >= 0 &&
+  nonDette.length === 0);
 const nonSpente = ripreseNonSpente(testoOrari, testoPosta);
 verifica('ogni ripresa di Orari.gs la conosce anche ANNULLA_automazione della Posta' +
   (nonSpente.length ? ' (non conosce: ' + nonSpente.join(', ') + ')' : ''), nonSpente.length === 0);
@@ -195,7 +196,7 @@ const pubblicheCal = [...testoCalendario.matchAll(/^function\s+(ORARI_[A-Za-z0-9
 const nonDettoCal = calendarioNonDetto(testoCalendario);
 verifica('le ' + pubblicheCal.length + ' funzioni pubbliche di Calendario.gs (' + pubblicheCal.join(', ') + ') stanno nella ' +
   'sua intestazione, e le sue riprese chiamano funzioni sue' + (nonDettoCal.length ? ' (no: ' + nonDettoCal.join('; ') + ')' : ''),
-  pubblicheCal.length === 5 && nonDettoCal.length === 0);
+  pubblicheCal.length === 6 && pubblicheCal.indexOf('ORARI_7_colloqui') >= 0 && nonDettoCal.length === 0);
 
 // ---------------------------------------------------------------------------
 //  LA PROVA DELLA PROVA: un nome sbagliato deve essere trovato
