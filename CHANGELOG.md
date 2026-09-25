@@ -6,8 +6,10 @@
 earlier, from 26 October its lessons appear one hour early**: that calendar
 was created in UTC. Paste Orari.gs again, run ORARI_1_anteprima and follow
 what it says (ORARI_ANNULLA_calendario, then ORARI_4_calendario; lessons
-moved or cancelled by hand have to be redone). Campanella says so once at
-start-up to whoever chose a teacher or a calendar name in step 4 of Orari.
+moved or cancelled by hand have to be redone). Changing the calendar's time
+zone in Google Calendar's settings is not enough: the lessons already there
+keep the old one. Campanella says so once at start-up to whoever chose a
+teacher or a calendar name in step 4 of Orari.
 
 Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy
 DatiOrari.gs and Configurazione.gs again. With the new class labels, also
@@ -108,7 +110,13 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   created again and stayed without marks: lessons twice, and a series that
   not even ORARI_ANNULLA_calendario removed); if it is no longer there
   (moved or deleted by hand before the resume), the final message gives its
-  date and says to delete the lesson if it appears twice. A date
+  date and says to delete the lesson if it appears twice.
+  ORARI_ANNULLA_calendario, run instead of waiting for the resume, reads the
+  saved point before forgetting it and puts the marks back on that piece the
+  same way before looking for Campanella's events, so it goes with the rest
+  (before, it stayed, and a new ORARI_4_calendario showed its lessons twice);
+  if it cannot find it, its message gives the date and time and says to
+  delete it by hand. A date
   before the start of the period counts as the start: earlier school years
   in the same calendar (the default name "Orario COGNOME" is the same every
   year) are not touched, and preview and message say that the new timetable
@@ -177,7 +185,19 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   while the data file cannot be read).
   ORARI_1_anteprima prints the script's time zone, warns when it is not
   Europe/Rome (Project settings -> Time zone), and says when the calendar
-  has another zone and whether it already holds lessons. Moved lessons are
+  has another zone and whether it already holds lessons. A 1.5 calendar
+  whose zone the teacher changed by hand in Google Calendar's settings says
+  the script's zone, but its series keep repeating at the same UTC time:
+  when Campanella's series in the period that cross a change of the clock
+  have, after it, their lessons at the same UTC time and at another time in
+  the script's zone (the most frequent time counts, so one lesson moved by
+  hand does not decide), ORARI_1_anteprima says the calendar needs fixing,
+  with one lesson as an example, and ORARI_4_calendario and
+  ORARI_5_cambioOrario stop without touching anything, with the same
+  remedy (before, the preview said nothing and ORARI_5_cambioOrario went
+  through, leaving those lessons one hour early). These messages and the
+  start-up warning say that changing the zone in Google Calendar's settings
+  is not enough. Moved lessons are
   recognised by day and time in the calendar's zone, so in a UTC calendar
   the lessons after 25 October do not look moved.
 - ORARI_4_calendario and ORARI_5_cambioOrario resume by themselves, like the
@@ -436,12 +456,18 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   execution and with the same object, repeat in the new zone (the remedy
   for 1.5 calendars relies on it: the scripts check it, and the fake can
   also play setTimeZone without effect and new series in the zone the
-  calendar was born with); setTime moves one lesson only. Title,
+  calendar was born with); setTime moves one lesson only. As in Google,
+  getOwnedCalendarsByName returns a new object every time, reading the same
+  calendar, and with setTimeZone without effect only the object it was
+  called on says the new zone: a script that did not take the calendar
+  again after setTimeZone would not pass. Title,
   description and location can be changed for one lesson alone, and a
   failure can hit setTag only on a series or only on a single event. New
   sections: the time zone (the calendar created in the script's zone, series
   across 25 October at the same time, a 1.5 calendar in UTC with the
-  timetable, which makes both functions stop, an empty UTC calendar that
+  timetable, which makes both functions stop, the same calendar with its
+  zone changed by hand after the series, which the preview reports and
+  makes both functions stop too, an empty UTC calendar that
   takes the zone, the two cases where Google would not keep it and the
   remedy with a new calendar, the shape of lessons in the calendar's zone),
   days without
@@ -458,7 +484,8 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   one to three days with the second cancelled, a lesson renamed by hand, a
   note or a location on one lesson, a description written differently for
   every lesson, a piece just done again whose marks are refused with a
-  description rewritten by hand, also moved before the resume, with the
+  description rewritten by hand, also moved before the resume, or removed
+  by ORARI_ANNULLA_calendario run instead of the resume, with the
   moved, renamed and annotated lessons back as single events and the week
   of a cancelled one removed from the new series, stopped by time after each of
   the first eight changes and by Google's limits at each of the first six
@@ -478,8 +505,9 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   only in _orariLezioneRifatta_, a lesson of a series removed only in
   _orariTogliBuco_ (the new series found by id, with the mark, after its
   guard), and in the cut the marks go only to the series and the single
-  events just created, or on resume to the piece found by the id the saved
-  point took from it (appenaCreato, named only in its statements, like
+  events just created, or on resume (and in ORARI_ANNULLA_calendario,
+  before removing it) to the piece found by the id the saved point took
+  from it (appenaCreato, named only in its statements, like
   daContrassegnare; the only other getEvents, among all the events at the
   time of its first lesson, after the guard on the id), with fingerprints
   of the functions that recognise them and of those that create

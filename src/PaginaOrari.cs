@@ -1117,10 +1117,12 @@ namespace Campanella
             sb.AppendLine("    UTC: dal 26 ottobre le lezioni compaiono un'ora prima. Lo script se ne");
             sb.AppendLine("    accorge, si ferma e ti dice come sistemare: ORARI_ANNULLA_calendario e");
             sb.AppendLine("    poi di nuovo ORARI_4_calendario (le lezioni spostate o cancellate a");
-            sb.AppendLine("    mano vanno rifatte). Se Google non tiene il fuso giusto (lo script lo");
-            sb.AppendLine("    controlla sulla prima serie che passa un cambio dell'ora), si ferma e");
-            sb.AppendLine("    ti dice di cambiare nome al calendario: ORARI_4_calendario ne crea uno");
-            sb.AppendLine("    nuovo.");
+            sb.AppendLine("    mano vanno rifatte). Cambiare il fuso del calendario dalle impostazioni");
+            sb.AppendLine("    di Google Calendar non basta: le lezioni gia' messe restano nel fuso di");
+            sb.AppendLine("    prima (lo script se ne accorge lo stesso, e ti dice il rimedio).");
+            sb.AppendLine("    Se Google non tiene il fuso giusto (lo script lo controlla sulla prima");
+            sb.AppendLine("    serie che passa un cambio dell'ora), si ferma e ti dice di cambiare");
+            sb.AppendLine("    nome al calendario: ORARI_4_calendario ne crea uno nuovo.");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
             sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");

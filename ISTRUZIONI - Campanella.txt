@@ -454,12 +454,17 @@ ORARI - le email a te e il calendario
    ORARI_5_cambioOrario se ne accorgono, si fermano senza toccare niente e
    ti dicono come sistemare: ORARI_ANNULLA_calendario e poi di nuovo
    ORARI_4_calendario (le lezioni spostate o cancellate a mano vanno
-   rifatte). A un calendario con un altro fuso ma senza lezioni di
-   Campanella mettono loro il fuso giusto, e controllano che Google lo
-   tenga: nella prima serie che passa un cambio dell'ora le lezioni devono
-   restare tutte alla stessa ora. Se non e' cosi' si fermano e ti dicono di
-   cambiare nome al calendario (o eliminarlo), cosi' ORARI_4_calendario ne
-   crea uno nuovo con il fuso giusto.
+   rifatte). Cambiare il fuso del calendario dalle impostazioni di Google
+   Calendar non basta: le lezioni gia' messe restano nel fuso di prima.
+   Anche allora ORARI_1_anteprima, ORARI_4_calendario e
+   ORARI_5_cambioOrario se ne accorgono (guardano le serie che passano un
+   cambio dell'ora) e ti dicono lo stesso rimedio. A un calendario con un
+   altro fuso ma senza lezioni di Campanella mettono loro il fuso giusto,
+   e controllano che Google lo tenga: nella prima serie che passa un
+   cambio dell'ora le lezioni devono restare tutte alla stessa ora. Se non
+   e' cosi' si fermano e ti dicono di cambiare nome al calendario (o
+   eliminarlo), cosi' ORARI_4_calendario ne crea uno nuovo con il fuso
+   giusto.
    In "Giorni senza lezione" scrivi una riga per giorno o per periodo
    (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
    dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Il mese si
@@ -520,12 +525,14 @@ ORARI - le email a te e il calendario
    ORARI_ANNULLA_calendario toglie invece gli eventi messi dallo script
    nel periodo indicato in DatiOrari.gs (anche le lezioni spostate che il
    cambio d'orario ha rimesso come eventi singoli, e le copie fatte a mano
-   di una lezione, che ne hanno la descrizione). Se finisce il tempo o Google
-   chiede di rallentare, si ferma e ti dice di rieseguirlo. Se dopo aver
-   messo l'orario hai cambiato le date del periodo, gli eventi fuori dal
-   periodo nuovo non li trova ne' lui ne' ORARI_5_cambioOrario: rimetti
-   le date di prima. ORARI_4_calendario rieseguito sopra i suoi eventi non
-   raddoppia le lezioni: si ferma e te lo dice.
+   di una lezione, che ne hanno la descrizione, e il pezzo appena rifatto
+   da un cambio d'orario rimasto a meta' prima del contrassegno: se non lo
+   ritrova, ti dice la lezione da cancellare a mano). Se finisce il tempo
+   o Google chiede di rallentare, si ferma e ti dice di rieseguirlo. Se
+   dopo aver messo l'orario hai cambiato le date del periodo, gli eventi
+   fuori dal periodo nuovo non li trova ne' lui ne' ORARI_5_cambioOrario:
+   rimetti le date di prima. ORARI_4_calendario rieseguito sopra i suoi
+   eventi non raddoppia le lezioni: si ferma e te lo dice.
 
 Quante email al giorno: 100 con un account Gmail normale, 1500 con quello
 della scuola. Se non bastano, lo script si ferma e si ricorda dove era

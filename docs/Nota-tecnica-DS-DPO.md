@@ -191,7 +191,11 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   ha un altro (un calendario messo con la versione 1.5, creato senza fuso,
   è in UTC) lo script mette il fuso dello script solo se nel periodo non ci
   sono ancora lezioni di Campanella, altrimenti si ferma senza toccare
-  niente e spiega al docente come sistemare. Che Google ripeta le serie
+  niente e spiega al docente come sistemare. Si ferma allo stesso modo se il
+  calendario ha già il fuso dello script ma le serie di Campanella che
+  passano un cambio dell'ora hanno le lezioni alla stessa ora UTC: un
+  calendario della 1.5 a cui il docente ha cambiato il fuso a mano, perché
+  le serie già messe restano nel fuso di prima. Che Google ripeta le serie
   create dopo nel fuso nuovo non è stato provato dal vivo: lo script
   riprende il calendario e ne controlla il fuso, e sulla prima serie che
   passa un cambio dell'ora controlla che le lezioni restino tutte alla
@@ -217,8 +221,9 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   né cambiarlo o toglierlo, che fra gli eventi da rifare o togliere
   finiscano solo quelli riconosciuti così, e che il contrassegno lo ricevano
   solo le serie e gli eventi appena creati dallo script (anche quando la
-  ripresa di un lavoro interrotto glielo rimette: li ritrova per l'id preso
-  da quelli appena creati, all'ora della loro prima lezione). Controlla
+  ripresa di un lavoro interrotto glielo rimette, o l'annullamento prima di
+  toglierli: li ritrova per l'id preso da quelli appena creati, all'ora
+  della loro prima lezione). Controlla
   anche che i due script, che stanno nello stesso progetto, non usino le
   funzioni l'uno dell'altro: quello della posta non arriva al calendario,
   quello degli orari non arriva agli indirizzi degli studenti delle classi.
