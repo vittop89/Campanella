@@ -1074,6 +1074,9 @@ if ($null -ne $tFCC) {
     Verifica "scelto Pomodoro dalla tendina di 3B LSA: e' suo, scelto a mano, e il quadratino lo mostra" (
         $fc.Colori['3B LSA'] -eq '11' -and $fc.AMano.Contains('3B LSA') -and $quadrati['3B LSA'].Valore -eq '11' -and
         $note['3B LSA'].Text -eq 'scelto da te')
+    Verifica "  ...e la 1A, che aveva Pomodoro da Campanella, ne ha subito un altro, e la finestra lo mostra ($(ColoriDi $fc))" (
+        $fc.Colori['1A'] -ne '11' -and $fc.Colori['1A'] -ne '' -and $quadrati['1A'].Valore -eq $fc.Colori['1A'] -and
+        $tendine['1A'].SelectedItem.ToString() -ne 'Pomodoro' -and $note['1A'].Text -eq '')
     $fc.Scegli('1A', '')
     Verifica "'colore del calendario' per 1A si ricorda come scelta" (
         $fc.Colori['1A'] -eq '' -and $fc.AMano.Contains('1A') -and $quadrati['1A'].Valore -eq '' -and
@@ -1090,6 +1093,25 @@ if ($null -ne $tFCC) {
         $bmp.Dispose()
     }
     $fc.Close(); $fc.Dispose()
+    # un colore scelto uguale a quello che un'altra classe ha da Campanella:
+    # quella ne prende subito un altro, e la finestra mostra gia' i colori che
+    # "Usa questi colori" dara' (rifatti, non cambiano piu')
+    $fsc = FinestraColori @('1A', '2A', '3A') @{ '1A' = '11'; '2A' = '9'; '3A' = '10' } @() @{ '1A' = '11'; '2A' = '9'; '3A' = '10' }
+    $qsc = $tFCC.GetField('quadrati', $FIf).GetValue($fsc)
+    $tsc = $tFCC.GetField('tendine', $FIf).GetValue($fsc)
+    $fsc.Scegli('2A', '11')
+    $rifatti = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    foreach ($k in $fsc.Colori.Keys) { $rifatti[$k] = $fsc.Colori[$k] }
+    $vuotiS = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    $cambiaAncora = $asm.GetType('Campanella.ColoriLezioni').GetMethod('Completa', $FS).Invoke($null,
+        @($rifatti.PSObject.BaseObject, $fsc.AMano, $fsc.Classi, $vuotiS.PSObject.BaseObject))
+    Verifica "scelto per la 2A il Pomodoro della 1A: la finestra mostra subito la 1A con un altro colore ($(ColoriDi $fsc)), e sono quelli che restano" (
+        (ColoriDi $fsc) -eq '1A=9,2A=11,3A=10' -and $qsc['1A'].Valore -eq '9' -and $tsc['1A'].SelectedItem.ToString() -eq 'Mirtillo' -and
+        $qsc['2A'].Valore -eq '11' -and @($fsc.AMano).Count -eq 1 -and -not $cambiaAncora)
+    $fsc.Scegli('1A', '11')
+    Verifica "  ...e scelto Pomodoro anche per la 1A, tutte e due restano Pomodoro ($(ColoriDi $fsc))" (
+        (ColoriDi $fsc) -eq '1A=11,2A=11,3A=10' -and $qsc['1A'].Valore -eq '11')
+    $fsc.Close(); $fsc.Dispose()
     # tante classi: le righe scorrono, la finestra resta alta uguale
     $molte = @(1..16 | ForEach-Object { "$($_)A" })
     $fm = FinestraColori $molte @{} @()

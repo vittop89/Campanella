@@ -2292,13 +2292,20 @@ namespace Campanella
             return (v != null) ? v.Valore : "";
         }
 
-        /// <summary>Sceglie a mano il colore di una classe ("" = il colore del calendario).</summary>
+        /// <summary>
+        /// Sceglie a mano il colore di una classe ("" = il colore del
+        /// calendario). Una classe che aveva lo stesso colore da Campanella ne
+        /// prende subito un altro, se ce n'e' uno libero (ColoriLezioni.Completa):
+        /// la finestra mostra gia' i colori che "Usa questi colori" dara', e chi
+        /// le vuole uguali sceglie a mano anche l'altra.
+        /// </summary>
         public void Scegli(string classe, string valore)
         {
             string v = valore ?? "";
             if (!Classi.Contains(classe) || !ColoriLezioni.Valido(v)) return;
             Colori[classe] = v;
             if (!AMano.Contains(classe)) AMano.Add(classe);
+            ColoriLezioni.Completa(Colori, AMano, Classi, scritti);
             Aggiorna();
         }
 
