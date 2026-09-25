@@ -448,13 +448,18 @@ ORARI - le email a te e il calendario
    cui sei iscritto); se non c'e', lo script lo crea, con il fuso orario
    dello script: ORARI_1_anteprima lo scrive, e se non e' Europe/Rome ti
    avvisa (si cambia in Impostazioni progetto -> Fuso orario). Un
-   calendario messo con Campanella 1.5 ha il fuso UTC: dal 26 ottobre, a
-   fine ora legale, le lezioni compaiono un'ora prima. ORARI_4_calendario e
+   calendario messo con Campanella 1.5 o prima ha il fuso UTC: dal 26
+   ottobre, a fine ora legale, le lezioni compaiono un'ora prima (Campanella
+   te lo dice anche all'avvio, una volta sola). ORARI_4_calendario e
    ORARI_5_cambioOrario se ne accorgono, si fermano senza toccare niente e
    ti dicono come sistemare: ORARI_ANNULLA_calendario e poi di nuovo
    ORARI_4_calendario (le lezioni spostate o cancellate a mano vanno
    rifatte). A un calendario con un altro fuso ma senza lezioni di
-   Campanella mettono loro il fuso giusto.
+   Campanella mettono loro il fuso giusto, e controllano che Google lo
+   tenga: nella prima serie che passa un cambio dell'ora le lezioni devono
+   restare tutte alla stessa ora. Se non e' cosi' si fermano e ti dicono di
+   cambiare nome al calendario (o eliminarlo), cosi' ORARI_4_calendario ne
+   crea uno nuovo con il fuso giusto.
    In "Giorni senza lezione" scrivi una riga per giorno o per periodo
    (01/11/2026 Tutti i Santi, 23/12/2026-06/01/2027 Vacanze di Natale,
    dal 23/12/2026 al 06/01/2027, anche senza anno: 01/11). Il mese si
@@ -501,11 +506,14 @@ ORARI - le email a te e il calendario
    nella spunta. Le settimane prima restano come sono, anche le lezioni
    spostate o cancellate a mano, e da quella data c'e' l'orario nuovo.
    Google non lascia accorciare una serie: quelle con lezioni prima e dopo
-   la data le rifa' fino al giorno prima (le lezioni spostate o
-   rinominate a mano tornano come eventi singoli, alla loro ora) e toglie
-   le vecchie. Altre modifiche fatte a mano a una serie, come il colore o
-   un promemoria, non passano a quella rifatta. Rieseguita con la stessa
-   data, o ripresa dopo un'interruzione, da' lo stesso risultato. Tocca
+   la data le rifa' fino al giorno prima (le lezioni spostate a mano, o con
+   il titolo, la descrizione o il luogo cambiati solo per loro, come una
+   nota "VERIFICA", tornano come eventi singoli, alla loro ora e come sono)
+   e toglie le vecchie. Altre modifiche fatte a mano a una serie, come il
+   colore o un promemoria, non passano a quella rifatta. Rieseguita con la
+   stessa data, o ripresa dopo un'interruzione, da' lo stesso risultato
+   (anche se Google non ha salvato il contrassegno di un pezzo appena
+   rifatto: la ripresa lo ritrova e glielo rimette). Tocca
    solo gli eventi con il contrassegno di Campanella: una copia fatta a
    mano di una lezione la lascia e te la nomina. Serve anche per un giorno
    senza lezione aggiunto dopo, con lo stesso orario.

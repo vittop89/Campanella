@@ -71,11 +71,12 @@ Quattro funzioni, tutte facoltative e indipendenti:
   docente) rifà fino al giorno prima della data indicata le serie
   dell'orario messe dallo script che hanno lezioni prima e dopo quella data
   (Google non permette di accorciarle: crea una serie uguale che finisce il
-  giorno prima, con le lezioni spostate o rinominate a mano come eventi
-  singoli, e poi toglie la vecchia) e toglie quelle senza lezioni prima di
-  quella data: sempre e solo eventi con il contrassegno, e mai prima
-  dell'inizio del periodo indicato (gli anni scolastici precedenti nello
-  stesso calendario restano).
+  giorno prima, con le lezioni spostate a mano, o con titolo, descrizione
+  o luogo cambiati solo per loro, come eventi singoli, e poi toglie la
+  vecchia) e toglie quelle senza lezioni prima di quella data: sempre e
+  solo eventi con il contrassegno, e mai prima dell'inizio del periodo
+  indicato (gli anni scolastici precedenti nello stesso calendario
+  restano).
   Nel foglio di controllo dei moduli toglie la scheda vuota «Foglio1» che
   Google crea con ogni foglio nuovo (solo se è ancora vuota e con il nome di
   partenza) e il contenuto della propria scheda «Istruzioni», che riscrive a
@@ -190,14 +191,20 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   ha un altro (un calendario messo con la versione 1.5, creato senza fuso,
   è in UTC) lo script mette il fuso dello script solo se nel periodo non ci
   sono ancora lezioni di Campanella, altrimenti si ferma senza toccare
-  niente e spiega al docente come sistemare;
+  niente e spiega al docente come sistemare. Che Google ripeta le serie
+  create dopo nel fuso nuovo non è stato provato dal vivo: lo script
+  riprende il calendario e ne controlla il fuso, e sulla prima serie che
+  passa un cambio dell'ora controlla che le lezioni restino tutte alla
+  stessa ora; se no si ferma e indica al docente di usare un calendario
+  nuovo;
   `ORARI_5_cambioOrario`, che quando l'orario cambia rifà fino al giorno
   prima della data indicata le serie già messe che hanno lezioni prima e
   dopo quella data (Google non permette di accorciare una serie: lo script
   ne crea una uguale fino al giorno prima, con il contrassegno e un secondo
   contrassegno che dice quale serie sostituisce, ne toglie le lezioni che
-  il docente aveva cancellato, spostato o rinominato, rimette quelle
-  spostate o rinominate come eventi singoli alla loro ora e solo alla fine
+  il docente aveva cancellato, spostato o cambiato solo per quella lezione
+  (titolo, descrizione, luogo), rimette quelle spostate o cambiate come
+  eventi singoli alla loro ora e solo alla fine
   toglie la serie vecchia), o le toglie, se non hanno lezioni prima di
   quella data, e inserisce l'orario nuovo da quella data; e
   `ORARI_ANNULLA_calendario`, che rimuove solo
@@ -210,10 +217,11 @@ documentazione di Google prevede la procedura ordinaria, senza avviso. Le autori
   né cambiarlo o toglierlo, che fra gli eventi da rifare o togliere
   finiscano solo quelli riconosciuti così, e che il contrassegno lo ricevano
   solo le serie e gli eventi appena creati dallo script (anche quando la
-  ripresa di un lavoro interrotto glielo rimette). Controlla anche che i due
-  script, che stanno nello stesso progetto, non usino le funzioni l'uno
-  dell'altro: quello della posta non arriva al calendario, quello degli
-  orari non arriva agli indirizzi degli studenti delle classi.
+  ripresa di un lavoro interrotto glielo rimette: li ritrova per l'id preso
+  da quelli appena creati, all'ora della loro prima lezione). Controlla
+  anche che i due script, che stanno nello stesso progetto, non usino le
+  funzioni l'uno dell'altro: quello della posta non arriva al calendario,
+  quello degli orari non arriva agli indirizzi degli studenti delle classi.
 - **Gmail API** (servizio avanzato), solo se il docente lo aggiunge (passo
   facoltativo): per creare i filtri nativi di Gmail, per dare alle etichette
   dello script i colori scelti in Campanella e per togliere i filtri di Gmail

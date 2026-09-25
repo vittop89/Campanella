@@ -2,6 +2,13 @@
 
 ## 1.6.0 — (data da definire)
 
+**If you put your timetable on Google Calendar with Campanella 1.5 or
+earlier, from 26 October its lessons appear one hour early**: that calendar
+was created in UTC. Paste Orari.gs again, run ORARI_1_anteprima and follow
+what it says (ORARI_ANNULLA_calendario, then ORARI_4_calendario; lessons
+moved or cancelled by hand have to be redone). Campanella says so once at
+start-up to whoever chose a teacher or a calendar name in step 4 of Orari.
+
 Scripts to paste again: Orari.gs and Organizzazione_Gmail.gs; copy
 DatiOrari.gs and Configurazione.gs again. With the new class labels, also
 paste the Classe_*.gs file of each class, copied from "Le mie classi...".
@@ -71,15 +78,20 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   (setRecurrence, tried live on a UTC and on a Europe/Rome calendar, with
   the end at 23:59:59 of the day before or at midnight, changes nothing), so
   a series already on the calendar with lessons both before and after the
-  date is done again up to the day before: a new series with the same title
-  and description, from its first regular lesson (the most frequent day,
-  time and length) every week until the day before at 23:59:59; from it the
-  lessons of the weeks where the old series had no regular lesson
-  (cancelled, moved or renamed by hand) are removed (deleteEvent on one
-  lesson of a series removes only that one, tried live); every lesson moved
-  or renamed by hand before the date comes back as a single event at its own
-  time, with its own title and description; only then the old series is
-  removed. Series with no lesson before the date are removed, and so are the
+  date is done again up to the day before: a new series with the same
+  title, description and location, from its first regular lesson (the most
+  frequent day, time and length, the series' title, and the description and
+  location most frequent among its lessons, so that a different format
+  between series and lessons does not turn every lesson into a single
+  event) every week until the day before at 23:59:59; from it the lessons of
+  the weeks where the old series had no regular lesson (cancelled, moved,
+  renamed or annotated by hand) are removed (deleteEvent on one lesson of a
+  series removes only that one, tried live); every lesson moved by hand, or
+  with its title, description or location changed for it alone ("Solo
+  questo evento", as a note "VERIFICA cap. 3-4"), before the date comes
+  back as a single event at its own time, with its own title, description
+  and location; only then the old series is removed. Series with no lesson
+  before the date are removed, and so are the
   single events with the mark from that date on; then the new timetable goes
   on from that date. The series and events done again carry the mark and a
   second one, campanella_sostituisce, with the id of the old series and the
@@ -89,7 +101,14 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   another DatiOrari.gs) is removed before its old series. The id of a piece
   just created goes in the saved point before its marks, so a resume after a
   refused mark puts them back instead of creating the piece again (and a
-  change started over puts them back before forgetting the job). A date
+  change started over puts them back before forgetting the job): the piece
+  is found by that id among all the events at the time of its first lesson,
+  also when its description, copied from a series or a lesson rewritten by
+  hand, does not start with [Campanella] (before, it was not found, was
+  created again and stayed without marks: lessons twice, and a series that
+  not even ORARI_ANNULLA_calendario removed); if it is no longer there
+  (moved or deleted by hand before the resume), the final message gives its
+  date and says to delete the lesson if it appears twice. A date
   before the start of the period counts as the start: earlier school years
   in the same calendar (the default name "Orario COGNOME" is the same every
   year) are not touched, and preview and message say that the new timetable
@@ -109,7 +128,8 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   recognised only by the description (a copy made by hand) is left and
   named. The final message says how many series were done again up to the
   day before, removed and created, how many single events were removed,
-  which lessons moved or renamed by hand came back as single events, how
+  which lessons moved, renamed or annotated by hand came back as single
+  events, how
   many lessons were skipped, and that other changes made by hand to an old
   series (its colour, a reminder) do not pass to the new one. When
   DatiOrari.gs changes halfway to a later date, the error says that the old
@@ -140,6 +160,21 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   edited by hand are lost and have to be redone; if the timetable already
   changed during the year, first ORARI_4_calendario with the previous
   DatiOrari.gs, then ORARI_5_cambioOrario with the new one).
+  Nobody has tried live whether series created after setTimeZone repeat in
+  the new zone, and that remedy relies on it: after setTimeZone the calendar
+  is taken again from Google and must say the script's zone, and in every
+  job the first series that crosses a change of the clock is read back and
+  must have all its lessons at the same time in the script's zone.
+  Otherwise the function stops, says which lesson is at the wrong time and
+  gives the remedy tried live (ORARI_ANNULLA_calendario, the calendar
+  renamed in Google Calendar, then ORARI_4_calendario, which creates a new
+  one with the zone), and stays stopped, run again or resumed, until
+  ORARI_ANNULLA_calendario forgets the job. The final message says when
+  the zone was checked. At start-up Campanella says once, to whoever chose
+  a teacher or a calendar name in step 4, that a calendar put with 1.5 or
+  earlier shows the lessons one hour early from 26 October, and how to fix
+  it (remembered in campanella.json, `avvisoFusoCalendario`; not decided
+  while the data file cannot be read).
   ORARI_1_anteprima prints the script's time zone, warns when it is not
   Europe/Rome (Project settings -> Time zone), and says when the calendar
   has another zone and whether it already holds lessons. Moved lessons are
@@ -397,11 +432,19 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   or cancelled by hand, calendars one is only subscribed to, names matched
   regardless of case, and a non-null "series" for single events, as Google.
   Assumed, not tried live and said so in its comment: setTimeZone does not
-  change the series already there, and setTime moves one lesson only. New
+  change the series already there; series created after it, in the same
+  execution and with the same object, repeat in the new zone (the remedy
+  for 1.5 calendars relies on it: the scripts check it, and the fake can
+  also play setTimeZone without effect and new series in the zone the
+  calendar was born with); setTime moves one lesson only. Title,
+  description and location can be changed for one lesson alone, and a
+  failure can hit setTag only on a series or only on a single event. New
   sections: the time zone (the calendar created in the script's zone, series
   across 25 October at the same time, a 1.5 calendar in UTC with the
   timetable, which makes both functions stop, an empty UTC calendar that
-  takes the zone, the shape of lessons in the calendar's zone), days without
+  takes the zone, the two cases where Google would not keep it and the
+  remedy with a new calendar, the shape of lessons in the calendar's zone),
+  days without
   lessons (an isolated holiday, a long break, a Monday block split by Easter
   Monday and a Wednesday one that is not, days outside the period), which
   calendar is used, resume for time and for Google's limits without
@@ -412,9 +455,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   the start with last year in the same calendar, a "Dal" moved forward,
   lessons moved or cancelled by hand, also by four days, before the start of
   the period, past the next week or two out of four, the first one moved by
-  one to three days with the second cancelled, a lesson renamed by hand,
-  with the moved and renamed lessons back as single events and the week of a
-  cancelled one removed from the new series, stopped by time after each of
+  one to three days with the second cancelled, a lesson renamed by hand, a
+  note or a location on one lesson, a description written differently for
+  every lesson, a piece just done again whose marks are refused with a
+  description rewritten by hand, also moved before the resume, with the
+  moved, renamed and annotated lessons back as single events and the week
+  of a cancelled one removed from the new series, stopped by time after each of
   the first eight changes and by Google's limits at each of the first six
   calls of every operation and always ending with the same calendar,
   DatiOrari.gs changed halfway to a week later or earlier,
@@ -434,8 +480,12 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   guard), and in the cut the marks go only to the series and the single
   events just created, or on resume to the piece found by the id the saved
   point took from it (appenaCreato, named only in its statements, like
-  daContrassegnare), with fingerprints of the functions that recognise
-  them; the mark and "ours" assigned only in the
+  daContrassegnare; the only other getEvents, among all the events at the
+  time of its first lesson, after the guard on the id), with fingerprints
+  of the functions that recognise them and of those that create
+  (_orariCreaSerie_, _orariSerieRifatta_, _orariLezioneRifatta_: one
+  returning an event already on the calendar would give it the marks); the
+  mark and "ours" assigned only in the
   allowed forms, with the guards in the loop before the calls; the list of
   _orariNostri_ named only in the allowed statements (no unshift, splice,
   concat, index or alias), the key `contrassegno` only with its value or

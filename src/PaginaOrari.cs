@@ -1117,7 +1117,10 @@ namespace Campanella
             sb.AppendLine("    UTC: dal 26 ottobre le lezioni compaiono un'ora prima. Lo script se ne");
             sb.AppendLine("    accorge, si ferma e ti dice come sistemare: ORARI_ANNULLA_calendario e");
             sb.AppendLine("    poi di nuovo ORARI_4_calendario (le lezioni spostate o cancellate a");
-            sb.AppendLine("    mano vanno rifatte).");
+            sb.AppendLine("    mano vanno rifatte). Se Google non tiene il fuso giusto (lo script lo");
+            sb.AppendLine("    controlla sulla prima serie che passa un cambio dell'ora), si ferma e");
+            sb.AppendLine("    ti dice di cambiare nome al calendario: ORARI_4_calendario ne crea uno");
+            sb.AppendLine("    nuovo.");
             sb.AppendLine();
             sb.AppendLine("4.  Apri calendar.google.com: nella colonna di sinistra c'e' il calendario");
             sb.AppendLine("    con l'orario. Puoi accenderlo e spegnerlo, cambiargli colore, vederlo");
@@ -1164,8 +1167,9 @@ namespace Campanella
             sb.AppendLine("    anche le lezioni spostate o cancellate a mano, e da quel giorno c'e'");
             sb.AppendLine("    l'orario nuovo. Google non lascia accorciare una serie: quelle");
             sb.AppendLine("    dell'orario di prima le rifa' fino al giorno prima (le lezioni");
-            sb.AppendLine("    spostate o rinominate a mano tornano come eventi singoli, alla loro");
-            sb.AppendLine("    ora) e toglie le vecchie. Altre modifiche fatte a mano a una serie,");
+            sb.AppendLine("    spostate a mano, o con il titolo, la descrizione o il luogo cambiati");
+            sb.AppendLine("    solo per loro, tornano come eventi singoli, alla loro ora e come");
+            sb.AppendLine("    sono) e toglie le vecchie. Altre modifiche fatte a mano a una serie,");
             sb.AppendLine("    come il colore, non passano a quella rifatta. Rieseguita con la stessa");
             sb.AppendLine("    data da' lo stesso risultato, e anche lei riprende da sola se si ferma.");
             sb.AppendLine("    Tocca solo gli eventi con il contrassegno: una copia fatta a mano di una");
