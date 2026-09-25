@@ -31,6 +31,7 @@ $cartellaProve = Join-Path $radice 'test'
 $elenco = @(
     'mock_apps_script.js'
     'mock_orari.js'
+    'collaudo\prova_locale.js'
     'mock_moduli.js'
     'mock_pannello.js'
     'prova_gemelli.js'
