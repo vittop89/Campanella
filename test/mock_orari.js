@@ -1082,6 +1082,22 @@ if (conCalendario) {
     verifica('  ...e ORARI_4_calendario con quel nome si ferma prima di toccare il calendario',
       /puo' essere/.test(sbaglio) && calendari.length === 0);
   }
+  // l'orario in un altro account: nel DatiOrari.gs della scuola niente calendario
+  contesto.ORARI.calendario = null;
+  contesto.ORARI.calendarioAltroAccount = true;
+  azzeraCalendario();
+  const antAltro = contesto.ORARI_1_anteprima();
+  verifica('con l\'orario in un altro account l\'anteprima dice dove sta il calendario, e non chiede il tuo nome',
+    /Calendario: nell'applicazione \(Orari, passo 4\) hai scelto di mettere l'orario nel Google Calendar di un altro account/.test(antAltro) &&
+    /Calendario\.gs/.test(antAltro) && !/il tuo nome/.test(antAltro) && !/Serie settimanali da creare/.test(antAltro));
+  for (const fn of ['ORARI_4_calendario', 'ORARI_5_cambioOrario', 'ORARI_7_colloqui', 'ORARI_6_coloraLezioni',
+                    'ORARI_ANNULLA_calendario']) {
+    const e = errore(() => contesto[fn]());
+    verifica('  ...e ' + fn + ' si ferma, lo dice e non tocca niente',
+      /Qui non tocco il calendario: nell'applicazione \(Orari, passo 4\)/.test(e) && /ORARI_ANNULLA_calendario/.test(e) &&
+      calendari.length === 0 && !proprieta.has(PROGRESSO_CALENDARIO) && !proprieta.has(PROGRESSO_COLORI));
+  }
+  delete contesto.ORARI.calendarioAltroAccount;
   contesto.ORARI.calendario = Object.assign({}, salva, { fine: '2026-09-01' });
   sbaglio = errore(() => contesto.ORARI_4_calendario());
   verifica('con la fine prima dell\'inizio si ferma', /prima/i.test(sbaglio));

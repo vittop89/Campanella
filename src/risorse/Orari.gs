@@ -138,6 +138,11 @@ var _ORARI_COLORE_A_MANO = 'a mano';
 // quello delle scuole italiane: con un altro fuso dello script l'anteprima
 // avvisa, e ORARI_4, ORARI_5 e ORARI_7 si fermano (_orariFusoDelloScript_)
 var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';
+// il DatiOrari.gs della scuola quando l'orario va nel Google Calendar di un
+// altro account (calendarioAltroAccount: true, e niente calendario)
+var _ORARI_ALTRO_ACCOUNT = 'nell\'applicazione (Orari, passo 4) hai scelto di mettere l\'orario nel Google ' +
+                           'Calendar di un altro account: li\' lo mette ORARI_4_calendario di Calendario.gs, con i ' +
+                           '"Dati del tuo orario". In questo progetto non ci sono ne\' il calendario ne\' i colloqui.';
 
 
 // ===========================================================================
@@ -175,6 +180,8 @@ function ORARI_1_anteprima() {
     righe.push('Calendario: "' + d.calendario.nome + '" per ' + d.calendario.docente +
                ', dal ' + d.calendario.inizio + ' al ' + d.calendario.fine);
     righe = righe.concat(_orariAnteprimaCalendario_(d));
+  } else if (d.calendarioAltroAccount) {
+    righe.push('Calendario: ' + _ORARI_ALTRO_ACCOUNT);
   } else {
     righe.push('Calendario: nessuno. Per mettere il tuo orario su Google Calendar scegli il tuo nome ' +
                'nell\'applicazione (Orari, passo 4) e rigenera DatiOrari.gs.');
@@ -2497,6 +2504,12 @@ function _orariEtichetta_(voce) {
 
 function _orariCalendarioConfig_(d) {
   var c = d.calendario;
+  if ((!c || !c.docente) && d.calendarioAltroAccount) {
+    throw new Error('Qui non tocco il calendario: ' + _ORARI_ALTRO_ACCOUNT + '\nPer togliere un orario messo prima ' +
+      'nel calendario di questo account: nell\'applicazione scegli per un momento "nell\'account della scuola", ' +
+      'rigenera e incolla DatiOrari.gs ed esegui ORARI_ANNULLA_calendario (oppure elimina quel calendario da Google ' +
+      'Calendar).');
+  }
   if (!c || !c.docente) {
     throw new Error('In DatiOrari.gs non c\'e\' la parte "calendario".\n' +
       'Nell\'applicazione, pagina Orari, passo 4: scegli il tuo nome, il nome del ' +

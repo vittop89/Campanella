@@ -573,10 +573,19 @@ namespace Campanella
             sb.AppendLine("   " + (periodo != "" ? periodo : "periodo non indicato"));
             sb.AppendLine();
             sb.AppendLine("   Questo file contiene soltanto dati: cognomi, classi e ore, come nel");
-            sb.AppendLine("   tabellone, e per il calendario i giorni senza lezione, con il nome che");
-            sb.AppendLine("   hai scritto, il colore di ogni classe e i tuoi colloqui con le famiglie,");
-            sb.AppendLine("   con i link del Meet: quei link aprono le tue stanze, tieni il file per");
-            sb.AppendLine("   te. Niente indirizzi: le email arrivano tutte a te.");
+            if (s.CalAltroAccount)
+            {
+                sb.AppendLine("   tabellone. Il tuo calendario sta nell'altro account (Calendario.gs e i");
+                sb.AppendLine("   \"Dati del tuo orario\"): qui niente calendario ne' colloqui.");
+                sb.AppendLine("   Niente indirizzi: le email arrivano tutte a te.");
+            }
+            else
+            {
+                sb.AppendLine("   tabellone, e per il calendario i giorni senza lezione, con il nome che");
+                sb.AppendLine("   hai scritto, il colore di ogni classe e i tuoi colloqui con le famiglie,");
+                sb.AppendLine("   con i link del Meet: quei link aprono le tue stanze, tieni il file per");
+                sb.AppendLine("   te. Niente indirizzi: le email arrivano tutte a te.");
+            }
             sb.AppendLine("   Sostituiscilo ogni volta che l'orario cambia, rigenerandolo");
             sb.AppendLine("   dall'applicazione.");
             sb.AppendLine("   ========================================================================= */");
@@ -623,7 +632,17 @@ namespace Campanella
 
             string docenteCal = o.TrovaDocente(s.CalDocente);
             sb.AppendLine();
-            if (docenteCal != "") ScriviCalendario(sb, o, s, docenteCal);
+            if (s.CalAltroAccount)
+            {
+                // il calendario sta nell'altro account, con Calendario.gs e i dati del
+                // solo docente: qui niente, cosi' ORARI_4_calendario non lo mette anche
+                // nel calendario della scuola, e i link del Meet non ci sono
+                sb.AppendLine("  // calendario: nell'altro account scelto nel passo 4 dell'applicazione, con");
+                sb.AppendLine("  // Calendario.gs e i \"Dati del tuo orario\". Qui niente calendario ne' colloqui");
+                sb.AppendLine("  calendario: null,");
+                sb.AppendLine("  calendarioAltroAccount: true");
+            }
+            else if (docenteCal != "") ScriviCalendario(sb, o, s, docenteCal);
             else
             {
                 sb.AppendLine("  // calendario: nessun nome scelto nel passo 4 dell'applicazione");

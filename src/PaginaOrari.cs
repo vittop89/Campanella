@@ -1624,9 +1624,13 @@ namespace Campanella
             sb.AppendLine("LE EMAIL DEGLI ORARI");
             sb.AppendLine("--------------------");
             sb.AppendLine("Restano, se le vuoi, nel progetto della scuola: Orari.gs e il DatiOrari.gs");
-            sb.AppendLine("di tutto il tabellone (passo 3). Li' non eseguire ORARI_4_calendario:");
-            sb.AppendLine("l'orario finirebbe anche nel calendario della scuola. Quando l'orario");
-            sb.AppendLine("cambia, rigenera e incolla i dati in tutti e due i progetti.");
+            sb.AppendLine("di tutto il tabellone (passo 3). Con l'orario in un altro account quel");
+            sb.AppendLine("DatiOrari.gs non ha la parte del calendario (ne' i colloqui, ne' i link del");
+            sb.AppendLine("Meet): li' ORARI_4_calendario non mette niente, e te lo dice. Se nel");
+            sb.AppendLine("calendario della scuola c'e' ancora l'orario messo prima, toglilo prima di");
+            sb.AppendLine("cambiare (ORARI_ANNULLA_calendario nel progetto della scuola), oppure");
+            sb.AppendLine("elimina quel calendario da Google Calendar. Quando l'orario cambia,");
+            sb.AppendLine("rigenera e incolla i dati in tutti e due i progetti.");
             sb.AppendLine();
         }
 

@@ -1619,6 +1619,38 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
             $omonimi.TrovaDocente('rossi m') -eq 'ROSSI M.' -and $omonimi.TrovaDocente('ROSSI A.') -eq 'ROSSI A.' -and
             $omonimi.TrovaDocente('BIAN') -eq 'BIANCHI')
 
+        # con il calendario nell'altro account, il DatiOrari.gs della scuola
+        # (quello delle email) non ha la parte del calendario: niente colloqui,
+        # niente link del Meet, e ORARI_4_calendario li' non mette niente
+        $sScuola = NuovoStato
+        $sScuola.CalDocente = $s.CalDocente
+        $sScuola.CalInizio = '2026-09-14'
+        $sScuola.CalFine = '2027-06-10'
+        $sScuola.CalColloqui = 'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij'
+        $sScuola.CalAltroAccount = $true
+        $gsScuola = [string](GeneraDati $o $sScuola $true)
+        $fileScuola = Join-Path $tmp 'DatiOrari_scuola.gs'
+        [System.IO.File]::WriteAllText($fileScuola, $gsScuola, $utf8)
+        $leggiScuola = Join-Path $tmp 'leggi_scuola.js'
+        [System.IO.File]::WriteAllText($leggiScuola, @'
+const fs = require('fs');
+const vm = require('vm');
+const contesto = vm.createContext({});
+vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), contesto);
+const d = contesto.ORARI;
+console.log(JSON.stringify({ calendario: d.calendario, altro: d.calendarioAltroAccount === true, docenti: d.docenti.length }));
+'@, $utf8)
+        $esitoScuola = & node $leggiScuola $fileScuola
+        $rScuola = if ($LASTEXITCODE -eq 0 -and $esitoScuola) { ($esitoScuola | Select-Object -Last 1) | ConvertFrom-Json } else { $null }
+        Verifica "con l'orario in un altro account il DatiOrari.gs della scuola ha calendario: null e calendarioAltroAccount, e nessun link del Meet" (
+            $null -ne $rScuola -and $null -eq $rScuola.calendario -and $rScuola.altro -eq $true -and $rScuola.docenti -ge 4 -and
+            -not $gsScuola.Contains('meet.google.com') -and $gsScuola -notmatch 'colloqui:')
+        $sScuola.CalAltroAccount = $false
+        $gsScuolaPrima = [string](GeneraDati $o $sScuola $true)
+        Verifica "  ...mentre con l'orario nell'account della scuola la parte del calendario c'e', con i colloqui" (
+            $gsScuolaPrima -match 'calendario: \{' -and $gsScuolaPrima.Contains('meet.google.com') -and
+            $gsScuolaPrima -notmatch 'calendarioAltroAccount')
+
         # la guida del passo 4 per l'altro account
         $mGuida = $asm.GetType('Campanella.PaginaOrari').GetMethod('GuidaCalendario', [System.Reflection.BindingFlags]'NonPublic,Static')
         $guidaAltro = if ($null -ne $mGuida) { ([string]$mGuida.Invoke($null, @($true)) -replace '\s+', ' ') } else { '' }
