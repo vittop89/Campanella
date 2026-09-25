@@ -586,6 +586,11 @@ ORARI - le email a te e il calendario
    ORARI_4_calendario, rieseguito, te lo dice): li aggiorna da oggi in poi,
    senza toccare le lezioni;
    quelli passati restano come sono, anche se li avevi cambiati a mano.
+   Con un orario nuovo che vale da un giorno che deve ancora venire (il
+   cambio d'orario qui sotto), i colloqui di DatiOrari.gs sono i suoi:
+   ORARI_7_colloqui li aggiorna da quel giorno, come ORARI_5_cambioOrario,
+   e fino al giorno prima restano quelli dell'orario di prima (il messaggio
+   nomina le giornate di quei giorni che non ha messo).
    Anche lei riprende da sola se si ferma. Le prenotazioni dei genitori
    restano nel registro elettronico (ClasseViva): Campanella non le legge
    e non le tocca (un file di prenotazioni non lo importa), sul calendario

@@ -285,6 +285,12 @@ function _orariAnteprimaCalendario_(d) {
         righe.push('L\'orario e\' cambiato: il nuovo vale dal ' + c.validoDal + '. Il cambio si fa con ' +
                    'ORARI_5_cambioOrario: ' + dopo.serie.length + ' serie nuove da quel giorno, ' +
                    dopo.saltate + ' lezioni saltate; le settimane prima restano come sono.');
+        // i colloqui di DatiOrari.gs sono quelli dell'orario nuovo: ORARI_7_colloqui li mette da quel giorno
+        var adesso = new Date();
+        if (_orariCambioDopo_(c, periodo, new Date(adesso.getFullYear(), adesso.getMonth(), adesso.getDate()))) {
+          righe.push('Anche ORARI_7_colloqui, prima del ' + c.validoDal + ', mette i colloqui di DatiOrari.gs da quel ' +
+                     'giorno: fino al giorno prima restano quelli dell\'orario di prima.');
+        }
       }
     }
   } catch (err) {
@@ -570,7 +576,11 @@ function ORARI_6_coloraLezioni(e) {
 //  e' il cambio d'orario (la sezione 5), con oggi come data del cambio, solo
 //  sui colloqui. Quelli prima di oggi restano come sono, anche se cambiati a
 //  mano; le lezioni non si toccano. Il giorno e' quello in cui comincia: una
-//  ripresa dopo la mezzanotte continua lo stesso lavoro. Le prenotazioni dei
+//  ripresa dopo la mezzanotte continua lo stesso lavoro. Con un orario nuovo
+//  che vale da un giorno che deve ancora venire (calendario.validoDal), i
+//  colloqui di DatiOrari.gs sono i suoi: li aggiorna da quel giorno, come
+//  ORARI_5_cambioOrario, e fino al giorno prima restano quelli dell'orario di
+//  prima (le giornate di DatiOrari.gs in quei giorni le nomina il messaggio). Le prenotazioni dei
 //  genitori restano nel registro elettronico: qui c'e' solo quando e dove.
 // ===========================================================================
 function ORARI_7_colloqui(e) {
@@ -711,9 +721,15 @@ function _orariCalendario_(funzione, e) {
     if (validoDal < periodo.inizio) validoDal = periodo.inizio;
     dal = validoDal;
   }
+  var oggiColloqui = null;
   if (soloColloqui) {
     // da oggi, o dal giorno in cui e' cominciato il lavoro che riprende
-    validoDal = _orariOggiDeiColloqui_(salvato, periodo);
+    validoDal = oggiColloqui = _orariOggiDeiColloqui_(salvato, periodo);
+    // con un orario nuovo che vale da un giorno che deve ancora venire, i
+    // colloqui di DatiOrari.gs sono i suoi: valgono da quel giorno, come per
+    // ORARI_5_cambioOrario, e fino al giorno prima restano quelli di prima
+    var cambioDopo = _orariCambioDopo_(c, periodo, validoDal);
+    if (cambioDopo) validoDal = cambioDopo;
     dal = validoDal;
   }
   // ORARI_7_colloqui non mette lezioni: il suo piano ha solo i colloqui
@@ -822,6 +838,8 @@ function _orariCalendario_(funzione, e) {
     }
     stato = { funzione: funzione, impronta: impronta, fase: taglia ? 'taglio' : 'crea', fatti: 0, colloquiFatti: 0,
               validoDal: cambio ? c.validoDal : (soloColloqui ? _orariChiaveData_(validoDal) : ''),
+              // ORARI_7_colloqui: il giorno in cui e' cominciato, se il taglio e' al cambio d'orario
+              oggi: (soloColloqui && oggiColloqui < validoDal) ? _orariChiaveData_(oggiColloqui) : '',
               rifatte: 0, tolte: 0, eventiTolti: 0, rimesse: 0, spostate: [],
               rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima, senzaContrassegno: [], nSenzaContrassegno: 0,
               coloriImpronta: _orariImprontaColori_(c), coloriNonMessi: [], nColoriNonMessi: 0 };
@@ -1736,8 +1754,18 @@ function _orariFineColloqui_(c, doc, piano, stato, validoDal) {
   var dal = _orariChiaveData_(validoDal);
   var giornoPrima = _orariChiaveData_(new Date(validoDal.getFullYear(), validoDal.getMonth(), validoDal.getDate() - 1));
   var rimesse = stato.rimesse || 0, senzaContrassegno = stato.nSenzaContrassegno || 0;
+  // cominciato prima del cambio d'orario: i colloqui di DatiOrari.gs sono quelli dell'orario nuovo
+  var oggi = stato.oggi ? _orariData_(stato.oggi) : null;
+  var giornatePrima = oggi ? _orariGiornatePrimaDelCambio_(c, oggi, validoDal) : '';
+  var primaDelCambio = oggi
+    ? 'L\'orario nuovo vale dal ' + dal + ' (calendario.validoDal in DatiOrari.gs): i colloqui di DatiOrari.gs sono ' +
+      'i suoi, e li ho messi da quel giorno, come ORARI_5_cambioOrario. Dal ' + stato.oggi + ' al ' + giornoPrima +
+      ' restano i colloqui dell\'orario di prima, come erano.' +
+      (giornatePrima ? ' Le giornate di DatiOrari.gs in quei giorni non le ho messe (' + giornatePrima + '): se ' +
+                       'servono, mettile a mano nel calendario.' : '') + '\n'
+    : '';
   return 'Colloqui aggiornati dal ' + dal + ' nel calendario "' + c.nome + '", per ' + doc.nome + '.\n' +
-    _orariAvvisoFuso_(stato) +
+    primaDelCambio + _orariAvvisoFuso_(stato) +
     'Ricevimenti di prima rifatti fino al ' + giornoPrima + ', con gli incontri come erano: ' + stato.rifatte + '\n' +
     'Ricevimenti di prima tolti (nessun incontro prima del ' + dal + '): ' + stato.tolte + '\n' +
     'Giornate di colloqui tolte (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' +
@@ -2732,6 +2760,36 @@ function _orariOggiDeiColloqui_(salvato, periodo) {
       'DatiOrari.gs ed esegui ORARI_4_calendario.');
   }
   return (oggi < periodo.inizio) ? periodo.inizio : oggi;
+}
+
+/**
+ * Per ORARI_7_colloqui: il giorno da cui vale l'orario nuovo (calendario.validoDal),
+ * se viene dopo oggi e non dopo la fine del periodo. Allora i colloqui di
+ * DatiOrari.gs sono quelli dell'orario nuovo, e ORARI_5_cambioOrario li mette
+ * da quel giorno: ORARI_7_colloqui fa lo stesso, e le settimane prima tengono
+ * i colloqui dell'orario di prima. null altrimenti (anche con una data che
+ * non si capisce: la dice ORARI_5_cambioOrario).
+ */
+function _orariCambioDopo_(c, periodo, oggi) {
+  if (!c.validoDal) return null;
+  var dal = _orariData_(c.validoDal);
+  if (!dal || dal <= oggi || dal > periodo.fine) return null;
+  return dal;
+}
+
+/**
+ * Le giornate di colloqui di DatiOrari.gs fra oggi (compreso) e il giorno del
+ * cambio d'orario (escluso), che ORARI_7_colloqui con un orario nuovo che
+ * comincia piu' avanti non mette: "2027-01-27, 2027-01-29", o ''.
+ */
+function _orariGiornatePrimaDelCambio_(c, oggi, validoDal) {
+  var fuori = [];
+  var singoli = (c.colloqui && c.colloqui.singoli) || [];
+  for (var i = 0; i < singoli.length; i++) {
+    var data = _orariData_((singoli[i] || {}).data);
+    if (data && data >= oggi && data < validoDal) fuori.push(_orariChiaveData_(data));
+  }
+  return fuori.join(', ');
 }
 
 /** "Colloqui ...: 1 ricevimento settimanale (2 serie, 28 incontri), 2 giornate singole; ...": per i messaggi. */

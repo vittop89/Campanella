@@ -3525,6 +3525,8 @@ if (conCalendario) {
     verifica('dopo la fine del periodo non tocca niente e lo dice',
       /e' finito/.test(finito) && scritture === scritteFine && uguali(colloquiSul(calL, primoGiorno, ultimoGiorno), tutti));
     oggiFinto = new Date(2026, 7, 20, 9, 0);
+    // senza la data di un cambio d'orario (con quella, li aggiornerebbe da li': la sezione dopo)
+    contesto.ORARI.calendario = Object.assign({}, contesto.ORARI.calendario, { validoDal: '' });
     contesto.ORARI_7_colloqui();
     verifica('prima dell\'inizio del periodo li aggiorna tutti, dall\'inizio, e le lezioni restano',
       uguali(colloquiSul(calL, primoGiorno, ultimoGiorno), colloquiAttesi(colloquiNuovi, primoGiorno).incontri) &&
@@ -3571,6 +3573,58 @@ if (conCalendario) {
       docOriginale.celle = celleOriginali.slice();
     } else {
       verifica('i dati hanno la data del cambio d\'orario (serve a questa sezione)', false);
+    }
+    // ORARI_7_colloqui fra ORARI_5_cambioOrario (con la data del cambio che
+    // deve ancora venire) e quella data: i colloqui di DatiOrari.gs sono quelli
+    // dell'orario nuovo, e vanno da quel giorno, come nel cambio. Gli incontri
+    // prima restano quelli dell'orario di prima (qui il giovedi' alle 10:10),
+    // non passano all'ora del nuovo
+    {
+      const CAMBIO = '2027-02-01';
+      const cambio = dataDa(CAMBIO), primaCambio = giorniDopo(cambio, -1);
+      const conCambio = (k, dal) => {
+        contesto.ORARI.calendario = Object.assign({}, calendarioDati, { colloqui: k, coloreColloqui: '5', validoDal: dal });
+      };
+      azzeraCalendario();
+      oggiFinto = new Date(2026, 8, 1, 9, 0);
+      conCambio(colloquiProva, '');
+      contesto.ORARI_4_calendario();
+      const calF = calendari[0];
+      oggiFinto = new Date(2027, 0, 20, 9, 0);
+      conCambio(colloquiNuovi, CAMBIO);
+      contesto.ORARI_5_cambioOrario();
+      const primaF = colloquiSul(calF, primoGiorno, primaCambio);
+      verifica('dopo ORARI_5_cambioOrario del ' + CAMBIO + ' fino al giorno prima c\'e\' il ricevimento del giovedi\' ' +
+        'dell\'orario di prima', primaF.indexOf('2027-01-28 10:10-11:10 Ricevimento|' + LINK_A) >= 0);
+      // il 25 gennaio cambia solo il link del ricevimento, e una giornata arriva il 27
+      const colloquiLink = Object.assign({}, colloquiNuovi, {
+        settimanali: [Object.assign({}, colloquiNuovi.settimanali[0], { link: LINK_B }), colloquiNuovi.settimanali[1]],
+        singoli: colloquiNuovi.singoli.concat([{ data: '2027-01-27', dalle: '15:00', alle: '18:00', nome: 'Colloqui di gennaio',
+                                                 link: LINK_B }])
+      });
+      conCambio(colloquiLink, CAMBIO);
+      oggiFinto = new Date(2027, 0, 25, 9, 0);
+      const anteprimaF = contesto.ORARI_1_anteprima();
+      const esitoF = contesto.ORARI_7_colloqui();
+      console.log(esitoF);
+      verifica('ORARI_7_colloqui prima del ' + CAMBIO + ' lascia gli incontri fino al giorno prima come erano, anche il 28 ' +
+        'gennaio alle 10:10 (' + primaF.length + ')', uguali(colloquiSul(calF, primoGiorno, primaCambio), primaF));
+      verifica('  ...e dal ' + CAMBIO + ' mette i colloqui di DatiOrari.gs, con il link nuovo',
+        uguali(colloquiSul(calF, cambio, ultimoGiorno), colloquiAttesi(colloquiLink, cambio).incontri) &&
+        senzaDoppioni(calF));
+      verifica('  ...e il messaggio dice da quando, che fino al giorno prima restano quelli dell\'orario di prima, e la ' +
+        'giornata del 27 gennaio che non ha messo',
+        new RegExp('Colloqui aggiornati dal ' + CAMBIO).test(esitoF) &&
+        /Dal 2027-01-25 al 2027-01-31 restano i colloqui dell'orario di prima/.test(esitoF) &&
+        /non le ho messe \(2027-01-27\)/.test(esitoF));
+      verifica('  ...e ORARI_1_anteprima lo dice prima', /Anche ORARI_7_colloqui, prima del 2027-02-01/.test(anteprimaF));
+      // dopo il cambio, ORARI_7_colloqui torna ad aggiornarli da oggi
+      oggiFinto = new Date(2027, 1, 10, 9, 0);
+      const dopoF = contesto.ORARI_7_colloqui();
+      verifica('dopo il ' + CAMBIO + ' ORARI_7_colloqui li aggiorna di nuovo da oggi',
+        /Colloqui aggiornati dal 2027-02-10/.test(dopoF) && !/orario di prima, come erano/.test(dopoF) &&
+        uguali(colloquiSul(calF, primoGiorno, primaCambio), primaF));
+      oggiFinto = null;
     }
     // i colloqui dei dati (generati da Campanella, in test/prova_orario.ps1): vanno sul calendario come dice il piano
     if (colloquiDeiDati) {
