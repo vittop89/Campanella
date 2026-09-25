@@ -84,6 +84,12 @@ var _ORARI_TAG_VALORE    = 'orario';
 // il secondo contrassegno delle serie e degli eventi rifatti dal cambio
 // d'orario: l'id della serie vecchia che sostituiscono e il giorno prima del cambio
 var _ORARI_TAG_SOSTITUISCE = 'campanella_sostituisce';
+// negli eventi singoli rimessi dal cambio d'orario: la classe (il loro titolo
+// puo' essere cambiato a mano, come "2B VERIFICA") e, se il colore l'ha scelto
+// il docente per quella lezione, il segno; li legge ORARI_6_coloraLezioni
+var _ORARI_TAG_CLASSE    = 'campanella_classe';
+var _ORARI_TAG_COLORE    = 'campanella_colore';
+var _ORARI_COLORE_A_MANO = 'a mano';
 var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';      // quello delle scuole italiane: l'anteprima avvisa se lo script ne ha un altro
 
 
@@ -784,7 +790,10 @@ function _orariCalendario_(funzione, e) {
  * non ne ha uno (non e' piu' nell'orario, o e' senza colore), quello che
  * aveva la serie vecchia. Una lezione colorata a mano solo lei (un colore
  * diverso da quello delle altre, r.coloreDiTutte) torna come evento singolo
- * con il suo.
+ * con il suo. Ogni evento singolo rimesso ha anche la sua classe (il titolo
+ * della serie vecchia) e, se il colore e' suo, il segno "a mano": cosi'
+ * ORARI_6_coloraLezioni da' il colore della classe anche a una lezione
+ * rinominata, e lascia com'e' quella colorata a mano.
  */
 function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
   if (stato.appenaCreato) {
@@ -859,11 +868,16 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, c) {
         stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };
         salva();
         var suo = _orariColoreDellaLezione_(r.spostate[m]);
-        var coloreSingolo = (suo && suo !== r.coloreDiTutte) ? suo : colore;
+        var suoAMano = !!suo && suo !== r.coloreDiTutte;
+        var coloreSingolo = suoAMano ? suo : colore;
+        var messoAMano = false;
         if (coloreSingolo) {
-          try { singolo.setColor(coloreSingolo); }
+          try { singolo.setColor(coloreSingolo); messoAMano = suoAMano; }
           catch (errColoreSingolo) { _orariColoreNonMesso_(stato, _orariEtichettaLezione_(r.spostate[m])); salva(); }
         }
+        // la classe e, se ha il colore scelto a mano per lei, il segno: li legge ORARI_6_coloraLezioni
+        singolo.setTag(_ORARI_TAG_CLASSE, r.titolo);
+        if (messoAMano) singolo.setTag(_ORARI_TAG_COLORE, _ORARI_COLORE_A_MANO);
         singolo.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
         singolo.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
         stato.appenaCreato = null;
@@ -1633,16 +1647,18 @@ function _orariColori_(e) {
 /**
  * Il lavoro di ORARI_6_coloraLezioni: ogni voce di _orariNostri_ nel periodo
  * con il contrassegno prende il colore della sua classe (il titolo della
- * serie, o dell'evento singolo) in c.colori, se ne ha uno e se non ce l'ha
- * gia'. Quelle senza contrassegno (forse copiate a mano) e quelle di una
- * classe senza colore restano come sono. Quelle gia' fatte (stato.fatte) si
- * saltano. Un limite di Google ferma il lavoro (lo riprende la ripresa); un
- * altro errore si conta e il lavoro va avanti. Torna i conti per il
- * messaggio finale, o null se finisce il tempo.
+ * serie, o dell'evento singolo; di un evento rimesso dal cambio d'orario
+ * quella del suo contrassegno, _orariClasseDellaVoce_) in c.colori, se ne ha
+ * uno e se non ce l'ha gia'. Quelle senza contrassegno (forse copiate a
+ * mano), quelle di una classe senza colore e gli eventi rimessi dal cambio
+ * con il colore scelto a mano per loro restano come sono. Quelle gia' fatte
+ * (stato.fatte) si saltano. Un limite di Google ferma il lavoro (lo riprende
+ * la ripresa); un altro errore si conta e il lavoro va avanti. Torna i conti
+ * per il messaggio finale, o null se finisce il tempo.
  */
 function _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva) {
   var nostri = _orariNostri_(cal, periodo.inizio, _orariFineGiornata_(periodo.fine));
-  var conti = { tutte: 0, copie: 0, nSenza: 0, senza: [], nAncora: 0, ancora: [] };
+  var conti = { tutte: 0, copie: 0, nSenza: 0, senza: [], nAncora: 0, ancora: [], nAMano: 0, aMano: [] };
   for (var i = 0; i < nostri.length; i++) {
     var voce = nostri[i];
     if (!voce.contrassegno) {
@@ -1651,7 +1667,15 @@ function _orariColoraLezioni_(cal, periodo, c, stato, scadenza, salva) {
       continue;
     }
     conti.tutte++;
-    var classe = _orariTitoloDellaVoce_(voce);
+    if (_orariColoreSceltoAMano_(voce)) {
+      // colorata a mano solo lei, rimessa cosi' dal cambio d'orario: la lascio com'e', come dentro la serie
+      conti.nAMano++;
+      if (conti.aMano.length < 10) {
+        conti.aMano.push(_orariEtichetta_(voce) + ' (' + _orariNomeColore_(_orariColoreDiVoce_(voce)) + ')');
+      }
+      continue;
+    }
+    var classe = _orariClasseDellaVoce_(voce);
     var colore = _orariColoreDi_(c, classe);
     if (!colore) {
       // una classe senza colore: la lascio com'e', e se ne ha uno di prima lo dico
@@ -1721,6 +1745,10 @@ function _orariFineColori_(c, stato, conti) {
     'Avevano gia\' il colore della loro classe: ' + stato.gia + '\n' +
     (conti.nSenza ? 'Di classi senza colore in DatiOrari.gs, lasciati come sono: ' + conti.nSenza + ' (' +
                     conti.senza.join(', ') + ')\n' : '') +
+    (conti.nAMano ? 'Colorati a mano solo loro, e rimessi cosi\' da ORARI_5_cambioOrario, lasciati con il loro ' +
+                    'colore: ' + conti.nAMano + ' (' + conti.aMano.join('; ') +
+                    (conti.nAMano > conti.aMano.length ? '; ...' : '') + '). Se vuoi il colore della classe, ' +
+                    'cambialo tu da Google Calendar.\n' : '') +
     (conti.nAncora ? '\n' + (conti.nAncora === 1 ? 'Uno di questi ha' : conti.nAncora + ' di questi hanno') +
                      ' ancora un colore messo prima: ' + conti.ancora.join('; ') +
                      (conti.nAncora > conti.ancora.length ? '; ...' : '') + '. Se vuoi che abbiano il colore del ' +
@@ -1741,6 +1769,26 @@ function _orariTitoloDellaVoce_(voce) {
   var t = '';
   try { t = String((voce.serie ? voce.serie.getTitle() : voce.evento.getTitle()) || ''); } catch (e) { t = ''; }
   return t || String(voce.titolo || '');
+}
+
+/**
+ * La classe di una voce di _orariNostri_, per il suo colore: di un evento
+ * singolo rimesso dal cambio d'orario quella scritta nel suo contrassegno
+ * (il titolo puo' essere cambiato a mano, come "2B VERIFICA"), altrimenti
+ * il titolo della serie o dell'evento.
+ */
+function _orariClasseDellaVoce_(voce) {
+  var k = '';
+  if (voce.evento) {
+    try { k = String(voce.evento.getTag(_ORARI_TAG_CLASSE) || '').trim(); } catch (e) { k = ''; }
+  }
+  return k || _orariTitoloDellaVoce_(voce);
+}
+
+/** Vero se la voce e' un evento singolo rimesso dal cambio d'orario con il colore scelto a mano per quella lezione. */
+function _orariColoreSceltoAMano_(voce) {
+  if (!voce.evento) return false;
+  try { return voce.evento.getTag(_ORARI_TAG_COLORE) === _ORARI_COLORE_A_MANO; } catch (e) { return false; }
 }
 
 /** L'impronta dell'id di una voce di _orariNostri_ (la serie o l'evento singolo), per il punto salvato. */

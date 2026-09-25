@@ -2626,6 +2626,46 @@ if (conCalendario) {
         numero(/colorate a mano, rimesse come eventi singoli alla loro ora: (\d+)/, esitoV) === 2 &&
         /Le serie rifatte hanno il colore della loro classe/.test(esitoV));
     }
+    // ORARI_6_coloraLezioni sugli eventi singoli rimessi dal cambio: una
+    // lezione rinominata a mano ("VERIFICA") e' ancora della sua classe e
+    // prende il colore nuovo; una colorata a mano solo lei tiene il suo, come
+    // dentro la serie
+    azzeraCalendario();
+    conColori(coloriProva);
+    contesto.ORARI_4_calendario();
+    const calR = calendari[0];
+    const sR = vive(calR).find(s => chiave(s.inizio) < validoDal && chiave(s.ricorrenza.until) >= validoDal &&
+      s.inizi(giornoPrima).length >= 3 && !!atteso(coloriProva, s.titolo));
+    verifica('c\'e\' una serie da rifare di una classe con un colore, per gli eventi singoli rimessi', !!sR);
+    if (sR) {
+      const classeR = sR.titolo;
+      const suoR = ['4', '3'].find(v => v !== coloriProva[classeR]);
+      const altroR = ['6', '7', '2', '1'].find(v => v !== coloriProva[classeR] && v !== suoR);
+      sR.rinomina(0, classeR + ' VERIFICA');
+      sR.colora(1, suoR);
+      docOriginale.celle = ruotata(celleOriginali);
+      contesto.ORARI_5_cambioOrario();
+      const rinominataR = calR.eventi.find(e => !e.cancellato && e.titolo === classeR + ' VERIFICA');
+      const colorataR = calR.eventi.find(e => !e.cancellato && e.inizio.getTime() === settimaneDopo(sR.inizio, 1).getTime());
+      verifica('il cambio rimette come eventi singoli la lezione rinominata a mano, con il colore della classe, e quella ' +
+        'colorata a mano, con il suo', !proprieta.has(PROGRESSO_CALENDARIO) &&
+        !!rinominataR && rinominataR.getColor() === coloriProva[classeR] && !!colorataR && colorataR.getColor() === suoR);
+      conColori(Object.assign({}, coloriProva, { [classeR]: altroR }));
+      const esitoR = contesto.ORARI_6_coloraLezioni();
+      verifica('ORARI_6_coloraLezioni da\' alla lezione rinominata a mano il colore nuovo della sua classe, come alla ' +
+        'serie rifatta (' + (rinominataR ? rinominataR.getColor() : '-') + ')',
+        !!rinominataR && rinominataR.getColor() === altroR &&
+        vive(calR).filter(s => s.titolo === classeR && s.getTag('campanella') === 'orario').every(s => s.getColor() === altroR));
+      verifica('  ...e non la conta fra le classi senza colore', !/senza colore[^\n]*VERIFICA/.test(esitoR));
+      verifica('la lezione colorata a mano solo lei tiene il suo colore (' + (colorataR ? colorataR.getColor() : '-') +
+        '), e il messaggio la nomina fra quelle lasciate con il loro',
+        !!colorataR && colorataR.getColor() === suoR &&
+        numero(/Colorati a mano solo loro[^:]*: (\d+)/, esitoR) === 1 && esitoR.indexOf(NOMI_COLORI[Number(suoR)]) >= 0);
+      const ancoraR = contesto.ORARI_6_coloraLezioni();
+      verifica('  ...anche rieseguita', !!colorataR && colorataR.getColor() === suoR &&
+        numero(/Colorati adesso con il colore della loro classe: (\d+)/, ancoraR) === 0);
+      docOriginale.celle = celleOriginali.slice();
+    }
     // un colore che Google non mette nel taglio non ferma il cambio: il messaggio lo dice
     azzeraCalendario();
     conColori(coloriProva);
