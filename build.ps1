@@ -86,6 +86,8 @@ $risorse  = @(
     'Organizzazione_Gmail.gs'
     'estrai_personale_spaggiari.js'
     'Orari.gs'
+    # l'intestazione di Calendario.gs, la versione solo calendario di Orari.gs (SoloCalendario.cs)
+    'Calendario_intestazione.txt'
     'Moduli.gs'
     'Pannello.gs'
 )

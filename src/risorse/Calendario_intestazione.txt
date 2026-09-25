@@ -1,0 +1,59 @@
+/**
+ * ============================================================================
+ *  CALENDARIO - il tuo orario sul Google Calendar di un altro account
+ * ============================================================================
+ *
+ *  Calendario.gs versione {versione}: la versione solo calendario di Orari.gs,
+ *  preparata dall'applicazione Campanella (Orari, passo 4, "in un altro
+ *  account Google") per un account diverso da quello della scuola, per
+ *  esempio il tuo personale.
+ *
+ *  Va incollato in un progetto Apps Script nuovo DI QUELL'ACCOUNT (apri
+ *  script.google.com entrando con quell'account), insieme al file
+ *  DatiOrari.gs "solo il tuo", preparato anche lui dall'applicazione: dentro
+ *  c'e' soltanto il tuo orario (il tuo cognome come nel tabellone, le tue
+ *  classi e le tue ore, i giorni senza lezione e il colore di ogni classe),
+ *  nessun collega. Prima di eseguire qualcosa: Impostazioni progetto
+ *  (l'ingranaggio a sinistra) -> Fuso orario -> quello con Roma.
+ *
+ *  Non manda email e non legge la posta: le funzioni delle email di Orari.gs
+ *  qui non ci sono. Se le vuoi, restano nel progetto della scuola, con
+ *  Orari.gs. Quelle del calendario hanno gli stessi nomi e fanno le stesse
+ *  cose, quindi le istruzioni valgono per tutti e due.
+ *
+ *  FUNZIONI, NELL'ORDINE
+ *    ORARI_1_anteprima ......... dice quante serie metterebbe sul calendario,
+ *                                senza mettere niente; avvisa se il fuso
+ *                                orario dello script non e' quello dell'Italia
+ *    ORARI_4_calendario ........ mette il tuo orario su Google Calendar, nel
+ *                                calendario indicato (lo crea se non c'e',
+ *                                con il fuso orario dello script), senza
+ *                                lezioni nei giorni senza lezione e ogni
+ *                                classe con il suo colore; riprende da sola
+ *                                se finisce il tempo o se Google chiede di
+ *                                rallentare
+ *    ORARI_5_cambioOrario ...... l'orario e' cambiato: dalla data scelta
+ *                                nell'applicazione mette quello nuovo, e le
+ *                                settimane prima restano (riprende da sola)
+ *    ORARI_6_coloraLezioni ..... da' alle lezioni gia' messe il colore della
+ *                                loro classe scelto nell'applicazione, senza
+ *                                rifarle (riprende da sola)
+ *    ORARI_ANNULLA_calendario .. toglie dal calendario gli eventi messi qui,
+ *                                nel periodo scritto in DatiOrari.gs, e
+ *                                dimentica un lavoro a meta'
+ *
+ *  PERMESSI
+ *    Alla prima esecuzione Google chiede soltanto due permessi:
+ *      - Google Calendar (vedere e cambiare i tuoi calendari): lo script
+ *        tocca solo il calendario che indichi (uno tuo, con quel nome
+ *        esatto; lo crea se non c'e') e, dentro, solo gli eventi creati qui,
+ *        con il contrassegno di Campanella. Del calendario cambiano solo il
+ *        colore scelto nell'applicazione e il fuso orario, se non e' quello
+ *        dello script;
+ *      - eseguire lo script quando non sei presente (i trigger): un lavoro
+ *        lungo, fermato dal tempo massimo o da Google, riprende da solo un
+ *        minuto dopo, e a lavoro finito la ripresa si toglie.
+ *    Nient'altro: niente posta, niente email, niente Drive, documenti o
+ *    fogli, niente servizi fuori da Google, e nemmeno il tuo indirizzo.
+ * ============================================================================
+ */
