@@ -43,11 +43,13 @@
  *    ORARI_4_calendario, ORARI_5_cambioOrario e ORARI_ANNULLA_calendario, che
  *    toccano solo il calendario che indichi (uno tuo, non uno a cui sei
  *    iscritto, con quel nome esatto) e, dentro, solo gli eventi creati qui:
- *    ORARI_4_calendario li crea, ORARI_5_cambioOrario accorcia o toglie solo
- *    quelli con il contrassegno, ORARI_ANNULLA_calendario toglie quelli con il
+ *    ORARI_4_calendario li crea, ORARI_5_cambioOrario rifa' fino al giorno
+ *    prima del cambio (poi toglie la serie vecchia) o toglie solo quelli con
+ *    il contrassegno, ORARI_ANNULLA_calendario toglie quelli con il
  *    contrassegno o con la descrizione che comincia con [Campanella] (se Google
  *    non ha salvato il contrassegno; ma anche una copia fatta a mano di una
- *    lezione ha quella descrizione).
+ *    lezione ha quella descrizione). Del calendario cambiano solo il colore
+ *    scelto nell'applicazione e il fuso orario, se non e' quello dello script.
  * ============================================================================
  */
 
@@ -65,6 +67,9 @@ var _ORARI_MAX_RIFIUTI   = 10;                 // limiti di Google di fila prima
 var _ORARI_ETICHETTA     = 'Orari';            // sotto il prefisso delle etichette della Posta
 var _ORARI_TAG           = 'campanella';       // contrassegno degli eventi creati qui
 var _ORARI_TAG_VALORE    = 'orario';
+// il secondo contrassegno delle serie e degli eventi rifatti dal cambio
+// d'orario: l'id della serie vecchia che sostituiscono e il giorno prima del cambio
+var _ORARI_TAG_SOSTITUISCE = 'campanella_sostituisce';
 var _ORARI_FUSO_SCUOLA   = 'Europe/Rome';      // quello delle scuole italiane: l'anteprima avvisa se lo script ne ha un altro
 
 
@@ -346,14 +351,22 @@ function ORARI_4_calendario(e) {
 
 // ===========================================================================
 //  5 - CAMBIO D'ORARIO
-//  L'orario nuovo vale da calendario.validoDal: le serie gia' messe che
-//  cominciano prima finiscono il giorno prima, quelle che cominciano da quel
-//  giorno in poi si tolgono, e dal validoDal si mette l'orario nuovo. Le
-//  settimane prima restano come sono. Rieseguito con la stessa data da' lo
-//  stesso risultato. Una data prima dell'inizio del periodo vale come
-//  l'inizio: l'anno prima, che puo' stare nello stesso calendario, non si
-//  tocca. Solo le serie con il contrassegno: una con la sola descrizione di
-//  Campanella (forse una copia fatta a mano) resta, e il messaggio la nomina.
+//  L'orario nuovo vale da calendario.validoDal. Google non lascia accorciare
+//  una serie (setRecurrence, provata dal vivo, non cambia niente), quindi le
+//  serie gia' messe con lezioni prima di quel giorno e dopo si rifanno: una
+//  serie nuova uguale (titolo e descrizione) fino al giorno prima, senza le
+//  settimane in cui la vecchia non aveva la lezione (cancellata o spostata a
+//  mano), un evento singolo per ogni lezione spostata a mano, alla sua ora,
+//  e solo alla fine si toglie la vecchia. Le serie senza lezioni prima di
+//  quel giorno si tolgono, come gli eventi singoli da quel giorno in poi, e
+//  dal validoDal si mette l'orario nuovo. Le settimane prima restano come
+//  sono. Rieseguito con la stessa data, o ripreso dopo un'interruzione, da'
+//  lo stesso risultato: la serie nuova ha un secondo contrassegno con la
+//  serie vecchia che sostituisce e il giorno prima del cambio, e si ritrova.
+//  Una data prima dell'inizio del periodo vale come l'inizio: l'anno prima,
+//  che puo' stare nello stesso calendario, non si tocca. Solo gli eventi con
+//  il contrassegno: una serie con la sola descrizione di Campanella (forse
+//  una copia fatta a mano) resta, e il messaggio la nomina.
 // ===========================================================================
 function ORARI_5_cambioOrario(e) {
   return _orariCalendarioConLock_(_ORARI_TRIGGER_CAMBIO, e);
@@ -472,12 +485,23 @@ function _orariCalendario_(funzione, e) {
   if (salvato && salvato.impronta !== impronta) {
     _togliTriggerOrari_(funzione);
     if (cambio) {
-      // il cambio si rifa' da capo con i dati di adesso: il taglio ritrova le serie gia' messe
+      // il cambio si rifa' da capo con i dati di adesso: il taglio ritrova le
+      // serie gia' messe, e i pezzi rifatti per un'altra data li toglie
+      var rifattoSenza = _orariPezzoAppenaRifatto_(salvato, c);
+      // le serie gia' rifatte fino al giorno prima della data di prima (o
+      // tolte) non hanno piu' le lezioni di prima fra le due date
+      var avanti = (salvato.validoDal && c.validoDal > salvato.validoDal && (salvato.rifatte || salvato.tolte))
+        ? '\nAttenzione: la data nuova, ' + c.validoDal + ', viene dopo quella di prima, ' + salvato.validoDal + ', e ' +
+          'qualche serie era gia\' stata rifatta fino al giorno prima di quella, o tolta: fra le due date quelle ' +
+          'lezioni dell\'orario di prima non ci sono piu\', e il cambio non le rimette. Per riaverle: ' +
+          'ORARI_ANNULLA_calendario, poi ORARI_4_calendario con il DatiOrari.gs dell\'orario di prima, poi ' +
+          'ORARI_5_cambioOrario con quello nuovo.'
+        : '';
       prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
       throw new Error('DatiOrari.gs e\' cambiato a meta\' del lavoro: ORARI_5_cambioOrario aveva cominciato con ' +
         'un altro orario (o altre date) e non va avanti mescolandoli. Ho dimenticato il lavoro a meta\'; le serie ' +
         'gia\' messe restano.\nRiesegui ORARI_5_cambioOrario: rifa\' il cambio dal ' + c.validoDal + ' con i ' +
-        'dati di adesso, e le settimane prima restano.' + _orariAvvisoDaContrassegnare_(salvato));
+        'dati di adesso, e le settimane prima restano.' + avanti + _orariAvvisoDaContrassegnare_(salvato) + rifattoSenza);
     }
     // ORARI_4_calendario: il punto resta, cosi' con i dati di prima si finisce.
     // Con un orario nuovo e la data da cui vale, annullare e rimettere darebbe
@@ -538,8 +562,8 @@ function _orariCalendario_(funzione, e) {
       try { cal.setColor(CalendarApp.Color[c.colore] || c.colore); } catch (err) { /* colore non riconosciuto */ }
     }
     stato = { funzione: funzione, impronta: impronta, fase: cambio ? 'taglio' : 'crea', fatti: 0,
-              accorciate: 0, tolte: 0, eventiTolti: 0, rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima,
-              irregolari: [], nIrregolari: 0, senzaContrassegno: [], nSenzaContrassegno: 0 };
+              validoDal: cambio ? c.validoDal : '', rifatte: 0, tolte: 0, eventiTolti: 0, rimesse: 0, spostate: [],
+              rifiuti: 0, creato: creato, fusoDiPrima: fusoDiPrima, senzaContrassegno: [], nSenzaContrassegno: 0 };
     prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato));
   }
   // rieseguita a mano dopo ANNULLA_automazione: si riparte, e le riprese tornano a valere
@@ -548,6 +572,9 @@ function _orariCalendario_(funzione, e) {
   // (anche in un punto salvato da una versione di prima, che non le aveva)
   if (!stato.daContrassegnare) stato.daContrassegnare = [];
   if (!stato.nonRitrovate) { stato.nonRitrovate = []; stato.nNonRitrovate = 0; }
+  // i conti del taglio, anche in un punto salvato prima che ci fossero
+  if (!stato.spostate) { stato.spostate = []; stato.rimesse = 0; }
+  if (!stato.rifatte) stato.rifatte = 0;
 
   var scadenza = Date.now() + _ORARI_MAX_SECONDI * 1000;
   var salva = function () { prop.setProperty(_ORARI_CHIAVE_CALENDARIO, JSON.stringify(stato)); };
@@ -561,7 +588,7 @@ function _orariCalendario_(funzione, e) {
     }
     // una serie a cui Google non ha salvato il contrassegno (qui sotto): prima
     // di crearne altre glielo rimetto, se la ritrovo. Senza, il cambio d'orario
-    // non la accorcerebbe ne' la toglierebbe, e le sue lezioni comparirebbero
+    // non la rifarebbe ne' la toglierebbe, e le sue lezioni comparirebbero
     // due volte. Se il contrassegno non riesce ancora, resta da fare
     while (stato.daContrassegnare.length) {
       if (!_orariRimettiContrassegno_(cal, stato.daContrassegnare[0])) {
@@ -602,36 +629,54 @@ function _orariCalendario_(funzione, e) {
 }
 
 /**
- * Il taglio del cambio d'orario. Le serie con il contrassegno che hanno
- * lezioni dal validoDal in poi: se cominciano prima, finiscono il giorno
- * prima del validoDal (setRecurrence, con la loro prima lezione); se
- * cominciano dal validoDal in poi, si tolgono. Gli eventi singoli con il
- * contrassegno dal validoDal in poi si tolgono. Le serie le trova solo
- * _orariNostri_; quelle che riconosce solo dalla descrizione (forse una copia
- * fatta a mano) restano, e il messaggio finale le nomina, come le serie
- * accorciate con lezioni spostate o cancellate a mano. Il validoDal non viene
- * mai prima dell'inizio del periodo. Torna false se finisce il tempo: alla
- * ripresa si riparte da qui, e quello che e' gia' sistemato non ha piu'
- * lezioni dal validoDal in poi, quindi non si ritrova.
+ * Il taglio del cambio d'orario. Google non lascia accorciare una serie
+ * (setRecurrence, provata dal vivo, non cambia niente): una serie con il
+ * contrassegno che ha lezioni prima del validoDal e dal validoDal in poi si
+ * rifa' per le settimane prima (_orariRifacimento_). (1) Una serie nuova,
+ * con lo stesso titolo e la stessa descrizione, dalla prima lezione regolare
+ * ogni settimana fino al giorno prima del validoDal, con il contrassegno e con
+ * quello che dice quale serie sostituisce (_ORARI_TAG_SOSTITUISCE: l'id della
+ * vecchia e il giorno prima del cambio); (2) dalla serie nuova si tolgono le
+ * lezioni delle settimane in cui la vecchia non aveva la lezione regolare
+ * (cancellata o spostata a mano); (3) ogni lezione spostata a mano torna come
+ * evento singolo, alla sua ora, con i due contrassegni; (4) solo alla fine si
+ * toglie la serie vecchia. Le serie con il contrassegno senza lezioni prima
+ * del validoDal, e gli eventi singoli dal validoDal in poi, si tolgono. Le
+ * trova solo _orariNostri_; quelle che riconosce solo dalla descrizione
+ * (forse una copia fatta a mano) restano, e il messaggio finale le nomina.
+ * Il validoDal non viene mai prima dell'inizio del periodo.
+ *
+ * Ogni volta tutto si ricalcola dal calendario (_orariPianoDelTaglio_), e
+ * ogni passo fatto si ritrova: finche' la serie vecchia c'e', i suoi pezzi
+ * gia' rifatti per questa data non si rifanno, e quelli rifatti per
+ * un'altra (un cambio ricominciato da capo con altri dati) si tolgono prima
+ * di lei. Un pezzo appena creato, a cui Google non ha ancora salvato i
+ * contrassegni, ha l'id nel punto salvato (stato.appenaCreato), e glieli
+ * rimette la ripresa. Cosi' un lavoro interrotto (il tempo, i limiti di
+ * Google) o rieseguito arriva allo stesso calendario. Torna false se finisce
+ * il tempo.
  */
 function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
+  if (stato.appenaCreato) {
+    _orariRimettiContrassegniAlPezzo_(cal, stato.appenaCreato);
+    stato.appenaCreato = null;
+    salva();
+  }
   // da un anno prima dell'inizio: per sapere la prima lezione di ogni serie,
   // anche di una cominciata prima dell'inizio (un "Dal" spostato in avanti).
   // Le serie dell'anno prima, se stanno nello stesso calendario, finiscono
   // prima dell'inizio, quindi prima del validoDal: restano come sono
   var da = new Date(periodo.inizio.getFullYear() - 1, periodo.inizio.getMonth(), periodo.inizio.getDate());
   var nostri = _orariNostri_(cal, da, _orariFineGiornata_(periodo.fine));
-  var fuso = cal.getTimeZone();
   var fino = new Date(validoDal.getFullYear(), validoDal.getMonth(), validoDal.getDate() - 1, 23, 59, 59);
-  if (!stato.irregolari) { stato.irregolari = []; stato.nIrregolari = 0; }
+  var piano = _orariPianoDelTaglio_(nostri, periodo, validoDal, fino, cal.getTimeZone());
   stato.senzaContrassegno = [];
   stato.nSenzaContrassegno = 0;
-  for (var i = 0; i < nostri.length; i++) {
+  for (var n = 0; n < piano.ordine.length; n++) {
+    var i = piano.ordine[n];
     var voce = nostri[i];
-    if (voce.ultimo < validoDal) continue;          // finisce prima del cambio: resta com'e'
-    // la prima lezione di nuovo, con il periodo: una lezione spostata sta
-    // nella sua settimana solo dove Campanella metteva lezioni
-    if (voce.serie) _orariPrimaLezione_(voce, periodo, fuso);
+    var cosa = piano.cose[i];
+    if (cosa.resta) continue;            // finisce prima del cambio, o e' un pezzo gia' rifatto (va con la sua serie)
     if (!voce.contrassegno) {
       // la sola descrizione non basta per cambiarla: la nomino e basta
       stato.nSenzaContrassegno++;
@@ -639,25 +684,305 @@ function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {
       continue;
     }
     if (Date.now() > scadenza) return false;
-    if (voce.evento) {
+    if (cosa.vecchio) {
+      // rifatto per un'altra data, per una serie vecchia che c'e' ancora: via, prima di lei
+      if (voce.serie) voce.serie.deleteEventSeries();
+      else voce.evento.deleteEvent();
+    } else if (voce.evento) {
       voce.evento.deleteEvent();
       stato.eventiTolti++;
-    } else if (voce.inizio >= validoDal) {
+    } else if (!cosa.rifai) {
       voce.serie.deleteEventSeries();
       stato.tolte++;
     } else {
-      voce.serie.setRecurrence(CalendarApp.newRecurrence().addWeeklyRule().until(fino), voce.inizio, voce.fine);
-      stato.accorciate++;
-      if (voce.irregolare) {
-        stato.nIrregolari++;
-        if (stato.irregolari.length < 10) stato.irregolari.push(_orariEtichetta_(voce));
+      var r = cosa.rifai;
+      var id = r.idNuova;
+      if (!id && r.inizio) {
+        // (1) la serie nuova: il suo id nel punto salvato prima dei contrassegni
+        var nuova = _orariSerieRifatta_(cal, r, fino);
+        id = nuova.getId();
+        stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };
+        salva();
+        nuova.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+        nuova.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
+        stato.appenaCreato = null;
+        salva();
+        Utilities.sleep(_ORARI_PAUSA_MS);
       }
+      // (2) le settimane in cui la vecchia non aveva la lezione regolare
+      for (var b = 0; b < r.buchi.length; b++) {
+        if (Date.now() > scadenza) return false;
+        if (_orariTogliBuco_(cal, id, r.buchi[b])) Utilities.sleep(_ORARI_PAUSA_MS);
+      }
+      // (3) le lezioni spostate a mano, alla loro ora
+      for (var m = 0; m < r.spostate.length; m++) {
+        if (Date.now() > scadenza) return false;
+        var singolo = _orariLezioneRifatta_(cal, r.spostate[m]);
+        stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };
+        salva();
+        singolo.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+        singolo.setTag(_ORARI_TAG_SOSTITUISCE, r.segno);
+        stato.appenaCreato = null;
+        stato.rimesse++;
+        if (stato.spostate.length < 10) stato.spostate.push(_orariEtichettaLezione_(r.spostate[m]));
+        salva();
+        Utilities.sleep(_ORARI_PAUSA_MS);
+      }
+      // (4) solo adesso la serie vecchia
+      if (Date.now() > scadenza) return false;
+      voce.serie.deleteEventSeries();
+      stato.rifatte++;
     }
     stato.rifiuti = 0;
     salva();
     Utilities.sleep(_ORARI_PAUSA_MS);
   }
   return true;
+}
+
+/**
+ * Per _orariTaglia_: che cosa fare di ogni voce di _orariNostri_, senza
+ * toccare niente (legge i contrassegni "sostituisce" e le lezioni). In cose,
+ * allo stesso indice di nostri:
+ *   resta:   finisce prima del validoDal, oppure e' un pezzo gia' fatto del
+ *            rifacimento, per questa data, di una serie vecchia che c'e'
+ *            ancora: si usa con lei;
+ *   vecchio: un pezzo del rifacimento di una serie vecchia che c'e' ancora,
+ *            fatto per un'altra data (o doppio): si toglie;
+ *   rifai:   una serie con il contrassegno, con lezioni prima del validoDal
+ *            e dal validoDal in poi: come rifarla (_orariRifacimento_), senza
+ *            quello che c'e' gia' (la serie nuova, idNuova, e le lezioni
+ *            spostate gia' rimesse);
+ *   altrimenti si toglie. In ordine vengono prima i pezzi vecchi: si
+ *   riconoscono solo finche' c'e' la loro serie vecchia, quindi vanno tolti
+ *   prima di lei.
+ */
+function _orariPianoDelTaglio_(nostri, periodo, validoDal, fino, fuso) {
+  var giorno = _orariChiaveData_(fino);
+  var ids = [], segni = [], cose = [];
+  for (var i = 0; i < nostri.length; i++) {
+    var v = nostri[i];
+    ids.push(v.serie ? String(v.serie.getId()) : '');
+    segni.push(_orariSegnoDi_(v));
+    cose.push({ resta: false, vecchio: false, rifai: null });
+    // la prima lezione di nuovo, con il periodo (per i nomi nei messaggi): una
+    // lezione spostata sta nella sua settimana solo dove Campanella metteva lezioni
+    if (v.serie) _orariPrimaLezione_(v, periodo, fuso);
+  }
+  for (var k = 0; k < nostri.length; k++) {
+    var w = nostri[k];
+    if (_orariSerieSostituita_(segni[k], ids) >= 0) continue;     // un pezzo: qui sotto
+    if (w.ultimo < validoDal) { cose[k].resta = true; continue; }
+    if (!w.serie || !w.contrassegno) continue;
+    var r = _orariRifacimento_(w, validoDal, fino, fuso);
+    if (!r.prima) continue;                                      // nessuna lezione prima del cambio: si toglie
+    r.segno = ids[k] + '|' + giorno;
+    cose[k].rifai = r;
+  }
+  for (var p = 0; p < nostri.length; p++) {
+    var vecchia = _orariSerieSostituita_(segni[p], ids);
+    if (vecchia < 0) continue;
+    var rv = cose[vecchia].rifai, x = nostri[p];
+    if (rv && segni[p] === rv.segno) {
+      if (x.serie && !rv.idNuova) {
+        rv.idNuova = ids[p];
+        rv.buchi = _orariBuchiAncoraDa_(rv.buchi, x);
+        cose[p].resta = true;
+        continue;
+      }
+      var fatta = x.evento ? _orariSpostataRimessa_(rv.spostate, x) : -1;
+      if (fatta >= 0) {
+        rv.spostate.splice(fatta, 1);
+        cose[p].resta = true;
+        continue;
+      }
+    }
+    cose[p].vecchio = true;
+  }
+  var ordine = [], dopo = [];
+  for (var q = 0; q < nostri.length; q++) {
+    if (cose[q].vecchio) ordine.push(q);
+    else dopo.push(q);
+  }
+  return { cose: cose, ordine: ordine.concat(dopo) };
+}
+
+/**
+ * Come rifare fino al giorno prima del cambio (fino) una serie con lezioni
+ * prima del validoDal e dopo. prima: quante lezioni ha prima del validoDal,
+ * come le vede chi guarda il calendario. Quelle regolari (con la forma della
+ * serie, voce.forma di _orariPrimaLezione_) fanno la serie nuova: dalla
+ * prima (inizio, fine, titolo) ogni settimana alla stessa ora nel fuso dello
+ * script, come la ripete Google in un calendario con quel fuso. buchi: le
+ * settimane della serie nuova in cui la vecchia non ha una lezione regolare
+ * (cancellata o spostata a mano), da togliere. spostate: le lezioni prima
+ * del validoDal non regolari (o una seconda alla stessa ora), da rimettere
+ * come eventi singoli alla loro ora.
+ */
+function _orariRifacimento_(voce, validoDal, fino, fuso) {
+  var r = { prima: 0, inizio: null, fine: null, titolo: voce.titolo, descrizione: voce.descrizione,
+            buchi: [], spostate: [], idNuova: '', segno: '' };
+  var regolari = [];
+  for (var i = 0; i < voce.lezioni.length; i++) {
+    var l = voce.lezioni[i];
+    if (l.inizio >= validoDal) continue;
+    r.prima++;
+    if (_orariForma_(l, fuso) === voce.forma) regolari.push(l);
+    else r.spostate.push(l);
+  }
+  if (!regolari.length) return r;
+  var p = regolari[0].inizio;
+  r.inizio = p;
+  r.fine = regolari[0].fine;
+  r.titolo = _orariTitoloDi_(regolari[0]) || voce.titolo;
+  var j = 0;
+  for (var k = 0; ; k++) {
+    var t = new Date(p.getFullYear(), p.getMonth(), p.getDate() + 7 * k, p.getHours(), p.getMinutes(), p.getSeconds());
+    if (t > fino) break;
+    // una regolare che non cade in una settimana della serie (una seconda alla stessa ora): a parte
+    while (j < regolari.length && regolari[j].inizio < t) {
+      r.spostate.push(regolari[j]);
+      j++;
+    }
+    if (j < regolari.length && regolari[j].inizio.getTime() === t.getTime()) j++;
+    else r.buchi.push(t);
+  }
+  for (; j < regolari.length; j++) r.spostate.push(regolari[j]);
+  return r;
+}
+
+/** Il contrassegno "sostituisce" di una voce di _orariNostri_ ("id|giorno"), '' se non c'e'. */
+function _orariSegnoDi_(voce) {
+  var s = '';
+  try {
+    s = String((voce.serie ? voce.serie.getTag(_ORARI_TAG_SOSTITUISCE)
+                           : voce.evento.getTag(_ORARI_TAG_SOSTITUISCE)) || '');
+  } catch (e) { s = ''; }
+  return s;
+}
+
+/** L'indice, fra gli id delle serie trovate, della serie vecchia che un pezzo sostituisce; -1 se non c'e' (piu'). */
+function _orariSerieSostituita_(segno, ids) {
+  if (!segno) return -1;
+  return ids.indexOf(String(segno).split('|')[0]);
+}
+
+/** Le settimane da togliere che la serie nuova gia' fatta ha ancora (quelle gia' tolte non contano). */
+function _orariBuchiAncoraDa_(buchi, nuova) {
+  var restano = [];
+  for (var i = 0; i < buchi.length; i++) {
+    for (var j = 0; j < nuova.lezioni.length; j++) {
+      if (nuova.lezioni[j].inizio.getTime() === buchi[i].getTime()) {
+        restano.push(buchi[i]);
+        break;
+      }
+    }
+  }
+  return restano;
+}
+
+/** Fra le lezioni spostate da rimettere, quella gia' rimessa come questo evento singolo (alla stessa ora): indice o -1. */
+function _orariSpostataRimessa_(spostate, evento) {
+  for (var i = 0; i < spostate.length; i++) {
+    if (spostate[i].inizio.getTime() === evento.inizio.getTime() &&
+        spostate[i].fine.getTime() === evento.fine.getTime()) return i;
+  }
+  return -1;
+}
+
+/** Il titolo di una lezione di _orariNostri_, come lo vede chi guarda il calendario. */
+function _orariTitoloDi_(lezione) {
+  try { return String(lezione.evento.getTitle() || ''); } catch (e) { return ''; }
+}
+
+/** (1) del taglio: la serie nuova, come la vecchia (titolo e descrizione), dalla prima lezione regolare a fino. */
+function _orariSerieRifatta_(cal, r, fino) {
+  var ricorrenza = CalendarApp.newRecurrence().addWeeklyRule().until(fino);
+  return cal.createEventSeries(r.titolo, r.inizio, r.fine, ricorrenza, { description: r.descrizione });
+}
+
+/** (3) del taglio: una lezione spostata a mano, come evento singolo alla sua ora, con il suo titolo e descrizione. */
+function _orariLezioneRifatta_(cal, lezione) {
+  var descrizione = '';
+  try { descrizione = String(lezione.evento.getDescription() || ''); } catch (e) { descrizione = ''; }
+  return cal.createEvent(_orariTitoloDi_(lezione), lezione.inizio, lezione.fine, { description: descrizione });
+}
+
+/**
+ * (2) del taglio: toglie dalla serie nuova di un rifacimento (id) la lezione
+ * che comincia a inizio, in una settimana in cui la serie vecchia non aveva
+ * la lezione regolare. La cerca fra quelle di Campanella a quell'ora, solo
+ * nella serie con quell'id e con il contrassegno: deleteEvent su una lezione
+ * di una serie toglie solo quella (provato dal vivo), e la serie resta. Vero
+ * se l'ha tolta.
+ */
+function _orariTogliBuco_(cal, id, inizio) {
+  var nostri = _orariNostri_(cal, inizio, new Date(inizio.getTime() + 60 * 1000));
+  for (var i = 0; i < nostri.length; i++) {
+    var voce = nostri[i];
+    if (!_orariSerieConId_(voce, id)) continue;
+    for (var j = 0; j < voce.lezioni.length; j++) {
+      var lezione = voce.lezioni[j];
+      if (lezione.inizio.getTime() !== inizio.getTime()) continue;
+      lezione.evento.deleteEvent();
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Vero se la voce di _orariNostri_ e' la serie con quell'id, con il contrassegno. */
+function _orariSerieConId_(voce, id) {
+  return !!id && !!voce.serie && !!voce.contrassegno && String(voce.serie.getId()) === String(id);
+}
+
+/**
+ * La ripresa di un taglio fermato subito dopo aver creato un pezzo (la serie
+ * nuova o un evento singolo), prima che Google ne salvasse i contrassegni:
+ * lo ritrova fra quelli di Campanella all'ora della sua prima lezione, con
+ * l'id salvato in stato.appenaCreato (pezzo), e glieli rimette. Senza, il
+ * taglio non lo riconoscerebbe e lo rifarebbe (lezioni doppie). False se non
+ * l'ha ritrovato.
+ */
+function _orariRimettiContrassegniAlPezzo_(cal, pezzo) {
+  var nostri = _orariNostri_(cal, new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));
+  for (var i = 0; i < nostri.length; i++) {
+    var voce = nostri[i];
+    if (!_orariVoceConId_(voce, pezzo.id)) continue;
+    if (voce.serie) {
+      voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      voce.serie.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
+    } else {
+      voce.evento.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);
+      voce.evento.setTag(_ORARI_TAG_SOSTITUISCE, pezzo.segno);
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Vero se la voce di _orariNostri_ (una serie o un evento singolo) ha quell'id. */
+function _orariVoceConId_(voce, id) {
+  var suo = voce.serie ? voce.serie.getId() : voce.evento.getId();
+  return !!id && String(suo) === String(id);
+}
+
+/**
+ * Prima di dimenticare un cambio d'orario a meta' (DatiOrari.gs cambiato):
+ * il pezzo appena rifatto senza contrassegni (stato.appenaCreato) li
+ * riceve, se lo ritrovo; cosi' il cambio rifatto da capo lo riconosce. '' se
+ * non c'era o l'ho sistemato, altrimenti l'avviso per il messaggio.
+ */
+function _orariPezzoAppenaRifatto_(salvato, c) {
+  if (!salvato || !salvato.appenaCreato) return '';
+  try {
+    var cal = _orariTrovaCalendario_(c.nome);
+    if (cal && _orariRimettiContrassegniAlPezzo_(cal, salvato.appenaCreato)) return '';
+  } catch (err) { /* sotto l'avviso */ }
+  var g = new Date(salvato.appenaCreato.inizio);
+  return '\nAttenzione: il lavoro si era fermato appena dopo aver rifatto la lezione del ' + _orariChiaveData_(g) +
+    ' (e le settimane dopo, se era una serie), prima di darle il contrassegno di Campanella, e non sono riuscito a ' +
+    'darglielo. Se dopo il cambio quella lezione compare due volte, cancellane una tu da Google Calendar.';
 }
 
 /** Una serie del piano: dalla prima lezione del tratto, ogni settimana fino all'ultima compresa. */
@@ -727,7 +1052,7 @@ function _orariAvvisoDaContrassegnare_(stato) {
   var nomi = [], una = (n === 1);
   for (var i = 0; i < n; i++) nomi.push(_orariEtichettaDelTratto_(stato.daContrassegnare[i]));
   return '\nAttenzione: Google non aveva salvato il contrassegno ' + (una ? 'della serie' : 'delle serie') + ' ' +
-    nomi.join('; ') + ', appena ' + (una ? 'messa' : 'messe') + '. Il cambio d\'orario accorcia e toglie solo le ' +
+    nomi.join('; ') + ', appena ' + (una ? 'messa' : 'messe') + '. Il cambio d\'orario rifa\' e toglie solo le ' +
     'serie con il contrassegno: prima di rieseguirlo ' + (una ? 'cancellala' : 'cancellale') + ' tu da Google ' +
     'Calendar (tutti gli eventi della serie; se ce ne sono due uguali, tutte e due), altrimenti quelle lezioni ' +
     'comparirebbero due volte.';
@@ -745,7 +1070,7 @@ function _orariAvvisoNonRitrovate_(stato, cambio) {
   return '\n\nAttenzione: Google non ha salvato il contrassegno di ' + (una ? 'una serie' : n + ' serie') + ', e ' +
     'non sono riuscito a rimetterlo (non ' + (una ? 'l\'ho ritrovata' : 'le ho ritrovate') + ', o ce n\'erano due ' +
     'uguali): ' + stato.nonRitrovate.join('; ') + (n > stato.nonRitrovate.length ? '; ...' : '') + '. Il cambio ' +
-    'd\'orario accorcia e toglie solo le serie con il contrassegno: dopo un cambio quelle lezioni comparirebbero ' +
+    'd\'orario rifa\' e toglie solo le serie con il contrassegno: dopo un cambio quelle lezioni comparirebbero ' +
     'due volte. ' +
     (cambio
       ? 'Per sistemare: ' + (una ? 'cancellala' : 'cancellale') + ' tu da Google Calendar (tutti gli eventi della ' +
@@ -762,7 +1087,8 @@ function _orariAvvisoNonRitrovate_(stato, cambio) {
  */
 function _orariCalendarioInterrotto_(funzione, stato, piano, motivo, salva) {
   var dove = (stato.fase === 'taglio')
-    ? 'mentre accorciavo l\'orario di prima: ' + stato.accorciate + ' serie accorciate e ' + stato.tolte + ' tolte'
+    ? 'mentre rifacevo l\'orario di prima fino al giorno prima del cambio: ' + stato.rifatte + ' serie rifatte e ' +
+      stato.tolte + ' tolte'
     : stato.fatti + ' serie messe su ' + piano.serie.length;
   var testo;
   if (motivo === 'giorno') {
@@ -826,33 +1152,43 @@ function _orariFineCambio_(c, doc, piano, stato, validoDal) {
   var dal = _orariChiaveData_(validoDal);
   var giornoPrima = _orariChiaveData_(new Date(validoDal.getFullYear(), validoDal.getMonth(), validoDal.getDate() - 1));
   var primaDellInizio = (_orariData_(c.validoDal) < validoDal);
-  var niente = (stato.accorciate + stato.tolte + stato.eventiTolti === 0);
-  var irregolari = stato.nIrregolari || 0, senzaContrassegno = stato.nSenzaContrassegno || 0;
+  var niente = (stato.rifatte + stato.tolte + stato.eventiTolti === 0);
+  var rimesse = stato.rimesse || 0, senzaContrassegno = stato.nSenzaContrassegno || 0;
   return 'Cambio d\'orario dal ' + dal + ' nel calendario "' + c.nome + '", per ' + doc.nome + '.\n' +
     _orariAvvisoFuso_(stato) +
     (primaDellInizio ? 'La data scritta in DatiOrari.gs, ' + c.validoDal + ', viene prima dell\'inizio del periodo: ' +
                        'l\'orario nuovo vale da tutto il periodo, dal ' + c.inizio + '. Quello che c\'e\' prima ' +
                        'dell\'inizio (per esempio l\'anno scorso, nello stesso calendario) non l\'ho toccato.\n' : '') +
-    'Serie dell\'orario di prima accorciate (finiscono il ' + giornoPrima + '): ' + stato.accorciate + '\n' +
-    'Serie dell\'orario di prima tolte (cominciavano dal ' + dal + ' in poi): ' + stato.tolte + '\n' +
+    'Serie dell\'orario di prima rifatte fino al ' + giornoPrima + ', con le lezioni come erano: ' + stato.rifatte + '\n' +
+    'Serie dell\'orario di prima tolte (nessuna lezione prima del ' + dal + '): ' + stato.tolte + '\n' +
     (stato.eventiTolti ? 'Eventi singoli tolti (dal ' + dal + ' in poi): ' + stato.eventiTolti + '\n' : '') +
+    (rimesse ? 'Lezioni spostate a mano, rimesse come eventi singoli alla loro ora: ' + rimesse + ' - ' +
+               stato.spostate.join('; ') + (rimesse > stato.spostate.length ? '; ...' : '') + '\n' : '') +
     'Serie dell\'orario nuovo create: ' + piano.serie.length + ' (' + piano.lezioni + ' lezioni, fino al ' +
     c.fine + ')\n' +
     'Lezioni saltate nei giorni senza lezione: ' + piano.saltate + '\n' +
-    (irregolari ? '\nSerie accorciate con lezioni spostate o cancellate a mano (controlla che siano rimaste come ' +
-                  'le volevi): ' + irregolari + ' - ' + stato.irregolari.join('; ') +
-                  (irregolari > stato.irregolari.length ? '; ...' : '') + '\n' : '') +
     (senzaContrassegno ? '\nSerie o lezioni singole con la descrizione di Campanella ma senza contrassegno, forse ' +
                          'copiate a mano: ' +
                          'non le ho toccate, controllale tu (' + senzaContrassegno + '): ' +
                          stato.senzaContrassegno.join('; ') +
                          (senzaContrassegno > stato.senzaContrassegno.length ? '; ...' : '') + '\n' : '') +
-    (niente ? '\nNon ho trovato niente da accorciare o togliere: forse ORARI_4_calendario non era mai stato ' +
+    (niente ? '\nNon ho trovato niente da rifare o togliere: forse ORARI_4_calendario non era mai stato ' +
               'eseguito su questo calendario. L\'orario nuovo c\'e\' lo stesso, dal ' + dal + '.\n' : '') +
-    '\nLe settimane prima del ' + dal + ' restano come erano. Attenzione: le modifiche fatte a mano ' +
-    'su singole lezioni delle serie accorciate (una lezione spostata o cancellata) potrebbero non restare: ' +
-    'dai un\'occhiata.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data e riesegui ' +
+    '\nLe settimane prima del ' + dal + ' restano come erano, con le lezioni spostate o cancellate a mano. ' +
+    'Google non lascia accorciare una serie: quelle con lezioni prima del cambio le ho rifatte fino al ' +
+    giornoPrima + ' (le lezioni spostate a mano come eventi singoli) e poi ho tolto le vecchie. Altre modifiche ' +
+    'fatte a mano a una serie vecchia, come il colore o un promemoria, non sono passate a quella rifatta: se ne ' +
+    'avevi fatte, rifalle.\nSe l\'orario cambia di nuovo, rigenera DatiOrari.gs con la nuova data e riesegui ' +
     'ORARI_5_cambioOrario.' + _orariAvvisoNonRitrovate_(stato, true);
+}
+
+/** "3A, mercoledi' 2026-09-16 15:00": una lezione spostata a mano, nei messaggi. */
+function _orariEtichettaLezione_(lezione) {
+  var g = lezione.inizio;
+  var nomi = ['domenica', 'lunedi\'', 'martedi\'', 'mercoledi\'', 'giovedi\'', 'venerdi\'', 'sabato'];
+  var hh = g.getHours(), mm = g.getMinutes();
+  return _orariTitoloDi_(lezione) + ', ' + nomi[g.getDay()] + ' ' + _orariChiaveData_(g) + ' ' +
+         (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
 }
 
 /**
@@ -918,11 +1254,13 @@ function _orariAnnullaCalendario_() {
 
 /**
  * Gli eventi messi da Campanella fra le due date: una voce per ogni serie,
- * con la sua prima lezione (inizio e fine, vedi _orariPrimaLezione_) e
- * l'inizio dell'ultima, o per l'evento singolo. Messi da Campanella vuol dire
- * con il contrassegno (contrassegno: true), oppure con la descrizione che
- * comincia con [Campanella]: se Google non ha salvato il contrassegno, ma
- * anche in una copia fatta a mano di una lezione.
+ * con la sua prima lezione (inizio e fine, vedi _orariPrimaLezione_, nel
+ * fuso del calendario), l'inizio dell'ultima e le lezioni come le da'
+ * getEvents (ognuna con il suo evento: il taglio ne toglie una sola dalla
+ * serie nuova, _orariTogliBuco_), o per l'evento singolo. Messi da
+ * Campanella vuol dire con il contrassegno (contrassegno: true), oppure con
+ * la descrizione che comincia con [Campanella]: se Google non ha salvato il
+ * contrassegno, ma anche in una copia fatta a mano di una lezione.
  */
 function _orariNostri_(cal, inizio, fine) {
   var fuso = cal.getTimeZone();
@@ -939,7 +1277,7 @@ function _orariNostri_(cal, inizio, fine) {
     }
     if (!nostro) continue;
 
-    var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime() };
+    var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime(), evento: ev };
     // getEventSeries non e' mai null, nemmeno per un evento singolo (e' la
     // sua "serie"): quello che li distingue e' isRecurringEvent
     var ricorrente = false;

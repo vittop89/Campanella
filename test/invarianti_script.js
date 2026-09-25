@@ -19,11 +19,13 @@
  *     cc ne' bcc (nemmeno { 'bcc': x } oppure o.bcc = x);
  *   - le cancellazioni sono solo quelle dell'elenco di ciascun file;
  *   - il calendario (solo negli orari): di CalendarApp solo il calendario
- *     trovato per nome fra i propri o creato; ogni metodo che legge, crea,
- *     accorcia (setRecurrence) o toglie eventi sta in poche funzioni, su un
- *     ricevente scritto proprio cosi' (voce.serie, cal...), che nelle
- *     funzioni che cambiano o tolgono viene da una dichiarazione esatta e non
- *     si cambia; _orariNostri_ assegna contrassegno e nostro solo nelle forme
+ *     trovato per nome fra i propri o creato; ogni metodo che legge, crea o
+ *     toglie eventi, o da' loro il contrassegno, sta in poche funzioni, su un
+ *     ricevente scritto proprio cosi' (voce.serie, cal, la serie appena
+ *     creata...), che nelle funzioni che cambiano o tolgono viene da una
+ *     dichiarazione esatta e non si cambia; setRecurrence, che in Google non
+ *     accorcia niente, non si nomina nemmeno (il cambio d'orario rifa' le
+ *     serie); _orariNostri_ assegna contrassegno e nostro solo nelle forme
  *     ammesse, salta gli eventi non suoi e nel suo elenco mette solo le voci
  *     ammesse (e il suo testo ha un'impronta: ogni modifica va riletta), il
  *     taglio salta quelli senza contrassegno; il contrassegno di una voce non
@@ -69,11 +71,13 @@
  * EXTRA_togliFiltri, _togliFiltri_ chiamata dallo smistamento di ogni ora,
  * un'etichetta cancellata anche li' dentro, la tabella dei testi usata per
  * altro, gli studenti delle classi nel riepilogo per email, nel registro o
- * di nuovo nei filtri veri di Gmail, una serie del calendario accorciata
- * fuori dal cambio d'orario o presa senza guardare il contrassegno (anche
+ * di nuovo nei filtri veri di Gmail, setRecurrence in qualunque punto, un
+ * evento creato, una lezione tolta o un contrassegno dato fuori dal posto
+ * suo o a una voce che non e' quella appena creata o riconosciuta dalla sua
+ * guardia, una serie presa senza guardare il contrassegno (anche
  * per le strade trovate dalla revisione: s[k].call(s, ...), una funzione
  * d'appoggio con getEvents, le serie passate dal chiamante, "|| true"
- * accanto al contrassegno, una funzione che accorcia creata nel taglio,
+ * accanto al contrassegno, una funzione che toglie creata nel taglio,
  * deleteEventSeries su una serie qualunque, il calendario predefinito; e
  * dalla seconda: ogni evento messo fra i nostri con unshift, splice, concat
  * o un indice, un evento singolo con la sola descrizione preso per
@@ -267,7 +271,7 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 
 // ---------------------------------------------------------------------------
 //  IL CALENDARIO DEGLI ORARI
-//  Orari.gs crea gli eventi dell'orario e, nel cambio d'orario, ne accorcia e
+//  Orari.gs crea gli eventi dell'orario e, nel cambio d'orario, ne rifa' e
 //  ne toglie: eventi che il docente vede. La promessa e' che tocca solo il
 //  calendario che ha trovato per nome fra quelli del docente (o che ha
 //  creato), e dentro solo gli eventi messi da Campanella; nel cambio solo
@@ -275,10 +279,13 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //    - di CalendarApp solo questi membri: nessun altro calendario si prende;
 //    - ogni metodo che legge, crea, cambia o toglie eventi sta solo in certe
 //      funzioni e su un ricevente scritto proprio cosi' (anche il fuso del
-//      calendario, setTimeZone, solo in _orariSistemaFuso_);
+//      calendario, setTimeZone, solo in _orariSistemaFuso_). setRecurrence
+//      non si nomina nemmeno: in Google non cambia niente (provato dal vivo),
+//      e il cambio d'orario rifa' le serie invece di accorciarle;
 //    - nelle funzioni che cambiano o tolgono, e in _orariNostri_, i riceventi
 //      vengono da una dichiarazione esatta e non si riassegnano ne' si
-//      modificano (quindi: solo le voci trovate da _orariNostri_);
+//      modificano (quindi: solo le voci trovate da _orariNostri_, le loro
+//      lezioni, o una serie o un evento appena creato);
 //    - in _orariNostri_ contrassegno e nostro si assegnano solo cosi', e un
 //      evento non nostro si salta prima di prenderne la serie; il suo elenco
 //      si nomina solo nelle istruzioni ammesse, e il testo intero ha
@@ -288,8 +295,14 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      gliel'ha salvato, la stessa serie ritrovata alla ripresa: solo dopo la
 //      guardia che la riconosce (titolo, descrizione e prima lezione del tratto
 //      salvato), se ce n'e' una sola, e nel punto salvato ci entra solo il
-//      tratto della serie appena creata. Anche queste funzioni hanno
-//      un'impronta;
+//      tratto della serie appena creata. Nel taglio lo ricevono (con quello
+//      "sostituisce") solo la serie e gli eventi singoli appena rifatti, e alla
+//      ripresa lo stesso pezzo ritrovato con l'id che il punto salvato ha preso
+//      proprio da quello appena creato (appenaCreato). Anche queste funzioni
+//      hanno un'impronta;
+//    - dal taglio una lezione di una serie (deleteEvent sulla lezione) si
+//      toglie solo in _orariTogliBuco_, dalla serie nuova ritrovata per id e
+//      con il contrassegno, dopo la sua guardia;
 //    - il contrassegno di una voce si da' solo in _orariNostri_, in una forma:
 //      niente Object, constructor o prototype, proprieta' calcolate scritte
 //      solo nelle due istruzioni ammesse, ognuna nella sua funzione e su un
@@ -297,7 +310,7 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 //      su una proprieta', niente destrutturazioni (nemmeno dentro
 //      un'espressione: nessuna graffa seguita da "=", e contrassegno, serie
 //      ed evento di una voce mai prima di , } o ]), JSON.parse solo dove si
-//      legge il punto salvato; le costanti del contrassegno, i servizi e le
+//      legge il punto salvato; le costanti dei contrassegni, i servizi e le
 //      funzioni dello script (dichiarate una volta) non si cambiano;
 //    - i metodi che nessuna funzione deve usare non si nominano nemmeno
 //      (setTitle, getDefaultCalendar, getEventSeriesById, call, apply,
@@ -309,18 +322,27 @@ const DI_SISTEMA = /^(INBOX|UNREAD|TRASH|SPAM|STARRED|UNSTARRED|IMPORTANT|SENT|D
 // ---------------------------------------------------------------------------
 const CALENDARIO_ORARI = {
   membriCalendarApp: ['getOwnedCalendarsByName', 'createCalendar', 'newRecurrence', 'Color'],
+  // un ricevente per tutte le funzioni, uno per funzione, o per una funzione un elenco
   metodi: {
-    setRecurrence:           { funzioni: ['_orariTaglia_'], ricevente: 'voce.serie' },
     deleteEventSeries:       { funzioni: ['_orariTaglia_', '_orariAnnullaCalendario_'], ricevente: 'voce.serie' },
-    deleteEvent:             { funzioni: ['_orariTaglia_', '_orariAnnullaCalendario_'], ricevente: 'voce.evento' },
+    // un evento singolo trovato, o una lezione della serie nuova del taglio
+    deleteEvent:             { funzioni: ['_orariTaglia_', '_orariAnnullaCalendario_', '_orariTogliBuco_'],
+                               ricevente: { _orariTaglia_: 'voce.evento', _orariAnnullaCalendario_: 'voce.evento',
+                                            _orariTogliBuco_: 'lezione.evento' } },
     // il contrassegno: alla serie appena creata, o a quella del tratto a cui
-    // Google non l'ha salvato, ritrovata da _orariNostri_ (un ricevente per funzione)
-    setTag:                  { funzioni: ['_orariCalendario_', '_orariRimettiContrassegno_'],
-                               ricevente: { _orariCalendario_: 'serie', _orariRimettiContrassegno_: 'voce.serie' } },
+    // Google non l'ha salvato, ritrovata da _orariNostri_; nel taglio alla
+    // serie e all'evento singolo appena rifatti, o allo stesso pezzo ritrovato
+    setTag:                  { funzioni: ['_orariCalendario_', '_orariRimettiContrassegno_', '_orariTaglia_',
+                                          '_orariRimettiContrassegniAlPezzo_'],
+                               ricevente: { _orariCalendario_: 'serie', _orariRimettiContrassegno_: 'voce.serie',
+                                            _orariTaglia_: ['nuova', 'singolo'],
+                                            _orariRimettiContrassegniAlPezzo_: ['voce.serie', 'voce.evento'] } },
     setColor:                { funzioni: ['_orariCalendario_'], ricevente: 'cal' },
     getEvents:               { funzioni: ['_orariNostri_'], ricevente: 'cal' },
     getEventSeries:          { funzioni: ['_orariNostri_'], ricevente: 'ev' },
-    createEventSeries:       { funzioni: ['_orariCreaSerie_'], ricevente: 'cal' },
+    createEventSeries:       { funzioni: ['_orariCreaSerie_', '_orariSerieRifatta_'], ricevente: 'cal' },
+    // una lezione spostata a mano, rimessa dal taglio come evento singolo
+    createEvent:             { funzioni: ['_orariLezioneRifatta_'], ricevente: 'cal' },
     getOwnedCalendarsByName: { funzioni: ['_orariTrovaCalendario_'], ricevente: 'CalendarApp' },
     // il fuso del calendario trovato: prende quello dello script, prima delle lezioni
     setTimeZone:             { funzioni: ['_orariSistemaFuso_'], ricevente: 'cal' },
@@ -329,11 +351,18 @@ const CALENDARIO_ORARI = {
   // da dove vengono i riceventi: una dichiarazione sola, scritta cosi'
   origini: {
     _orariTaglia_: { nostri: 'var nostri = _orariNostri_(cal, da, _orariFineGiornata_(periodo.fine));',
-                     voce: 'var voce = nostri[i];' },
+                     voce: 'var voce = nostri[i];',
+                     nuova: 'var nuova = _orariSerieRifatta_(cal, r, fino);',
+                     singolo: 'var singolo = _orariLezioneRifatta_(cal, r.spostate[m]);' },
     _orariAnnullaCalendario_: { nostri: 'var nostri = _orariNostri_(cal, inizio, fine);', voce: 'var voce = nostri[i];' },
     _orariCalendario_: { serie: 'var serie = _orariCreaSerie_(cal, piano.serie[stato.fatti], c, d, doc);' },
     _orariRimettiContrassegno_: {
       nostri: 'var nostri = _orariNostri_(cal, _orariData_(tratto.dal), _orariFineGiornata_(_orariData_(tratto.al)));',
+      voce: 'var voce = nostri[i];' },
+    _orariTogliBuco_: { nostri: 'var nostri = _orariNostri_(cal, inizio, new Date(inizio.getTime() + 60 * 1000));',
+                        voce: 'var voce = nostri[i];', lezione: 'var lezione = voce.lezioni[j];' },
+    _orariRimettiContrassegniAlPezzo_: {
+      nostri: 'var nostri = _orariNostri_(cal, new Date(pezzo.inizio), new Date(pezzo.inizio + 60 * 1000));',
       voce: 'var voce = nostri[i];' },
     _orariNostri_: { eventi: 'var eventi = cal.getEvents(inizio, fine);', ev: 'var ev = eventi[i];' }
   },
@@ -364,10 +393,10 @@ const CALENDARIO_ORARI = {
   // come chiave solo li', con il valore di contrassegno o false
   contrassegno: { funzione: '_orariNostri_', forme: ['if (contrassegno) voce.contrassegno = true;'],
                   valori: ['contrassegno', 'false'] },
-  // il contrassegno si confronta con queste costanti: dichiarate una volta
-  // sola, cosi', e mai cambiate (con _ORARI_TAG_VALORE = null ogni evento
-  // senza contrassegno ne avrebbe uno)
-  costanti: { _ORARI_TAG: 'var _ORARI_TAG = \'campanella\';', _ORARI_TAG_VALORE: 'var _ORARI_TAG_VALORE = \'orario\';' },
+  // i contrassegni: dichiarati una volta sola, cosi', e mai cambiati (con
+  // _ORARI_TAG_VALORE = null ogni evento senza contrassegno ne avrebbe uno)
+  costanti: { _ORARI_TAG: 'var _ORARI_TAG = \'campanella\';', _ORARI_TAG_VALORE: 'var _ORARI_TAG_VALORE = \'orario\';',
+              _ORARI_TAG_SOSTITUISCE: 'var _ORARI_TAG_SOSTITUISCE = \'campanella_sostituisce\';' },
   // le sole scritture su una proprieta' calcolata (x[k] = ...) in tutto il
   // file, ognuna solo nella sua funzione
   scrittureCalcolate: [
@@ -386,50 +415,76 @@ const CALENDARIO_ORARI = {
   // modifica, anche una che le regole qui non vedono, chiede di rileggerla e
   // di aggiornare l'impronta (sha256 del testo senza commenti, spazi ridotti)
   // E cosi' le funzioni che rimettono il contrassegno a una serie a cui Google
-  // non l'ha salvato: quali serie lo ricevono, e da che cosa le si riconosce
-  impronte: { _orariNostri_: '95c25c0712e78534', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
-              _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba' },
+  // non l'ha salvato, o a un pezzo del taglio, e quella che toglie una lezione
+  // dalla serie nuova: quali serie lo ricevono, e da che cosa le si riconosce
+  impronte: { _orariNostri_: '1a5c2151b4f6b3d1', _orariRimettiContrassegno_: 'fa285f13cd46b3dd',
+              _orariSerieDelTratto_: 'b8921bd291bf55f7', _orariTrattoFatto_: 'f080b14debaeadba',
+              _orariRimettiContrassegniAlPezzo_: 'ca368d820da8655a', _orariVoceConId_: 'e68138d4acbf6278',
+              _orariTogliBuco_: '9d0eeba55245a8ec', _orariSerieConId_: '95b32d0bab72b4e9' },
   // le guardie: nel ciclo (non dentro un altro if), prima di queste chiamate
   guardie: {
     _orariNostri_: { guardia: 'if (!nostro) continue;', prima: ['getEventSeries', 'push'] },
     _orariTaglia_: { guardia: 'if (!voce.contrassegno) {', blocco: true,
-                     prima: ['setRecurrence', 'deleteEventSeries', 'deleteEvent'] },
-    _orariRimettiContrassegno_: { guardia: 'if (!_orariSerieDelTratto_(voce, tratto)) continue;', prima: ['setTag'] }
+                     prima: ['deleteEventSeries', 'deleteEvent', 'setTag'] },
+    _orariRimettiContrassegno_: { guardia: 'if (!_orariSerieDelTratto_(voce, tratto)) continue;', prima: ['setTag'] },
+    _orariTogliBuco_: { guardia: 'if (!_orariSerieConId_(voce, id)) continue;', prima: ['deleteEvent'] },
+    _orariRimettiContrassegniAlPezzo_: { guardia: 'if (!_orariVoceConId_(voce, pezzo.id)) continue;', prima: ['setTag'] }
   },
-  // le serie a cui rimettere il contrassegno, nel punto salvato: ci entra
-  // solo la serie appena creata, e l'elenco si nomina solo in queste
-  // istruzioni, ognuna nella sua funzione (per quelle fra parentesi conta il
-  // pezzo dentro le parentesi, come lo da' istruzione())
-  daContrassegnare: {
-    nome: 'daContrassegnare',
-    istruzioni: [
-      { funzione: '_orariCalendario_', istruzione: '!stato.daContrassegnare' },
-      { funzione: '_orariCalendario_', istruzione: 'if (!stato.daContrassegnare) stato.daContrassegnare = [];' },
-      { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.length' },
-      { funzione: '_orariCalendario_', istruzione: 'cal, stato.daContrassegnare[0]' },
-      { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare[0]' },
-      { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.shift();' },
-      { funzione: '_orariCalendario_',
-        istruzione: 'stato.daContrassegnare.push(_orariTrattoFatto_(piano.serie[stato.fatti], c, d, doc));' },
-      { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.pop();' },
-      { funzione: '_orariAvvisoDaContrassegnare_', istruzione: 'stato && stato.daContrassegnare' },
-      { funzione: '_orariAvvisoDaContrassegnare_',
-        istruzione: 'var n = (stato && stato.daContrassegnare) ? stato.daContrassegnare.length : 0;' },
-      { funzione: '_orariAvvisoDaContrassegnare_', istruzione: 'stato.daContrassegnare[i]' }
-    ]
-  },
+  // i nomi nel punto salvato che decidono chi riceve il contrassegno: si
+  // nominano solo in queste istruzioni, ognuna nella sua funzione (per quelle
+  // fra parentesi conta il pezzo dentro le parentesi, come lo da' istruzione()).
+  // daContrassegnare: le serie a cui rimettere il contrassegno, ci entra solo
+  // la serie appena creata; appenaCreato: il pezzo del taglio appena creato,
+  // con l'id preso da lui
+  nelPuntoSalvato: [
+    {
+      nome: 'daContrassegnare',
+      istruzioni: [
+        { funzione: '_orariCalendario_', istruzione: '!stato.daContrassegnare' },
+        { funzione: '_orariCalendario_', istruzione: 'if (!stato.daContrassegnare) stato.daContrassegnare = [];' },
+        { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.length' },
+        { funzione: '_orariCalendario_', istruzione: 'cal, stato.daContrassegnare[0]' },
+        { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare[0]' },
+        { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.shift();' },
+        { funzione: '_orariCalendario_',
+          istruzione: 'stato.daContrassegnare.push(_orariTrattoFatto_(piano.serie[stato.fatti], c, d, doc));' },
+        { funzione: '_orariCalendario_', istruzione: 'stato.daContrassegnare.pop();' },
+        { funzione: '_orariAvvisoDaContrassegnare_', istruzione: 'stato && stato.daContrassegnare' },
+        { funzione: '_orariAvvisoDaContrassegnare_',
+          istruzione: 'var n = (stato && stato.daContrassegnare) ? stato.daContrassegnare.length : 0;' },
+        { funzione: '_orariAvvisoDaContrassegnare_', istruzione: 'stato.daContrassegnare[i]' }
+      ]
+    },
+    {
+      nome: 'appenaCreato',
+      istruzioni: [
+        { funzione: '_orariTaglia_', istruzione: 'stato.appenaCreato' },
+        { funzione: '_orariTaglia_', istruzione: 'cal, stato.appenaCreato' },
+        { funzione: '_orariTaglia_', istruzione: 'stato.appenaCreato = null;' },
+        { funzione: '_orariTaglia_',
+          istruzione: 'stato.appenaCreato = { id: nuova.getId(), inizio: r.inizio.getTime(), segno: r.segno };' },
+        { funzione: '_orariTaglia_',
+          istruzione: 'stato.appenaCreato = { id: singolo.getId(), inizio: r.spostate[m].inizio.getTime(), segno: r.segno };' },
+        { funzione: '_orariPezzoAppenaRifatto_', istruzione: '!salvato || !salvato.appenaCreato' },
+        { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'cal, salvato.appenaCreato' },
+        { funzione: '_orariPezzoAppenaRifatto_', istruzione: 'salvato.appenaCreato.inizio' }
+      ]
+    }
+  ],
   senzaAnnidate: ['_orariTaglia_', '_orariAnnullaCalendario_', '_orariNostri_', '_orariRimettiContrassegno_',
-                  '_orariSerieDelTratto_', '_orariTrattoFatto_'],
+                  '_orariSerieDelTratto_', '_orariTrattoFatto_', '_orariTogliBuco_', '_orariSerieConId_',
+                  '_orariRimettiContrassegniAlPezzo_', '_orariVoceConId_', '_orariPianoDelTaglio_',
+                  '_orariRifacimento_', '_orariSerieRifatta_', '_orariLezioneRifatta_'],
   // non si nominano nemmeno: metodi degli eventi e dei calendari che nessuno
-  // usa, altre strade per prendere un calendario o un evento, e le chiamate
-  // indirette (s[k].call(s, ...))
-  vietati: ['setTitle', 'setDescription', 'setLocation', 'setTime', 'setAllDayDate', 'setAllDayDates',
+  // usa (setRecurrence: in Google non cambia niente), altre strade per
+  // prendere un calendario o un evento, e le chiamate indirette (s[k].call(s, ...))
+  vietati: ['setRecurrence', 'setTitle', 'setDescription', 'setLocation', 'setTime', 'setAllDayDate', 'setAllDayDates',
             'setVisibility', 'setAnyoneCanAddSelf', 'setGuestsCanInviteOthers', 'setGuestsCanModify',
             'setGuestsCanSeeGuests', 'setMyStatus', 'addEmailReminder', 'addPopupReminder', 'addSmsReminder',
             'resetRemindersToDefault', 'deleteTag', 'setHidden', 'setSelected', 'setName',
             'unsubscribeFromCalendar', 'subscribeToCalendar', 'getDefaultCalendar', 'getAllCalendars',
             'getAllOwnedCalendars', 'getCalendarById', 'getOwnedCalendarById', 'getCalendarsByName',
-            'getEventSeriesById', 'getEventById', 'getEventsForDay', 'createEvent', 'createAllDayEvent',
+            'getEventSeriesById', 'getEventById', 'getEventsForDay', 'createAllDayEvent',
             'createAllDayEventSeries', 'createEventFromDescription', 'call', 'apply', 'bind',
             'eval', 'globalThis', 'this',
             // le strade per dare una proprieta' a un oggetto senza scriverne il nome
@@ -603,6 +658,7 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
   [k.origini, k.forme, k.guardie, k.raccolte, k.impronte].forEach(x => Object.keys(x).forEach(f => nomi.add(f)));
   k.senzaAnnidate.forEach(f => nomi.add(f));
   k.jsonParse.forEach(f => nomi.add(f));
+  k.nelPuntoSalvato.forEach(dc => dc.istruzioni.forEach(x => nomi.add(x.funzione)));
   nomi.add(k.contrassegno.funzione);
   nomi.forEach(dichiarata);
 
@@ -669,11 +725,12 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
         continue;
       }
       const ricevente = riceventeDi(nudo, pos - punto[0].length);
-      // un ricevente solo, o uno per ogni funzione
-      const atteso = (typeof r.ricevente === 'string') ? r.ricevente
-        : r.ricevente[r.funzioni.find(f => dentroA(corpi, [f], pos))];
-      if (ricevente !== atteso) {
-        fuori.push(metodo + ' su "' + (ricevente || '(non un nome)') + '": solo su ' + atteso + ' (riga ' + riga(pos) + ')');
+      // un ricevente solo, o uno per ogni funzione (anche un elenco)
+      const atteso = [].concat((typeof r.ricevente === 'string') ? r.ricevente
+        : r.ricevente[r.funzioni.find(f => dentroA(corpi, [f], pos))]);
+      if (atteso.indexOf(ricevente) < 0) {
+        fuori.push(metodo + ' su "' + (ricevente || '(non un nome)') + '": solo su ' + atteso.join(' o ') + ' (riga ' +
+                   riga(pos) + ')');
       }
     }
   }
@@ -772,16 +829,18 @@ function controllaCalendario(k, codice, nudo, corpi, riga, servizi) {
     }
   }
 
-  // le serie a cui rimettere il contrassegno: l'elenco si nomina solo nelle
-  // istruzioni ammesse (ci entra solo il tratto della serie appena creata)
-  const dc = k.daContrassegnare;
-  const nomeDc = new RegExp('(^|[^\\w$])' + dc.nome + '(?![\\w$])', 'g');
-  while ((m = nomeDc.exec(nudo))) {
-    const pos = m.index + m[1].length;
-    const s = istruzione(codice, nudo, pos);
-    if (!dc.istruzioni.some(x => x.istruzione === s && dentroA(corpi, [x.funzione], pos))) {
-      fuori.push(dc.nome + ' nominato fuori dalle istruzioni ammesse, ognuna nella sua funzione (riga ' + riga(pos) +
-                 ': ' + s + ')');
+  // nel punto salvato, chi riceve il contrassegno (le serie a cui rimetterlo,
+  // il pezzo del taglio appena creato): si nomina solo nelle istruzioni
+  // ammesse, e ci entra solo quello appena creato
+  for (const dc of k.nelPuntoSalvato) {
+    const nomeDc = new RegExp('(^|[^\\w$])' + dc.nome + '(?![\\w$])', 'g');
+    while ((m = nomeDc.exec(nudo))) {
+      const pos = m.index + m[1].length;
+      const s = istruzione(codice, nudo, pos);
+      if (!dc.istruzioni.some(x => x.istruzione === s && dentroA(corpi, [x.funzione], pos))) {
+        fuori.push(dc.nome + ' nominato fuori dalle istruzioni ammesse, ognuna nella sua funzione (riga ' + riga(pos) +
+                   ': ' + s + ')');
+      }
     }
   }
 
@@ -1484,34 +1543,38 @@ function provaDellaProva() {
   deveFallire('Orari.gs', 'una copia in cc negli orari, con la chiave fra virgolette, viene trovata',
     sostituisci(orari, 'to: m.a,', 'to: m.a, "cc": \'collega@scuola-esempio.edu.it\','), 'copia (cc)');
 
-  // accorciare una serie (setRecurrence) si', ma solo nel taglio del cambio
-  // d'orario e solo sulle serie trovate con il contrassegno
+  // setRecurrence in Google non cambia niente (provato dal vivo): il cambio
+  // d'orario rifa' le serie invece di accorciarle, e setRecurrence non si
+  // nomina nemmeno, in nessuna funzione e su nessuna serie
   const ACCORCIA = '.setRecurrence(';
   const accorciaDiOggi = smonta(orari).codice.split(ACCORCIA).length - 1;
-  verifica('gli orari di oggi accorciano le serie (' + accorciaDiOggi + ' chiamata), e il controllo lo lascia fare ' +
-    'solo li\'', accorciaDiOggi >= 1 && controlla('Orari.gs', orari).length === 0);
+  verifica('gli orari di oggi non chiamano setRecurrence (' + accorciaDiOggi + ' chiamate), e il controllo non trova niente',
+    accorciaDiOggi === 0 && controlla('Orari.gs', orari).length === 0);
   const TAGLIA = 'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva) {';
   const NOSTRI = 'try { contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE); } catch (e) { }';
-  deveFallire('Orari.gs', 'una serie accorciata fuori dal taglio (in ORARI_4_calendario) viene trovata',
+  const RIFATTA = 'stato.rifatte++;';
+  deveFallire('Orari.gs', 'setRecurrence nel taglio, sulla serie con il contrassegno, al posto di rifarla, viene trovata',
+    sostituisci(orari, RIFATTA, 'voce.serie.setRecurrence(CalendarApp.newRecurrence().addWeeklyRule().until(fino), ' +
+      'voce.inizio, voce.fine); ' + RIFATTA), 'nome non ammesso negli orari: setRecurrence');
+  deveFallire('Orari.gs', '  ...e fuori dal taglio',
     inserisci(orari, 'function _orariCreaSerie_(cal, voce, c, d, doc) {',
       '\n  cal.getEvents(new Date(), new Date())[0].getEventSeries().setRecurrence(CalendarApp.newRecurrence(), ' +
       'new Date(), new Date());'),
-    'setRecurrence fuori da _orariTaglia_');
-  deveFallire('Orari.gs', 'anche in una funzione nuova con un nome quasi uguale',
+    'nome non ammesso negli orari: setRecurrence');
+  deveFallire('Orari.gs', '  ...anche in una funzione nuova con un nome quasi uguale',
     orari + '\nfunction _orariTagliaTutto_(cal) {\n  cal.getEvents(new Date(), new Date())[0].getEventSeries()' +
       '.setRecurrence(CalendarApp.newRecurrence(), new Date(), new Date());\n}\n',
-    'setRecurrence fuori da _orariTaglia_');
-  deveFallire('Orari.gs', 'o in un secondo _orariTaglia_, che prenderebbe il posto di quello vero',
+    'nome non ammesso negli orari: setRecurrence');
+  deveFallire('Orari.gs', 'una serie tolta in un secondo _orariTaglia_, che prenderebbe il posto di quello vero, viene trovata',
     orari + '\nfunction _orariTaglia_(cal) {\n  _orariNostri_(cal, new Date(), new Date())[0].serie' +
-      '.setRecurrence(CalendarApp.newRecurrence(), new Date(), new Date());\n}\n',
+      '.deleteEventSeries();\n}\n',
     'la funzione _orariTaglia_ e\' dichiarata 2 volte');
   deveFallire('Orari.gs', 'nel taglio, una serie presa da getEvents invece che da _orariNostri_ viene trovata',
     inserisci(orari, TAGLIA,
-      '\n  cal.getEvents(periodo.inizio, periodo.fine)[0].getEventSeries().setRecurrence(' +
-      'CalendarApp.newRecurrence(), periodo.inizio, periodo.fine);'),
+      '\n  cal.getEvents(periodo.inizio, periodo.fine)[0].getEventSeries().deleteEventSeries();'),
     'getEvents fuori da _orariNostri_');
   deveFallire('Orari.gs', 'o cercata per id', inserisci(orari, TAGLIA,
-      '\n  cal.getEventSeriesById(\'x\').setRecurrence(CalendarApp.newRecurrence(), periodo.inizio, periodo.fine);'),
+      '\n  cal.getEventSeriesById(\'x\').deleteEventSeries();'),
     'nome non ammesso negli orari: getEventSeriesById');
   deveFallire('Orari.gs', 'un _orariNostri_ che non guarda piu\' il contrassegno viene trovato',
     sostituisci(orari, NOSTRI, 'contrassegno = true;'), 'in _orariNostri_ contrassegno si assegna solo cosi\'');
@@ -1522,7 +1585,60 @@ function provaDellaProva() {
   deveFallire('Orari.gs', 'e setRecurrence presa come valore',
     inserisci(orari, 'function _orariCreaSerie_(cal, voce, c, d, doc) {',
       '\n  var accorcia = cal.getEvents(new Date(), new Date())[0].getEventSeries().setRecurrence;'),
-    'setRecurrence presa come valore');
+    'nome non ammesso negli orari: setRecurrence');
+
+  // il taglio rifa' le serie: crea una serie e degli eventi singoli, toglie
+  // una lezione dalla serie nuova e da' i contrassegni, solo dove serve e solo
+  // a quello che ha appena creato, o che viene da _orariNostri_ dopo la sua guardia
+  const NUOVA = 'var nuova = _orariSerieRifatta_(cal, r, fino);';
+  const GUARDIA_BUCO = 'if (!_orariSerieConId_(voce, id)) continue;';
+  const LEZIONE_BUCO = 'var lezione = voce.lezioni[j];';
+  const GUARDIA_PEZZO = 'if (!_orariVoceConId_(voce, pezzo.id)) continue;';
+  deveFallire('Orari.gs', 'un evento singolo creato fuori da _orariLezioneRifatta_ viene trovato',
+    inserisci(orari, 'function ORARI_4_calendario(e) {',
+      '\n  _orariTrovaCalendario_(\'Orario\').createEvent(\'x\', new Date(), new Date());'),
+    'createEvent fuori da _orariLezioneRifatta_');
+  deveFallire('Orari.gs', '  ...e una serie creata fuori da _orariCreaSerie_ e _orariSerieRifatta_',
+    inserisci(orari, TAGLIA, '\n  cal.createEventSeries(\'x\', new Date(), new Date(), CalendarApp.newRecurrence(), {});'),
+    'createEventSeries fuori da _orariCreaSerie_ e _orariSerieRifatta_');
+  deveFallire('Orari.gs', 'una lezione di una serie tolta nel taglio, fuori da _orariTogliBuco_, viene trovata',
+    sostituisci(orari, RIFATTA, RIFATTA + ' var lezione = voce.lezioni[0]; lezione.evento.deleteEvent();'),
+    'deleteEvent su "lezione.evento": solo su voce.evento');
+  deveFallire('Orari.gs', '  ...anche scritta voce.lezioni[0].evento',
+    sostituisci(orari, RIFATTA, RIFATTA + ' voce.lezioni[0].evento.deleteEvent();'),
+    'deleteEvent su "(non un nome)": solo su voce.evento');
+  deveFallire('Orari.gs', 'in _orariTogliBuco_ una lezione tolta senza la guardia viene trovata',
+    sostituisci(orari, GUARDIA_BUCO, 'if (!_orariSerieConId_(voce, id) && false) continue;'),
+    'in _orariTogliBuco_ manca la guardia');
+  deveFallire('Orari.gs', '  ...o tolta prima della guardia',
+    sostituisci(orari, GUARDIA_BUCO, 'voce.lezioni[0].evento.deleteEvent();\n    ' + GUARDIA_BUCO),
+    'in _orariTogliBuco_ deleteEvent viene prima della guardia');
+  deveFallire('Orari.gs', '  ...o presa da un\'altra voce',
+    sostituisci(orari, LEZIONE_BUCO, 'var lezione = nostri[0].lezioni[j];'),
+    'in _orariTogliBuco_ lezione si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...o con la guardia che non guarda piu\' l\'id e il contrassegno',
+    sostituisci(orari, 'return !!id && !!voce.serie && !!voce.contrassegno && String(voce.serie.getId()) === String(id);',
+                'return !!voce.serie;'), 'il testo di _orariSerieConId_ non e\' quello controllato');
+  deveFallire('Orari.gs', 'nel taglio, il contrassegno dato a una voce trovata (non appena creata) viene trovato',
+    sostituisci(orari, RIFATTA, RIFATTA + ' voce.serie.setTag(_ORARI_TAG, _ORARI_TAG_VALORE);'),
+    'setTag su "voce.serie": solo su nuova o singolo');
+  deveFallire('Orari.gs', '  ...o a una "serie nuova" che non e\' quella appena creata',
+    sostituisci(orari, NUOVA, 'var nuova = nostri[0].serie;'), 'in _orariTaglia_ nuova si assegna solo cosi\'');
+  deveFallire('Orari.gs', '  ...o dato prima della guardia',
+    inserisci(orari, TAGLIA, '\n  _orariSerieRifatta_(cal, stato, stato).setTag(_ORARI_TAG, _ORARI_TAG_VALORE);'),
+    'in _orariTaglia_ setTag viene prima della guardia');
+  deveFallire('Orari.gs', '  ...o l\'id di una voce trovata messo nel punto salvato, perche\' la ripresa le dia il contrassegno',
+    sostituisci(orari, RIFATTA, RIFATTA + ' stato.appenaCreato = { id: voce.serie.getId(), inizio: 0, segno: \'\' };'),
+    'appenaCreato nominato fuori dalle istruzioni ammesse');
+  deveFallire('Orari.gs', 'alla ripresa, il contrassegno rimesso a un pezzo senza la guardia viene trovato',
+    sostituisci(orari, GUARDIA_PEZZO, 'if (!_orariVoceConId_(voce, pezzo.id) && false) continue;'),
+    'in _orariRimettiContrassegniAlPezzo_ manca la guardia');
+  deveFallire('Orari.gs', '  ...o con la guardia che riconosce qualunque voce',
+    sostituisci(orari, 'return !!id && String(suo) === String(id);', 'return true;'),
+    'il testo di _orariVoceConId_ non e\' quello controllato');
+  deveFallire('Orari.gs', 'il secondo contrassegno uguale al primo viene trovato',
+    sostituisci(orari, 'var _ORARI_TAG_SOSTITUISCE = \'campanella_sostituisce\';', 'var _ORARI_TAG_SOSTITUISCE = _ORARI_TAG;'),
+    'la costante _ORARI_TAG_SOSTITUISCE va dichiarata una volta sola');
 
   // le strade per aggirare le regole trovate dalla revisione: ognuna deve
   // cadere in una regola
@@ -1539,7 +1655,7 @@ function provaDellaProva() {
   deveFallire('Orari.gs', '  ...e con il nome calcolato fra parentesi, (x[k])(...)',
     inserisci(orari, TAGLIA, '\n  var k = \'setRe\' + \'currence\'; (voce.serie[k])(' + R + ');'),
     'metodo chiamato con un nome calcolato');
-  const appoggio = inserisci(orari, TAGLIA, '\n  var tutte = _orariAppoggio_(cal); tutte[0].serie.setRecurrence(' + R + ');');
+  const appoggio = inserisci(orari, TAGLIA, '\n  var tutte = _orariAppoggio_(cal); tutte[0].serie.deleteEventSeries();');
   deveFallire('Orari.gs', '(b) nel taglio, serie prese da una funzione d\'appoggio con getEvents vengono trovate',
     appoggio && appoggio + '\nfunction _orariAppoggio_(cal) {\n  return cal.getEvents(new Date(2000, 0, 1), new Date(2100, 0, 1))' +
       '.map(function (x) { return { serie: x.getEventSeries() }; });\n}\n', 'getEvents fuori da _orariNostri_');
@@ -1547,8 +1663,8 @@ function provaDellaProva() {
     'if (!_orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, _orariNostri_(cal, periodo.inizio, periodo.fine))) {');
   deveFallire('Orari.gs', '(c) serie passate dal chiamante per parametro vengono trovate',
     dalChiamante && sostituisci(dalChiamante, TAGLIA,
-      'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, altre) {\n  altre[0].serie.setRecurrence(' + R + ');'),
-    'setRecurrence su "(non un nome)": solo su voce.serie');
+      'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, altre) {\n  altre[0].serie.deleteEventSeries();'),
+    'deleteEventSeries su "(non un nome)": solo su voce.serie');
   deveFallire('Orari.gs', '  ...anche con il nome giusto, se voce viene da un parametro',
     sostituisci(orari, TAGLIA, 'function _orariTaglia_(cal, periodo, validoDal, stato, scadenza, salva, voce) {'),
     'in _orariTaglia_ voce non puo\' essere un parametro');
@@ -1562,11 +1678,11 @@ function provaDellaProva() {
     sostituisci(orari, 'if (!nostro) continue;', 'if (!nostro && false) continue;'), 'in _orariNostri_ manca la guardia');
   deveFallire('Orari.gs', '  ...o un contrassegno dato a una voce fuori da _orariNostri_',
     inserisci(orari, TAGLIA, '\n  stato.x = { contrassegno: true };'), 'contrassegno come chiave fuori da _orariNostri_');
-  deveFallire('Orari.gs', '(e) una funzione che accorcia creata dentro _orariTaglia_ e usata altrove viene trovata',
-    inserisci(inserisci(orari, TAGLIA, '\n  stato.accorcia = function (s) { s.setRecurrence(' + R + '); };'),
-      CREA, '\n  if (voce.stato) voce.stato.accorcia(voce.altra);'), 'funzione dentro _orariTaglia_');
+  deveFallire('Orari.gs', '(e) una funzione che toglie creata dentro _orariTaglia_ e usata altrove viene trovata',
+    inserisci(inserisci(orari, TAGLIA, '\n  stato.togli = function (s) { s.deleteEventSeries(); };'),
+      CREA, '\n  if (voce.stato) voce.stato.togli(voce.altra);'), 'funzione dentro _orariTaglia_');
   deveFallire('Orari.gs', '  ...anche con il ricevente giusto',
-    sostituisci(orari, GUARDIA, 'stato.f = function () { voce.serie.setRecurrence(' + R + '); };\n    ' + GUARDIA),
+    sostituisci(orari, GUARDIA, 'stato.f = function () { voce.serie.deleteEventSeries(); };\n    ' + GUARDIA),
     'funzione dentro _orariTaglia_');
   deveFallire('Orari.gs', '(f) deleteEventSeries su una serie qualunque viene trovata',
     inserisci(orari, CREA, '\n  cal.getEvents(new Date(2000, 0, 1), new Date(2100, 0, 1))[0].getEventSeries().deleteEventSeries();'),
@@ -1606,7 +1722,9 @@ function provaDellaProva() {
   deveFallire('Orari.gs', 'e una serie cambiata dentro una voce',
     sostituisci(orari, GUARDIA, 'voce.serie = stato.altra;\n    ' + GUARDIA), 'la serie di una voce si cambia');
   deveFallire('Orari.gs', 'setRecurrence portata in una variabile con la destrutturazione viene trovata',
-    inserisci(orari, TAGLIA, '\n  var { setRecurrence } = stato;'), 'setRecurrence nominata senza il punto');
+    inserisci(orari, TAGLIA, '\n  var { setRecurrence } = stato;'), 'nome non ammesso negli orari: setRecurrence');
+  deveFallire('Orari.gs', '  ...e cosi\' deleteEventSeries',
+    inserisci(orari, TAGLIA, '\n  var { deleteEventSeries } = stato;'), 'deleteEventSeries nominata senza il punto');
   deveFallire('Orari.gs', 'un titolo cambiato su una serie nostra viene trovato',
     sostituisci(orari, GUARDIA, 'voce.serie.setTitle(\'x\');\n    ' + GUARDIA), 'nome non ammesso negli orari: setTitle');
   deveFallire('Orari.gs', 'eval viene trovato',
@@ -1685,10 +1803,11 @@ function provaDellaProva() {
     'nome non ammesso negli orari: __defineGetter__');
   // l'impronta: anche un cambio che nessuna regola vede, in _orariNostri_, si nota
   deveFallire('Orari.gs', 'un cambio qualunque in _orariNostri_, anche innocuo, chiede di aggiornare l\'impronta',
-    sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime() };',
-                'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime() };'), 'il testo di _orariNostri_ non e\' quello controllato');
-  const soloImpronta = sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime() };',
-                                   'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime() };');
+    sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime(), evento: ev };',
+                'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime(), evento: ev };'),
+    'il testo di _orariNostri_ non e\' quello controllato');
+  const soloImpronta = sostituisci(orari, 'var lezione = { inizio: ev.getStartTime(), fine: ev.getEndTime(), evento: ev };',
+                                   'var lezione = { fine: ev.getEndTime(), inizio: ev.getStartTime(), evento: ev };');
   verifica('  ...e lo vede solo l\'impronta (le altre regole lo lasciano passare)',
     soloImpronta !== null && controlla('Orari.gs', soloImpronta).length === 1);
   deveFallire('Orari.gs', '  ...e l\'impronta vede anche (a)', inserisci(orari, EV, '\n    fuori.unshift(' + QUALUNQUE + ');'),
