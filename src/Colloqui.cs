@@ -15,14 +15,16 @@
 //  settimana o un'altra ora nel nome non si capiscono (le date del
 //  ricevimento, "dal ... al ...", valgono anche dopo "ogni", ma non con
 //  altro intorno, come un periodo senza colloqui), e una voce uguale a una
-//  di sopra resta nella casella. Lo script
+//  di sopra, o alla stessa ora, resta nella casella. Lo script
 //  (Orari.gs e Calendario.gs: ORARI_4_calendario, ORARI_7_colloqui) mette il
 //  ricevimento settimanale a tratti come le lezioni, senza i giorni senza
 //  lezione e quelli senza colloqui, e le giornate come eventi singoli, con il
 //  link come luogo. Le prenotazioni dei genitori restano nel registro
 //  elettronico: qui c'e' solo quando e dove, e l'import rifiuta un file con
-//  i nomi delle persone (un elenco di prenotazioni) o con la colonna dei
-//  docenti (l'orario di ricevimento della scuola, con i link dei colleghi).
+//  i nomi delle persone (un elenco di prenotazioni), con la colonna dei
+//  docenti o delle materie, anche nell'intestazione su due righe, o con i
+//  ricevimenti di piu' docenti (l'orario di ricevimento della scuola, con i
+//  link dei colleghi).
 //
 //  Le date si leggono come quelle dei giorni senza lezione (Calendario.cs):
 //  qui non c'e' un altro lettore di date. Il piano (quante serie e quanti
@@ -952,10 +954,10 @@ namespace Campanella
         /// <summary>
         /// Le righe dei colloqui di un file .csv o .xlsx (il primo foglio con
         /// l'intestazione giusta), da aggiungere alla casella: vedi RigheDaFoglio.
-        /// Un foglio con i nomi delle persone (un elenco di prenotazioni) o con
-        /// la colonna dei docenti (l'orario di ricevimento di tutta la scuola)
-        /// non si importa, e l'errore lo dice anche se un altro foglio non ha
-        /// l'intestazione.
+        /// Un foglio con i nomi delle persone (un elenco di prenotazioni), o con
+        /// la colonna dei docenti o delle materie o i ricevimenti di piu' docenti
+        /// (l'orario di ricevimento della scuola o di una classe) non si importa,
+        /// e l'errore lo dice anche se un altro foglio non ha l'intestazione.
         /// </summary>
         public static List<string> Importa(string percorso, DateTime inizioPeriodo, out int saltate, out string errore)
         {
@@ -1022,6 +1024,19 @@ namespace Campanella
         }
 
         /// <summary>
+        /// Una colonna delle materie, dall'intestazione (solo lettere minuscole):
+        /// materia, materie, disciplina, insegnamento. Un foglio che ce l'ha e'
+        /// l'orario di ricevimento della scuola o di una classe, una riga per
+        /// docente.
+        /// </summary>
+        static bool DiMaterie(string k)
+        {
+            string[] parti = { "materi", "disciplin", "insegnament" };
+            foreach (string p in parti) if (k.Contains(p)) return true;
+            return false;
+        }
+
+        /// <summary>
         /// Le righe dei colloqui di un foglio. Le colonne si riconoscono
         /// dall'intestazione, in una delle prime dieci righe: "data" oppure
         /// "giorno" (una data, anche con il giorno della settimana, o un giorno
@@ -1040,10 +1055,15 @@ namespace Campanella
         /// foglio con colonne di persone (cognome, nome, genitore, email,
         /// prenotato da...) non si importa: e' un elenco di prenotazioni, e i
         /// nomi degli studenti e dei genitori sul calendario non vanno. Nemmeno
-        /// uno con la colonna dei docenti (docente, prof...): e' l'orario di
-        /// ricevimento della scuola, e sul calendario andrebbero anche i
-        /// ricevimenti e i link dei colleghi. I nomi scritti dentro la colonna
-        /// cosa non si riconoscono.
+        /// uno con la colonna dei docenti (docente, prof...) o delle materie
+        /// (materia, disciplina): e' l'orario di ricevimento della scuola, e sul
+        /// calendario andrebbero anche i ricevimenti e i link dei colleghi.
+        /// Quelle intestazioni valgono anche sopra la riga d'intestazione, su
+        /// una colonna che li' e' vuota (l'intestazione su due righe, con le
+        /// celle unite). Senza, lo dicono le righe: due ricevimenti nelle stesse
+        /// settimane con link diversi, tre nelle stesse settimane, due giornate
+        /// alla stessa ora con link diversi (DiPiuPersoneNelleRighe). I nomi
+        /// scritti dentro la colonna cosa non si riconoscono.
         /// </summary>
         public static List<string> RigheDaFoglio(FoglioExcel f, DateTime inizioPeriodo, out int saltate, out string errore)
         {
@@ -1052,11 +1072,11 @@ namespace Campanella
             errore = "";
             int riga = -1, cData = -1, cGiorno = -1, cDalle = -1, cAlle = -1, cOra = -1, cCosa = -1, cLink = -1, cDal = -1,
                 cAl = -1, cClasse = -1;
-            List<string> persone = new List<string>(), docenti = new List<string>();
+            List<string> persone = new List<string>(), docenti = new List<string>(), materie = new List<string>();
             for (int i = 0; i < Math.Min(10, f.NumeroRighe) && riga < 0; i++)
             {
                 int d = -1, g = -1, da = -1, a = -1, o = -1, c = -1, l = -1, dal = -1, al = -1, cl = -1;
-                List<string> diPersone = new List<string>(), diDocenti = new List<string>();
+                List<string> diPersone = new List<string>(), diDocenti = new List<string>(), diMaterie = new List<string>();
                 for (int j = 0; j < f.Colonne; j++)
                 {
                     string k = Regex.Replace(f.Cella(i, j).ToLowerInvariant(), @"[^a-z]", "");
@@ -1071,15 +1091,18 @@ namespace Campanella
                     else if (k == "dal" && dal < 0) dal = j;
                     else if (k == "al" && al < 0) al = j;
                     else if (DiDocenti(k)) diDocenti.Add(f.Cella(i, j).Trim());
+                    else if (DiMaterie(k)) diMaterie.Add(f.Cella(i, j).Trim());
                     else if (DiPersone(k)) diPersone.Add(f.Cella(i, j).Trim());
                     else if (k.StartsWith("class", StringComparison.Ordinal) && cl < 0) cl = j;
                 }
-                if ((d >= 0 || g >= 0) && (da >= 0 || o >= 0 || c >= 0 || l >= 0 || diPersone.Count > 0 || diDocenti.Count > 0))
+                if ((d >= 0 || g >= 0) && (da >= 0 || o >= 0 || c >= 0 || l >= 0 || diPersone.Count > 0 || diDocenti.Count > 0 ||
+                                           diMaterie.Count > 0))
                 {
                     riga = i; cData = d; cGiorno = g; cDalle = da; cAlle = a; cOra = o; cCosa = c; cLink = l; cDal = dal;
                     cAl = al; cClasse = cl;
                     persone = diPersone;
                     docenti = diDocenti;
+                    materie = diMaterie;
                     // con le persone la classe e' quella dello studente
                     if (persone.Count > 0 && cl >= 0) persone.Add(f.Cella(i, cl).Trim());
                 }
@@ -1090,6 +1113,28 @@ namespace Campanella
                          "e almeno una fra \"dalle\", \"alle\", \"ora\", \"cosa\" (o \"descrizione\") e \"link\".";
                 return fuori;
             }
+            // l'intestazione su due righe, come si fa spesso a scuola: "DOCENTE"
+            // unita in verticale sta nella riga sopra, e in questa la sua cella e'
+            // vuota (le celle unite hanno il testo solo in alto). Per una colonna
+            // senza intestazione, con qualcosa scritto sotto, vale la prima cella
+            // scritta sopra; non il titolo del foglio
+            for (int j = 0; j < f.Colonne; j++)
+            {
+                if (f.Cella(riga, j).Trim() != "" || !ScrittaSotto(f, riga, j)) continue;
+                for (int i = riga - 1; i >= 0; i--)
+                {
+                    string sopra = f.Cella(i, j).Trim();
+                    if (sopra == "") continue;
+                    if (!Titolo(f, i, j))
+                    {
+                        string k = Regex.Replace(sopra.ToLowerInvariant(), @"[^a-z]", "");
+                        if (DiDocenti(k)) docenti.Add(sopra);
+                        else if (DiMaterie(k)) materie.Add(sopra);
+                        else if (DiPersone(k)) persone.Add(sopra);
+                    }
+                    break;
+                }
+            }
             if (persone.Count > 0)
             {
                 // un elenco di prenotazioni: le righe con i nomi delle persone non si leggono nemmeno
@@ -1099,13 +1144,19 @@ namespace Campanella
                          "e link.";
                 return fuori;
             }
-            if (docenti.Count > 0)
+            if (docenti.Count > 0 || materie.Count > 0)
             {
                 // l'orario di ricevimento della scuola: i ricevimenti e i link dei colleghi non vanno sul tuo calendario
-                errore = "Il file ha la colonna dei docenti (\"" + string.Join("\", \"", docenti.ToArray()) + "\"): sembra " +
+                List<string> dette = new List<string>(docenti);
+                dette.AddRange(materie);
+                bool due = docenti.Count > 0 && materie.Count > 0;
+                errore = "Il file ha " + (due ? "le colonne dei docenti e delle materie"
+                                              : docenti.Count > 0 ? "la colonna dei docenti" : "la colonna delle materie") +
+                         " (\"" + string.Join("\", \"", dette.ToArray()) + "\"): sembra " +
                          DiPiuDocenti + ", e non lo importo: sul tuo calendario andrebbero anche i ricevimenti e i link " +
                          "dei colleghi. Scrivi il tuo ricevimento nella casella (ogni giovedi 10:10-11:10 Ricevimento " +
-                         "https://meet.google.com/...), o importa un file con le sole tue righe, senza la colonna dei docenti.";
+                         "https://meet.google.com/...), o importa un file con le sole tue righe, senza " +
+                         (due ? "quelle colonne." : "quella colonna.");
                 return fuori;
             }
             for (int i = riga + 1; i < f.NumeroRighe; i++)
@@ -1135,7 +1186,85 @@ namespace Campanella
                              (al != "" ? DataOCella(al, inizioPeriodo) : "?") + " " + quando;
                 fuori.Add(RigaDi(quando, dalle, alle, nome, link));
             }
+            // senza la colonna dei docenti lo dicono le righe: i ricevimenti e i
+            // link di piu' persone (i nomi in una colonna senza intestazione, o
+            // un'intestazione che non si riconosce)
+            string diPiu = DiPiuPersoneNelleRighe(fuori, inizioPeriodo);
+            if (diPiu != "")
+            {
+                errore = "Nel file ci sono " + diPiu + ": sembra " + DiPiuDocenti + ", e non lo importo: sul tuo " +
+                         "calendario andrebbero anche i ricevimenti e i link dei colleghi. Se sono davvero tutti tuoi, " +
+                         "scrivili nella casella, una riga per voce; se no importa un file con le sole tue righe.";
+                return new List<string>();
+            }
             return fuori;
+        }
+
+        /// <summary>
+        /// Se le righe importate sono i colloqui di piu' docenti, quello che lo
+        /// dice ("3 ricevimenti di ogni settimana con link diversi"); se no "".
+        /// Un docente ha un ricevimento alla volta, al piu' due (la mattina e il
+        /// pomeriggio), e alla stessa ora una stanza sola del Meet: due
+        /// ricevimenti nelle stesse settimane con link diversi, tre o piu'
+        /// ricevimenti nelle stesse settimane, o due giornate alla stessa ora con
+        /// link diversi sono l'orario di ricevimento della scuola o di una
+        /// classe. Due ricevimenti uno dopo l'altro (le date di uno finiscono
+        /// prima che comincino quelle dell'altro) si', anche con link diversi.
+        /// </summary>
+        static string DiPiuPersoneNelleRighe(List<string> righe, DateTime inizioPeriodo)
+        {
+            List<Colloquio> settimanali = new List<Colloquio>(), giornate = new List<Colloquio>();
+            HashSet<string> viste = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string riga in righe)
+            {
+                RigaColloquio r = new RigaColloquio();
+                LeggiUna(riga, inizioPeriodo, null, r);
+                // una voce sola per ora e link, anche se il file la ripete con un altro nome
+                if (r.Voce == null || !viste.Add(Chiave(r.Voce))) continue;
+                if (r.Voce.Tipo == TipoColloquio.Settimanale) settimanali.Add(r.Voce);
+                else if (r.Voce.Tipo == TipoColloquio.Giornata) giornate.Add(r.Voce);
+            }
+            for (int i = 0; i < settimanali.Count; i++)
+            {
+                Colloquio a = settimanali[i];
+                int insieme = 0;
+                for (int j = 0; j < settimanali.Count; j++)
+                {
+                    Colloquio b = settimanali[j];
+                    // quelli che valgono il primo giorno di a (a compreso)
+                    if (DalDi(b) <= DalDi(a) && DalDi(a) <= AlDi(b)) insieme++;
+                    if (j > i && DalDi(a) <= AlDi(b) && DalDi(b) <= AlDi(a) && a.Link != "" && b.Link != "" &&
+                        !string.Equals(a.Link, b.Link, StringComparison.OrdinalIgnoreCase))
+                        return settimanali.Count + " ricevimenti di ogni settimana con link diversi";
+                }
+                if (insieme >= 3) return insieme + " ricevimenti di ogni settimana nelle stesse settimane";
+            }
+            for (int i = 0; i < giornate.Count; i++)
+                for (int j = i + 1; j < giornate.Count; j++)
+                    if (AllaStessaOra(giornate[i], giornate[j]) && giornate[i].Link != "" && giornate[j].Link != "" &&
+                        !string.Equals(giornate[i].Link, giornate[j].Link, StringComparison.OrdinalIgnoreCase))
+                        return "giornate alla stessa ora con link diversi";
+            return "";
+        }
+
+        /// <summary>
+        /// Vero se nel foglio, sotto la riga d'intestazione, la colonna ha
+        /// qualcosa di scritto.
+        /// </summary>
+        static bool ScrittaSotto(FoglioExcel f, int riga, int colonna)
+        {
+            for (int i = riga + 1; i < f.NumeroRighe; i++) if (f.Cella(i, colonna).Trim() != "") return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Vero se la cella e' il titolo del foglio: la sola scritta della sua
+        /// riga, di piu' di tre parole ("Colloqui con le famiglie - prof. ...").
+        /// </summary>
+        static bool Titolo(FoglioExcel f, int riga, int colonna)
+        {
+            for (int j = 0; j < f.Colonne; j++) if (j != colonna && f.Cella(riga, j).Trim() != "") return false;
+            return f.Cella(riga, colonna).Trim().Split((char[])null, StringSplitOptions.RemoveEmptyEntries).Length > 3;
         }
 
         /// <summary>Una cella del foglio, con gli spazi (e gli a capo) ridotti a uno.</summary>

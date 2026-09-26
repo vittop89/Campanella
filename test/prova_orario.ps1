@@ -155,6 +155,58 @@ function ScriviCsv($nome, $righe) {
     $p
 }
 
+# un .xlsx minimo con un foglio: righe come array di stringhe (colonne da A
+# a Z), unite come riferimenti ("A2:A3"). Come in Excel, una cella unita ha
+# il valore solo in quella in alto a sinistra
+function ScriviXlsxUnite($nome, $righe, $unite) {
+    Add-Type -AssemblyName System.IO.Compression
+    $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    $rl = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    $testa = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append("$testa<worksheet xmlns=`"$ns`"><sheetData>")
+    for ($i = 0; $i -lt $righe.Count; $i++) {
+        [void]$sb.Append("<row r=`"$($i + 1)`">")
+        for ($j = 0; $j -lt $righe[$i].Count; $j++) {
+            $v = [string]$righe[$i][$j]
+            if ($v -eq '') { continue }
+            $v = [System.Security.SecurityElement]::Escape($v)
+            [void]$sb.Append("<c r=`"$([char](65 + $j))$($i + 1)`" t=`"inlineStr`"><is><t xml:space=`"preserve`">$v</t></is></c>")
+        }
+        [void]$sb.Append('</row>')
+    }
+    [void]$sb.Append('</sheetData>')
+    if (@($unite).Count -gt 0) {
+        [void]$sb.Append("<mergeCells count=`"$(@($unite).Count)`">")
+        foreach ($u in $unite) { [void]$sb.Append("<mergeCell ref=`"$u`"/>") }
+        [void]$sb.Append('</mergeCells>')
+    }
+    [void]$sb.Append('</worksheet>')
+    $voci = [ordered]@{
+        '[Content_Types].xml' = "$testa<Types xmlns=`"http://schemas.openxmlformats.org/package/2006/content-types`"><Default Extension=`"rels`" ContentType=`"application/vnd.openxmlformats-package.relationships+xml`"/><Default Extension=`"xml`" ContentType=`"application/xml`"/><Override PartName=`"/xl/workbook.xml`" ContentType=`"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml`"/><Override PartName=`"/xl/worksheets/sheet1.xml`" ContentType=`"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml`"/></Types>"
+        '_rels/.rels' = "$testa<Relationships xmlns=`"http://schemas.openxmlformats.org/package/2006/relationships`"><Relationship Id=`"rId1`" Type=`"$rl/officeDocument`" Target=`"xl/workbook.xml`"/></Relationships>"
+        'xl/workbook.xml' = "$testa<workbook xmlns=`"$ns`" xmlns:r=`"$rl`"><sheets><sheet name=`"Ricevimento`" sheetId=`"1`" r:id=`"rId1`"/></sheets></workbook>"
+        'xl/_rels/workbook.xml.rels' = "$testa<Relationships xmlns=`"http://schemas.openxmlformats.org/package/2006/relationships`"><Relationship Id=`"rId1`" Type=`"$rl/worksheet`" Target=`"worksheets/sheet1.xml`"/></Relationships>"
+        'xl/worksheets/sheet1.xml' = $sb.ToString()
+    }
+    $p = Join-Path $tmp $nome
+    $fs = [System.IO.File]::Create($p)
+    try {
+        $zip = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($n in $voci.Keys) {
+                $s = $zip.CreateEntry($n).Open()
+                $b = $utf8.GetBytes($voci[$n])
+                $s.Write($b, 0, $b.Length)
+                $s.Dispose()
+            }
+        }
+        finally { $zip.Dispose() }
+    }
+    finally { $fs.Dispose() }
+    $p
+}
+
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
     # --- una cella del tabellone non deve diventare codice (A-2) -----------
@@ -1140,6 +1192,78 @@ console.log(JSON.stringify({
             $imp = Importa (ScriviCsv $p[0] $p[1])
             Verifica "un file con la colonna dei docenti ($($p[1][0])) non si importa: nessuna riga, e dice perche' ($($imp.Errore))" (
                 $imp.Righe.Count -eq 0 -and $imp.Errore.Contains($diPiuDocenti) -and $imp.Errore -notmatch 'ROSSI|Rossi|BIANCHI|VERDI|aaa-bbbb')
+        }
+        # nemmeno con l'intestazione su due righe e le celle unite, come si fa
+        # spesso a scuola: DOCENTE e DISCIPLINA unite in verticale, sopra la riga
+        # con giorno, ora e link (la cella unita ha il testo solo in alto)
+        $dueRighe = ScriviXlsxUnite 'ricevimento_scuola.xlsx' @(
+            @('ORARIO DI RICEVIMENTO DEI DOCENTI (dati inventati)'),
+            @('DOCENTE', 'DISCIPLINA', 'RICEVIMENTO SETTIMANALE', '', ''),
+            @('', '', 'GIORNO', 'ORA', 'LINK MEET'),
+            @('ROSSI MARIO', 'Matematica', "Gioved$ie", '10:10-11:10', 'https://meet.google.com/aaa-bbbb-ccc'),
+            @('BIANCHI ANNA', 'Italiano', "Luned$ie", '09:10-10:10', 'https://meet.google.com/ddd-eeee-fff'),
+            @('VERDI LUCA', 'Storia', "Marted$ie", '11:10-12:10', 'meet.google.com/ggg-hhhh-iii')) @('A1:E1', 'A2:A3', 'B2:B3', 'C2:E2')
+        $imp = Importa $dueRighe
+        Verifica "un .xlsx con l'intestazione su due righe e DOCENTE unita in verticale non si importa ($($imp.Errore))" (
+            $imp.Righe.Count -eq 0 -and $imp.Errore.Contains($diPiuDocenti) -and $imp.Errore -match 'DOCENTE' -and
+            $imp.Errore -notmatch 'ROSSI|BIANCHI|VERDI|aaa-bbbb|ddd-eeee|ggg-hhhh')
+        # ne' con le materie al posto dei docenti (l'orario di ricevimento di una
+        # classe), ne' con i nomi in una colonna senza intestazione: li' lo dicono
+        # le righe (ricevimenti di ogni settimana con link diversi, o tre nelle
+        # stesse settimane, o giornate alla stessa ora con link diversi)
+        $dalleRighe = @(
+            @('materia.csv', @('Materia;Giorno;Ora;Link',
+                               'Matematica;giovedi;10:10-11:10;https://meet.google.com/aaa-bbbb-ccc',
+                               'Italiano;lunedi;09:10-10:10;https://meet.google.com/ddd-eeee-fff')),
+            @('disciplina.csv', @('Disciplina;Giorno;Dalle;Alle', 'Matematica;giovedi;10:10;11:10')),
+            @('nomi_senza_intestazione.csv', @(';Giorno;Ora;Link',
+                               'ROSSI MARIO;giovedi;10:10-11:10;https://meet.google.com/aaa-bbbb-ccc',
+                               'BIANCHI ANNA;lunedi;09:10-10:10;https://meet.google.com/ddd-eeee-fff',
+                               'VERDI LUCA;martedi;11:10-12:10;meet.google.com/ggg-hhhh-iii')),
+            @('tre_ricevimenti.csv', @('Giorno;Ora;Cosa', 'lunedi;09:10-10:10;Ricevimento', 'martedi;11:10-12:10;Ricevimento',
+                                       'giovedi;10:10-11:10;Ricevimento')),
+            @('giornate_link.csv', @('Data;Ora;Link', '15/12/2026;15:00-18:00;https://meet.google.com/aaa-bbbb-ccc',
+                                     '15/12/2026;15:00-18:00;https://meet.google.com/ddd-eeee-fff'))
+        )
+        foreach ($p in $dalleRighe) {
+            $imp = Importa (ScriviCsv $p[0] $p[1])
+            Verifica "un file con l'orario di ricevimento di piu' docenti ($($p[0]): $($p[1][0])) non si importa ($($imp.Errore))" (
+                $imp.Righe.Count -eq 0 -and $imp.Errore.Contains($diPiuDocenti) -and
+                $imp.Errore -notmatch 'ROSSI|BIANCHI|VERDI|Matematica|Italiano|aaa-bbbb|ddd-eeee|ggg-hhhh')
+        }
+        # ma i file del docente si importano: con un titolo che nomina le
+        # famiglie e il docente, con l'intestazione su due righe, con due
+        # ricevimenti uno dopo l'altro (link diversi, date diverse), con due
+        # ricevimenti con lo stesso link o uno solo con il link, con le giornate
+        # a ore diverse con link diversi
+        $mieiFile = @(
+            @((ScriviCsv 'mio_titolo.csv' @('Colloqui con le famiglie - prof. di prova, docente di matematica;;;', 'Giorno;Ora;Cosa;Link',
+                                           'giovedi;10:10-11:10;Ricevimento;https://meet.google.com/abc-defg-hij')),
+              'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij'),
+            @((ScriviXlsxUnite 'mio_due_righe.xlsx' @(
+                @('Colloqui con le famiglie - prof. di prova'), @('RICEVIMENTO', '', ''), @('GIORNO', 'ORA', 'LINK MEET'),
+                @("Gioved$ie", '10:10-11:10', 'meet.google.com/abc-defg-hij')) @('A1:C1', 'A2:C2')),
+              'ogni giovedi 10:10-11:10 https://meet.google.com/abc-defg-hij'),
+            @((ScriviCsv 'mio_due_periodi.csv' @('Giorno;Dal;Al;Ora;Link',
+                'giovedi;14/09/2026;31/01/2027;10:10-11:10;https://meet.google.com/abc-defg-hij',
+                'venerdi;01/02/2027;10/06/2027;09:10-10:10;https://meet.google.com/kmn-pqrs-tuv')),
+              ('dal 14/09/2026 al 31/01/2027 ogni giovedi 10:10-11:10 https://meet.google.com/abc-defg-hij|' +
+               'dal 01/02/2027 al 10/06/2027 ogni venerdi 09:10-10:10 https://meet.google.com/kmn-pqrs-tuv')),
+            @((ScriviCsv 'mio_stesso_link.csv' @('Giorno;Ora;Link', 'giovedi;10:10-11:10;https://meet.google.com/abc-defg-hij',
+                                                'martedi;15:00-16:00;https://meet.google.com/abc-defg-hij')),
+              'ogni giovedi 10:10-11:10 https://meet.google.com/abc-defg-hij|ogni martedi 15:00-16:00 https://meet.google.com/abc-defg-hij'),
+            @((ScriviCsv 'mie_giornate.csv' @('Data;Ora;Cosa;Link',
+                '15/12/2026;15:00-18:00;Colloqui generali;https://meet.google.com/abc-defg-hij',
+                '16/12/2026;15:00-18:00;Colloqui generali;https://meet.google.com/kmn-pqrs-tuv',
+                '15/12/2026;18:00-19:00;Colloqui, recupero;https://meet.google.com/wxy-zabc-def')),
+              ('15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/abc-defg-hij|' +
+               '16/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/kmn-pqrs-tuv|' +
+               '15/12/2026 18:00-19:00 Colloqui, recupero https://meet.google.com/wxy-zabc-def'))
+        )
+        foreach ($p in $mieiFile) {
+            $imp = Importa $p[0]
+            Verifica "ma $(Split-Path -Leaf $p[0]), il file di un docente, si importa ($($imp.Righe -join ' | ') $($imp.Errore))" (
+                $imp.Errore -eq '' -and ($imp.Righe -join '|') -eq $p[1])
         }
         # l'ora in una colonna sola ("Orario", "Ora"), la classe dei colloqui
         # generali (va nel nome), il link del Meet senza https://
