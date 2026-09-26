@@ -1784,6 +1784,95 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $riepP -match "Portali \(non si unisce piu' a quella regola\)")
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CON LA STESSA ETICHETTA RESTA IN GMAIL'
+    # Un filtro che resta in Gmail mette la sua etichetta all'arrivo; la
+    # regola con quell'etichetta cerca solo i messaggi che non ce l'hanno
+    # (-label:), e a quelli non fa niente. Se quel filtro non archivia (o non
+    # segna come letti), uno tolto che lo faceva perderebbe l'archiviazione
+    # dei messaggi che prendono tutti e due: resta anche lui, e il riepilogo
+    # dice perche'. Basta l'etichetta, del filtro o della sua regola
+    $posteR = @(@('avvisi@portale-uno.example', 'Portale Uno'), @('info@portale-due.example', 'Portale Due'),
+                @('comunicati@sindacato-uno.example', 'Sindacato Uno'), @('info@sindacato-due.example', 'Sindacato Due'))
+    # il caso dei due Portali, prima quello che archivia: nasce la sua regola, ma
+    # l'altro resta (archivia diversamente) e allora resta anche lui
+    $sR1 = StatoRiorganizza
+    $portaleSiR = UnFiltro ([ordered]@{ hasTheWord = 'from:avvisi@portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
+    $portaleNoR = UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example)'; label = 'Portali' })
+    $riepR1 = UsaLaScelta $sR1 @($portaleSiR, $portaleNoR) $null
+    $motoreR1 = PromessaNelMotore $sR1 @($portaleSiR, $portaleNoR) $posteR 'stessa_etichetta_prima_archivia'
+    Verifica "Portali che archivia e poi Portali che non archivia: resta in Gmail anche quello che archivia, e il riepilogo dice perche' ('$riepR1')" (
+        (Leggi $sR1 'FiltriDaTogliere').Count -eq 0 -and $motoreR1.esito -eq 0 -and $motoreR1.tolti -eq 0 -and
+        $riepR1 -match "Portali \(resta in Gmail un altro filtro con l'etichetta Portali, che non archivia: mette l'etichetta ai messaggi che prende anche lui prima dello script, e la regola Portali non li cerca piu' e non li archivierebbe\)")
+    # "lo fa gia' Sindacati" (che archivia), ma resta un filtro Sindacati con la
+    # stella, che non archivia
+    $sR2 = StatoRiorganizza
+    @((Leggi $sR2 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-uno.example')
+    $sindTuttiR = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $sindStellaR = UnFiltro ([ordered]@{ from = 'comunicati@sindacato-uno.example'; label = 'Sindacati'; shouldStar = 'true' })
+    $cTuttiR = ScelteDi $sindTuttiR $sR2
+    $cStellaR = ScelteDi $sindStellaR $sR2
+    $riepR2 = UsaLaScelta $sR2 @($sindTuttiR, $sindStellaR) $null
+    $motoreR2 = PromessaNelMotore $sR2 @($sindTuttiR, $sindStellaR) $posteR 'stessa_etichetta_stella'
+    Verifica "'$($cTuttiR.proposta.Testo)' e '$($cStellaR.proposta.Testo)' (con la stella): restano tutti e due ('$riepR2')" (
+        $cTuttiR.proposta.Testo -eq "Toglilo: lo fa gia' la regola Sindacati" -and $cStellaR.proposta.Azione -eq 'lascia' -and
+        (Leggi $sR2 'FiltriDaTogliere').Count -eq 0 -and $motoreR2.esito -eq 0 -and $motoreR2.tolti -eq 0 -and
+        $riepR2 -match "Sindacati \(resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia")
+    # scelto a mano "Toglilo" anche per quello con la stella (che non archivia
+    # come Sindacati), vanno via tutti e due
+    $sR3 = StatoRiorganizza
+    @((Leggi $sR3 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-uno.example')
+    $riepR3 = UsaLaScelta $sR3 @($sindTuttiR, $sindStellaR) @{ 1 = 'Toglilo (si perde: aggiunge la stella)' }
+    $motoreR3 = PromessaNelMotore $sR3 @($sindTuttiR, $sindStellaR) $posteR 'stessa_etichetta_tolti'
+    Verifica "scelto a mano 'Toglilo' anche per quello con la stella, vanno via tutti e due ('$riepR3')" (
+        (Leggi $sR3 'FiltriDaTogliere').Count -eq 2 -and $motoreR3.esito -eq 0 -and $motoreR3.tolti -eq 2)
+    # l'etichetta della regola: uno simile (Sindacato) unito a Sindacati resta,
+    # se resta un filtro Sindacati che non archivia; e cosi' uno che segna come
+    # letti, se l'altro no
+    $sR4 = StatoRiorganizza
+    $simileR = UnFiltro ([ordered]@{ from = '@sindacato-due.example'; label = 'Sindacato'; shouldArchive = 'true' })
+    $sindNoR = UnFiltro ([ordered]@{ from = 'info@sindacato-due.example'; label = 'Sindacati' })
+    $cSimileR = ScelteDi $simileR $sR4
+    $riepR4 = UsaLaScelta $sR4 @($simileR, $sindNoR) $null
+    $sR5 = StatoRiorganizza
+    (Leggi $sR5 'Regole').Add((NuovaRegolaPortali @('portale-uno.example') ''))
+    @((Leggi $sR5 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })[0].SegnaComeLette = $true
+    $lettiR = UnFiltro ([ordered]@{ from = 'avvisi@portale-uno.example OR portale-uno.example'; label = 'Portali'; shouldMarkAsRead = 'true' })
+    $nonLettiR = UnFiltro ([ordered]@{ from = 'avvisi@portale-uno.example'; label = 'portali' })
+    $riepR5 = UsaLaScelta $sR5 @($lettiR, $nonLettiR) $null
+    Verifica "anche con l'etichetta della regola ('$($cSimileR.proposta.Testo)': '$riepR4'), e per chi segna come letti ('$riepR5')" (
+        $cSimileR.proposta.Testo -eq 'Unisci a Sindacati' -and (Leggi $sR4 'FiltriDaTogliere').Count -eq 0 -and
+        $riepR4 -match "Sindacato \(resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia" -and
+        (Leggi $sR5 'FiltriDaTogliere').Count -eq 0 -and
+        $riepR5 -match "Portali \(resta in Gmail un altro filtro con l'etichetta portali, che non segna come letti: .* non li segnerebbe come letti\)")
+
+    # lo stesso filtro due volte, una copia che archiviava e una no:
+    # EXTRA_togliFiltri toglie tutte e due, e la regola deve fare quello che
+    # faceva la copia che archivia
+    $sR6 = StatoRiorganizza
+    $gareLettiR = UnFiltro ([ordered]@{ from = '@gare-uno.example'; label = 'Gare'; shouldMarkAsRead = 'true' })
+    $gareArchR = UnFiltro ([ordered]@{ from = '@gare-uno.example'; label = 'Gare'; shouldArchive = 'true'; shouldMarkAsRead = 'true' })
+    $riepR6 = UsaLaScelta $sR6 @($gareLettiR, $gareArchR) $null
+    $motoreR6 = PromessaNelMotore $sR6 @($gareLettiR, $gareArchR) @(, @('iscrizioni@gare-uno.example', 'Gara')) 'copie_diverse'
+    Verifica "lo stesso filtro due volte, una copia archivia e l'altra no: nasce la regola della prima, ma il filtro resta ('$riepR6')" (
+        (Leggi $sR6 'FiltriDaTogliere').Count -eq 0 -and $motoreR6.esito -eq 0 -and $motoreR6.tolti -eq 0 -and
+        $riepR6 -match "Gare \(c'e' piu' volte in Gmail, con azioni diverse: andrebbero via tutte le copie, e la regola Gare non archivia")
+
+    # uno di quelli che crea Campanella (EXTRA_creaFiltriGmail), ma che in
+    # Gmail archivia mentre la regola no: la regola non "lo fa gia'", e scelto
+    # prima non va via
+    $sR7 = StatoRiorganizza
+    (Leggi $sR7 'Regole').Add((NuovaRegolaPortali @('portale-uno.example') ''))
+    $creatoR = UnFiltro ([ordered]@{ from = 'portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
+    $cCreatoR = ScelteDi $creatoR $sR7
+    $voceR7 = $creatoR.DaTogliere()
+    $voceR7.Regola = 'Portali'
+    $comeLaRegolaR = UnFiltro ([ordered]@{ from = 'portale-uno.example'; label = 'Portali' })
+    Verifica "uno creato da Campanella per Portali, ma che archivia: niente 'lo fa gia'' ($(Testi $cCreatoR)), e scelto prima resta (sostituito: $($mAncora.Invoke($null, @($voceR7, $sR7)))); come la regola si' ('$((ScelteDi $comeLaRegolaR $sR7).scelte[1].Testo)')" (
+        $cCreatoR.x.Tipo -eq 'campanella' -and (Testi $cCreatoR) -notmatch "lo fa gia'" -and
+        -not [bool]$mAncora.Invoke($null, @($voceR7, $sR7)) -and
+        (ScelteDi $comeLaRegolaR $sR7).scelte[1].Testo -eq "Toglilo: lo fa gia' la regola Portali")
+
+    # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
     # indirizzi di Segreteria o Dirigenza: Ministero e USR, con @istruzione.it
