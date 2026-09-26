@@ -1376,6 +1376,18 @@ static class ProvaStato
         MettiColore(RegolaDi(s, "Circolari"), "");
         ColoriRuoli(s)["Docenti"] = "#fb4c2f/#000000";
         AggiungiFiltro(s, "Famiglie", "query", "from:(@famiglie.example)");
+        // la regola che lo sostituisce e che cosa faceva il filtro (1.6.1): la
+        // 1.6.0 non li conosce. Per nome: sono campi dello stesso Stato.cs
+        object voce = (FiltriDi(s) != null && FiltriDi(s).Count == 1) ? FiltriDi(s)[0] : null;
+        FieldInfo campoRegola = (voce != null) ? voce.GetType().GetField("Regola") : null;
+        FieldInfo campoArchivia = (voce != null) ? voce.GetType().GetField("Archivia") : null;
+        FieldInfo campoLetti = (voce != null) ? voce.GetType().GetField("SegnaLetto") : null;
+        if (campoRegola != null && campoArchivia != null && campoLetti != null)
+        {
+            campoRegola.SetValue(voce, "Genitori");
+            campoArchivia.SetValue(voce, (bool?)true);
+            campoLetti.SetValue(voce, (bool?)false);
+        }
         s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
         s.Regole.Add(NuovaClasse("Classi 2026-27/3B", "3B"));
         s.Salva();
@@ -1384,6 +1396,12 @@ static class ProvaStato
             Numero(Json(FileDati(c)), "formato") == Stato.Formato && Stato.Formato > 1);
         Verifica("e il file dei dati ha i filtri di Gmail da togliere, che la 1.5.2 non conosce",
             FiltriNelFile(Json(FileDati(c))) == "Famiglie{query=from:(@famiglie.example)}");
+        object[] voci = Json(FileDati(c))["filtriDaTogliere"] as object[];
+        Dictionary<string, object> v0 = (voci != null && voci.Length == 1) ? voci[0] as Dictionary<string, object> : null;
+        Verifica("con la regola che lo sostituisce e se archiviava e segnava come letto, che la 1.6.0 (formato 3) non conosce",
+            v0 != null && Convert.ToString(v0.ContainsKey("regola") ? v0["regola"] : null) == "Genitori" &&
+            v0.ContainsKey("archivia") && object.Equals(v0["archivia"], true) && v0.ContainsKey("letti") &&
+            object.Equals(v0["letti"], false) && Stato.Formato >= 4);
         Verifica("e la regola della classe con unoQualsiasi, che la 1.5.3 non conosce",
             Vero(RegolaNelFile(Json(FileDati(c)), "Classi 2026-27/3B"), "unoQualsiasi"));
     }
@@ -1399,7 +1417,7 @@ static class ProvaStato
         s.TemaScuro = !s.TemaScuro;
         s.Personale.Add(NuovaPersona("BIANCHI LUCA", "luca.bianchi@scuola.example"));
         s.Salva();
-        Verifica("e non li riscrive: i colori delle regole e dei ruoli, i filtri da togliere e unoQualsiasi delle classi non si perdono",
+        Verifica("e non li riscrive: i colori delle regole e dei ruoli, i filtri da togliere con la regola che li sostituisce e unoQualsiasi delle classi non si perdono",
             Leggi(Impostazioni()) == imp && Leggi(FileDati(c)) == dati);
         Verifica("e lo dice", (Testo(s, "DaAvvisare") ?? "").Contains("versione piu' recente"));
     }
@@ -1750,7 +1768,9 @@ try {
     #  LA PROTEZIONE DELLE VERSIONI DI PRIMA
     #  La 1.5.2 ha il formato 1 e non sa niente dei colori ne' dei filtri di
     #  Gmail da togliere; la 1.5.3 ha il formato 2 e non sa niente di
-    #  unoQualsiasi, che hanno le regole delle classi: riscrivendo i file di
+    #  unoQualsiasi, che hanno le regole delle classi; la 1.6.0 ha il formato 3
+    #  e non sa niente della regola che sostituisce un filtro da togliere ne'
+    #  se il filtro archiviava o segnava come letto: riscrivendo i file di
     #  adesso li perderebbero. Qui gira una copia di questo stesso Stato.cs
     #  con ogni formato di prima, nella cartella dove la versione di adesso ha
     #  appena scritto i suoi file: deve lasciarli come sono.

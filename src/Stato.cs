@@ -600,8 +600,14 @@ namespace Campanella
         /// lascerebbe i giorni senza lezione in campanella.json anche con i dati
         /// nel Drive, e perderebbe unoQualsiasi: la regola di una classe vorrebbe
         /// senza dirlo l'oggetto E gli studenti.
+        /// Formato 4 (1.6.1): dentro ogni filtro di Gmail da togliere
+        /// ("filtriDaTogliere") la regola che lo sostituisce ("regola") e se il
+        /// filtro archiviava e segnava come letto ("archivia", "letti"); la 1.6.0
+        /// riscrivendo il file li perderebbe: il filtro sembrerebbe scelto con
+        /// lei, e non si saprebbe piu' quale regola lo sostituisce ne' se deve
+        /// archiviare o segnare come letti come lui.
         /// </summary>
-        public const int Formato = 3;
+        public const int Formato = 4;
 
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.

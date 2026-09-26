@@ -115,7 +115,10 @@ Ministero e USR fixed in step 4 reach the script only with it.
   lists
   it, step 4 and the step 5 summary say so in amber, and the window starts
   it as "Lascialo in Gmail" (with the file it is proposed again from
-  scratch). Chosen "Toglilo" again, it is removed without a rule.
+  scratch). Chosen "Toglilo" again, it is removed without a rule. The
+  settings files move to format 4, so Campanella 1.6.0 does not overwrite
+  them (it would drop the rule and what each filter to remove did, and the
+  filter would look chosen by 1.6.0) and says it needs updating.
 - Step 4: the description of the selected rule gets a scroll bar only when
   it does not fit (a rule that took many senders or a long search from a
   filter).
