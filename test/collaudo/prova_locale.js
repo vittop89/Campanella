@@ -535,7 +535,7 @@ intestazione('LA PROVA DELLA PROVA: I COLLOQUI SBAGLIATI');
       'dopo ORARI_4_calendario: nessun incontro del ricevimento il 23/09 (giorno senza lezione) ne\' dal 12/10 al 16/10',
       'dopo ORARI_4_calendario: il ricevimento e\' a tratti']],
     ['ORARI_ANNULLA_calendario che lascia i colloqui',
-     mutato(/(      if \(voce\.serie\) voce\.serie\.deleteEventSeries\(\);\n      else voce\.evento\.deleteEvent\(\);\n      tolti\+\+;)/,
+     mutato(/(      if \(voce\.serie\) voce\.serie\.deleteEventSeries\(\);\r?\n      else voce\.evento\.deleteEvent\(\);\r?\n      tolti\+\+;)/,
             '      if (voce.colloquio) continue;\n$1', 'ORARI_ANNULLA_calendario'),
      ['ORARI_ANNULLA_calendario toglie tutte le lezioni e tutti i colloqui di Campanella']]
   ];
