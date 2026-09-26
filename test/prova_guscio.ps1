@@ -386,6 +386,10 @@ try {
             $a.Count -eq 1 -and $a[0][0] -match 'Google Calendar' -and $a[0][1] -match "un'ora prima" -and
             $a[0][1] -match 'UTC' -and $a[0][1] -match 'ORARI_1_anteprima' -and $a[0][1] -match 'ORARI_ANNULLA_calendario' -and
             $a[0][1] -match 'ORARI_4_calendario' -and $a[0][1] -match 'dalle impostazioni di Google Calendar non basta')
+        # con la Posta nello stesso progetto, anche il suo codice: quello di
+        # prima non ferma con ANNULLA_automazione le riprese del calendario
+        Verifica "  ...e dice di incollare di nuovo anche il codice della Posta, se e' nello stesso progetto" (
+            $a.Count -eq 1 -and $a[0][1] -match 'codice principale' -and $a[0][1] -match 'ANNULLA_automazione')
         Verifica "  ...e lo segna come dato" ((Campo $st 'AvvisoFusoCalendarioDato') -eq $true)
         Verifica "  ...anche con le condizioni appena chieste (il salvataggio non l'ha detto)" ((Avvisi $true).Count -eq 1)
         $st.GetType().GetMethod('Salva', $FI).Invoke($st, @()) | Out-Null

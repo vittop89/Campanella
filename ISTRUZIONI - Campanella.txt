@@ -531,7 +531,12 @@ ORARI - le email a te e il calendario
    incollato con una versione di prima: ORARI_1_anteprima deve scrivere
    "Orari.gs versione 1.6.0". Quello di prima non conosce i giorni senza
    lezione, che finirebbero sul calendario come giorni di lezione, ne'
-   ORARI_5_cambioOrario, ne' i colloqui.
+   ORARI_5_cambioOrario, ne' i colloqui. Se nello stesso progetto c'e'
+   anche la Posta, reincolla anche il suo codice principale (pagina
+   Posta, in Codice.gs): con quello di prima ANNULLA_automazione non
+   ferma le riprese del calendario, dei colori e dei colloqui (la sua
+   anteprima, PASSO_1_anteprima, deve scrivere "Versione dello
+   script: 1.6.0").
    In "Colloqui con le famiglie", sotto i giorni senza lezione, scrivi i
    tuoi colloqui, una riga per voce: il ricevimento di ogni settimana
    (ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/..., anche

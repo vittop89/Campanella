@@ -170,9 +170,12 @@ namespace Campanella
                    "marzo le lezioni compaiono un'ora prima. Cambiare il fuso del calendario dalle " +
                    "impostazioni di Google Calendar non basta: le lezioni gia' messe restano nel fuso di prima.\n\n" +
                    "Per sistemare: nella pagina Orari copia di nuovo il \"Codice degli orari\" e incollalo " +
-                   "nel file Orari del progetto Apps Script, al posto di quello che c'era; poi esegui " +
-                   "ORARI_1_anteprima e segui quello che dice (di solito ORARI_ANNULLA_calendario, poi " +
-                   "ORARI_4_calendario). Le lezioni spostate o cancellate a mano vanno rifatte.\n\n" +
+                   "nel file Orari del progetto Apps Script, al posto di quello che c'era. Se nello stesso " +
+                   "progetto c'e' anche la Posta, incolla di nuovo anche il suo codice principale (pagina " +
+                   "Posta, in Codice.gs): quello di prima, con ANNULLA_automazione, non ferma le riprese del " +
+                   "calendario. Poi esegui ORARI_1_anteprima e segui quello che dice (di solito " +
+                   "ORARI_ANNULLA_calendario, poi ORARI_4_calendario). Le lezioni spostate o cancellate a mano " +
+                   "vanno rifatte.\n\n" +
                    "Se l'orario sul calendario l'hai messo con questa versione, o non l'hai messo, non " +
                    "devi fare niente. Questo avviso non compare piu'.";
         }
