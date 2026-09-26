@@ -26,9 +26,12 @@
     motore vero: quali filtri toglie EXTRA_togliFiltri e, su una casella
     finta, se i messaggi di ognuno hanno ancora quello che il filtro dava
     (l'etichetta della regola che lo sostituisce). Non contano, come dice la
-    finestra, i "Toglilo" senza regola scelti apposta, e i messaggi che hanno
-    l'etichetta di una regola che quella regola esclude (i colleghi per
-    Studenti, la casella della scuola per Ministero e USR).
+    finestra, i "Toglilo" senza regola scelti apposta, e i messaggi che la
+    regola non prende perche' le regole, da sole (la stessa casella senza
+    nessun filtro), gli danno l'etichetta di una regola che lei esclude (i
+    colleghi per Studenti, la casella della scuola per Ministero e USR): non
+    se gliela mette solo un filtro rimasto in Gmail, ne' se le regole
+    escluse prendono tutti i messaggi di un mittente del filtro.
 
     Lo lancia test\prova_posta.ps1. Serve dist\Campanella.exe (.\build.ps1)
     e Node. Nessun dato vero: domini .example, e dei domini istituzionali

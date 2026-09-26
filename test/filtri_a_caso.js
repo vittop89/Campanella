@@ -20,10 +20,16 @@
  *      senza regola) ed essere archiviato e segnato come letto se il filtro
  *      lo faceva. Non contano i filtri tolti con "Toglilo" scelto apposta,
  *      senza una regola: chi lo sceglie sa che va via e basta. E non conta
- *      un messaggio che ha l'etichetta di una regola che quella regola
- *      esclude (i colleghi per Studenti, la casella della scuola in
- *      Segreteria per Ministero e USR): la regola non lo prende, ed e'
- *      quello che fa.
+ *      un messaggio che la regola non prende perche' ha l'etichetta di una
+ *      regola che lei esclude (i colleghi per Studenti, la casella della
+ *      scuola in Segreteria per Ministero e USR): e' quello che fa. Solo se
+ *      quell'etichetta gliela mettono le regole, da sole: la stessa casella,
+ *      senza nessun filtro di Gmail, con lo stesso smistamento o riordino,
+ *      gli da' l'etichetta esclusa e non quella della regola. Se gliela
+ *      mette solo un filtro rimasto in Gmail la promessa e' rotta. E conta
+ *      lo stesso se le regole escluse prendono tutti i messaggi di un
+ *      mittente del filtro (tutti quelli della casella): per quel mittente
+ *      il filtro non lo sostituisce nessuno.
  *
  * scenari.json: { messaggi: [{ da, nome }], scenari: [{ nome, configurazione,
  * racconto, filtri: [{ etichetta, criteri, archivia, letti, regola,
@@ -36,7 +42,7 @@
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
-const { cerca, ricercaDelFiltro } = require('./ricerche_gmail');
+const { analizza, vale, cerca, ricercaDelFiltro } = require('./ricerche_gmail');
 
 const [fileScenari, fileMotore] = process.argv.slice(2);
 if (!fileScenari || !fileMotore) {
@@ -108,6 +114,20 @@ function contesto(configurazione, casella) {
   return ctx;
 }
 
+/** I mittenti che il filtro cerca (i from: non negati), come li scrive: pezzi di testo. */
+function mittentiDelFiltro(criteri) {
+  const fuori = [];
+  function giu(n, campo, negato) {
+    if (!n) return;
+    if (n.tipo === 'e' || n.tipo === 'o') n.parti.forEach(p => giu(p, campo, negato));
+    else if (n.tipo === 'non') giu(n.x, campo, !negato);
+    else if (n.tipo === 'campo') giu(n.x, n.campo, negato);
+    else if (!negato && (n.campo || campo) === 'from') fuori.push(n.valore);
+  }
+  try { giu(analizza(ricercaDelFiltro(criteri)), '', false); } catch (e) { return []; }
+  return fuori;
+}
+
 /** Gli indici dei filtri che EXTRA_togliFiltri toglie davvero, e lo script con la configurazione. */
 function tolti(scenario) {
   const ctx = contesto(scenario.configurazione, nuovaCasella());
@@ -154,14 +174,33 @@ for (const scenario of dati.scenari) {
       applicaFiltri(scenario.filtri.filter((f, i) => !via.has(i)), casella);
       const c = contesto(scenario.configurazione, casella);
       if (modo === 'smistamento') c.smistaNuoviMessaggi(); else c.PASSO_3_riordinaPostaEsistente();
+      // la stessa casella con le regole sole, senza nessun filtro di Gmail
+      const soloRegole = nuovaCasella();
+      const r = contesto(scenario.configurazione, soloRegole);
+      if (modo === 'smistamento') r.smistaNuoviMessaggi(); else r.PASSO_3_riordinaPostaEsistente();
+      const dalleRegole = new Map(soloRegole.map(m => [m.id, [...m.etichette].map(e => e.toLowerCase())]));
       scenario.filtri.forEach((f, i) => {
         if (!via.has(i) || f.esplicito) return;
         if (modo === 'smistamento') controllati++;
         const attesa = (f.regola ? conGruppo(f.regola) : f.etichetta).toLowerCase();
-        cerca(ricercaDelFiltro(f.criteri), casella).forEach(m => {
+        // la regola non lo prende nemmeno da sola, perche' le regole gli danno
+        // un'etichetta che lei esclude: e' quello che fa
+        const esclusoDalleRegole = m => {
+          const ha = dalleRegole.get(m.id) || [];
+          return !!escluse[attesa] && ha.indexOf(attesa) < 0 && ha.some(e => escluse[attesa].has(e));
+        };
+        const delFiltro = cerca(ricercaDelFiltro(f.criteri), casella);
+        // un mittente del filtro di cui le regole escluse prendono tutti i
+        // messaggi: per lui il filtro non lo sostituisce nessuno
+        const interi = new Set();
+        mittentiDelFiltro(f.criteri).forEach(t => {
+          const suoi = delFiltro.filter(m => vale({ tipo: 'parola', campo: 'from', valore: t }, m, ''));
+          if (suoi.length && suoi.every(esclusoDalleRegole)) suoi.forEach(m => interi.add(m.id));
+        });
+        delFiltro.forEach(m => {
           messaggiControllati++;
           const ha = [...m.etichette].map(e => e.toLowerCase());
-          if (escluse[attesa] && ha.some(e => escluse[attesa].has(e))) { eccezioni++; return; }
+          if (esclusoDalleRegole(m) && !interi.has(m.id)) { eccezioni++; return; }
           const manca = [];
           if (ha.indexOf(attesa) < 0) manca.push('senza l\'etichetta ' + attesa);
           if (f.archivia && m.inArrivo) manca.push('non archiviato');
@@ -189,6 +228,7 @@ for (const scenario of dati.scenari) {
 }
 console.log('Scenari: ' + scenari + '; filtri tolti da EXTRA_togliFiltri: ' + filtriTolti + ' (' + controllati +
             ' controllati: gli altri sono "Toglilo" senza regola, scelto apposta); messaggi controllati: ' +
-            messaggiControllati + ' (' + eccezioni + ' con un\'etichetta che la regola esclude); scenari che rompono ' +
+            messaggiControllati + ' (' + eccezioni + ' che la regola non prende nemmeno da sola: le regole gli danno ' +
+            'un\'etichetta che lei esclude); scenari che rompono ' +
             'la promessa: ' + rotti);
 process.exit(rotti ? 1 : 0);
