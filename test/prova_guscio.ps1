@@ -32,7 +32,13 @@
       - i bottoni che portano alla Posta ci arrivano anche con il menu in
         un altro ordine;
       - un file che non si scrive e una sottocartella che non si legge non
-        aprono la finestra d'errore di .NET.
+        aprono la finestra d'errore di .NET;
+      - negli elenchi con le spunte (le regole e i ruoli della Posta, i
+        modelli e le cartelle di Cartelle) la spunta cambia solo con un clic
+        sul quadratino o con la barra spaziatrice: il clic sul testo sceglie
+        la voce, il doppio clic non cambia niente (sulle regole apre
+        "Modifica"). I clic sono messaggi di Windows veri, mandati all'elenco
+        in una finestra mai mostrata.
 
     Uno Stato si crea senza costruttore, oppure con Carica dopo aver messo
     Stato.CartellaDiProva su una cartella temporanea: cosi' non guarda il
@@ -792,6 +798,156 @@ finally {
     if ($g -ne $null) { $g.Dispose() }
     $campoProva.SetValue($null, '')
     Remove-Item -Recurse -Force -LiteralPath $cartellaSenzaProva -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+Intestazione "LE SPUNTE DEGLI ELENCHI CAMBIANO SOLO SUL QUADRATINO"
+# Un clic sul nome di una regola (Posta, passo 4) le toglieva la spunta. Gli
+# elenchi con le spunte sono ElencoSpunte: il clic sul testo sceglie la voce
+# e basta, la spunta cambia con un clic sul quadratino o con la barra
+# spaziatrice. I clic arrivano come messaggi di Windows (SendMessage), come
+# quelli veri, all'elenco dentro una finestra mai mostrata.
+$tElenco = $asm.GetType('Campanella.ElencoSpunte')
+Verifica "c'e' l'elenco con la spunta solo sul quadratino (ElencoSpunte)" ($null -ne $tElenco)
+if ($null -ne $tElenco) {
+    if (-not ('ProvaGuscio.Messaggi' -as [type])) {
+        Add-Type -Namespace ProvaGuscio -Name Messaggi -MemberDefinition (
+            '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern System.IntPtr ' +
+            'SendMessage(System.IntPtr h, int m, System.IntPtr w, System.IntPtr l);')
+    }
+    function Manda($lista, $msg, $w, $l) { [void][ProvaGuscio.Messaggi]::SendMessage($lista.Handle, $msg, [IntPtr]$w, [IntPtr]$l) }
+    function Punto($x, $y) { return (([int]$y -shl 16) -bor ([int]$x -band 0xFFFF)) }
+    function Clic($lista, $x, $y) { Manda $lista 0x201 1 (Punto $x $y); Manda $lista 0x202 0 (Punto $x $y) }
+    function DoppioClic($lista, $x, $y) { Clic $lista $x $y; Manda $lista 0x203 1 (Punto $x $y); Manda $lista 0x202 0 (Punto $x $y) }
+    function Spazio($lista) { Manda $lista 0x100 0x20 0x390001; Manda $lista 0x102 0x20 0x390001; Manda $lista 0x101 0x20 0xC0390001 }
+    # il centro del testo di una voce, e un punto dentro il suo quadratino
+    function SulTesto($lista, $i) {
+        $r = $lista.GetItemRectangle($i)
+        return @(($lista.Quadratino($i).Right + 40), ($r.Y + [int]($r.Height / 2)))
+    }
+    function SulQuadratino($lista, $i) {
+        $q = $lista.Quadratino($i)
+        return @(($q.X + [int]($q.Width / 2)), ($q.Y + [int]($q.Height / 2)))
+    }
+    function Spunte($lista) { return (@(0..($lista.Items.Count - 1) | ForEach-Object { if ($lista.GetItemChecked($_)) { 'x' } else { '-' } }) -join '') }
+
+    $finestra = New-Object System.Windows.Forms.Form
+    $el = [Activator]::CreateInstance($tElenco)
+    $el.Size = New-Object System.Drawing.Size(300, 200)
+    $finestra.Controls.Add($el)
+    [void]$el.Items.Add('Dirigenza', $true)
+    [void]$el.Items.Add('Segreteria', $true)
+    [void]$el.Items.Add('Genitori', $false)
+    $script:doppi = 0; $script:cambi = 0
+    $el.add_DoppioClicSulTesto({ $script:doppi++ })
+    $el.add_ItemCheck({ $script:cambi++ })
+    [void]$el.Handle
+    try {
+        $p = SulTesto $el 1
+        Clic $el $p[0] $p[1]
+        Verifica "un clic sul testo sceglie la voce e non cambia la spunta ($(Spunte $el))" (
+            $el.SelectedIndex -eq 1 -and (Spunte $el) -eq 'xx-' -and $script:cambi -eq 0)
+        Clic $el $p[0] $p[1]
+        Verifica "nemmeno un secondo clic sul testo della voce gia' scelta ($(Spunte $el))" ((Spunte $el) -eq 'xx-' -and $script:cambi -eq 0)
+        $q = SulQuadratino $el 2
+        Clic $el $q[0] $q[1]
+        Verifica "un clic sul quadratino di un'altra voce la sceglie e cambia la spunta, una volta ($(Spunte $el))" (
+            $el.SelectedIndex -eq 2 -and (Spunte $el) -eq 'xxx' -and $script:cambi -eq 1)
+        Clic $el $q[0] $q[1]
+        Verifica "e un altro clic sul quadratino la toglie ($(Spunte $el))" ((Spunte $el) -eq 'xx-')
+        # sceso sul quadratino e risalito sul testo: non e' un clic sul quadratino
+        $t2 = SulTesto $el 2
+        Manda $el 0x201 1 (Punto $q[0] $q[1]); Manda $el 0x202 0 (Punto $t2[0] $t2[1])
+        Verifica "premuto sul quadratino e lasciato sul testo, la spunta resta ($(Spunte $el))" ((Spunte $el) -eq 'xx-')
+        Spazio $el
+        Verifica "la barra spaziatrice cambia la spunta della voce scelta ($(Spunte $el))" ((Spunte $el) -eq 'xxx')
+        Spazio $el
+        Verifica "e la toglie di nuovo ($(Spunte $el))" ((Spunte $el) -eq 'xx-')
+        $cambiPrima = $script:cambi
+        $t0 = SulTesto $el 0
+        DoppioClic $el $t0[0] $t0[1]
+        Verifica "un doppio clic sul testo non cambia la spunta, e lo dice una volta (DoppioClicSulTesto: $script:doppi)" (
+            (Spunte $el) -eq 'xx-' -and $el.SelectedIndex -eq 0 -and $script:doppi -eq 1 -and $script:cambi -eq $cambiPrima)
+        $q0 = SulQuadratino $el 0
+        DoppioClic $el $q0[0] $q0[1]
+        Verifica "un doppio clic sul quadratino sono due clic sul quadratino: la spunta torna com'era, e non apre niente" (
+            (Spunte $el) -eq 'xx-' -and $script:doppi -eq 1 -and $script:cambi -eq $cambiPrima + 2)
+        # una lettera salta alla voce che comincia cosi': con CheckOnClick le cambiava la spunta
+        Manda $el 0x100 0x47 0x220001; Manda $el 0x102 0x67 0x220001; Manda $el 0x101 0x47 0xC0220001
+        Verifica "una lettera sceglie la voce che comincia cosi' (Genitori) senza cambiarle la spunta ($(Spunte $el))" (
+            $el.SelectedIndex -eq 2 -and (Spunte $el) -eq 'xx-')
+        $el.SetItemChecked(0, $false)
+        $el.SetItemCheckState(2, [System.Windows.Forms.CheckState]::Checked)
+        Verifica "le spunte messe dal codice funzionano ($(Spunte $el))" ((Spunte $el) -eq '-xx')
+        # il quadratino: quanto il segno di spunta di Windows, nei DPI dello schermo, piu' il margine
+        $gr = $el.CreateGraphics()
+        try {
+            $lato = if ([System.Windows.Forms.Application]::RenderWithVisualStyles) {
+                [System.Windows.Forms.CheckBoxRenderer]::GetGlyphSize($gr, [System.Windows.Forms.VisualStyles.CheckBoxState]::UncheckedNormal).Width
+            } else { [Math]::Round(13 * $gr.DpiX / 96) }
+            $bordo = [Math]::Max(1, [Math]::Round($gr.DpiX / 96))
+            $dpi = [int]$gr.DpiX
+        } finally { $gr.Dispose() }
+        $quadro = $el.Quadratino(1)
+        Verifica "il quadratino e' largo quanto il segno di spunta ($lato punti a $dpi DPI) e il margine, alto quanto la voce" (
+            $quadro.Width -eq $lato + 3 * $bordo -and $quadro.Height -eq $el.GetItemRectangle(1).Height -and $quadro.X -eq 0)
+    }
+    finally { $finestra.Dispose() }
+
+    # gli elenchi veri: le regole e i ruoli della Posta, i modelli e le
+    # cartelle dell'anno di Cartelle. Nell'elenco delle regole il clic sul
+    # nome non spegne la regola, quello sul quadratino si'
+    $cartellaSpunte = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-spunte-' + (Get-Random))
+    New-Item -ItemType Directory -Force $cartellaSpunte | Out-Null
+    $campoProva.SetValue($null, $cartellaSpunte)
+    $g = $null
+    try {
+        $s = Rileggi
+        $g = NuovoGuscio $s
+        $posta = $null; $cartelle = $null
+        foreach ($p in $tGuscio.GetField('pagine', $FI).GetValue($g)) {
+            if ($p.GetType().Name -eq 'PaginaPosta') { $posta = $p }
+            if ($p.GetType().Name -eq 'PaginaCartelle') { $cartelle = $p }
+        }
+        $elenchi = @(
+            $posta.GetType().GetField('clbRegole', $FI).GetValue($posta),
+            $posta.GetType().GetField('clbRuoli', $FI).GetValue($posta),
+            $cartelle.GetType().GetField('clbModelli', $FI).GetValue($cartelle),
+            $cartelle.GetType().GetField('clbStruttura', $FI).GetValue($cartelle))
+        Verifica "le regole e i ruoli della Posta, i modelli e le cartelle dell'anno sono elenchi ElencoSpunte" (
+            @($elenchi | Where-Object { $_ -ne $null -and $_.GetType() -eq $tElenco }).Count -eq 4)
+        $clb = $elenchi[0]
+        $regole = $tStato.GetField('Regole').GetValue($s)
+        [void]$clb.Handle
+        $posta.GetType().GetMethod('AggiornaElencoRegole', $FI).Invoke($posta, @([int]0)) | Out-Null
+        $accese = (@(0..($regole.Count - 1) | ForEach-Object { $regole[$_].Attiva -eq $clb.GetItemChecked($_) }) -notcontains $false)
+        Verifica "le spunte delle regole, messe dal codice, sono quelle dello Stato" ($clb.Items.Count -eq $regole.Count -and $accese)
+        $iCirc = -1
+        for ($k = 0; $k -lt $regole.Count; $k++) { if ($regole[$k].Etichetta -eq 'Circolari') { $iCirc = $k } }
+        $p = SulTesto $clb $iCirc
+        Clic $clb $p[0] $p[1]
+        Verifica "un clic sul nome di Circolari la sceglie e la lascia accesa" (
+            $clb.SelectedIndex -eq $iCirc -and $clb.GetItemChecked($iCirc) -and $regole[$iCirc].Attiva)
+        $q = SulQuadratino $clb $iCirc
+        Clic $clb $q[0] $q[1]
+        Verifica "un clic sul suo quadratino la spegne, anche nello Stato" (-not $clb.GetItemChecked($iCirc) -and -not $regole[$iCirc].Attiva)
+        Clic $clb $q[0] $q[1]
+        Verifica "e un altro la riaccende" ($clb.GetItemChecked($iCirc) -and $regole[$iCirc].Attiva)
+        # il doppio clic sul nome apre "Modifica": qui si guarda solo che sia collegato
+        $campoDoppio = $tElenco.GetField('DoppioClicSulTesto', $FI)
+        Verifica "il doppio clic sul nome di una regola apre 'Modifica' (e' collegato solo li')" (
+            $null -ne $campoDoppio.GetValue($clb) -and
+            @($elenchi[1..3] | Where-Object { $null -ne $campoDoppio.GetValue($_) }).Count -eq 0 -and
+            $campoDoppio.GetValue($clb).Method.DeclaringType.FullName -match 'PaginaPosta')
+    }
+    catch {
+        Verifica "gli elenchi con le spunte si provano senza errori ($($_.Exception.GetBaseException().Message))" $false
+    }
+    finally {
+        if ($g -ne $null) { $g.Dispose() }
+        $campoProva.SetValue($null, '')
+        Remove-Item -Recurse -Force -LiteralPath $cartellaSpunte -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Host ""

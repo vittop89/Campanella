@@ -36,7 +36,7 @@ namespace Campanella
         TextBox txtDominio, txtDirigenza, txtSegreteria, txtRegistro;
 
         DataGridView griglia;
-        CheckedListBox clbRuoli;
+        ElencoSpunte clbRuoli;
         Label lblConteggio;
         ComboBox cmbSchema, cmbOrdine;
         bool aggiornandoRuoli = false;
@@ -45,7 +45,7 @@ namespace Campanella
         ComboBox cmbGruppo;
         Label lblGruppo;
 
-        CheckedListBox clbRegole;
+        ElencoSpunte clbRegole;
         TextBox txtPrefisso;
         Label lblPrefisso, lblDoppioni, lblFiltri;
         bool zitto = false;
@@ -313,11 +313,10 @@ namespace Campanella
             y += 128;
 
             p.Controls.Add(Tema.Testo1("Ruoli da includere", 0, y, 0, Tema.Grassetto, Ruolo.Normale));
-            clbRuoli = new CheckedListBox();
+            clbRuoli = new ElencoSpunte();
             clbRuoli.Location = new Point(0, y + 22);
             clbRuoli.Size = new Size(250, 250);
             clbRuoli.Font = Tema.Normale;
-            clbRuoli.CheckOnClick = true;
             clbRuoli.ItemCheck += RuoloCambiato;
             p.Controls.Add(clbRuoli);
             p.Controls.Add(Tema.Testo1("Studenti, genitori e indirizzi presi dalla casella senza ruolo " +
@@ -584,11 +583,14 @@ namespace Campanella
             int y = 52;
 
             Tema.RigaAiuto(p,
-                "Ogni riga e' un'etichetta di Gmail: togli la spunta a quelle che non ti servono.",
+                "Ogni riga e' un'etichetta di Gmail: togli la spunta (il quadratino) a quelle che non ti servono.",
                 0, y, Tema.Normale, Ruolo.Tenue, "Come lavorano le regole",
                 "Ogni regola cerca i suoi messaggi e ci mette la sua etichetta. Le etichette si " +
                 "sommano: una circolare mandata dal dirigente prende sia Dirigenza sia Circolari, " +
                 "e resta una conversazione sola.\r\n\r\n" +
+                "La spunta si toglie e si rimette con un clic sul quadratino, o con la barra " +
+                "spaziatrice: un clic sul nome sceglie la regola e ne mostra la descrizione, un " +
+                "doppio clic la apre in \"Modifica\".\r\n\r\n" +
                 "L'ordine conta solo per le regole che escludono le altre. Studenti prende la " +
                 "posta del dominio della scuola che non e' gia' finita in Colleghi, Dirigenza o " +
                 "Segreteria: per saperlo quelle regole devono girare prima, e per questo " +
@@ -627,12 +629,13 @@ namespace Campanella
             p.Controls.Add(lblPrefisso);
             y += 48;
 
-            clbRegole = new CheckedListBox();
+            clbRegole = new ElencoSpunte();
             clbRegole.Location = new Point(0, y);
             clbRegole.Size = new Size(400, 300);
             clbRegole.Font = Tema.Normale;
-            clbRegole.CheckOnClick = true;
             clbRegole.SelectedIndexChanged += delegate { MostraDescrizioneRegola(); };
+            // la spunta cambia solo sul quadratino: un doppio clic sul nome apre la regola
+            clbRegole.DoppioClicSulTesto += delegate { ModificaRegola(); };
             clbRegole.ItemCheck += delegate(object s, ItemCheckEventArgs e)
             {
                 if (e.Index >= 0 && e.Index < S.Regole.Count)

@@ -723,6 +723,145 @@ namespace Campanella
     }
 
     // =======================================================================
+    //  ELENCO CON LE SPUNTE: LA SPUNTA CAMBIA SOLO SUL QUADRATINO
+    //
+    //  Un CheckedListBox con CheckOnClick cambia la spunta con un clic
+    //  dovunque sulla voce, anche sul testo; senza, con il secondo clic su una
+    //  voce gia' scelta. Chi clicca su un'etichetta per leggerne la
+    //  descrizione la spegneva senza volerlo. Qui un clic sul testo sceglie la
+    //  voce e basta: la spunta cambia con un clic sul quadratino (anche di una
+    //  voce non scelta), con la barra spaziatrice sulla voce scelta e,
+    //  naturalmente, dal codice (SetItemChecked). Nemmeno scrivere una lettera
+    //  per saltare a una voce la cambia. Un doppio clic sul testo non la
+    //  cambia e alza DoppioClicSulTesto (Posta, passo 4: apre "Modifica").
+    //
+    //  Il quadratino si misura come lo disegna il CheckedListBox: il lato da
+    //  CheckBoxRenderer (con i temi di Windows) o 13 punti, nei punti per
+    //  pollice dello schermo, piu' il margine prima del testo. Cosi' regge
+    //  anche i DPI alti. Ogni elenco con le spunte e' uno di questi.
+    // =======================================================================
+    class ElencoSpunte : CheckedListBox
+    {
+        const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, WM_LBUTTONDBLCLK = 0x0203;
+        const int LBN_SELCHANGE = 1, LBN_DBLCLK = 2;
+
+        // la voce su cui e' sceso il tasto del mouse (-1 = nessuna), e se sul suo quadratino
+        int voceGiu = -1;
+        bool giuSulQuadratino = false;
+        // vero mentre arriva una notifica dell'elenco di Windows: un clic, un
+        // doppio clic, una lettera o una freccia. E' li' che il CheckedListBox
+        // cambia la spunta da solo
+        bool notifica = false;
+        // la voce la cui spunta il messaggio del mouse di adesso puo' cambiare: -1 = nessuna
+        int permessa = -1;
+        // la voce del doppio clic sul testo, da dire quando il tasto torna su
+        int doppio = -1;
+
+        /// <summary>Doppio clic sul testo di una voce (non sul quadratino): la spunta resta com'era.</summary>
+        public event EventHandler DoppioClicSulTesto;
+
+        public ElencoSpunte()
+        {
+            // un clic sul quadratino basta anche su una voce non ancora scelta;
+            // quelli sul testo li ferma OnItemCheck
+            CheckOnClick = true;
+        }
+
+        /// <summary>
+        /// Dove un clic cambia la spunta della voce: il quadratino e il
+        /// margine fino al testo, alto quanto la voce. Vuoto se la voce non c'e'.
+        /// </summary>
+        public Rectangle Quadratino(int voce)
+        {
+            if (voce < 0 || voce >= Items.Count || !IsHandleCreated) return Rectangle.Empty;
+            Rectangle r = GetItemRectangle(voce);
+            float dpi = 96f;
+            int lato = 13;
+            try
+            {
+                using (Graphics g = CreateGraphics())
+                {
+                    dpi = g.DpiX;
+                    lato = Application.RenderWithVisualStyles
+                        ? CheckBoxRenderer.GetGlyphSize(g, System.Windows.Forms.VisualStyles.CheckBoxState.UncheckedNormal).Width
+                        : (int)Math.Round(13 * dpi / 96f);
+                }
+            }
+            catch (Exception) { /* senza disegno: il quadratino di 13 punti */ }
+            // il CheckedListBox lascia un punto prima del quadratino e uno fra
+            // quadratino e testo; qui uno in piu', per un clic che lo sfiora
+            int bordo = Math.Max(1, (int)Math.Round(dpi / 96f));
+            int largo = Math.Min(r.Width, lato + 3 * bordo);
+            return (RightToLeft == RightToLeft.Yes)
+                ? new Rectangle(r.Right - largo, r.Y, largo, r.Height)
+                : new Rectangle(r.X, r.Y, largo, r.Height);
+        }
+
+        /// <summary>La voce sotto il punto (-1 = nessuna) e se il punto e' sul suo quadratino.</summary>
+        int VoceIn(Point p, out bool sulQuadratino)
+        {
+            sulQuadratino = false;
+            int voce = IndexFromPoint(p);
+            if (voce < 0 || voce >= Items.Count || !GetItemRectangle(voce).Contains(p)) return -1;
+            sulQuadratino = Quadratino(voce).Contains(p);
+            return voce;
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_LBUTTONUP && m.Msg != WM_LBUTTONDBLCLK)
+            {
+                base.WndProc(ref m);
+                return;
+            }
+            long l = m.LParam.ToInt64();
+            Point p = new Point((short)(l & 0xFFFF), (short)((l >> 16) & 0xFFFF));
+            bool quadratino;
+            int voce = VoceIn(p, out quadratino);
+            if (m.Msg == WM_LBUTTONDOWN || m.Msg == WM_LBUTTONDBLCLK)
+            {
+                voceGiu = voce;
+                giuSulQuadratino = quadratino;
+                doppio = (m.Msg == WM_LBUTTONDBLCLK && voce >= 0 && !quadratino) ? voce : -1;
+            }
+            // Windows dice il clic (e cambia la spunta) quando il tasto scende o
+            // quando risale: vale solo se e' sceso e risalito sullo stesso quadratino
+            permessa = (voce >= 0 && quadratino && voce == voceGiu && giuSulQuadratino) ? voce : -1;
+            try { base.WndProc(ref m); }
+            finally { permessa = -1; }
+            if (m.Msg == WM_LBUTTONUP && doppio >= 0)
+            {
+                // dopo il tasto risalito, come il DoubleClick di un ListBox: cosi'
+                // una finestra aperta qui non trova l'elenco con il mouse catturato
+                doppio = -1;
+                if (DoppioClicSulTesto != null) DoppioClicSulTesto(this, EventArgs.Empty);
+            }
+        }
+
+        protected override void WmReflectCommand(ref Message m)
+        {
+            int codice = (int)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+            bool prima = notifica;
+            notifica = (codice == LBN_SELCHANGE || codice == LBN_DBLCLK);
+            try { base.WmReflectCommand(ref m); }
+            finally { notifica = prima; }
+        }
+
+        protected override void OnItemCheck(ItemCheckEventArgs ice)
+        {
+            // una notifica dell'elenco di Windows cambia la spunta solo per un
+            // clic sul quadratino di quella voce; la barra spaziatrice e il
+            // codice passano da qui fuori da una notifica
+            if (notifica && ice.Index != permessa)
+            {
+                ice.NewValue = ice.CurrentValue;
+                return;
+            }
+            base.OnItemCheck(ice);
+        }
+    }
+
+    // =======================================================================
     //  PANNELLO CON DOPPIO BUFFER
     //  Un Panel normale ridisegna un pezzo alla volta e, se dentro ci sono
     //  molti bottoni, si vede lo sfarfallio. Questo prepara il disegno fuori

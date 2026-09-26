@@ -39,7 +39,7 @@ namespace Campanella
 
         // passo 1
         TextBox txtAnno, txtClassi, txtDrive, txtExtra, logBox;
-        CheckedListBox clbModelli, clbStruttura;
+        ElencoSpunte clbModelli, clbStruttura;
         Label lblDrive;
         Button btnAltroDrive;
         List<DriveTrovato> drivi = new List<DriveTrovato>();
@@ -207,17 +207,15 @@ namespace Campanella
             p.Controls.Add(Tema.Bottone("Modifica struttura...", 700, y - 4, 180,
                 delegate { ModificaStruttura(); }));
 
-            clbModelli = new CheckedListBox();
+            clbModelli = new ElencoSpunte();
             clbModelli.Location = new Point(0, y + 24);
             clbModelli.Size = new Size(430, 150);
-            clbModelli.CheckOnClick = true;
             clbModelli.Font = Tema.Normale;
             p.Controls.Add(clbModelli);
 
-            clbStruttura = new CheckedListBox();
+            clbStruttura = new ElencoSpunte();
             clbStruttura.Location = new Point(450, y + 24);
             clbStruttura.Size = new Size(430, 150);
-            clbStruttura.CheckOnClick = true;
             clbStruttura.Font = Tema.Normale;
             p.Controls.Add(clbStruttura);
             y += 186;
