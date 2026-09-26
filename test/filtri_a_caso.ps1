@@ -156,7 +156,7 @@ function NuovaRegola($etichetta, $da, [bool]$archivia, [bool]$letti, $query) {
     return $r
 }
 
-function NuovoStato($caso) {
+function NuovoStato($caso, $altro) {
     $s = [System.Runtime.Serialization.FormatterServices]::GetUninitializedObject($tStato)
     Imposta $s 'Drive' $temporanea
     Imposta $s 'CartellaDati' $temporanea
@@ -192,6 +192,13 @@ function NuovoStato($caso) {
     if (ACaso $caso 0.15) { $sind.Archivia = $false }
     if (ACaso $caso 0.15) { $sind.SegnaComeLette = $true }
     if (ACaso $caso 0.1) { $sind.QueryLibera = '-from:esami' }
+    # una riga dei mittenti con due indirizzi (l'editor della 1.6.0 la teneva
+    # cosi'), a volte un nome fra virgolette
+    if (ACaso $altro 0.15) {
+        $sind.Da.Add((Uno $altro @('@sindacato-uno.example sindacato-due.example', 'comunicati@sindacato-uno.example, @flcgil.it',
+                                   '@mail.sindacato-uno.example;newsletter@flcgil.it', 'mario.rossi@sindacato-due.example info@sindacato-due.example')))
+    }
+    if (ACaso $altro 0.05) { $sind.Da.Add('"Sindacato Uno"') }
     if (ACaso $caso 0.3) {
         $gen = Regola $s 'Genitori'
         $gen.Da.Add('@famiglie.example')
@@ -200,6 +207,7 @@ function NuovoStato($caso) {
     if (ACaso $caso 0.2) { Imposta $s 'Registro' "@spaggiari.eu`r`nnuvola" }
     if (ACaso $caso 0.4) {
         $portali = NuovaRegola 'Portali' (Alcuni $caso @('portale-uno.example', '@portale-uno.example', 'avvisi@portale-uno.example', 'portale-due.example') (1 + $caso.Next(2))) (ACaso $caso 0.5) (ACaso $caso 0.3) $(if (ACaso $caso 0.2) { '-from:esami' } else { '' })
+        if (ACaso $altro 0.15) { $portali.Da.Add('info@portale-due.example, mario.rossi@portale-due.example') }
         $regole.Add($portali)
         if (ACaso $caso 0.35) {
             $regole.Add((NuovaRegola 'Portali' (Alcuni $caso @('info@portale-due.example', 'esami.portale-uno.example', 'mario.rossi@portale-due.example') 1) (ACaso $caso 0.5) (ACaso $caso 0.3) ''))
@@ -285,8 +293,12 @@ $conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0
 foreach ($n in $quali) {
     # ogni scenario ha il suo seme, dal seme e dal suo numero: lo stesso scenario
     # si rifa' da solo (-Solo), e due semi vicini non danno gli stessi scenari
-    $caso = New-Object System.Random ([int](([long]$Seme * 1000003 + [long]$n * 7919) % 2147483647))
-    $s = NuovoStato $caso
+    $semeScenario = [int](([long]$Seme * 1000003 + [long]$n * 7919) % 2147483647)
+    $caso = New-Object System.Random $semeScenario
+    # le forme aggiunte dopo (righe dei mittenti con due indirizzi...) hanno il
+    # loro generatore: gli scenari di prima restano quelli
+    $altro = New-Object System.Random ([int](([long]$semeScenario * 31 + 17) % 2147483647))
+    $s = NuovoStato $caso $altro
     $prefisso = [string](Leggi $s 'Prefisso')
     $filtri = @()
     $quanti = 2 + $caso.Next(5)

@@ -1081,12 +1081,25 @@ namespace Campanella
 
         // un mittente come si scrive in una regola: un indirizzo, @dominio, un
         // dominio o una parola (nuvola, noreply). Niente spazi, virgolette,
-        // parentesi, due punti
-        static readonly Regex Mittente = new Regex(@"^[A-Za-z0-9@._+'\-]+$");
-
+        // parentesi, due punti (Regola.UnMittente)
         static bool UnMittente(string t)
         {
-            return !string.IsNullOrEmpty(t) && t[0] != '-' && t != "OR" && t != "AND" && Mittente.IsMatch(t);
+            return Regola.UnMittente(t);
+        }
+
+        /// <summary>
+        /// Vero se fra i mittenti della regola, come li scrive la configurazione
+        /// (GeneratorePosta.MittentiDellaRegola, una voce per indirizzo), ce n'e'
+        /// uno che non e' un mittente solo (UnMittente) ne' un segnaposto: un
+        /// nome fra virgolette, un operatore, un pezzo di ricerca. Nella
+        /// ricerca della regola non si sa bene che cosa prende: nel dubbio la
+        /// regola non sostituisce nessun filtro (non "lo fa gia'", non si unisce).
+        /// </summary>
+        static bool MittentiDubbi(Stato s, Regola r)
+        {
+            foreach (string d in GeneratorePosta.MittentiDellaRegola(s, r))
+                if (!Segnaposto(d) && !UnMittente((d ?? "").Trim())) return true;
+            return false;
         }
 
         /// <summary>Vero se l'elenco ha gia' quel valore (spazi ai lati e maiuscole a parte).</summary>
@@ -1366,7 +1379,9 @@ namespace Campanella
         /// <summary>
         /// Vero se i mittenti del filtro si possono aggiungere alla regola senza
         /// cambiare che cosa fa il filtro: la regola ha i mittenti suoi (nessun
-        /// segnaposto dell'elenco del personale, del dominio o di una classe) o
+        /// segnaposto dell'elenco del personale, del dominio o di una classe, e
+        /// nessuno che non sia un mittente solo, come un nome fra virgolette:
+        /// MittentiDubbi) o
         /// quelli di "La tua scuola" (Dirigenza, Segreteria, Registro
         /// elettronico: vanno li'), nessun altro criterio (oggetto, parole,
         /// "basta uno dei due"), nella ricerca avanzata al piu' delle esclusioni
@@ -1423,6 +1438,8 @@ namespace Campanella
                 foreach (string d in m.Da) if (!DelRegistro(d)) return false;
             if (LeMieClassi.ClasseDi(r) != null) return false;
             foreach (string d in r.Da) if (Segnaposto(d)) return false;
+            // un nome fra virgolette, un operatore: non si sa che cosa prende
+            if (MittentiDubbi(s, r)) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
             if (Esclusioni(r.QueryLibera) == null) return false;
             if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
@@ -1722,7 +1739,9 @@ namespace Campanella
         /// come letti come lui (StesseAzioni), ogni suo mittente lo prende uno
         /// della regola (lo stesso, o il suo dominio; con l'elenco del
         /// personale, il dominio e i gruppi sciolti: Colleghi con i colleghi
-        /// dell'elenco), ogni esclusione che il filtro non ha non tocca i suoi
+        /// dell'elenco; nessuno della regola che non sia un mittente solo o un
+        /// segnaposto, come un nome fra virgolette: MittentiDubbi, nel dubbio
+        /// no), ogni esclusione che il filtro non ha non tocca i suoi
         /// mittenti (Innocua: un'esclusione in piu' lascerebbe fuori dei
         /// messaggi del filtro), nessuna delle regole di cui esclude
         /// l'etichetta puo' prendere tutto un suo mittente (ForseDaUnaEsclusa:
@@ -1738,7 +1757,7 @@ namespace Campanella
             if (m == null || r == null || s == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
-            if (!StesseAzioni(r, archivia, letti)) return false;
+            if (!StesseAzioni(r, archivia, letti) || MittentiDubbi(s, r)) return false;
             List<string> esclusi = Esclusioni(r.QueryLibera);
             if (esclusi == null) return false;
             if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) || PrimaUnaDiversa(s, r, personale)) return false;
@@ -1761,7 +1780,7 @@ namespace Campanella
         {
             if (r == null || s == null || ricerca == null) return false;
             if (r.Sorgente != "" || r.Da.Count > 0 || r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi ||
-                r.EscludiEtichette.Count > 0) return false;
+                r.EscludiEtichette.Count > 0 || MittentiDubbi(s, r)) return false;
             if (!StessaRicerca(r.QueryLibera, ricerca)) return false;
             return StesseAzioni(r, archivia, letti) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) &&
                    !PrimaUnaDiversa(s, r, personale);

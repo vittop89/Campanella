@@ -2244,6 +2244,63 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $gareY3.Count -eq 2 -and $motoreY3.esito -eq 0 -and $motoreY3.tolti -eq 2)
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UNA RIGA DEI MITTENTI CON PIU'' INDIRIZZI'
+    # Nella ricerca della regola, from:(a OR b c OR d), "b c" vuole tutti e due
+    # i mittenti: la regola non prenderebbe niente. Una riga con piu'
+    # indirizzi, separati da spazi, virgole o punti e virgola, diventa una
+    # voce per indirizzo nell'editor, nel file e nella configurazione
+    # (Regola.DividiMittenti); una voce che non e' un mittente solo (un nome
+    # fra virgolette) resta com'e', e nel dubbio la regola non sostituisce
+    # nessun filtro
+    $tRegolaB = $asm.GetType('Campanella.Regola')
+    $diviseB = @($tRegolaB.GetMethod('DividiMittenti', $FS).Invoke($null, @(, [string[]]@(
+        'rsu@sindacato-tre.example info@sindacato-tre.example', ' @sindacato-quattro.example, @sindacato-cinque.example;@sindacato-sei.example ',
+        '"Sindacato Tre"', '@CLASSE:3B LSA@', 'a OR b', 'rsu@sindacato-tre.example'))))
+    Verifica "una riga con piu' indirizzi diventa una voce per indirizzo; un nome, un segnaposto e un operatore restano ($($diviseB -join ' | '))" (
+        ($diviseB -join '|') -eq 'rsu@sindacato-tre.example|info@sindacato-tre.example|@sindacato-quattro.example|@sindacato-cinque.example|@sindacato-sei.example|"Sindacato Tre"|@CLASSE:3B LSA@|a OR b')
+    $regolaEditorB = [Activator]::CreateInstance($tRegolaB)
+    $regolaEditorB.Etichetta = 'Sindacati'
+    $editorB = [Activator]::CreateInstance($asm.GetType('Campanella.FormRegola'), @($regolaEditorB))
+    $editorB.GetType().GetField('txtDa', $FIn).GetValue($editorB).Text =
+        "rsu@sindacato-tre.example info@sindacato-tre.example`r`n@sindacato-quattro.example, @sindacato-cinque.example`r`n""Sindacato Tre"""
+    $salvataB = $editorB.GetType().GetMethod('Componi', $FIn).Invoke($editorB, @())
+    $editorB.Dispose()
+    Verifica "l'editor delle regole salva una voce per indirizzo ($($salvataB.Da -join ' | '))" (
+        ($salvataB.Da -join '|') -eq 'rsu@sindacato-tre.example|info@sindacato-tre.example|@sindacato-quattro.example|@sindacato-cinque.example|"Sindacato Tre"')
+    # una regola salvata prima con due indirizzi in una riga: la configurazione
+    # li scrive divisi, e la regola li prende davvero
+    $sB1 = StatoRiorganizza
+    $sindB1 = @((Leggi $sB1 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    $sindB1.Da.Add('rsu@sindacato-tre.example info@sindacato-tre.example')
+    $sindB1.Da.Add('@sindacato-quattro.example')
+    $quattroB = UnFiltro ([ordered]@{ from = '@sindacato-quattro.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $rsuB = UnFiltro ([ordered]@{ from = 'rsu@sindacato-tre.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $b1 = FinestraEScelta $sB1 @($quattroB, $rsuB) $null
+    $confB1 = [string](Genera $sB1 $false)
+    $posteB = @(@('info@sindacato-tre.example', 'Sindacato Tre'), @('rsu@sindacato-tre.example', 'RSU'),
+                @('segreteria@sindacato-quattro.example', 'Sindacato Quattro'), @('mario.bianchi@sindacato-quattro.example', 'Mario Bianchi'))
+    $motoreB1 = PromessaNelMotore $sB1 @($quattroB, $rsuB) $posteB 'riga_con_due_indirizzi'
+    Verifica "Sindacati con 'rsu@sindacato-tre.example info@sindacato-tre.example' in una riga: la configurazione li scrive divisi, e nel motore vero la regola prende i messaggi dei filtri tolti ($($b1.scelte -join '; '); $($motoreB1.tolti) tolti)" (
+        ($b1.scelte -join ',') -eq "Toglilo: lo fa gia' la regola Sindacati,Toglilo: lo fa gia' la regola Sindacati" -and
+        $confB1 -match '"rsu@sindacato-tre\.example", "info@sindacato-tre\.example", "@sindacato-quattro\.example"' -and
+        $motoreB1.esito -eq 0 -and $motoreB1.tolti -eq 2)
+    # un nome fra virgolette fra i mittenti: la regola non "lo fa gia'" e non
+    # prende i mittenti di un filtro, nel dubbio
+    $sB2 = StatoRiorganizza
+    $sindB2 = @((Leggi $sB2 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    $sindB2.Da.Add('@sindacato-uno.example')
+    $sindB2.Da.Add('"Sindacato Tre"')
+    $unoB = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $dueB = UnFiltro ([ordered]@{ from = '@sindacato-due.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $cUnoB = ScelteDi $unoB $sB2
+    $cDueB = ScelteDi $dueB $sB2
+    $b2 = FinestraEScelta $sB2 @($unoB, $dueB) $null
+    Verifica "con un nome fra virgolette fra i mittenti, Sindacati non 'lo fa gia'' e non prende i mittenti dei filtri ($(Testi $cUnoB) / $(Testi $cDueB)); restano in Gmail" (
+        (Testi $cUnoB) -notmatch "lo fa gia'" -and (Testi $cUnoB) -notmatch 'Unisci a Sindacati' -and
+        (Testi $cDueB) -notmatch 'Unisci a Sindacati' -and ($b2.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and
+        (Leggi $sB2 'FiltriDaTogliere').Count -eq 0 -and $sindB2.Da.Count -eq 8)
+
+    # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
     # indirizzi di Segreteria o Dirigenza: Ministero e USR, con @istruzione.it

@@ -95,6 +95,7 @@ static class ProvaStato
                 case "filtri-andata-e-ritorno": FiltriAndataERitorno(); break;
                 case "filtri-scritti-a-mano": FiltriScrittiAMano(); break;
                 case "classi-andata-e-ritorno": ClassiAndataERitorno(); break;
+                case "mittenti-in-una-riga": MittentiInUnaRiga(); break;
                 case "classi-colori": ClassiColori(); break;
                 case "classi-madri": ClassiMadri(); break;
                 case "colori-lezioni": ColoriLezioniAndataERitorno(); break;
@@ -1103,6 +1104,35 @@ static class ProvaStato
             !Uno(RegolaDi(v, "Verbali")));
     }
 
+    // Una riga dei mittenti con piu' indirizzi, separati da spazi, virgole o
+    // punti e virgola (l'editor delle regole prima della 1.6.1 la teneva
+    // cosi'): nella ricerca della regola "a b" vorrebbe tutti e due, e la
+    // regola non prenderebbe niente. Letta dal file diventa una voce per
+    // indirizzo; un nome fra virgolette e un segnaposto restano come sono
+    static void MittentiInUnaRiga()
+    {
+        Dictionary<string, object> sindacati = RegolaJson("Sindacati", "", null);
+        sindacati["da"] = new object[] { "rsu@sindacato-tre.example info@sindacato-tre.example",
+                                         " @sindacato-quattro.example, @sindacato-cinque.example;@sindacato-sei.example ",
+                                         "\"Sindacato Tre\"", "a OR b", "info@sindacato-tre.example" };
+        Dictionary<string, object> classe = RegolaJson("Classi/3B LSA", "classe", null);
+        classe["da"] = new object[] { "@CLASSE:3B LSA@" };
+        Dictionary<string, object> altro = new Dictionary<string, object>();
+        altro["regole"] = new object[] { sindacati, classe };
+        ScriviImpostazioni(false, "", altro);
+        Stato s = Carica();
+        Regola r = RegolaDi(s, "Sindacati");
+        string da = (r == null) ? "" : string.Join("|", r.Da.ToArray());
+        Verifica("una riga con piu' indirizzi diventa una voce per indirizzo, senza doppioni; un nome fra virgolette e un " +
+                 "operatore restano com'erano (" + da + ")",
+            da == "rsu@sindacato-tre.example|info@sindacato-tre.example|@sindacato-quattro.example|@sindacato-cinque.example|" +
+                  "@sindacato-sei.example|\"Sindacato Tre\"|a OR b");
+        Regola k = RegolaDi(s, "Classi/3B LSA");
+        Verifica("il segnaposto di una classe con lo spazio resta intero", k != null && k.Da.Count == 1 && k.Da[0] == "@CLASSE:3B LSA@");
+        s.Salva();
+        Verifica("e si riscrive cosi'", ListaNelFile(RegolaNelFile(Json(Impostazioni()), "Sindacati"), "da") == da);
+    }
+
     // I colori delle etichette delle classi: sfumature di una tinta sola, che
     // nessun'altra regola usa, ognuna la sua finche' ce ne sono; un colore gia'
     // dato (anche nessun colore, scelto a mano) resta.
@@ -1733,6 +1763,7 @@ $casi = @(
     'filtri-andata-e-ritorno'
     'filtri-scritti-a-mano'
     'classi-andata-e-ritorno'
+    'mittenti-in-una-riga'
     'classi-colori'
     'classi-madri'
     'colori-lezioni'

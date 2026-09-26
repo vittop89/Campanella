@@ -386,7 +386,10 @@ namespace Campanella
             // di uno studente: non entra nella regola (ne' nello Stato)
             if (LeMieClassi.ClasseDi(r) != null)
                 r.Oggetto.RemoveAll(delegate(string p) { return p.IndexOf('@') >= 0; });
-            if (!MittentiFissi(originale)) r.Da = Spezza(txtDa.Text);
+            // una riga con piu' indirizzi (separati da spazi, virgole o punti e
+            // virgola) diventa una voce per indirizzo: nella ricerca della regola
+            // "a b" li vorrebbe tutti e due (Regola.DividiMittenti)
+            if (!MittentiFissi(originale)) r.Da = Regola.DividiMittenti(Spezza(txtDa.Text));
             return r;
         }
 

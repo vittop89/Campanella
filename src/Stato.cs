@@ -78,6 +78,51 @@ namespace Campanella
         /// <summary>La sorgente delle regole delle classi (Posta, passo 4, "Le mie classi...").</summary>
         public const string SorgenteClasse = "classe";
 
+        // un mittente come si scrive in una regola: un indirizzo, @dominio, un
+        // dominio o una parola (nuvola, noreply). Niente spazi, virgolette,
+        // parentesi, due punti
+        static readonly Regex UnSoloMittente = new Regex(@"^[A-Za-z0-9@._+'\-]+$");
+
+        /// <summary>
+        /// Vero se t e' un mittente solo, come si scrive in una regola: un
+        /// indirizzo, @dominio, un dominio o una parola. Non un'esclusione
+        /// (-x), non OR o AND, niente spazi, virgolette, parentesi o due punti.
+        /// </summary>
+        public static bool UnMittente(string t)
+        {
+            return !string.IsNullOrEmpty(t) && t[0] != '-' && t != "OR" && t != "AND" && UnSoloMittente.IsMatch(t);
+        }
+
+        static readonly char[] FraIMittenti = { ' ', '\t', '\r', '\n', ',', ';' };
+
+        /// <summary>
+        /// I mittenti di una regola, uno per voce, senza voci vuote ne'
+        /// doppioni. Una riga con piu' indirizzi separati da spazi, virgole o
+        /// punti e virgola (come nelle caselle di "La tua scuola") diventa una
+        /// voce per indirizzo: nella ricerca della regola, from:(a OR b c OR d),
+        /// "b c" vorrebbe tutti e due, e la regola non prenderebbe piu' niente.
+        /// Solo se ogni pezzo e' un mittente (UnMittente): un segnaposto
+        /// (@CLASSE:3B LSA@), un nome fra virgolette o un operatore restano come
+        /// sono. Per l'editor delle regole, per le regole lette dal file e per
+        /// la configurazione (GeneratorePosta.MittentiDellaRegola).
+        /// </summary>
+        public static List<string> DividiMittenti(IEnumerable<string> elenco)
+        {
+            List<string> fuori = new List<string>();
+            if (elenco == null) return fuori;
+            foreach (string grezzo in elenco)
+            {
+                string v = (grezzo ?? "").Trim();
+                if (v == "") continue;
+                string[] pezzi = v.Split(FraIMittenti, StringSplitOptions.RemoveEmptyEntries);
+                bool dividi = pezzi.Length > 0 && !(v.Length > 1 && v[0] == '@' && v[v.Length - 1] == '@');
+                if (dividi) foreach (string p in pezzi) if (!UnMittente(p)) { dividi = false; break; }
+                foreach (string p in dividi ? pezzi : new string[] { v })
+                    if (!fuori.Contains(p)) fuori.Add(p);
+            }
+            return fuori;
+        }
+
         public Regola Copia()
         {
             Regola r = new Regola();
@@ -1392,7 +1437,8 @@ namespace Campanella
                     if (x.Etichetta == "") continue;
                     x.Descrizione = Str(d, "descrizione", "");
                     x.Attiva = Bool(d, "attiva", true);
-                    x.Da = Lista(d, "da");
+                    // una riga con piu' indirizzi (scritta cosi' prima della 1.6.1) diventa una voce per indirizzo
+                    x.Da = Regola.DividiMittenti(Lista(d, "da"));
                     x.Oggetto = Lista(d, "oggetto");
                     x.Contiene = Lista(d, "contiene");
                     x.EscludiEtichette = Lista(d, "escludi");

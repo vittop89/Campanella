@@ -385,14 +385,16 @@ namespace Campanella
         /// <summary>
         /// I mittenti di una regola come li scrive la configurazione: quelle di
         /// Dirigenza, Segreteria e Registro li prendono dalla pagina "La tua
-        /// scuola", le altre dalla regola (segnaposto compresi).
+        /// scuola", le altre dalla regola (segnaposto compresi), con una voce
+        /// per indirizzo anche dove una riga ne ha piu' d'uno
+        /// (Regola.DividiMittenti): nella ricerca "a b" li vorrebbe tutti e due.
         /// </summary>
         public static List<string> MittentiDellaRegola(Stato s, Regola r)
         {
             if (r.Sorgente == "dirigenza") return Righe(s.Dirigenza);
             if (r.Sorgente == "segreteria") return Righe(s.Segreteria);
             if (r.Sorgente == "registro") return Righe(s.Registro);
-            return new List<string>(r.Da);
+            return Regola.DividiMittenti(r.Da);
         }
 
         /// <summary>
@@ -521,8 +523,9 @@ namespace Campanella
         static bool Prende(Regola r, string indirizzo)
         {
             if (FiltriGmail.Contiene(FiltriGmail.MittentiEsclusi(r.QueryLibera), indirizzo)) return false;
-            if (FiltriGmail.Contiene(r.Da, indirizzo)) return false;
-            foreach (string grezzo in r.Da)
+            List<string> da = Regola.DividiMittenti(r.Da);
+            if (FiltriGmail.Contiene(da, indirizzo)) return false;
+            foreach (string grezzo in da)
             {
                 string t = (grezzo ?? "").Trim().ToLowerInvariant();
                 if (t == "" || (t.StartsWith("@") && t.EndsWith("@"))) continue;
