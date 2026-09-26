@@ -768,6 +768,16 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
         $lblF.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
     ControllaPannello $pannelloF 'Posta / 4 con i filtri tolti all''avvio'
     $campoTolti.SetValue($stato, 0)
+    # un filtro scelto la cui regola non c'e' piu': resta in Gmail, e il passo 4 lo dice, in ambra, e ci sta
+    $sceltoF = @($tStato.GetField('FiltriDaTogliere', $FI).GetValue($stato))[0]
+    $sceltoF.Regola = 'Una regola che non c''e'''
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "il passo 4 dice il filtro scelto che resta, senza la sua regola ('$($lblF.Text)')" (
+        $lblF.Text -match "^Nessun filtro di Gmail da togliere\. 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu'" -and
+        $lblF.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
+    ControllaPannello $pannelloF 'Posta / 4 con un filtro senza la sua regola'
+    $sceltoF.Regola = ''
     $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT)))
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
     Verifica "e senza filtri lo dice" ($lblF.Text -eq 'Nessun filtro di Gmail da togliere.')

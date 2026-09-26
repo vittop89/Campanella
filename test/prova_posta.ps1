@@ -1368,6 +1368,66 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         [object]::ReferenceEquals($riaperteD[2].Regola, $gareD[0]) -and [object]::ReferenceEquals($riaperteD[3].Regola, $gareD[0]))
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: SE LA REGOLA NON C''E'' PIU'''
+    # Ogni filtro da togliere sa la regola che lo sostituisce. Se dopo "Usa
+    # questa scelta" la regola si toglie, si spegne o perde i mittenti del
+    # filtro, il filtro non va piu' via: la configurazione non lo scrive, il
+    # passo 4 lo dice, e la finestra riaperta lo propone di nuovo come nuovo
+    $mSenza = $tFiltri.GetMethod('SenzaLaRegola', $FS)
+    $mDaTogliere = $tGen.GetMethod('FiltriDaTogliere', $FS)
+    $sO = StatoRiorganizza
+    $ffO1 = [Activator]::CreateInstance($tFF, @($sO.PSObject.BaseObject))
+    $ffO1.Carica($filtriR)
+    [void]$mApplica.Invoke($null, @($sO.PSObject.BaseObject, $ffO1.FatteAdesso()))
+    $ffO1.Dispose()
+    $sostitute = @((Leggi $sO 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola })
+    Verifica "ogni filtro da togliere sa la regola che lo sostituisce ($(@($sostitute[4..6]) -join ', ')...)" (
+        $sostitute.Count -eq 14 -and $sostitute -contains 'XYIS01200Z>XYIS01200Z' -and $sostitute -contains 'Famiglie>Genitori' -and
+        $sostitute -contains 'Registro elettronico>Registro elettronico' -and $sostitute -contains 'Sindacati e normativa>Sindacati' -and
+        $sostitute -contains 'Ministero e USR>Ministero e USR' -and $sostitute -contains 'Ref. Ed. Civica>Ref. Ed. Civica')
+    Verifica "con tutte le regole, tutti e 14 si tolgono" (
+        [int]$mDaTogliere.Invoke($null, @($sO)) -eq 14 -and @($mSenza.Invoke($null, @($sO))).Count -eq 0)
+    function Senza($stato) { return (@($mSenza.Invoke($null, @($stato)) | ForEach-Object { $_.Etichetta }) -join ',') }
+    $regoleO = Leggi $sO 'Regole'
+    $olimpiadiO = @($regoleO | Where-Object { $_.Etichetta -eq 'Olimpiadi e gare' })[0]
+    [void]$regoleO.Remove($olimpiadiO)
+    $testoO = Genera $sO $true
+    Verifica "tolta la regola Olimpiadi e gare (come 'Elimina regola'), il suo filtro resta: 13 da togliere, e nella configurazione non c'e' ('$(Senza $sO)')" (
+        [int]$mDaTogliere.Invoke($null, @($sO)) -eq 13 -and (Senza $sO) -eq 'Olimpiadi e gare' -and
+        $testoO -match 'filtriDaTogliere' -and $testoO -notmatch 'gare-scientifiche\.example OR olimat')
+    @($regoleO | Where-Object { $_.Etichetta -eq 'Genitori' })[0].Attiva = $false
+    Verifica "spenta Genitori, anche Famiglie resta ('$(Senza $sO)')" ((Senza $sO) -eq 'Olimpiadi e gare,Famiglie')
+    Imposta $sO 'Registro' ((Leggi $sO 'Registro') -replace '(?m)^nuvola\r?$', '')
+    Verifica "tolto nuvola da 'La tua scuola', anche Registro elettronico resta ('$(Senza $sO)')" (
+        (Senza $sO) -eq 'Registro elettronico,Olimpiadi e gare,Famiglie' -and [int]$mDaTogliere.Invoke($null, @($sO)) -eq 11)
+    $avvisoO = [string]$asm.GetType('Campanella.PaginaPosta').GetMethod('TestoSenzaLaRegola', $FS).Invoke($null, @([int]3))
+    Verifica "il passo 4 lo dice ('$avvisoO')" ($avvisoO -match "3 filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu'")
+    # la finestra: quelli senza regola, scelti prima, partono lasciati
+    $ffO2 = [Activator]::CreateInstance($tFF, @($sO.PSObject.BaseObject))
+    $lasciatiO = @(0..13 | Where-Object { $ffO2.Scelta($_).Azione -eq 'lascia' } | ForEach-Object { (Leggi $sO 'FiltriDaTogliere')[$_].Etichetta })
+    $grO = $tFF.GetField('griglia', $FIn).GetValue($ffO2)
+    $iOlimp = [array]::IndexOf(@((Leggi $sO 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta }), 'Olimpiadi e gare')
+    $grO.CurrentCell = $grO.Rows[$iOlimp].Cells[1]
+    $dettaglioO = $tFF.GetField('txtDettaglio', $FIn).GetValue($ffO2).Text
+    Verifica "riaperta senza file, i tre senza regola partono lasciati, e il dettaglio dice perche' ($($lasciatiO -join ', '))" (
+        ($lasciatiO -join ',') -eq 'Registro elettronico,Olimpiadi e gare,Famiglie' -and
+        $dettaglioO -match "la regola che lo sostituiva \(Olimpiadi e gare\) non c'e' piu'")
+    # con il file: Olimpiadi e gare torna "tuo", e parte come regola nuova
+    $ffO2.Carica($filtriR)
+    Verifica "con il file, Olimpiadi e gare non e' piu' 'scelto prima': parte come 'Diventa una regola' ('$($ffO2.Scelta(8).Testo)')" (
+        $ffO2.Scelta(8).Azione -eq 'nuova' -and $ffO2.Scelta(8).Testo -eq 'Diventa una regola')
+    $ffO2.Dispose()
+    # scelto di nuovo "Toglilo" a mano: si toglie e basta, senza regola
+    $ffO3 = [Activator]::CreateInstance($tFF, @($sO.PSObject.BaseObject))
+    $ffO3.Scegli($iOlimp, @($ffO3.Scelte($iOlimp) | Where-Object { $_.Azione -eq 'togli' })[0])
+    [void]$mApplica.Invoke($null, @($sO.PSObject.BaseObject, $ffO3.FatteAdesso()))
+    $ffO3.Dispose()
+    $olimpiadiDopo = @((Leggi $sO 'FiltriDaTogliere') | Where-Object { $_.Etichetta -eq 'Olimpiadi e gare' })
+    Verifica "Olimpiadi e gare scelto di nuovo 'Toglilo': si toglie e basta; gli altri due senza regola non sono piu' scelti" (
+        $olimpiadiDopo.Count -eq 1 -and $olimpiadiDopo[0].Regola -eq '' -and (Senza $sO) -eq '' -and
+        (Leggi $sO 'FiltriDaTogliere').Count -eq 12 -and [int]$mDaTogliere.Invoke($null, @($sO)) -eq 12)
+
+    # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
     # indirizzi di Segreteria o Dirigenza: Ministero e USR, con @istruzione.it

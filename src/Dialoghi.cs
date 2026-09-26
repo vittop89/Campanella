@@ -454,6 +454,7 @@ namespace Campanella
             public FiltroDaTogliere Voce;       // null: non si puo' togliere (niente etichetta, criteri, o uno non si capisce)
             public Somiglianza Somiglia;
             public bool Prima;                  // era gia' fra i filtri scelti
+            public bool Orfana;                 // scelto prima, ma la regola che lo sostituiva non c'e' piu' (FiltriGmail.AncoraSostituito)
             public List<SceltaFiltro> Scelte;   // quelle della tendina; la prima e' "Lascialo in Gmail"
             public SceltaFiltro Proposta;       // quella di partenza
             public SceltaFiltro Scelta;         // quella di adesso
@@ -644,7 +645,8 @@ namespace Campanella
                 {
                     if (f == null) continue;
                     if (FiltriGmail.DiUnaClasseConIndirizzi(f.Etichetta, f.Criteri, s)) { sceltiDelleClassi++; continue; }
-                    righe.Add(ScelteDiPrima(f.Copia(), FiltriGmail.Confronta(f.Etichetta, f.Criteri, s)));
+                    righe.Add(ScelteDiPrima(f.Copia(), FiltriGmail.Confronta(f.Etichetta, f.Criteri, s),
+                                            !FiltriGmail.AncoraSostituito(f, s)));
                 }
             lblEsito.Text = (righe.Count == 0
                 ? "Nessun file aperto, e nessun filtro scelto prima."
@@ -653,19 +655,24 @@ namespace Campanella
             Tema.Applica(this);
         }
 
-        /// <summary>La riga di un filtro scelto prima, senza il file: si lascia o si toglie, e parte da togliere.</summary>
-        static Riga ScelteDiPrima(FiltroDaTogliere voce, Somiglianza x)
+        /// <summary>
+        /// La riga di un filtro scelto prima, senza il file: si lascia o si
+        /// toglie, e parte da togliere; se la regola che lo sostituiva non c'e'
+        /// piu' (orfana: tolta, spenta, senza i suoi mittenti) parte lasciato.
+        /// </summary>
+        static Riga ScelteDiPrima(FiltroDaTogliere voce, Somiglianza x, bool orfana)
         {
             Riga r = new Riga();
             r.Voce = voce;
             r.Somiglia = x;
             r.Prima = true;
+            r.Orfana = orfana;
             SceltaFiltro togli = new SceltaFiltro();
             togli.Azione = SceltaFiltro.Togli;
             togli.Testo = "Toglilo";
             r.Scelte = new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro(), togli });
-            r.Proposta = togli;
-            r.Scelta = togli;
+            r.Proposta = orfana ? r.Scelte[0] : togli;
+            r.Scelta = r.Proposta;
             return r;
         }
 
@@ -710,14 +717,23 @@ namespace Campanella
             // file aperto poco fa) passano ai filtri uguali del file nuovo; quelli
             // scelti prima che il file nuovo non ha restano in fondo
             List<string> prima = new List<string>();
+            Dictionary<string, string> regolaDiPrima = new Dictionary<string, string>();
             List<Riga> vecchie = new List<Riga>();
             for (int i = 0; i < righe.Count; i++)
             {
                 Riga r = righe[i];
-                if (r.Voce == null || !Spuntata(i) || prima.Contains(r.Voce.Chiave())) continue;
+                if (r.Voce == null || prima.Contains(r.Voce.Chiave())) continue;
+                if (!Spuntata(i))
+                {
+                    // scelto prima, lasciato perche' senza la sua regola: resta
+                    // in fondo, se il file non lo ha
+                    if (r.Filtro == null && r.Orfana) vecchie.Add(r);
+                    continue;
+                }
                 prima.Add(r.Voce.Chiave());
+                regolaDiPrima[r.Voce.Chiave()] = r.Voce.Regola;
                 if (r.Filtro == null) vecchie.Add(r);
-                else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia));
+                else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia, false));
             }
 
             righe.Clear();
@@ -733,6 +749,8 @@ namespace Campanella
                 // togliere porterebbe i loro indirizzi nello Stato e nella configurazione
                 r.Voce = (r.Somiglia.Tipo == FiltriGmail.DiUnaClasse) ? null : f.DaTogliere();
                 r.Prima = r.Voce != null && prima.Contains(r.Voce.Chiave());
+                // la regola che lo sostituiva, per Applica: resta se lo sostituisce ancora
+                if (r.Prima) r.Voce.Regola = regolaDiPrima[r.Voce.Chiave()];
                 r.Scelte = (r.Voce == null) ? new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro() })
                                             : FiltriGmail.Scelte(f, r.Somiglia, stato);
                 r.Proposta = FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima);
@@ -892,7 +910,9 @@ namespace Campanella
         string Suggerimento(Riga r)
         {
             if (r.Filtro == null)
-                return fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima";
+                return (fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima") +
+                       (r.Orfana ? "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non ha " +
+                                   "piu' i suoi mittenti: resta in Gmail, se non scegli di toglierlo lo stesso" : "");
             return (r.Prima ? "scelto prima; " : "") + r.Somiglia.Testo();
         }
 

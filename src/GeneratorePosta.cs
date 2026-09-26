@@ -264,7 +264,9 @@ namespace Campanella
         /// dimensione come numero, come li da' il servizio. Una voce che non
         /// si capisce tutta (FiltroDaTogliere.Da) non si scrive, e una ripetuta
         /// si scrive una volta; nemmeno una che sembra di una classe e cerca
-        /// degli indirizzi (FiltriGmail.DiUnaClasseConIndirizzi).
+        /// degli indirizzi (FiltriGmail.DiUnaClasseConIndirizzi), ne' una che
+        /// non ha piu' la regola che la sostituisce (tolta, spenta o senza i
+        /// suoi mittenti: FiltriGmail.AncoraSostituito), che resta in Gmail.
         /// </summary>
         static List<string> FiltriJs(Stato s)
         {
@@ -275,6 +277,8 @@ namespace Campanella
                 // uno che sembra di una classe e cerca degli indirizzi, scelto
                 // prima: porterebbe qui gli indirizzi degli studenti
                 if (scelto == null || FiltriGmail.DiUnaClasseConIndirizzi(scelto.Etichetta, scelto.Criteri, s)) continue;
+                // senza la regola che lo sostituisce non va via
+                if (!FiltriGmail.AncoraSostituito(scelto, s)) continue;
                 List<KeyValuePair<string, object>> grezzi = new List<KeyValuePair<string, object>>();
                 foreach (KeyValuePair<string, string> kv in scelto.Criteri)
                     grezzi.Add(new KeyValuePair<string, object>(kv.Key, kv.Value));

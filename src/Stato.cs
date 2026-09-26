@@ -117,6 +117,14 @@ namespace Campanella
         public string Etichetta = "";
         /// <summary>nome del criterio -> valore, come lo scrive Valore ("true" per i si'/no, i byte per size)</summary>
         public Dictionary<string, string> Criteri = new Dictionary<string, string>();
+        /// <summary>
+        /// L'etichetta (senza il gruppo) della regola che lo sostituisce: quella
+        /// che lo fa gia', che ha preso i suoi mittenti o che e' nata da lui.
+        /// "" se si toglie e basta (e per quelli scelti prima della 1.6.1).
+        /// Senza piu' quella regola, accesa e con i suoi mittenti, non si toglie
+        /// (FiltriGmail.AncoraSostituito). Non fa parte della chiave.
+        /// </summary>
+        public string Regola = "";
 
         /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
         public static readonly string[] NomiCriteri =
@@ -198,6 +206,7 @@ namespace Campanella
             FiltroDaTogliere f = new FiltroDaTogliere();
             f.Etichetta = Etichetta;
             f.Criteri = new Dictionary<string, string>(Criteri);
+            f.Regola = Regola;
             return f;
         }
     }
@@ -1047,6 +1056,8 @@ namespace Campanella
                     Dictionary<string, object> c = new Dictionary<string, object>();
                     foreach (KeyValuePair<string, string> kv in f.Criteri) c[kv.Key] = kv.Value;
                     d["criteri"] = c;
+                    // la regola che lo sostituisce, solo se c'e': i file di prima restano uguali
+                    if (!string.IsNullOrEmpty(f.Regola)) d["regola"] = f.Regola;
                     filtri.Add(d);
                 }
             r["filtriDaTogliere"] = filtri;
@@ -1392,6 +1403,7 @@ namespace Campanella
                         ? d["criteri"] as Dictionary<string, object> : null;
                     FiltroDaTogliere f = (c != null) ? FiltroDaTogliere.Da(Str(d, "etichetta", ""), c) : null;
                     if (f == null || chiavi.Contains(f.Chiave())) continue;
+                    f.Regola = Str(d, "regola", "").Trim();
                     chiavi.Add(f.Chiave());
                     FiltriDaTogliere.Add(f);
                 }

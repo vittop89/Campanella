@@ -961,6 +961,24 @@ static class ProvaStato
         Stato t = Carica();
         Verifica("si rileggono uguali (" + DescriviFiltri(t) + ")", DescriviFiltri(t) == DescriviFiltri(s) &&
             DescriviFiltri(t).StartsWith("Famiglie{query=from:(@famiglie.example)}|Progetti{"));
+        // la regola che lo sostituisce (1.6.1): si scrive solo se c'e', e si rilegge
+        FieldInfo campoRegola = (FiltriDi(t) != null && FiltriDi(t).Count == 2) ? FiltriDi(t)[0].GetType().GetField("Regola") : null;
+        Verifica("un filtro da togliere sa la regola che lo sostituisce (FiltroDaTogliere.Regola)", campoRegola != null);
+        if (campoRegola != null)
+        {
+            Verifica("scelti senza, si rileggono senza", (string)campoRegola.GetValue(FiltriDi(t)[0]) == "" &&
+                (string)campoRegola.GetValue(FiltriDi(t)[1]) == "");
+            campoRegola.SetValue(FiltriDi(t)[0], "Genitori");
+            t.Salva();
+            object[] voci = Json(FileDati(c))["filtriDaTogliere"] as object[];
+            Dictionary<string, object> v0 = (voci != null && voci.Length == 2) ? voci[0] as Dictionary<string, object> : null;
+            Dictionary<string, object> v1 = (voci != null && voci.Length == 2) ? voci[1] as Dictionary<string, object> : null;
+            Verifica("la regola si scrive solo per chi ce l'ha", v0 != null && v1 != null && v0.ContainsKey("regola") &&
+                Convert.ToString(v0["regola"]) == "Genitori" && !v1.ContainsKey("regola"));
+            Stato u = Carica();
+            Verifica("e si rilegge", FiltriDi(u) != null && FiltriDi(u).Count == 2 &&
+                (string)campoRegola.GetValue(FiltriDi(u)[0]) == "Genitori" && (string)campoRegola.GetValue(FiltriDi(u)[1]) == "");
+        }
 
         string errore;
         t.SpostaDati(false, "", out errore);

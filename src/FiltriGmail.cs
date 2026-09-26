@@ -1638,12 +1638,61 @@ namespace Campanella
         }
 
         /// <summary>
+        /// Vero se il filtro scelto da togliere ha ancora la regola che lo
+        /// sostituisce (FiltroDaTogliere.Regola), accesa nella configurazione:
+        /// quella che crea proprio quel filtro (EXTRA_creaFiltriGmail), o una
+        /// con quell'etichetta che ha ancora tutti i suoi mittenti (anche in "La
+        /// tua scuola", con i segnaposto sciolti) o, per uno che non e' fatto
+        /// solo di mittenti, proprio la sua ricerca. Vero anche per uno che si
+        /// toglie e basta. Tolta, spenta o cambiata la regola dopo "Usa questa
+        /// scelta", il filtro resta in Gmail (GeneratorePosta.FiltriJs non lo
+        /// scrive) e il passo 4 lo dice: nessun filtro va via senza la regola
+        /// che lo sostituisce.
+        /// </summary>
+        public static bool AncoraSostituito(FiltroDaTogliere v, Stato s)
+        {
+            if (v == null || s == null || (v.Regola ?? "").Trim() == "") return true;
+            if (DiCampanellaAdesso(v.Etichetta, v.Criteri, s)) return true;
+            MittentiFiltro m = SoloMittenti(v.Criteri);
+            string ricerca = RicercaDelFiltro(v.Criteri);
+            List<string> personale = s.IndirizziPersonale();
+            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            foreach (Regola r in s.Regole)
+            {
+                if (!string.Equals((r.Etichetta ?? "").Trim(), v.Regola.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                    !GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) continue;
+                if (m != null)
+                {
+                    List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
+                    da.AddRange(Espandi(da, s.DominioPulito(), personale, gruppi));
+                    bool tutti = true;
+                    foreach (string d in m.Da) if (!Contiene(da, d)) { tutti = false; break; }
+                    if (tutti) return true;
+                }
+                else if (ricerca != null && string.Equals((r.QueryLibera ?? "").Trim(), ricerca.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>I filtri scelti da togliere che non hanno piu' la regola che li sostituisce (AncoraSostituito): restano in Gmail.</summary>
+        public static List<FiltroDaTogliere> SenzaLaRegola(Stato s)
+        {
+            List<FiltroDaTogliere> fuori = new List<FiltroDaTogliere>();
+            if (s == null || s.FiltriDaTogliere == null) return fuori;
+            foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
+                if (v != null && !DiUnaClasseConIndirizzi(v.Etichetta, v.Criteri, s) && !AncoraSostituito(v, s)) fuori.Add(v);
+            return fuori;
+        }
+
+        /// <summary>
         /// Fa nello Stato quello che si e' scelto nella finestra: unisce i
         /// mittenti alle regole (o in "La tua scuola", per Dirigenza, Segreteria
         /// e Registro elettronico) e le esclusioni alla loro ricerca avanzata,
         /// accende una regola spenta che li prende, crea le regole nuove (dopo
         /// quella simile, o in fondo, con il primo colore libero) e mette fra i
-        /// filtri da togliere (FiltriDaTogliere) quelli che non si lasciano. Un
+        /// filtri da togliere (FiltriDaTogliere) quelli che non si lasciano, ognuno
+        /// con la regola che lo sostituisce (FiltroDaTogliere.Regola). Un
         /// filtro che non riesce piu' a diventare regola o a unirsi resta in
         /// Gmail: nessun filtro va via senza la regola che lo sostituisce. Un
         /// filtro uguale a uno gia' fatto (la stessa voce) non si rifa'. Una
@@ -1680,10 +1729,11 @@ namespace Campanella
                 string chiave = x.Voce.Chiave();
                 if (fatte.Contains(chiave) || perVoce[chiave] != x) continue;
                 string perche = "";
+                Regola sostituta = x.Scelta.Regola;
                 if (x.Scelta.Azione == SceltaFiltro.Unisci)
                     perche = UnisciAllaRegola(s, x.Filtro, x.Scelta.Regola, unite, scuola);
                 else if (x.Scelta.Azione == SceltaFiltro.Nuova)
-                    perche = CreaRegola(s, x, dopo, createAdesso, nuove, unite, scuola);
+                    perche = CreaRegola(s, x, dopo, createAdesso, nuove, unite, scuola, out sostituta);
                 if (perche != "")
                 {
                     saltati.Add(x.Voce.Etichetta + " (" + perche + ")");
@@ -1691,7 +1741,12 @@ namespace Campanella
                     continue;
                 }
                 fatte.Add(chiave);
-                togli.Add(x.Voce.Copia());
+                // la regola che lo sostituisce; con "Toglilo" e basta resta quella
+                // di una scelta di prima, finche' lo sostituisce ancora
+                FiltroDaTogliere voce = x.Voce.Copia();
+                if (sostituta != null) voce.Regola = sostituta.Etichetta;
+                else if (!AncoraSostituito(voce, s)) voce.Regola = "";
+                togli.Add(voce);
             }
             s.FiltriDaTogliere = togli;
 
@@ -1779,8 +1834,9 @@ namespace Campanella
         /// l'ha fatto, altrimenti il perche'.
         /// </summary>
         static string CreaRegola(Stato s, FiltroScelto x, Dictionary<Regola, int> dopo, List<Regola> createAdesso,
-                                 List<string> nuove, List<string> unite, List<string> scuola)
+                                 List<string> nuove, List<string> unite, List<string> scuola, out Regola sostituta)
         {
+            sostituta = null;
             FiltroGmail f = x.Filtro;
             Regola r = Traduci(f, x.Somiglia, s);
             if (r == null) return "non si scrive come regola";
@@ -1791,14 +1847,20 @@ namespace Campanella
             {
                 if (!ConEtichetta(e, f.Etichetta, s)) continue;
                 if (GiaNellaRegola(f, e, s) || (StessaRegola(r, e) && GeneratorePosta.AttivaNellaConfigurazione(s, e, personale)))
+                {
+                    sostituta = e;
                     return "";
+                }
                 if (!createAdesso.Contains(e)) { if (cera == null) cera = e; }
                 else gemella = e;
             }
             foreach (Regola e in s.Regole)
                 if (ConEtichetta(e, f.Etichetta, s) && m != null && SiPuoUnire(f, m, e, s) &&
                     StesseEsclusioni(m.Esclusi, Esclusioni(e.QueryLibera)))
+                {
+                    sostituta = e;
                     return UnisciAllaRegola(s, f, e, unite, scuola);
+                }
             if (cera != null) return "c'e' gia' la regola " + NomeIntero(cera, s);
             r.Colore = (gemella != null) ? gemella.Colore : ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
             Regola simile = (x.Somiglia != null && x.Somiglia.Tipo == Simile) ? RegolaDi(x.Somiglia, s) : null;
@@ -1822,6 +1884,7 @@ namespace Campanella
             s.Regole.Insert(dove, r);
             createAdesso.Add(r);
             nuove.Add(NomeIntero(r, s));
+            sostituta = r;
             return "";
         }
 

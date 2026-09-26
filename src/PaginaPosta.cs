@@ -706,10 +706,14 @@ namespace Campanella
                 "anche quanti indirizzi ha trovato per ogni classe, e quali file nessuna regola usa. I filtri veri " +
                 "di Gmail delle classi cercano solo l'oggetto: gli studenti non ci vanno. A fine anno togli le " +
                 "classi (l'anno dopo la finestra lo propone) e cancella i file Classe_*.gs dal progetto."));
-            // alta quanto il testo piu' lungo: con i filtri tolti all'avvio
+            // alta quanto il testo piu' lungo: con i filtri tolti all'avvio, o
+            // quelli senza piu' la regola che li sostituisce
             lblFiltri = Tema.Testo1("", 0, yb + 76, 400, Tema.Piccolo, Ruolo.Tenue);
-            lblFiltri.Height = Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." +
-                                                 TestoToltiAllAvvio(99), Tema.Piccolo, 400);
+            lblFiltri.Height = Math.Max(
+                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoToltiAllAvvio(99),
+                                  Tema.Piccolo, 400),
+                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoSenzaLaRegola(99),
+                                  Tema.Piccolo, 400));
             p.Controls.Add(lblFiltri);
 
             txtDescrizioneRegola = Tema.Paragrafo(420, y, 480, 108, Ruolo.Normale);
@@ -2019,6 +2023,8 @@ namespace Campanella
             lblDoppioni.Height = Tema.AltezzaTesto(lblDoppioni.Text, lblDoppioni.Font, lblDoppioni.Width);
             lblDoppioni.Visible = doppi.Count > 0;
             AggiornaAvvisoCasella();
+            // una regola tolta, spenta o cambiata: i filtri che sostituiva restano
+            AggiornaFiltriDaTogliere();
         }
 
         /// <summary>
@@ -2363,11 +2369,27 @@ namespace Campanella
             if (lblFiltri == null) return;
             int n = GeneratorePosta.FiltriDaTogliere(S);
             int tolti = S.FiltriClassiToltiAllAvvio;
+            int senza = FiltriGmail.SenzaLaRegola(S).Count;
             lblFiltri.Text = ((n == 0) ? "Nessun filtro di Gmail da togliere." :
                 n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.") +
+                (senza == 0 ? "" : TestoSenzaLaRegola(senza)) +
                 (tolti == 0 ? "" : TestoToltiAllAvvio(tolti));
-            lblFiltri.Tag = (tolti > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
+            lblFiltri.Tag = (tolti > 0 || senza > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
             Tema.Applica(lblFiltri);
+        }
+
+        /// <summary>
+        /// Quello che il passo 4 (e il riepilogo del passo 5) dice dei filtri
+        /// scelti che non hanno piu' la regola che li sostituisce
+        /// (FiltriGmail.SenzaLaRegola): restano in Gmail.
+        /// </summary>
+        static string TestoSenzaLaRegola(int n)
+        {
+            return (n == 1)
+                ? " 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu', e' spenta o non ha piu' " +
+                  "i suoi mittenti. Per toglierlo lo stesso, sceglilo di nuovo in \"Filtri che hai gia' in Gmail...\"."
+                : " " + n + " filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu', e' spenta o non " +
+                  "ha piu' i loro mittenti. Per toglierli lo stesso, sceglili di nuovo in \"Filtri che hai gia' in Gmail...\".";
         }
 
         /// <summary>
@@ -2467,6 +2489,7 @@ namespace Campanella
             sb.AppendLine("Etichette colorate ........... " + (colorate == 0 ? "nessuna" :
                 colorate + " (i colori li mette il servizio Gmail API: passo 8)"));
             int daTogliere = GeneratorePosta.FiltriDaTogliere(S);
+            int senzaRegola = FiltriGmail.SenzaLaRegola(S).Count;
             sb.AppendLine("Filtri di Gmail da togliere .. " + (daTogliere == 0 ? "nessuno" :
                 daTogliere + " (li toglie EXTRA_togliFiltri, con il servizio Gmail API: passo 8)"));
             sb.AppendLine();
@@ -2480,6 +2503,7 @@ namespace Campanella
             foreach (Persona p in S.Personale) if (p.Incluso && p.Email == "") senzaMail++;
             if (senzaMail > 0)
                 avvisi.Add(senzaMail + " persone dell'elenco non hanno un indirizzo: verranno ignorate.");
+            if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola).Trim());
 
             if (avvisi.Count > 0)
             {
