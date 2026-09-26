@@ -109,10 +109,11 @@ personali (con i dati nel Drive, non nel file accanto al programma), e il
 genitori: le prenotazioni restano nel registro elettronico, e Campanella non
 le legge (un file con colonne di persone, come cognome, nome, genitore,
 email o prenotato da, non lo importa: è un elenco di prenotazioni; e
-nemmeno l'orario di ricevimento di tutti i docenti, con la colonna
-docente, che porterebbe sul tuo calendario i ricevimenti e i link dei
-colleghi). I nomi scritti dentro la descrizione di un colloquio non li
-riconosce: guarda il file prima di importarlo.
+nemmeno l'orario di ricevimento di tutti i docenti o di una classe, con
+la colonna docente o materia, anche nell'intestazione su due righe, o con
+i ricevimenti di più docenti, che porterebbe sul tuo calendario i
+ricevimenti e i link dei colleghi). I nomi scritti dentro la descrizione
+di un colloquio non li riconosce: guarda il file prima di importarlo.
 
 **Le connessioni del programma.** Campanella si collega a internet solo
 quando premi un pulsante. «Cerca aggiornamenti» (Impostazioni) chiede a

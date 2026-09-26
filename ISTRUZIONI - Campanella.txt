@@ -563,25 +563,34 @@ ORARI - le email a te e il calendario
    settimana, o il giorno da solo per il ricevimento), dalle e alle (o
    ora, con la fascia 15:00-18:00), cosa (o descrizione), link, classe
    (va nel nome, fra parentesi) e, per un ricevimento, dal e al, e
-   aggiunge in fondo alla casella quelle che non ci sono gia': la casella
-   resta l'unica fonte. Un file con i nomi delle persone (cognome, nome,
-   genitore, email, prenotato da...) non lo importa: e' un elenco di
-   prenotazioni. Nemmeno l'orario di ricevimento di tutti i docenti
-   pubblicato dalla scuola (con la colonna docente o prof.): porterebbe
-   sul tuo calendario i ricevimenti e i link dei colleghi; scrivi il tuo
-   nella casella, o tieni nel file solo le tue righe, senza quella
-   colonna. I nomi scritti dentro la colonna cosa ("Colloquio con la
-   mamma di ...") non li riconosce: guarda il file prima di importarlo.
+   aggiunge in fondo alla casella quelle che non ci sono gia' (anche con
+   un altro nome: una riga importata e poi corretta non torna): la
+   casella resta l'unica fonte. Un file con i nomi delle persone
+   (cognome, nome, genitore, email, prenotato da...) non lo importa: e'
+   un elenco di prenotazioni. Nemmeno l'orario di ricevimento di tutti i
+   docenti pubblicato dalla scuola, o quello di una classe: con la
+   colonna docente, prof., materia o disciplina (anche nella riga sopra,
+   nell'intestazione su due righe con le celle unite), o con i
+   ricevimenti di piu' docenti (due nelle stesse settimane con link
+   diversi, tre o piu' nelle stesse settimane, due giornate alla stessa
+   ora con link diversi): porterebbe sul tuo calendario i ricevimenti e
+   i link dei colleghi; scrivi il tuo nella casella, o tieni nel file
+   solo le tue righe, senza quelle colonne. I nomi scritti dentro la
+   colonna cosa ("Colloquio con la mamma di ...") non li riconosce:
+   guarda il file prima di importarlo.
    Sotto la casella Campanella mostra come ha letto ogni riga; in ambra
    quelle da guardare: non capite, senza ora o con la fine prima
-   dell'inizio, uguali a una di sopra (restano nella casella ma sul
-   calendario non vanno), in un giorno che non e' nell'orario, fuori dal
-   periodo, di notte o a tarda sera (dalle 3 alle 6 e' di notte: il
-   pomeriggio si scrive 15-18), con una cadenza come "a settimane
-   alterne" o "ogni 15 giorni", o un periodo a parole come "fino a
-   maggio" o "primo quadrimestre" (sul calendario vanno ogni settimana,
-   per tutto il periodo: scrivi le date davanti), o con un link che non
-   e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
+   dell'inizio, uguali a una di sopra o alla stessa ora di una di sopra,
+   anche solo in parte e con un altro nome o un altro link (restano
+   nella casella ma sul calendario non vanno: tieni quella giusta), in
+   un giorno che non e' nell'orario, fuori dal periodo, di notte o a
+   tarda sera (dalle 3 alle 6 e' di notte: il pomeriggio si scrive
+   15-18), con una cadenza come "a settimane alterne", "ogni 15 giorni",
+   "ogni due giovedi", "una volta al mese" o "il primo e il terzo
+   giovedi", o un periodo a parole come "fino a maggio", "primo
+   quadrimestre", "II periodo" o "dopo Natale" (sul calendario vanno ogni
+   settimana, per tutto il periodo: scrivi le date davanti), o con un
+   link che non e' di Google Meet (valgono lo stesso). ORARI_4_calendario mette i
    colloqui con l'orario: il ricevimento come le lezioni, a tratti (niente
    colloqui nei giorni senza lezione e in quelli senza colloqui), le
    giornate come eventi singoli (una giornata c'e' anche in un periodo

@@ -845,15 +845,19 @@ namespace Campanella
                 "nome (anche \"e 12-13\") non li capisco, invece di metterli nel titolo.\r\n\r\n" +
                 "\"Importa da un file...\" legge un .csv o un .xlsx con le colonne data (o giorno), dalle e alle (o " +
                 "ora, con 15:00-18:00), cosa (o descrizione), link e classe, e per un ricevimento dal e al, e " +
-                "aggiunge qui le righe che non ci sono gia': la casella resta l'unica fonte. Un file con i nomi " +
+                "aggiunge qui le righe che non ci sono gia' (anche con un altro nome): la casella resta l'unica " +
+                "fonte. Un file con i nomi " +
                 "delle persone (cognome, nome, genitore, email, prenotato da...) non lo importo: e' un elenco di " +
-                "prenotazioni. Nemmeno l'orario di ricevimento di tutti i docenti (con la colonna docente): " +
-                "porterebbe sul tuo calendario i ricevimenti e i link dei colleghi. I nomi scritti nella colonna " +
+                "prenotazioni. Nemmeno l'orario di ricevimento di tutti i docenti (con la colonna docente o " +
+                "materia, anche nell'intestazione su due righe, o con i ricevimenti di piu' docenti): porterebbe " +
+                "sul tuo calendario i ricevimenti e i link dei colleghi. I nomi scritti nella colonna " +
                 "cosa non li riconosco: guarda il file prima di importarlo.\r\n\r\n" +
                 "Sotto c'e' come ho letto ogni riga. In ambra quelle da guardare: non capite, senza ora o con la " +
-                "fine prima dell'inizio, uguali a una di sopra (restano qui, ma sul calendario non vanno), in un " +
+                "fine prima dell'inizio, uguali a una di sopra o alla stessa ora (restano qui, ma sul calendario " +
+                "non vanno), in un " +
                 "giorno che non e' nell'orario, fuori dal periodo, di notte (\"dalle 3 alle 6\": il pomeriggio si " +
-                "scrive 15-18), con una cadenza come \"a settimane alterne\" o un periodo come \"fino a maggio\" " +
+                "scrive 15-18), con una cadenza come \"a settimane alterne\" o \"primo e terzo giovedi\" o un " +
+                "periodo come \"fino a maggio\" " +
                 "(sul calendario vanno ogni settimana, per tutto il periodo) o con un link che non e' di Google " +
                 "Meet (vale lo stesso).\r\n\r\n" +
                 "I colloqui vanno sul calendario con ORARI_4_calendario, insieme all'orario; se cambiano solo loro, " +
@@ -1753,10 +1757,11 @@ namespace Campanella
             sb.AppendLine("Una voce per riga: un'altra data, un altro giorno o un'altra ora nel nome");
             sb.AppendLine("non li capisco (restano qui, in ambra), e nemmeno le date del ricevimento");
             sb.AppendLine("con altro intorno (\"dal 14/12 al 09/01 sospeso\": su una riga sua, come");
-            sb.AppendLine("periodo senza colloqui). L'import aggiunge solo le righe che non ci sono");
-            sb.AppendLine("gia'; un file con i nomi delle persone (un elenco di prenotazioni) o con");
-            sb.AppendLine("la colonna dei docenti (l'orario di ricevimento della scuola) non lo");
-            sb.AppendLine("importa.");
+            sb.AppendLine("periodo senza colloqui). Due voci alla stessa ora: sul calendario va la");
+            sb.AppendLine("prima. L'import aggiunge solo le righe che non ci sono gia' (anche con un");
+            sb.AppendLine("altro nome); un file con i nomi delle persone (un elenco di prenotazioni),");
+            sb.AppendLine("con la colonna dei docenti o delle materie, o con i ricevimenti di piu'");
+            sb.AppendLine("docenti (l'orario di ricevimento della scuola) non lo importa.");
             sb.AppendLine("ORARI_4_calendario li mette con l'orario: il ricevimento di ogni");
             sb.AppendLine("settimana come le lezioni (niente nei giorni senza lezione e in quelli");
             sb.AppendLine("senza colloqui), le giornate come eventi singoli. Il titolo e' il nome,");
