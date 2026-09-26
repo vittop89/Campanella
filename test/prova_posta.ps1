@@ -1241,6 +1241,10 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $mCasella = $tGen.GetMethod('CasellaDellaScuolaPresa', $FS)
     $mEscludi = $tGen.GetMethod('EscludiDirigenzaESegreteria', $FS)
     function Prese($stato) { return (@($mCasella.Invoke($null, @($stato)) | ForEach-Object { $_.Key.Etichetta + '=' + (@($_.Value) -join ',') }) -join '; ') }
+    # dopo "Usa questa scelta" con i filtri del docente (qui sopra): la casella
+    # della scuola e' in Segreteria, e il suo filtro e' diventato la regola XYIS01200Z
+    Verifica "dopo 'Usa questa scelta' con i filtri del docente nessun avviso: XYIS01200Z ha la casella della scuola scritta intera ('$(Prese $sR)')" (
+        (Prese $sR) -eq '' -and (@((Leggi $sR 'Regole') | Where-Object { $_.Etichetta -eq 'XYIS01200Z' })[0].Da -join ',') -eq 'casella@istruzione.it')
     $sC = NuovoStato
     Imposta $sC 'Dominio' 'scuola.example'
     Imposta $sC 'Prefisso' ''
@@ -1261,6 +1265,26 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Imposta $sC 'Segreteria' "segreteria@scuola.example`r`ncasella@istruzione.it"
     $minC.QueryLibera = '-from:casella@istruzione.it'
     Verifica "ne' se la regola la esclude gia' nella ricerca avanzata (-from:)" ((Prese $sC) -eq '')
+    # conta solo chi la prende per il dominio: chi ha scritto l'indirizzo intero
+    # lo vuole (la regola nata dal filtro della casella della scuola, una scritta a mano)
+    $minC.QueryLibera = ''
+    $minC.Da.Insert(0, 'CASELLA@istruzione.it')
+    Verifica "ne' se la regola ha l'indirizzo scritto intero, anche insieme al dominio ('$(Prese $sC)')" ((Prese $sC) -eq '')
+    $minC.Da.RemoveAt(0)
+    $mTestoCasella = $asm.GetType('Campanella.PaginaPosta').GetMethod('TestoAvvisoCasella', $FS)
+    $testoMin = [string]$mTestoCasella.Invoke($null, @($sC.PSObject.BaseObject, $mCasella.Invoke($null, @($sC))))
+    $tuaC = $minC.Copia()
+    $tuaC.Etichetta = 'Uffici del ministero'
+    (Leggi $sC 'Regole').Remove($minC) | Out-Null
+    (Leggi $sC 'Regole').Add($tuaC)
+    $testoTua = [string]$mTestoCasella.Invoke($null, @($sC.PSObject.BaseObject, $mCasella.Invoke($null, @($sC))))
+    (Leggi $sC 'Regole').Remove($tuaC) | Out-Null
+    (Leggi $sC 'Regole').Add($minC)
+    Verifica "l'avviso dice che di partenza non la prende solo per Ministero e USR; per un'altra regola propone il bottone ('$testoTua')" (
+        $testoMin -match '^Ministero e USR prende anche casella@istruzione\.it' -and
+        $testoMin -match "Di partenza, adesso, Ministero e USR non prende quello che e' gia' in Dirigenza o Segreteria\." -and
+        $testoTua -match '^Uffici del ministero prende anche casella@istruzione\.it' -and $testoTua -notmatch 'Di partenza, adesso' -and
+        $testoTua -match 'il bottone')
     $minC.QueryLibera = ''
     $minC.Attiva = $false
     Verifica "ne' se la regola e' spenta" ((Prese $sC) -eq '')

@@ -7,6 +7,7 @@
 		dei fornitori di posta sono quelli pubblici, per la forma dei filtri veri.
 		Nell'ordine:
 		 1 la casella istituzionale della scuola, con il codice della scuola per etichetta
+		   (nella prova e' fra gli indirizzi della Segreteria, e il 5 la esclude)
 		 2 la casella di un dipartimento
 		 3 due from: (tutti e due: Classroom e una persona)
 		 4 Classroom tranne una persona
@@ -34,7 +35,7 @@
 		<id>tag:mail.google.com,2008:filter:z0000000000000000101*0000000000000000101</id>
 		<updated>2026-09-25T08:15:00Z</updated>
 		<content></content>
-		<apps:property name='hasTheWord' value='from:casella@istruzione.example'/>
+		<apps:property name='hasTheWord' value='from:casella@istruzione.it'/>
 		<apps:property name='label' value='XYIS01200Z'/>
 		<apps:property name='sizeOperator' value='s_sl'/>
 		<apps:property name='sizeUnit' value='s_smb'/>

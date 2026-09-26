@@ -167,13 +167,13 @@ function messaggio(da, nome, oggetto) {
   casella.push(m);
   return m;
 }
-messaggio('casella@istruzione.example', 'Istituto', 'Circolare interna');
 messaggio('dipartimento.materia@scuola.example', 'Dipartimento', 'Riunione di dipartimento');
 const civica = messaggio('no-reply@classroom.google.com', 'ANNA ESEMPIO (Classroom)', 'Nuovo compito: educazione civica');
 const classroom = messaggio('no-reply@classroom.google.com', 'MARCO ESEMPIO (Classroom)', 'Nuovo materiale');
 messaggio('comunicazioni@istruzione.it', 'Ministero', 'Nota ministeriale');
 messaggio('usr.regione@istruzione.gov.it', 'USR', 'Avviso');
 messaggio('ufficio@mim.gov.it', 'MIM', 'Decreto');
+// la casella istituzionale della scuola: e' in Segreteria, e il filtro 1 (XYIS01200Z) la prende
 const casellaScuola = messaggio('casella@istruzione.it', 'Istituto (casella istituzionale)', 'Convocazione');
 messaggio('noreply@spaggiari.eu', 'ClasseViva', 'Nuova nota');
 messaggio('avvisi@portaleargo.it', 'Argo', 'Scrutini');

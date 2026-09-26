@@ -438,15 +438,16 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Le regole accese, con i mittenti propri, che prendono la casella
-        /// istituzionale della scuola (codice@istruzione.it, anche
-        /// @pec.istruzione.it) scritta nella pagina "La tua scuola" fra gli
-        /// indirizzi della dirigenza o della segreteria, senza escludere
-        /// l'etichetta di quella regola: di solito Ministero e USR salvata prima
-        /// della 1.6.1, con @istruzione.it fra i mittenti. I messaggi della
-        /// scuola prenderebbero tutte e due le etichette. Per ogni regola gli
-        /// indirizzi presi; un'esclusione scritta nella ricerca avanzata
-        /// (-from:indirizzo) vale. Conta solo una Dirigenza o Segreteria accesa.
+        /// Le regole accese, con i mittenti propri, che prendono per il dominio
+        /// (@istruzione.it, Prende) la casella istituzionale della scuola
+        /// (codice@istruzione.it, anche @pec.istruzione.it) scritta nella pagina
+        /// "La tua scuola" fra gli indirizzi della dirigenza o della segreteria,
+        /// senza escludere l'etichetta di quella regola: di solito Ministero e
+        /// USR salvata prima della 1.6.1. I messaggi della scuola prenderebbero
+        /// tutte e due le etichette. Per ogni regola gli indirizzi presi;
+        /// un'esclusione scritta nella ricerca avanzata (-from:indirizzo) vale, e
+        /// una regola con l'indirizzo scritto intero lo vuole. Conta solo una
+        /// Dirigenza o Segreteria accesa.
         /// </summary>
         public static List<KeyValuePair<Regola, List<string>>> CasellaDellaScuolaPresa(Stato s)
         {
@@ -482,19 +483,21 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se un mittente della regola (non i segnaposto) prende
-        /// l'indirizzo: uguale, "@dominio" con l'indirizzo in quel dominio o in
+        /// Vero se la regola prende l'indirizzo per il suo dominio: un mittente
+        /// (non i segnaposto) "@dominio" con l'indirizzo in quel dominio o in
         /// un suo sottodominio, o il dominio senza chiocciola; e la ricerca
-        /// avanzata non lo esclude con -from:indirizzo.
+        /// avanzata non lo esclude con -from:indirizzo. Non se fra i mittenti
+        /// c'e' l'indirizzo scritto intero: chi l'ha scritto lo vuole (la
+        /// regola nata dal filtro della casella della scuola, una scritta a mano).
         /// </summary>
         static bool Prende(Regola r, string indirizzo)
         {
             if (FiltriGmail.Contiene(FiltriGmail.MittentiEsclusi(r.QueryLibera), indirizzo)) return false;
+            if (FiltriGmail.Contiene(r.Da, indirizzo)) return false;
             foreach (string grezzo in r.Da)
             {
                 string t = (grezzo ?? "").Trim().ToLowerInvariant();
                 if (t == "" || (t.StartsWith("@") && t.EndsWith("@"))) continue;
-                if (t == indirizzo) return true;
                 if (t.StartsWith("@") && (indirizzo.EndsWith(t) || indirizzo.EndsWith("." + t.Substring(1)))) return true;
                 if (t.IndexOf('@') < 0 && (indirizzo.EndsWith("@" + t) || indirizzo.EndsWith("." + t))) return true;
             }

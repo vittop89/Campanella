@@ -2041,14 +2041,7 @@ namespace Campanella
                 btnCasella.Visible = false;
                 return;
             }
-            string pre = S.PrefissoPulito();
-            string nome = (pre == "" ? "" : pre + "/") + regolaCasella.Etichetta;
-            List<string> indirizzi = prese[0].Value;
-            lblCasella.Text = nome + " prende anche " + string.Join(", ", indirizzi.ToArray()) +
-                (indirizzi.Count == 1 ? ", che in \"La tua scuola\" e' fra gli indirizzi" : ", che in \"La tua scuola\" sono fra gli indirizzi") +
-                " di Dirigenza o Segreteria: di solito e' la casella della scuola, e i suoi messaggi prenderebbero anche " +
-                nome + ". Di partenza, adesso, " + nome + " non prende quello che e' gia' in Dirigenza o Segreteria." +
-                (prese.Count > 1 ? " Lo stesso per altre " + (prese.Count - 1) + " regole: il bottone le sistema una alla volta." : "");
+            lblCasella.Text = TestoAvvisoCasella(S, prese);
             lblCasella.Top = lblDoppioni.Visible ? lblDoppioni.Bottom + 8 : lblDoppioni.Top;
             lblCasella.Height = Tema.AltezzaTesto(lblCasella.Text, lblCasella.Font, lblCasella.Width);
             btnCasella.Text = "Escludi Dirigenza e Segreteria da " + regolaCasella.Etichetta;
@@ -2056,6 +2049,31 @@ namespace Campanella
             btnCasella.Top = lblCasella.Bottom + 4;
             lblCasella.Visible = true;
             btnCasella.Visible = true;
+        }
+
+        /// <summary>
+        /// Che cosa dice l'avviso della casella della scuola, per la prima delle
+        /// regole che la prendono (GeneratorePosta.CasellaDellaScuolaPresa).
+        /// Che di partenza non la prende lo dice solo di Ministero e USR: di
+        /// un'altra regola, scritta dall'utente, dice che c'e' il bottone.
+        /// </summary>
+        static string TestoAvvisoCasella(Stato s, List<KeyValuePair<Regola, List<string>>> prese)
+        {
+            if (prese == null || prese.Count == 0) return "";
+            string pre = s.PrefissoPulito();
+            Regola r = prese[0].Key;
+            string nome = (pre == "" ? "" : pre + "/") + r.Etichetta;
+            List<string> indirizzi = prese[0].Value;
+            bool ministero = string.Equals((r.Etichetta ?? "").Trim(), "Ministero e USR", StringComparison.OrdinalIgnoreCase);
+            return nome + " prende anche " + string.Join(", ", indirizzi.ToArray()) +
+                (indirizzi.Count == 1 ? ", che in \"La tua scuola\" e' fra gli indirizzi" : ", che in \"La tua scuola\" sono fra gli indirizzi") +
+                " di Dirigenza o Segreteria: di solito e' la casella della scuola, e i suoi messaggi prenderebbero anche " +
+                nome + "." +
+                (ministero
+                    ? " Di partenza, adesso, " + nome + " non prende quello che e' gia' in Dirigenza o Segreteria."
+                    : " Se non ti servono li', il bottone le fa escludere Dirigenza e Segreteria, come fa di partenza " +
+                      "Ministero e USR.") +
+                (prese.Count > 1 ? " Lo stesso per altre " + (prese.Count - 1) + " regole: il bottone le sistema una alla volta." : "");
         }
 
         /// <summary>Il bottone dell'avviso della casella della scuola: la regola esclude Dirigenza e Segreteria, e sta sotto di loro.</summary>
