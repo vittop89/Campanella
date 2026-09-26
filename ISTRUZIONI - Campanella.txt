@@ -121,12 +121,21 @@ voce che resta.
 L'ASPETTO
 Parte con il tema scuro. In alto a destra c'e' il pulsante per il tema chiaro;
 la scelta resta salvata.
+Negli elenchi con le spunte (le regole e i ruoli della Posta, i modelli e le
+cartelle dell'anno di Cartelle) la spunta si toglie e si rimette con un clic
+sul quadratino, o con la barra spaziatrice sulla voce scelta: un clic sul
+nome sceglie la voce e basta, e una lettera salta alla voce che comincia
+cosi' senza cambiarle la spunta. Nell'elenco delle regole della Posta il
+doppio clic sul nome apre la regola in "Modifica".
 
 
 POSTA - riordinare la casella
 1) Passo 2: scrivi il dominio della scuola e, se li conosci, gli indirizzi
-   della dirigenza e della segreteria. Il tuo indirizzo non serve: lo script
-   gira nel tuo account e lo sa da solo.
+   della dirigenza e della segreteria. La casella istituzionale della scuola
+   (il codice della scuola @istruzione.it) scrivila fra quelli della
+   segreteria, o della dirigenza: cosi' i suoi messaggi non finiscono anche
+   in Ministero e USR. Il tuo indirizzo non serve: lo script gira nel tuo
+   account e lo sa da solo.
 2) Passo 3: carica l'elenco del personale. Tre modi:
    A) incolli gli indirizzi che hai gia';
    B) li prendi da ClasseViva (solo Spaggiari): con l'estensione per Chrome
@@ -168,16 +177,35 @@ POSTA - riordinare la casella
      tiene nella cronologia degli appunti (Win+V). Prima di inviare
      controlla in alto a destra che sia l'account della scuola.
      "Copia gli indirizzi" li mette solo negli appunti.
-3) Passo 4: scegli le etichette. Ogni riga e' un'etichetta; le etichette si
-   sommano (una circolare del dirigente prende Dirigenza e Circolari), e
-   l'ordine conta solo per Studenti, che prende la posta del dominio non
-   gia' finita in Colleghi, Dirigenza o Segreteria. Di norma nascono con il nome che leggi
-   nell'elenco (Circolari, Colleghi...) e quelle che hai gia' in Gmail con lo
-   stesso nome vengono riempite, non duplicate: e' quello che serve dentro
-   l'account della scuola, dove tutta la posta e' di lavoro. Se invece questa
-   casella e' personale e raccoglie anche la posta della scuola, scrivi un
-   nome nella casella "Raggruppa sotto" (per esempio Scuola): le etichette
-   nascono tutte li' dentro, separate dal resto.
+3) Passo 4: scegli le etichette. Ogni riga e' un'etichetta: la spunta si
+   toglie con un clic sul quadratino (o con la barra spaziatrice), un clic
+   sul nome sceglie la regola e ne mostra la descrizione, un doppio clic la
+   apre in "Modifica". Le etichette si sommano (una circolare del dirigente
+   prende Dirigenza e Circolari), e l'ordine conta solo per Studenti, che
+   prende la posta del dominio non
+   gia' finita in Colleghi, Dirigenza o Segreteria, e per Ministero e USR,
+   che non prende quello che e' gia' in Dirigenza o Segreteria (la casella
+   della scuola, codice@istruzione.it, e' @istruzione.it come il
+   ministero): tutte e due stanno sotto le regole che escludono. Una
+   Ministero e USR salvata con la 1.6.0 o prima non le esclude, e le regole
+   salvate non cambiano da sole: se prende un indirizzo @istruzione.it
+   scritto nel passo 2 fra quelli della dirigenza o della segreteria, un
+   avviso in ambra sotto le regole lo dice, e il suo bottone "Escludi
+   Dirigenza e Segreteria da Ministero e USR" la sistema (e la sposta sotto
+   di loro, se serve); poi copia di nuovo la configurazione. Con
+   EXTRA_creaFiltriGmail una regola che esclude altre etichette non ha un
+   filtro vero di Gmail: resta allo smistamento dello script, come
+   Studenti. Se i filtri veri li avevi creati prima, quello di Ministero e
+   USR resta in Gmail e continua a prendere anche la casella della scuola:
+   toglilo con "Filtri che hai gia' in Gmail..." (parte gia' come
+   "Toglilo: lo fa gia' la regola Ministero e USR") ed EXTRA_togliFiltri,
+   oppure a mano da Gmail. Di norma le etichette nascono con il nome che
+   leggi nell'elenco (Circolari, Colleghi...) e quelle che hai gia' in
+   Gmail con lo stesso nome vengono riempite, non duplicate: e' quello che
+   serve dentro l'account della scuola, dove tutta la posta e' di lavoro.
+   Se invece questa casella e' personale e raccoglie anche la posta della
+   scuola, scrivi un nome nella casella "Raggruppa sotto" (per esempio
+   Scuola): le etichette nascono tutte li' dentro, separate dal resto.
    Per tornare indietro, ANNULLA_etichettatura toglie dai messaggi le
    etichette dello script. Senza gruppo toglie solo quelle che lo script ha
    creato, e se non ne trova dice "NIENTE DA TOGLIERE"; le etichette con lo
@@ -213,25 +241,78 @@ POSTA - riordinare la casella
    I filtri che avevi gia' in Gmail continuano a lavorare accanto allo
    script, e un messaggio puo' prendere due etichette simili (la Genitori
    dello script e la tua Famiglie). "Filtri che hai gia' in Gmail...", sotto
-   le regole, serve a togliere quelli che non vuoi piu'. Prima esportali da
+   le regole, serve a riordinarli senza rifarli a mano. Prima esportali da
    Gmail: Impostazioni (la rotella) -> Vedi tutte le impostazioni -> Filtri
    e indirizzi bloccati, spunta la casella sopra l'elenco per sceglierli
    tutti e premi Esporta. Gmail scarica un file, di solito mailFilters.xml:
    aprilo nella finestra con "Apri il file...". Ogni filtro compare con che
-   cosa cerca, che cosa fa e un suggerimento: "uguale a una regola di
-   Campanella" (mette proprio l'etichetta di una regola accesa, gruppo
-   compreso: parte spuntato, se non fa anche altro, come inoltrare o
-   eliminare), "creato da Campanella" (e' uno dei filtri veri che fa
-   EXTRA_creaFiltriGmail: toglilo solo se non li vuoi piu'), "simile a ..."
-   (ha una parola o un sinonimo in comune con una regola) oppure "tuo". Un
-   filtro con un criterio che Campanella non capisce resta com'e': non si
-   puo' spuntare. Spunta quelli da togliere e premi "Usa questa scelta". Il
+   cosa cerca, che cosa fa, un suggerimento ("uguale a una regola di
+   Campanella": mette proprio l'etichetta di una regola accesa, gruppo
+   compreso; "creato da Campanella": e' uno dei filtri veri che fa
+   EXTRA_creaFiltriGmail; "simile a ...": ha una parola o un sinonimo in
+   comune con una regola; oppure "tuo") e, nella colonna "Che cosa fare",
+   una tendina gia' scelta:
+   - "Lascialo in Gmail": resta com'e'.
+   - "Toglilo": lo togliera' EXTRA_togliFiltri. "Toglilo: lo fa gia' la
+     regola ..." quando mette l'etichetta di una regola, o quando i suoi
+     mittenti sono gia' tutti in quella regola. Per un filtro che fa anche
+     altro (inoltra, elimina, mette la stella...) la tendina dice che cosa
+     si perde, e ha solo "Lascialo" e "Toglilo".
+   - "Unisci a ...": per un filtro fatto solo di mittenti (from:a, oppure
+     from:(a OR b ...), anche con delle esclusioni come -from:y), i suoi
+     mittenti vanno fra quelli di una regola, le esclusioni nella sua
+     ricerca avanzata (valgono per tutta la regola), e il filtro si toglie.
+     Nella tendina ci sono le regole dove si puo': con i mittenti propri
+     (non Colleghi e Studenti, che usano l'elenco del personale e il
+     dominio, ne' le classi), senza oggetto o parole da cercare, che
+     archiviano e segnano come letti come il filtro. I mittenti di
+     Dirigenza, Segreteria e Registro elettronico si scrivono nella pagina
+     "La tua scuola": vanno li'. A Registro elettronico si uniscono solo
+     domini e parole (spaggiari.eu, @portaleargo.it, nuvola), non
+     l'indirizzo di una persona: i suoi mittenti stanno nelle impostazioni
+     di Campanella, non con i dati personali. Una regola spenta, come
+     Genitori, si accende.
+   - "Diventa una regola": nasce una regola con la stessa etichetta del
+     filtro, cosi' i messaggi che ce l'hanno gia' restano insieme, e la
+     stessa ricerca, scritta come la scrive Gmail (i mittenti fra i
+     mittenti, il resto nella ricerca avanzata), che archivia e segna come
+     letti se lo faceva il filtro, con il primo colore libero. Solo se la
+     ricerca si scrive esatta, se l'etichetta sta dentro il gruppo
+     ("Raggruppa sotto") e nessuna regola ce l'ha gia', e se il filtro non
+     fa altro: altrimenti il riquadro sotto dice perche'.
+   Di partenza si tolgono quelli uguali a una regola che non fanno altro
+   (ma se hanno dei mittenti che la regola non ha si uniscono a lei, cosi'
+   non si perdono), i mittenti di quelli simili vanno nella regola simile,
+   se si puo', e quelli tuoi diventano regole; quelli scelti prima si
+   tolgono. Restano quelli creati da Campanella, quelli che fanno anche
+   altro e quelli simili che non si possono unire. Un filtro simile a
+   Dirigenza o Segreteria solo nel nome, con dei domini e non degli
+   indirizzi (quello degli stipendi chiamato "Amministrazione e
+   stipendio"), diventa una regola. Un filtro con un criterio che
+   Campanella non capisce resta com'e'. Il riquadro sotto la griglia dice
+   tutto del filtro scelto, con la sua ricerca in Gmail e quello che
+   succede con la scelta; l'ultima colonna, per ogni filtro, la ricerca che
+   fara' la regola (quella nuova, quella che prende i mittenti o quella che
+   lo fa gia'). Premi "Usa questa scelta": Campanella crea le regole (in
+   fondo, o sotto la regola simile, con la descrizione "Da un filtro di
+   Gmail"), unisce i mittenti, sceglie i filtri da togliere e dice che cosa
+   ha fatto. Riaperta con lo stesso file, la finestra riconosce le regole
+   nate dai filtri e i mittenti gia' uniti ("Toglilo: lo fa gia' la regola
+   ...") e non li rifa'. Il
    file contiene i tuoi filtri, con indirizzi e parole: dopo averlo aperto
-   puoi cancellarlo. Campanella tiene i filtri spuntati insieme all'elenco
-   del personale, e li scrive nella configurazione: copiala di nuovo (passo
-   5). Poi, nell'editor dello script, con il servizio Gmail API (l'ottavo
-   passo dell'installazione guidata), esegui EXTRA_togliFiltri. Toglie solo un filtro che ha proprio
-   quei criteri, nessuno in piu', e mette proprio quell'etichetta; prima di
+   puoi cancellarlo. Campanella tiene i filtri da togliere insieme
+   all'elenco del personale, e i mittenti dei filtri nelle regole, come gli
+   altri, e li scrive nella configurazione: anche le regole stanno con i
+   dati personali (una regola nata da un filtro puo' avere nell'etichetta,
+   fra i mittenti o nella ricerca avanzata il nome o l'indirizzo di una
+   persona, come from:"Nome Cognome"). Le regole e i filtri da
+   togliere arrivano insieme, nella stessa configurazione: copiala di nuovo
+   (passo 5) e incollala al posto di quella di prima, e solo dopo,
+   nell'editor dello script, con il servizio Gmail API (l'ottavo passo
+   dell'installazione guidata), esegui EXTRA_togliFiltri. Cosi' nessun
+   filtro va via prima della regola che lo sostituisce. Toglie solo un
+   filtro che ha proprio quei criteri, nessuno in piu', e mette proprio
+   quell'etichetta; prima di
    toglierlo ne scrive una copia completa nel registro, con cui lo rifai a
    mano se serve, e alla fine ti manda lo stesso riepilogo per email (se hai
    il riepilogo acceso). In modalita' prova dice soltanto che cosa
@@ -322,19 +403,26 @@ POSTA - riordinare la casella
    mittenti).
    In "Modifica" ogni regola ha la spunta "Basta uno dei due: l'oggetto
    oppure i mittenti": e' quella delle classi, e vale anche per le tue
-   regole. I filtri veri di Gmail (EXTRA_creaFiltriGmail) per le classi
+   regole. Per Dirigenza, Segreteria e Registro elettronico i mittenti non
+   si scrivono li': la casella dice che si scrivono nella pagina "La tua
+   scuola", e accanto c'e' il bottone "Apri La tua scuola". Chiude la
+   finestra come Annulla (se nella regola hai cambiato altro, chiede se
+   tenerlo: Si' lo salva, No lo lascia perdere, Annulla resta nella
+   finestra) e porta al passo 2, con il cursore in fondo alla casella di
+   quella regola. I filtri veri di Gmail (EXTRA_creaFiltriGmail) per le classi
    cercano solo l'oggetto: gli indirizzi degli studenti non vanno nei
    filtri, che resterebbero nelle impostazioni di Gmail anche cancellando il
    file. I messaggi degli studenti li etichetta lo smistamento dello script
    (PASSO_4), che quindi deve restare acceso; lo dice anche il riepilogo di
    EXTRA_creaFiltriGmail. Nella finestra dei filtri di Gmail quelli delle
-   classi non partono mai spuntati, e quelli con degli indirizzi sotto
+   classi partono sempre lasciati in Gmail, non diventano regole e non si
+   uniscono a una regola, e quelli con degli indirizzi sotto
    un'etichetta che sembra di una classe (l'ultima parte finisce con 3B,
    3B LSA, 5AINF, 3ACAT o 5Ainf, anche dopo altre parole o con l'anno dopo:
    Classe 3B, Inglese 3B, 3B 2025-26; oppure sta sotto una madre con la
    parola "classi" o usata per le classi) non si possono scegliere; "3B
    Inglese", una classe seguita da altre parole, non basta: un filtro cosi'
-   con gli studenti non spuntarlo. Non si possono scegliere nemmeno se li
+   con gli studenti lascialo in Gmail. Non si possono scegliere nemmeno se li
    avevi scelti prima: Campanella li toglie dalla scelta (all'avvio e con
    "Usa queste classi") e lo dice (quelli tolti all'avvio, al passo 4 sotto
    "Filtri che hai gia' in Gmail..." e nella finestra dei filtri, finche'
@@ -766,10 +854,10 @@ COSE CHE NON SUCCEDONO MAI
   Due eccezioni, che devi chiedere tu. Lo script dei moduli puo' togliere
   dal modulo le risposte degli anni scorsi, e solo dopo averle ritrovate una
   per una in un foglio vecchio: quella non si annulla. Lo script della
-  posta, con EXTRA_togliFiltri, toglie i filtri di Gmail che hai spuntato tu
-  al passo 4, e solo quelli: non si rimettono da script, ma prima di
-  toglierli ne scrive una copia nel registro per rifarli a mano. Messaggi
-  ed etichette restano.
+  posta, con EXTRA_togliFiltri, toglie i filtri di Gmail che hai scelto tu
+  di togliere al passo 4, e solo quelli: non si rimettono da script, ma
+  prima di toglierli ne scrive una copia nel registro per rifarli a mano.
+  Messaggi ed etichette restano.
 - La prima esecuzione del riordino parte in modalita' prova: conta e basta.
 - Lo script non scrive a nessun altro: le email arrivano solo a te.
 - Lo script dei moduli non manda email a nessuno e non condivide niente.
@@ -804,11 +892,12 @@ di controllo, il menu Campanella > "Annulla: togli chiusure e collegamenti"
 dell'anno, che restano nel Drive.
 Due cose le funzioni qui sopra non le annullano. I filtri veri di Gmail
 (se li hai creati con EXTRA_creaFiltriGmail) si cancellano a mano da Gmail >
-Impostazioni > Filtri e indirizzi bloccati, oppure li esporti, li spunti al
-passo 4 della Posta e li toglie EXTRA_togliFiltri. I messaggi che una regola
-ha segnato come letti restano letti. I filtri tolti con EXTRA_togliFiltri
-non si rimettono da script: si rifanno a mano con la copia che lo script ha
-scritto nel registro (e nel riepilogo per email). I colori dati alle
+Impostazioni > Filtri e indirizzi bloccati, oppure li esporti, al passo 4
+della Posta scegli di toglierli e li toglie EXTRA_togliFiltri. I messaggi
+che una regola ha segnato come letti restano letti. I filtri tolti con
+EXTRA_togliFiltri non si rimettono da script: si rifanno a mano con la
+copia che lo script ha scritto nel registro (e nel riepilogo per email).
+I colori dati alle
 etichette restano: si cambiano da Gmail. I file Classe_*.gs con gli
 indirizzi degli studenti li cancelli tu dal progetto dello script (spariscono
 anche eliminando il progetto). Alla fine, se vuoi, revoca l'accesso agli

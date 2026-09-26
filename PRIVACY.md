@@ -23,7 +23,7 @@ programma: è quello che finisce per sbaglio dentro al repository.
 | `DatiOrari_prova.gs`, `Configurazione_prova.gs` | generati dai dati veri (cognomi, indirizzi, orario di servizio): `test\genera_dati_prova.ps1` scrive il suo in `%TEMP%\campanella-dati-prova`, fuori dal repository. I banchi di prova usano i file `*_esempio.gs`, inventati. |
 | qualunque `.xlsx` di orario | come sopra |
 | `Configurazione.gs`, `DatiOrari.gs` generati | l'elenco degli indirizzi del personale, i cognomi |
-| `mailFilters.xml` (i filtri esportati da Gmail) | i filtri veri di un account, con gli indirizzi e le parole che cercano. Le prove usano `test/filtri_gmail_esempio.xml`, inventato. |
+| `mailFilters.xml` (i filtri esportati da Gmail) | i filtri veri di un account, con gli indirizzi e le parole che cercano. Le prove usano `test/filtri_gmail_esempio.xml` e `test/filtri_gmail_riorganizza.xml`, inventati (il secondo ha la forma dei filtri di un docente vero, con nomi, codici e indirizzi inventati). |
 | `Classe_*.gs` (Posta, passo 4, «Le mie classi…») | gli indirizzi degli studenti di una classe. Campanella li copia solo negli appunti, per il progetto dello script: se li salvi in un file, fuori dal repository. |
 | `struttura.json`, `dist/`, `documenti/` | non sono sensibili, ma sono output: non serve versionarli |
 
@@ -37,8 +37,8 @@ git ls-files | grep -iE "\.(json|gs|xlsx|xls|csv|xml)$"
 Devono comparire solo i `.gs` di `src/risorse`, il `manifest.json`
 dell'estensione, la configurazione della firma in `installer/` e i file
 inventati di `test/`: `Configurazione_esempio.gs`, `DatiOrari_esempio.gs`,
-`tabellone_esempio.csv`, `colloqui_esempio.csv`, `colloqui_esempio.xlsx` e
-`filtri_gmail_esempio.xml`. Qualunque altro nome è
+`tabellone_esempio.csv`, `colloqui_esempio.csv`, `colloqui_esempio.xlsx`,
+`filtri_gmail_esempio.xml` e `filtri_gmail_riorganizza.xml`. Qualunque altro nome è
 da controllare. Se un file con dati è già stato committato, non basta
 cancellarlo: resta nella storia. Va riscritta la storia
 (`git filter-repo`) oppure, molto più semplice, si ricomincia da un
@@ -145,15 +145,25 @@ casella, che arrivano senza spunta) non vanno nello script ma restano
 salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
-quelli che spunti, con l'etichetta e i criteri. Un filtro che sembra di una
-classe e ha degli indirizzi non si può spuntare: potrebbero essere quelli
-degli studenti, e si toglie da Gmail. Sembra di una classe se l'ultima parte
+quelli da togliere, con l'etichetta e i criteri. Una regola nata da un
+filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
+possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
+filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra
+gli indirizzi di dirigenza e segreteria nella pagina «La tua scuola». Le
+regole stanno con l'elenco del personale, come gli indirizzi di dirigenza e
+segreteria, e vanno in `Configurazione.gs`. Il registro elettronico no: i
+suoi mittenti (di solito domini, come `@spaggiari.eu`) stanno nelle
+impostazioni, e dai filtri ci arrivano solo domini e parole, mai
+l'indirizzo di una persona. Un filtro che sembra di una classe e ha degli
+indirizzi non si può togliere da qui, né far diventare una regola:
+potrebbero essere quelli degli studenti, e si toglie da Gmail. Sembra di
+una classe se l'ultima parte
 dell'etichetta finisce con il nome di una classe (3B, III B, 3B LSA, 5AINF o
 5Ainf), anche con delle parole prima o l'anno dopo («Classe 3B», «Inglese
 3B», «3B 2025-26»), o se l'etichetta sta sotto una madre con la parola
 «classi» o usata per le classi. Una classe seguita da altre parole («3B
 Inglese», come «5A Praga») non basta: un filtro così, se ha gli indirizzi
-degli studenti, non spuntarlo. Se
+degli studenti, lascialo in Gmail (e non farne una regola). Se
 l'avevi scelto prima (con la 1.5.3, o prima di creare le classi sotto
 quell'etichetta), Campanella lo toglie dalla scelta all'avvio e con «Usa
 queste classi», e non lo scrive nella configurazione; quella che avevi già

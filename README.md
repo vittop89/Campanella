@@ -258,8 +258,9 @@ found, by its arrival time, in an earlier sheet.
   The one real deletion is optional and off by default: clearing last year's
   answers from a form, described above, which cannot be undone. Besides, only
   when you run `EXTRA_togliFiltri`, the mail script removes the Gmail filters
-  you already had and ticked in step 4, only those, after writing a copy of
-  each one to the log so it can be made again by hand.
+  you already had and chose to remove in step 4 (also those turned into
+  Campanella rules), only those, after writing a copy of each one to the log
+  so it can be made again by hand.
 - The first run of the mail sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
 - The optional class labels also use the email addresses of your students,
@@ -277,7 +278,7 @@ found, by its arrival time, in an earlier sheet.
   active rule, same-named labels applied by hand included. Two things are
   not undone by the `ANNULLA_` functions: native Gmail filters, if created,
   are removed by hand in Gmail's settings or by `EXTRA_togliFiltri` after
-  ticking them in step 4; messages a rule marked as read stay read.
+  choosing to remove them in step 4; messages a rule marked as read stay read.
 - The mail and timetable scripts share one Apps Script project, and Google
   asks for its permissions all at once: Gmail, sending to yourself
   (`MailApp`), your own address (`Session`), triggers and, as soon as the

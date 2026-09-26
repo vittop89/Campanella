@@ -263,8 +263,9 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   è facoltativa e spenta di partenza: togliere dal modulo le risposte degli
   anni scorsi, come detto sopra, e non si annulla. In più, solo quando esegui
   `EXTRA_togliFiltri`, lo script della posta toglie i filtri di Gmail che
-  avevi già e che hai spuntato al passo 4, solo quelli, dopo averne scritto
-  una copia nel registro per rifarli a mano.
+  avevi già e che al passo 4 hai scelto di togliere (anche quelli diventati
+  regole di Campanella), solo quelli, dopo averne scritto una copia nel
+  registro per rifarli a mano.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
 - Le etichette delle classi, facoltative, usano anche gli indirizzi email dei
@@ -281,8 +282,8 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   etichette di tutte le regole attive, comprese quelle con lo stesso nome
   messe a mano. Due cose le funzioni `ANNULLA_` non le annullano: i filtri
   veri di Gmail, se li hai creati, si tolgono a mano dalle impostazioni di
-  Gmail oppure con `EXTRA_togliFiltri`, dopo averli spuntati al passo 4; i
-  messaggi che una regola ha segnato come letti restano letti.
+  Gmail oppure con `EXTRA_togliFiltri`, dopo aver scelto di toglierli al
+  passo 4; i messaggi che una regola ha segnato come letti restano letti.
 - Lo script della posta e quello degli orari stanno nello stesso progetto
   Apps Script, e Google ne chiede i permessi tutti insieme: Gmail, l'invio a
   te stesso (`MailApp`), il tuo indirizzo (`Session`), i trigger e, appena

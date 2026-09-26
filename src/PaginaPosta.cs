@@ -1070,8 +1070,8 @@ namespace Campanella
                   "Con molta posta il tempo di Google finisce prima e lo " +
                   "dice: rieseguila finche' in cima non compare FATTO. Esegui ANNULLA_automazione per spegnere " +
                   "il controllo automatico; i filtri veri di Gmail, se li hai creati, si tolgono a mano " +
-                  "(Gmail -> Impostazioni -> Filtri) oppure spuntandoli al passo 4 (\"Filtri che hai gia' in " +
-                  "Gmail...\") ed eseguendo EXTRA_togliFiltri. Nessun messaggio viene mai cancellato, quindi " +
+                  "(Gmail -> Impostazioni -> Filtri) oppure scegliendo \"Toglilo\" al passo 4 (\"Filtri che hai gia' " +
+                  "in Gmail...\") ed eseguendo EXTRA_togliFiltri. Nessun messaggio viene mai cancellato, quindi " +
                   "non si perde posta." },
                 { "Alcuni messaggi finiscono nell'etichetta sbagliata",
                   "Prima una cosa normale: le etichette si sommano, e una circolare del dirigente " +
@@ -1099,11 +1099,26 @@ namespace Campanella
                   "I filtri che avevi fatto in Gmail continuano a lavorare accanto allo script: un messaggio " +
                   "puo' finire sia in Genitori sia nella tua Famiglie. Al passo 4 premi \"Filtri che hai gia' " +
                   "in Gmail...\", apri l'esportazione dei tuoi filtri (Gmail -> Impostazioni -> Vedi tutte le " +
-                  "impostazioni -> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta) e spunta quelli da " +
-                  "togliere. Poi copia di nuovo la configurazione (passo 5) ed esegui EXTRA_togliFiltri, con il " +
-                  "servizio Gmail API (passo 8): prima di togliere un filtro ne scrive una copia nel registro. " +
-                  "Le etichette gia' messe ai messaggi restano: cancellale da Gmail se non ti servono, i " +
-                  "messaggi non si cancellano." },
+                  "impostazioni -> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta) e per ognuno scegli " +
+                  "che cosa farne: lasciarlo, toglierlo, unire i suoi mittenti a una regola (Famiglie a Genitori) o " +
+                  "farne una regola con la stessa etichetta e la stessa ricerca. Ogni filtro parte gia' con una " +
+                  "proposta. Poi copia di nuovo la configurazione (passo 5), incollala al posto di quella di prima " +
+                  "ed esegui EXTRA_togliFiltri, con il servizio Gmail API (passo 8): prima di togliere un filtro ne " +
+                  "scrive una copia nel registro. Le etichette gia' messe ai messaggi restano: cancellale da Gmail " +
+                  "se non ti servono, i messaggi non si cancellano." },
+                { "I messaggi della casella della scuola finiscono anche in Ministero e USR",
+                  "La casella istituzionale della scuola (il codice della scuola @istruzione.it) e' @istruzione.it " +
+                  "come il ministero. Scrivila al passo 2 fra gli indirizzi della Segreteria, o della Dirigenza: " +
+                  "Ministero e USR non prende quello che e' gia' in Dirigenza o Segreteria. Se la tua Ministero e " +
+                  "USR e' di prima della 1.6.1, al passo 4 un avviso in ambra lo dice, e il suo bottone la " +
+                  "sistema; poi copia di nuovo la configurazione (passo 5). Se avevi creato i filtri veri di Gmail, " +
+                  "togli anche quello vecchio di Ministero e USR, con \"Filtri che hai gia' in Gmail...\" ed " +
+                  "EXTRA_togliFiltri." },
+                { "Nella regola di Dirigenza non riesco a scrivere i mittenti",
+                  "I mittenti di Dirigenza, Segreteria e Registro elettronico si scrivono nella pagina \"La tua " +
+                  "scuola\" (passo 2), non nella regola. In \"Modifica\" il bottone \"Apri La tua scuola\", accanto " +
+                  "alla casella dei mittenti, ti porta li', con il cursore nella casella giusta: uno per riga, un " +
+                  "indirizzo intero oppure @dominio. Poi copia di nuovo la configurazione (passo 5)." },
                 { "Colleghi e studenti finiscono insieme",
                   "Di solito vuol dire che l'elenco del personale e' incompleto: sono indirizzi dello " +
                   "stesso dominio, e l'unico modo per distinguerli e' l'elenco. Usa il metodo C del " +

@@ -1896,8 +1896,8 @@ namespace Campanella
             return "Nel progetto dello script cancella tu i loro file Classe_*.gs, con gli indirizzi degli studenti, ma " +
                    "non quelli con lo stesso nome di una classe di quest'anno, che il file nuovo sostituisce: dopo \"Usa " +
                    "queste classi\" Campanella dice quali. Se avevi creato i filtri veri di Gmail togli anche i loro: " +
-                   "quelli che cercano solo l'oggetto, come li crea EXTRA_creaFiltriGmail, spuntali in \"Filtri che hai " +
-                   "gia' in Gmail...\" e li toglie EXTRA_togliFiltri; quelli con gli indirizzi degli studenti non si " +
+                   "quelli che cercano solo l'oggetto, come li crea EXTRA_creaFiltriGmail, in \"Filtri che hai " +
+                   "gia' in Gmail...\" scegli \"Toglilo\" e li toglie EXTRA_togliFiltri; quelli con gli indirizzi degli studenti non si " +
                    "possono scegliere: toglili tu (Gmail -> Impostazioni -> Filtri e indirizzi bloccati).";
         }
     }
