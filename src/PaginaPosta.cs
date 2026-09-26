@@ -2125,6 +2125,10 @@ namespace Campanella
         {
             if (regolaCasella == null) return;
             LeggiSpunteRegole();
+            // "Voglio anche i filtri veri", spuntata in questa visita del passo 4,
+            // arriva nello Stato solo uscendo dalla pagina (Raccogli): la riga di
+            // stato la deve gia' sapere
+            if (chkFiltri != null) S.Filtri = chkFiltri.Checked;
             Regola r = regolaCasella;
             GeneratorePosta.EscludiDirigenzaESegreteria(S, r);
             AggiornaElencoRegole(S.Regole.IndexOf(r));

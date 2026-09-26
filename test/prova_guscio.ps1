@@ -986,6 +986,17 @@ if ($null -ne $tElenco) {
         $onClick.Invoke($btnCas, @([System.EventArgs]::Empty)) | Out-Null
         Verifica "il bottone la fa escludere Dirigenza e Segreteria, e l'avviso va via" (
             (@($ministero.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and -not (Chiesto $lblCas) -and -not (Chiesto $btnCas))
+        # "Voglio anche i filtri veri" spuntata in questa visita del passo 4 (lo
+        # Stato la prende uscendo dalla pagina): la riga di stato dopo il bottone
+        # dice gia' di togliere il filtro vero di prima
+        $ministero.EscludiEtichette.Clear()
+        $tPosta.GetMethod('AggiornaElencoRegole', $FI).Invoke($posta, @([int]0)) | Out-Null
+        $tPosta.GetField('chkFiltri', $FI).GetValue($posta).Checked = $true
+        $onClick.Invoke($btnCas, @([System.EventArgs]::Empty)) | Out-Null
+        $rigaCas = $tGuscio.GetField('lblStato', $FI).GetValue($g).Text
+        Verifica "spuntati i filtri veri in questa visita, la riga di stato dopo il bottone dice di togliere il filtro vero di prima ('$rigaCas')" (
+            (@($ministero.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and
+            $rigaCas -match "e togli il suo filtro vero di prima con .Filtri che hai gia' in Gmail\.\.\..")
     }
     catch {
         Verifica "gli elenchi con le spunte si provano senza errori ($($_.Exception.GetBaseException().Message))" $false
