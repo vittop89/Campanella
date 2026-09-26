@@ -266,19 +266,26 @@ namespace Campanella
         /// si scrive una volta; nemmeno una che sembra di una classe e cerca
         /// degli indirizzi (FiltriGmail.DiUnaClasseConIndirizzi), ne' una che
         /// non ha piu' la regola che la sostituisce (tolta, spenta o senza i
-        /// suoi mittenti: FiltriGmail.AncoraSostituito), che resta in Gmail.
+        /// suoi mittenti: FiltriGmail.AncoraSostituito), che resta in Gmail;
+        /// con la stessa voce ripetuta, basta una delle due.
         /// </summary>
         static List<string> FiltriJs(Stato s)
         {
             List<string> fuori = new List<string>(), chiavi = new List<string>();
             if (s.FiltriDaTogliere == null) return fuori;
+            // lo stesso filtro scelto due volte (non succede: Applica e la
+            // lettura del file ne tengono uno) va via solo se lo sostituiscono
+            // tutte e due le voci: nel dubbio resta in Gmail
+            List<string> senzaRegola = new List<string>();
+            foreach (FiltroDaTogliere scelto in s.FiltriDaTogliere)
+                if (scelto != null && !FiltriGmail.AncoraSostituito(scelto, s)) senzaRegola.Add(scelto.Chiave());
             foreach (FiltroDaTogliere scelto in s.FiltriDaTogliere)
             {
                 // uno che sembra di una classe e cerca degli indirizzi, scelto
                 // prima: porterebbe qui gli indirizzi degli studenti
                 if (scelto == null || FiltriGmail.DiUnaClasseConIndirizzi(scelto.Etichetta, scelto.Criteri, s)) continue;
                 // senza la regola che lo sostituisce non va via
-                if (!FiltriGmail.AncoraSostituito(scelto, s)) continue;
+                if (senzaRegola.Contains(scelto.Chiave())) continue;
                 List<KeyValuePair<string, object>> grezzi = new List<KeyValuePair<string, object>>();
                 foreach (KeyValuePair<string, string> kv in scelto.Criteri)
                     grezzi.Add(new KeyValuePair<string, object>(kv.Key, kv.Value));

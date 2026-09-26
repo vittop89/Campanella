@@ -454,10 +454,13 @@ namespace Campanella
             public FiltroDaTogliere Voce;       // null: non si puo' togliere (niente etichetta, criteri, o uno non si capisce)
             public Somiglianza Somiglia;
             public bool Prima;                  // era gia' fra i filtri scelti
-            public bool Orfana;                 // scelto prima, ma la regola che lo sostituiva non c'e' piu' (FiltriGmail.AncoraSostituito)
+            public bool Orfana;                 // scelto prima, ma la regola che lo sostituiva non lo sostituisce piu' (FiltriGmail.AncoraSostituito)
             public List<SceltaFiltro> Scelte;   // quelle della tendina; la prima e' "Lascialo in Gmail"
-            public SceltaFiltro Proposta;       // quella di partenza
+            public SceltaFiltro PropostaPiena;  // la proposta per il filtro da solo (FiltriGmail.Proposta)
+            public SceltaFiltro Proposta;       // quella di partenza, con le scelte delle altre righe (Rivedi)
+            public string PercheResta = "";     // perche' la proposta piena non si puo' fare, con le altre scelte
             public SceltaFiltro Scelta;         // quella di adesso
+            public bool AMano;                  // la scelta di adesso l'ha fatta il docente (Scegli)
             public DataGridViewRow Fila;        // la sua riga nella griglia, dovunque stia
         }
 
@@ -467,6 +470,8 @@ namespace Campanella
         readonly Label lblEsito, lblConto;
         readonly TextBox txtDettaglio;
         bool fileAperto = false, riempiendo = false;
+        // che cosa farebbe "Usa questa scelta" con le scelte di adesso (FiltriGmail.Prova): per il conto e il riquadro
+        EsitoScelte esito = null;
         // i filtri scelti prima che sembrano di una classe e cercano degli indirizzi: non si tengono
         int sceltiDelleClassi = 0;
         const int Larga = 1100;
@@ -515,7 +520,8 @@ namespace Campanella
             // alta quanto l'esito piu' lungo che Carica puo' scrivere
             lblEsito.Height = Tema.AltezzaTesto("Nel file ci sono 999 filtri: 999 uguali a una regola di Campanella " +
                 "(999 da togliere; 999 restano: fanno anche altro; 999 restano: la regola non prende tutti i loro " +
-                "messaggi), 999 creati da Campanella, 999 simili, 999 tuoi, " +
+                "messaggi; 999 restano per gli altri filtri, e il riquadro dice perche'), 999 creati da Campanella, " +
+                "999 simili, 999 tuoi, " +
                 "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 che " +
                 "sembrano di una classe, con degli indirizzi (si tolgono in Gmail). In fondo, 999 scelti prima che " +
                 "nel file non ci sono." + TestoDelleClassiTolti(999),
@@ -606,7 +612,8 @@ namespace Campanella
             Label nota = Tema.Testo1(
                 "Di partenza: si tolgono quelli che una regola accesa fa gia' (e che non fanno altro: non inoltrano, " +
                 "non eliminano...) e quelli scelti prima; i mittenti di uno uguale o simile a una regola vanno in " +
-                "quella regola, se si puo'; uno tuo diventa una regola; gli altri restano. Le regole nuove o cambiate " +
+                "quella regola, se si puo'; uno tuo diventa una regola; gli altri restano, e anche uno che con gli " +
+                "altri filtri che restano non si puo' togliere (il riquadro dice perche'). Le regole nuove o cambiate " +
                 "e i filtri da togliere vanno insieme nella " +
                 "configurazione: copiala di nuovo (passo 5) prima di eseguire EXTRA_togliFiltri. Prima di togliere un " +
                 "filtro lo script ne scrive una copia nel registro, per rifarlo a mano. Le etichette gia' messe ai " +
@@ -617,8 +624,8 @@ namespace Campanella
 
             lblConto = Tema.Testo1("", 16, y + 8, Larga - 320, Tema.Grassetto, Ruolo.Normale);
             lblConto.AutoSize = false;
-            lblConto.Height = Tema.AltezzaTesto("Da togliere: 999 filtri  -  regole nuove: 999  -  da unire a una regola: 999",
-                                                Tema.Grassetto, Larga - 320);
+            lblConto.Height = Tema.AltezzaTesto("Da togliere: 999 filtri  -  regole nuove: 999  -  da unire a una regola: 999" +
+                                                "  -  restano in Gmail lo stesso: 999", Tema.Grassetto, Larga - 320);
             Controls.Add(lblConto);
             Button ok = Tema.BottonePrincipale("Usa questa scelta", 16 + Larga - 200, y, 200, null);
             ok.Click += delegate
@@ -645,35 +652,105 @@ namespace Campanella
                 {
                     if (f == null) continue;
                     if (FiltriGmail.DiUnaClasseConIndirizzi(f.Etichetta, f.Criteri, s)) { sceltiDelleClassi++; continue; }
-                    righe.Add(ScelteDiPrima(f.Copia(), FiltriGmail.Confronta(f.Etichetta, f.Criteri, s),
-                                            !FiltriGmail.AncoraSostituito(f, s)));
+                    righe.Add(ScelteDiPrima(f.Copia(), FiltriGmail.Confronta(f.Etichetta, f.Criteri, s)));
                 }
             lblEsito.Text = (righe.Count == 0
                 ? "Nessun file aperto, e nessun filtro scelto prima."
                 : "Nessun file aperto: qui sotto ci sono i filtri scelti prima.") + DelleClassiTolti();
+            Rivedi();
             Riempi();
             Tema.Applica(this);
         }
 
         /// <summary>
         /// La riga di un filtro scelto prima, senza il file: si lascia o si
-        /// toglie, e parte da togliere; se la regola che lo sostituiva non c'e'
-        /// piu' (orfana: tolta, spenta, senza i suoi mittenti) parte lasciato.
+        /// toglie, e parte da togliere, con la regola che lo sostituisce ancora
+        /// ("Toglilo: lo fa gia' la regola X": quella che ricorda, o per uno
+        /// scelto con la 1.6.0 quella con la sua etichetta che lo sostituisce
+        /// adesso, e che "Usa questa scelta" ricordera'). Se nessuna lo
+        /// sostituisce piu' (orfana: la regola e' stata tolta, spenta, non ha
+        /// piu' i suoi mittenti, o non archivia come lui) parte lasciato.
         /// </summary>
-        static Riga ScelteDiPrima(FiltroDaTogliere voce, Somiglianza x, bool orfana)
+        Riga ScelteDiPrima(FiltroDaTogliere voce, Somiglianza x)
         {
             Riga r = new Riga();
             r.Voce = voce;
             r.Somiglia = x;
             r.Prima = true;
-            r.Orfana = orfana;
+            r.Orfana = !FiltriGmail.AncoraSostituito(voce, stato);
             SceltaFiltro togli = new SceltaFiltro();
             togli.Azione = SceltaFiltro.Togli;
             togli.Testo = "Toglilo";
+            if (!r.Orfana)
+            {
+                Regola chi = FiltriGmail.SceltoConLaVersioneDiPrima(voce) ? FiltriGmail.RegolaCheLoSostituisce(voce, stato)
+                                                                           : FiltriGmail.RegolaCheLoSostituisceAncora(voce, stato);
+                if (chi != null)
+                {
+                    togli.Regola = chi;
+                    togli.Testo = "Toglilo: lo fa gia' la regola " + FiltriGmail.NomeIntero(chi, stato);
+                }
+            }
             r.Scelte = new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro(), togli });
-            r.Proposta = orfana ? r.Scelte[0] : togli;
+            r.PropostaPiena = r.Orfana ? r.Scelte[0] : togli;
+            r.Proposta = r.PropostaPiena;
             r.Scelta = r.Proposta;
             return r;
+        }
+
+        /// <summary>
+        /// Le proposte, con le scelte di adesso delle altre righe: una che
+        /// toglierebbe il filtro, ma che "Usa questa scelta" rifiuterebbe
+        /// (FiltriGmail.Prova: resta in Gmail un altro filtro con la stessa
+        /// etichetta che non archivia, o con un'etichetta che la regola esclude,
+        /// una copia che archivia diversamente...), diventa "Lascialo in Gmail",
+        /// e il riquadro dice perche'. Le righe scelte a mano (e le loro copie,
+        /// che vanno con loro) restano come sono, le altre ripartono dalla
+        /// proposta per il filtro da solo. Poi tiene l'esito, per il conto e il
+        /// riquadro.
+        /// </summary>
+        void Rivedi()
+        {
+            bool prima = riempiendo;
+            riempiendo = true;
+            try
+            {
+                List<string> aMano = new List<string>();
+                foreach (Riga r in righe) if (r.AMano && r.Voce != null) aMano.Add(r.Voce.Chiave());
+                foreach (Riga r in righe)
+                {
+                    if (r.AMano || (r.Voce != null && aMano.Contains(r.Voce.Chiave()))) continue;
+                    r.Proposta = r.PropostaPiena ?? r.Scelte[0];
+                    r.PercheResta = "";
+                    if (r.Scelta != r.Proposta) Metti(r, r.Proposta);
+                }
+                esito = FiltriGmail.Prova(stato, FatteAdesso());
+                foreach (Riga r in righe)
+                {
+                    if (r.AMano || r.Voce == null || aMano.Contains(r.Voce.Chiave()) || !r.Scelta.TogliIlFiltro) continue;
+                    string perche = esito.PercheResta(r.Voce.Chiave());
+                    if (perche == null) continue;
+                    // la stessa scelta con le righe lasciate: l'esito non cambia
+                    r.PercheResta = perche;
+                    r.Proposta = r.Scelte[0];
+                    Metti(r, r.Proposta);
+                }
+            }
+            finally { riempiendo = prima; }
+        }
+
+        /// <summary>
+        /// La scelta della tendina che fa la stessa cosa di c (la stessa azione,
+        /// con la stessa regola): per due filtri uguali, che per lo script sono
+        /// uno solo. null se non c'e'.
+        /// </summary>
+        static SceltaFiltro SceltaUguale(List<SceltaFiltro> scelte, SceltaFiltro c)
+        {
+            if (c == null) return null;
+            foreach (SceltaFiltro x in scelte)
+                if (x.Azione == c.Azione && (x.Regola == c.Regola || (c.Azione == SceltaFiltro.Togli && c.Regola == null)))
+                    return x;
+            return null;
         }
 
         void ScegliFile()
@@ -708,10 +785,13 @@ namespace Campanella
         /// Mette nella finestra i filtri di un file, ognuno con la sua proposta
         /// (FiltriGmail.Proposta); quelli scelti prima partono da togliere,
         /// tranne quelli scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima),
-        /// che partono dalla proposta di adesso.
-        /// Quelli scelti prima che nel file non ci sono restano, da togliere, in
+        /// che partono dalla proposta di adesso, e quelli che la regola che
+        /// ricordano non sostituisce piu' (con le azioni del file: in Gmail
+        /// adesso possono archiviare o segnare come letto), che partono
+        /// lasciati. Quelli scelti prima che nel file non ci sono restano, in
         /// fondo: forse sono gia' stati tolti. Due filtri uguali partono con la
-        /// stessa scelta: il secondo si toglie se si toglie il primo.
+        /// stessa scelta: il secondo si toglie se si toglie il primo. Poi le
+        /// proposte si rivedono con quelle delle altre righe (Rivedi).
         /// </summary>
         public void Carica(List<FiltroGmail> filtri)
         {
@@ -729,22 +809,21 @@ namespace Campanella
                 if (r.Voce == null || prima.Contains(r.Voce.Chiave())) continue;
                 if (!Spuntata(i))
                 {
-                    // scelto prima, lasciato perche' senza la sua regola: resta
-                    // in fondo, se il file non lo ha
-                    if (r.Filtro == null && r.Orfana) vecchie.Add(r);
+                    // scelto prima, lasciato perche' senza la sua regola (o per
+                    // le altre scelte): resta in fondo, se il file non lo ha
+                    if (r.Filtro == null && (r.Orfana || r.PercheResta != "")) vecchie.Add(r);
                     continue;
                 }
                 prima.Add(r.Voce.Chiave());
                 regolaDiPrima[r.Voce.Chiave()] = r.Voce.Regola;
                 if (FiltriGmail.SceltoConLaVersioneDiPrima(r.Voce)) con160.Add(r.Voce.Chiave());
                 if (r.Filtro == null) vecchie.Add(r);
-                else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia, false));
+                else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia));
             }
 
             righe.Clear();
             List<string> nelFile = new List<string>();
             Dictionary<string, Riga> primaDellaVoce = new Dictionary<string, Riga>();
-            int uguali = 0, ugualiDaTogliere = 0, ugualiAltro = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0, classi = 0;
             foreach (FiltroGmail f in filtri ?? new List<FiltroGmail>())
             {
                 Riga r = new Riga();
@@ -759,33 +838,29 @@ namespace Campanella
                 r.Scelte = (r.Voce == null) ? new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro() })
                                             : FiltriGmail.Scelte(f, r.Somiglia, stato);
                 // uno scelto con la 1.6.0 parte dalla proposta di adesso, come uno
-                // nuovo: la 1.6.0 lo sceglieva per l'etichetta sola
-                r.Proposta = FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima && !con160.Contains(r.Voce.Chiave()));
+                // nuovo: la 1.6.0 lo sceglieva per l'etichetta sola. Uno scelto con
+                // la sua regola che adesso non lo sostituisce piu' (con quello che
+                // il filtro fa in Gmail adesso) parte lasciato, come senza il file
+                bool di160 = r.Prima && con160.Contains(r.Voce.Chiave());
+                r.Orfana = r.Prima && !di160 && (r.Voce.Regola ?? "").Trim() != "" && !FiltriGmail.AncoraSostituito(r.Voce, stato);
+                r.PropostaPiena = r.Orfana ? r.Scelte[0] : FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima && !di160);
                 if (r.Voce != null)
                 {
                     string k = r.Voce.Chiave();
-                    // lo stesso filtro due volte: per lo script e' una voce sola
+                    // lo stesso filtro due volte: per lo script e' una voce sola, e
+                    // parte con la stessa scelta (o "Toglilo", se la sua tendina non l'ha)
                     if (primaDellaVoce.ContainsKey(k))
-                        r.Proposta = primaDellaVoce[k].Proposta.TogliIlFiltro
-                            ? (FiltriGmail.Trova(r.Scelte, SceltaFiltro.Togli, null) ?? r.Scelte[0]) : r.Scelte[0];
+                    {
+                        SceltaFiltro dellaPrima = primaDellaVoce[k].PropostaPiena;
+                        r.PropostaPiena = !dellaPrima.TogliIlFiltro ? r.Scelte[0]
+                            : (SceltaUguale(r.Scelte, dellaPrima) ?? FiltriGmail.Trova(r.Scelte, SceltaFiltro.Togli, null) ?? r.Scelte[0]);
+                    }
                     else primaDellaVoce[k] = r;
                     nelFile.Add(k);
                 }
+                r.Proposta = r.PropostaPiena;
                 r.Scelta = r.Proposta;
                 righe.Add(r);
-                string tipo = r.Somiglia.Tipo;
-                if (tipo == FiltriGmail.Uguale)
-                {
-                    uguali++;
-                    if (r.Proposta.TogliIlFiltro) ugualiDaTogliere++;
-                    else if (f.AltreAzioni.Count > 0) ugualiAltro++;
-                }
-                else if (tipo == FiltriGmail.DiCampanella) diCampanella++;
-                else if (tipo == FiltriGmail.Simile) simili++;
-                else if (tipo == FiltriGmail.SenzaEtichetta || tipo == FiltriGmail.SenzaCriteri) senza++;
-                else if (tipo == FiltriGmail.NonCapito) nonCapiti++;
-                else if (tipo == FiltriGmail.DiUnaClasse) classi++;
-                else tuoi++;
             }
             int mancano = 0;
             foreach (Riga v in vecchie)
@@ -795,14 +870,36 @@ namespace Campanella
                 mancano++;
             }
             fileAperto = true;
+            Rivedi();
+            int uguali = 0, ugualiDaTogliere = 0, ugualiAltro = 0, ugualiAltri = 0, diCampanella = 0, simili = 0, tuoi = 0,
+                senza = 0, nonCapiti = 0, classi = 0;
+            foreach (Riga r in righe)
+            {
+                if (r.Filtro == null) continue;
+                string tipo = r.Somiglia.Tipo;
+                if (tipo == FiltriGmail.Uguale)
+                {
+                    uguali++;
+                    if (r.Proposta.TogliIlFiltro) ugualiDaTogliere++;
+                    else if (r.Filtro.AltreAzioni.Count > 0) ugualiAltro++;
+                    else if (r.PercheResta != "") ugualiAltri++;
+                }
+                else if (tipo == FiltriGmail.DiCampanella) diCampanella++;
+                else if (tipo == FiltriGmail.Simile) simili++;
+                else if (tipo == FiltriGmail.SenzaEtichetta || tipo == FiltriGmail.SenzaCriteri) senza++;
+                else if (tipo == FiltriGmail.NonCapito) nonCapiti++;
+                else if (tipo == FiltriGmail.DiUnaClasse) classi++;
+                else tuoi++;
+            }
             int n = (filtri == null) ? 0 : filtri.Count;
             List<string> parti = new List<string>();
             if (uguali > 0)
             {
-                // restano quelli che fanno anche altro (inoltrano, eliminano...)
-                // e quelli di cui la regola non prende tutti i messaggi
+                // restano quelli che fanno anche altro (inoltrano, eliminano...),
+                // quelli di cui la regola non prende tutti i messaggi e quelli che
+                // con le altre scelte non si possono togliere (Rivedi)
                 string togli;
-                int nonPresi = uguali - ugualiDaTogliere - ugualiAltro;
+                int nonPresi = uguali - ugualiDaTogliere - ugualiAltro - ugualiAltri;
                 if (ugualiDaTogliere == uguali) togli = (uguali == 1) ? "da togliere" : "tutti da togliere";
                 else
                 {
@@ -811,8 +908,11 @@ namespace Campanella
                     string altro = (ugualiAltro == 1) ? "resta: fa anche altro" : "restano: fanno anche altro";
                     string presi = (nonPresi == 1) ? "resta: la regola non prende tutti i suoi messaggi"
                                                    : "restano: la regola non prende tutti i loro messaggi";
+                    string altri = (ugualiAltri == 1) ? "resta per gli altri filtri, e il riquadro dice perche'"
+                                                      : "restano per gli altri filtri, e il riquadro dice perche'";
                     if (ugualiAltro > 0) come.Add(ugualiAltro == uguali ? altro : ugualiAltro + " " + altro);
                     if (nonPresi > 0) come.Add(nonPresi == uguali ? presi : nonPresi + " " + presi);
+                    if (ugualiAltri > 0) come.Add(ugualiAltri == uguali ? altri : ugualiAltri + " " + altri);
                     togli = string.Join("; ", come.ToArray());
                 }
                 parti.Add(Quanti(uguali, "uguale", "uguali") + " a una regola di Campanella (" + togli + ")");
@@ -917,13 +1017,23 @@ namespace Campanella
         string Suggerimento(Riga r)
         {
             if (r.Filtro == null)
-                return (fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima") +
-                       (!r.Orfana ? "" : (r.Voce.Regola ?? "").Trim() == ""
-                           ? " con una versione di prima, che lo sceglieva per l'etichetta: nessuna regola accesa con la sua " +
-                             "etichetta prende tutti i suoi messaggi, e resta in Gmail, se non scegli di toglierlo lo stesso " +
-                             "(con il file, la finestra propone che cosa farne)"
-                           : "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
-                             "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso");
+            {
+                bool di160 = FiltriGmail.SceltoConLaVersioneDiPrima(r.Voce);
+                string chi = (di160 ? "scelto con una versione di prima (la 1.6.0)" : "scelto prima") +
+                             (fileAperto ? ": nel file non c'e' (forse l'hai gia' tolto)" : "");
+                if (!r.Orfana) return chi;
+                if (di160)
+                    return chi + ". La 1.6.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come " +
+                           "letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e " +
+                           "segnandoli come letti. Resta in Gmail, se non scegli di toglierlo lo stesso" +
+                           (fileAperto ? "" : "; apri il file dei filtri: la finestra vede che cosa fa e propone che cosa farne");
+                return chi + "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
+                       "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso";
+            }
+            if (r.Orfana)
+                return "scelto prima; la regola che lo sostituiva (" + r.Voce.Regola + ") non lo sostituisce piu': non c'e' " +
+                       "piu', e' spenta, non prende piu' tutti i suoi messaggi o non archivia o non segna come letti come " +
+                       "il filtro fa adesso in Gmail. Resta in Gmail, se non scegli di toglierlo lo stesso; " + r.Somiglia.Testo();
             return (r.Prima ? "scelto prima; " : "") + r.Somiglia.Testo();
         }
 
@@ -945,7 +1055,7 @@ namespace Campanella
             Riga r = righe[i];
             if (!si) { Scegli(i, r.Scelte[0]); return; }
             if (r.Scelta != null && r.Scelta.TogliIlFiltro) return;
-            SceltaFiltro c = (r.Proposta != null && r.Proposta.TogliIlFiltro) ? r.Proposta
+            SceltaFiltro c = (r.PropostaPiena != null && r.PropostaPiena.TogliIlFiltro) ? r.PropostaPiena
                            : FiltriGmail.Trova(r.Scelte, SceltaFiltro.Togli, null);
             if (c != null) Scegli(i, c);
         }
@@ -963,10 +1073,13 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Sceglie c per la riga i, e per i filtri uguali: per lo script sono la
-        /// stessa voce. Lasciarlo lascia anche gli altri; toglierlo (anche per
-        /// unirlo o farne una regola) toglie anche gli altri, che la regola la
-        /// fa uno solo.
+        /// Sceglie c per la riga i, a mano, e per i filtri uguali: per lo script
+        /// sono la stessa voce. Lasciarlo lascia anche gli altri; toglierlo
+        /// (anche per unirlo o farne una regola) toglie anche gli altri, con la
+        /// stessa scelta se la loro tendina ce l'ha, e la regola la fa uno solo.
+        /// Poi le proposte delle altre righe si rivedono (Rivedi): una che con
+        /// questa scelta non si puo' piu' fare parte lasciata, una che adesso si
+        /// puo' torna com'era.
         /// </summary>
         public void Scegli(int i, SceltaFiltro c)
         {
@@ -975,6 +1088,7 @@ namespace Campanella
             try
             {
                 Metti(righe[i], c);
+                righe[i].AMano = true;
                 if (righe[i].Voce != null)
                 {
                     string chiave = righe[i].Voce.Chiave();
@@ -982,11 +1096,14 @@ namespace Campanella
                     {
                         Riga altra = righe[k];
                         if (k == i || altra.Voce == null || altra.Voce.Chiave() != chiave) continue;
-                        if (!c.TogliIlFiltro) Metti(altra, altra.Scelte[0]);
+                        altra.AMano = false;
+                        SceltaFiltro uguale = c.TogliIlFiltro ? SceltaUguale(altra.Scelte, c) : altra.Scelte[0];
+                        if (uguale != null) Metti(altra, uguale);
                         else if (!altra.Scelta.TogliIlFiltro)
                             Metti(altra, FiltriGmail.Trova(altra.Scelte, SceltaFiltro.Togli, null) ?? altra.Scelta);
                     }
                 }
+                Rivedi();
             }
             finally { riempiendo = false; }
             AggiornaConto();
@@ -1026,26 +1143,34 @@ namespace Campanella
                 x.Voce = (r.Voce == null) ? null : r.Voce.Copia();
                 x.Somiglia = r.Somiglia;
                 x.Scelta = r.Scelta;
+                x.AMano = r.AMano;
+                // scelto prima e non nel file aperto: forse e' gia' stato tolto
+                x.FuoriDalFile = fileAperto && r.Filtro == null;
                 fuori.Add(x);
             }
             return fuori;
         }
 
+        /// <summary>
+        /// Il conto sotto la griglia, da quello che farebbe "Usa questa scelta"
+        /// (FiltriGmail.Prova): i filtri che vanno via davvero, le regole nuove,
+        /// le unioni, e quanti hanno una scelta che li toglie ma restano in Gmail.
+        /// </summary>
         void AggiornaConto()
         {
-            int n = SceltiAdesso().Count, nuove = 0, unite = 0;
+            if (esito == null) esito = FiltriGmail.Prova(stato, FatteAdesso());
+            int n = esito.Togli.Count, nuove = esito.Nuove.Count, unite = esito.Unite.Count + esito.Scuola.Count, restano = 0;
             List<string> viste = new List<string>();
             foreach (Riga r in righe)
             {
-                if (r.Voce == null || r.Scelta == null || viste.Contains(r.Voce.Chiave())) continue;
-                if (r.Scelta.Azione == SceltaFiltro.Nuova) nuove++;
-                else if (r.Scelta.Azione == SceltaFiltro.Unisci) unite++;
-                else continue;
+                if (r.Voce == null || r.Scelta == null || !r.Scelta.TogliIlFiltro || viste.Contains(r.Voce.Chiave())) continue;
                 viste.Add(r.Voce.Chiave());
+                if (esito.PercheResta(r.Voce.Chiave()) != null) restano++;
             }
             lblConto.Text = "Da togliere: " + (n == 0 ? "nessuno" : n + (n == 1 ? " filtro" : " filtri")) +
                 (nuove > 0 ? "  -  regole nuove: " + nuove : "") +
-                (unite > 0 ? "  -  da unire a una regola: " + unite : "");
+                (unite > 0 ? "  -  da unire a una regola: " + unite : "") +
+                (restano > 0 ? "  -  restano in Gmail lo stesso: " + restano : "");
         }
 
         void MostraDettaglio()
@@ -1072,13 +1197,19 @@ namespace Campanella
             }
             sb.Append("Suggerimento: ").Append(Suggerimento(r)).Append("\r\n");
             sb.Append("Che cosa fare: ").Append(r.Scelta.Testo).Append(". ").Append(Spiegazione(r));
-            string cerchera = RicercaDellaScelta(r);
+            // una scelta che non si puo' fare non cambia nessuna regola
+            bool resta = r.Scelta.TogliIlFiltro && esito != null && r.Voce != null && esito.PercheResta(r.Voce.Chiave()) != null;
+            string cerchera = resta ? "" : RicercaDellaScelta(r);
             if (cerchera != "") sb.Append("\r\n").Append("La regola cerchera': ").Append(cerchera);
             txtDettaglio.Text = sb.ToString();
             txtDettaglio.Select(0, 0);
         }
 
-        /// <summary>Che cosa succede con la scelta di adesso, a parole.</summary>
+        /// <summary>
+        /// Che cosa succede con la scelta di adesso, a parole; e se il filtro,
+        /// con le scelte delle altre righe, resta in Gmail lo stesso
+        /// (FiltriGmail.Prova), perche'.
+        /// </summary>
         string Spiegazione(Riga r)
         {
             SceltaFiltro c = r.Scelta;
@@ -1089,14 +1220,53 @@ namespace Campanella
                 // uguale o simile a una regola, ma unito le esclusioni toglierebbero dei messaggi
                 Regola simile = (r.Filtro == null) ? null : FiltriGmail.RegolaDi(r.Somiglia, stato);
                 string esclusioni = (simile == null) ? "" : FiltriGmail.EsclusioniCheNonSiUniscono(r.Filtro, simile, stato);
-                return "Resta in Gmail com'e'." + (perche == "" ? "" : " Non puo' diventare una regola: " + perche + ".") +
+                // la proposta per il filtro da solo, che con le altre scelte non si puo' fare
+                string altri = (c != r.Proposta || r.PercheResta == "") ? ""
+                    : " Di partenza resta, e non \"" + r.PropostaPiena.Testo + "\": " + r.PercheResta + ".";
+                return "Resta in Gmail com'e'." + altri + (perche == "" ? "" : " Non puo' diventare una regola: " + perche + ".") +
                        (esclusioni == "" ? "" : " Non si unisce a " + FiltriGmail.NomeIntero(simile, stato) + ": " + esclusioni + ".");
             }
+            // "Usa questa scelta" la rifiuterebbe: lo dice, invece di dire che si toglie
+            string resta = (esito == null || r.Voce == null) ? null : esito.PercheResta(r.Voce.Chiave());
+            if (resta != null)
+                return "Con le altre scelte questa non si puo' fare: il filtro resta in Gmail" +
+                       (c.Azione == SceltaFiltro.Unisci ? ", e " + FiltriGmail.NomeIntero(c.Regola, stato) + " non cambia"
+                        : c.Azione == SceltaFiltro.Nuova ? ", e la regola non nasce" : "") + ". Perche': " + resta + ".";
             if (c.Azione == SceltaFiltro.Togli)
-                return (c.Regola != null
-                    ? "Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola " + FiltriGmail.NomeIntero(c.Regola, stato) + "."
-                    : "Lo toglie EXTRA_togliFiltri, e basta: nessuna regola lo sostituisce.") +
+                return DiceToglilo(r, c) +
                     (r.Filtro != null && r.Filtro.AltreAzioni.Count > 0 ? " Si perde anche quello che fa oltre all'etichetta." : "");
+            return SpiegaUnisciONuova(r, c);
+        }
+
+        /// <summary>
+        /// Che cosa fa "Toglilo": con la regola che lo fa gia'; per uno scelto
+        /// prima, con la regola che ricorda e che lo sostituisce ancora; per uno
+        /// uguale a un altro filtro della finestra, con la scelta dell'altro
+        /// (che conta per tutti e due); altrimenti va via e basta.
+        /// </summary>
+        string DiceToglilo(Riga r, SceltaFiltro c)
+        {
+            if (c.Regola != null)
+                return "Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola " + FiltriGmail.NomeIntero(c.Regola, stato) + ".";
+            if (r.Voce != null)
+            {
+                foreach (Riga altra in righe)
+                {
+                    if (altra == r || altra.Voce == null || altra.Voce.Chiave() != r.Voce.Chiave() || altra.Scelta == null ||
+                        !altra.Scelta.TogliIlFiltro || (altra.Scelta.Azione == SceltaFiltro.Togli && altra.Scelta.Regola == null)) continue;
+                    return "E' lo stesso filtro di un'altra riga (stessa etichetta, stessi criteri): EXTRA_togliFiltri li toglie " +
+                           "tutti e due, con la scelta dell'altra (\"" + altra.Scelta.Testo + "\").";
+                }
+                if ((r.Voce.Regola ?? "").Trim() != "" && FiltriGmail.AncoraSostituito(r.Voce, stato))
+                    return "Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende ancora la regola " + r.Voce.Regola.Trim() +
+                           ", scelta la volta prima.";
+            }
+            return "Lo toglie EXTRA_togliFiltri, e basta: nessuna regola lo sostituisce.";
+        }
+
+        /// <summary>Che cosa fanno "Unisci a X" e "Diventa una regola".</summary>
+        string SpiegaUnisciONuova(Riga r, SceltaFiltro c)
+        {
             if (c.Azione == SceltaFiltro.Unisci)
             {
                 MittentiFiltro m = FiltriGmail.SoloMittenti(r.Filtro.Criteri);

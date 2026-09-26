@@ -675,9 +675,10 @@ namespace Campanella
                 "suoi messaggi, non basta la stessa etichetta); unire i suoi mittenti a una " +
                 "regola (quelli di Dirigenza, Segreteria e Registro elettronico vanno in \"La tua scuola\"; una " +
                 "regola spenta si accende); farne una regola, con la stessa etichetta, cosi' i messaggi che ce l'hanno " +
-                "gia' restano insieme, e la stessa ricerca. Ogni filtro parte con una proposta, e la finestra dice la " +
-                "ricerca che fara' la regola. Un filtro che fa anche altro (inoltra, mette la stella...) non diventa " +
-                "una regola: si lascia o si toglie.\r\n\r\n" +
+                "gia' restano insieme, e la stessa ricerca. Ogni filtro parte con una proposta, che tiene conto delle " +
+                "scelte degli altri filtri, e la finestra dice la ricerca che fara' la regola; se una scelta non si " +
+                "puo' fare, il riquadro dice perche' e il conto che il filtro resta in Gmail lo stesso. Un filtro che " +
+                "fa anche altro (inoltra, mette la stella...) non diventa una regola: si lascia o si toglie.\r\n\r\n" +
                 "\"Usa questa scelta\" crea e cambia le regole e sceglie i filtri da togliere, e dice che cosa ha " +
                 "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
@@ -685,10 +686,14 @@ namespace Campanella
                 "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
                 "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra; " +
-                "cosi' anche uno scelto con la 1.6.0, se nessuna regola accesa con la sua etichetta prende tutti i " +
-                "suoi messaggi. Resta anche un filtro che archivia quando in Gmail ne resta un altro con la stessa " +
-                "etichetta che non archivia: ai messaggi che prende anche quello mette l'etichetta prima dello " +
-                "script, e la regola non li archivierebbe.\r\n\r\n" +
+                "cosi' anche uno scelto con la 1.6.0 (che non ricordava se archiviava o segnava come letto), se " +
+                "nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e segnandoli " +
+                "come letti: riapri il file dei filtri, e la finestra lo vede. Resta anche un filtro che archivia (o " +
+                "segna come letto) quando in Gmail ne resta un altro con la stessa etichetta che non lo fa: ai " +
+                "messaggi che prende anche quello mette l'etichetta prima dello script, e la regola non li " +
+                "archivierebbe; e uno la cui regola esclude un'etichetta (Studenti esclude Colleghi, Ministero e USR " +
+                "Dirigenza e Segreteria) quando in Gmail resta un filtro con quell'etichetta che prende anche i suoi " +
+                "messaggi: la regola non li prenderebbe.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));
@@ -719,7 +724,7 @@ namespace Campanella
             lblFiltri.Height = Math.Max(
                 Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoToltiAllAvvio(99),
                                   Tema.Piccolo, 400),
-                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoSenzaLaRegola(99),
+                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoSenzaLaRegola(99, 49),
                                   Tema.Piccolo, 400));
             p.Controls.Add(lblFiltri);
 
@@ -2426,10 +2431,11 @@ namespace Campanella
             if (lblFiltri == null) return;
             int n = GeneratorePosta.FiltriDaTogliere(S);
             int tolti = S.FiltriClassiToltiAllAvvio;
-            int senza = FiltriGmail.SenzaLaRegola(S).Count;
+            List<FiltroDaTogliere> senzaLaRegola = FiltriGmail.SenzaLaRegola(S);
+            int senza = senzaLaRegola.Count;
             lblFiltri.Text = ((n == 0) ? "Nessun filtro di Gmail da togliere." :
                 n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.") +
-                (senza == 0 ? "" : TestoSenzaLaRegola(senza)) +
+                (senza == 0 ? "" : TestoSenzaLaRegola(senza, Con160(senzaLaRegola))) +
                 (tolti == 0 ? "" : TestoToltiAllAvvio(tolti));
             lblFiltri.Tag = (tolti > 0 || senza > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
             Tema.Applica(lblFiltri);
@@ -2438,15 +2444,41 @@ namespace Campanella
         /// <summary>
         /// Quello che il passo 4 (e il riepilogo del passo 5) dice dei filtri
         /// scelti che non hanno piu' la regola che li sostituisce
-        /// (FiltriGmail.SenzaLaRegola): restano in Gmail.
+        /// (FiltriGmail.SenzaLaRegola): restano in Gmail. n in tutto, e di
+        /// questi con160 scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima),
+        /// che una regola che li sostituiva non l'hanno mai avuta: la 1.6.0 li
+        /// sceglieva per l'etichetta, senza ricordare se archiviavano o
+        /// segnavano come letto. Con il file dei filtri la finestra lo vede.
         /// </summary>
-        static string TestoSenzaLaRegola(int n)
+        static string TestoSenzaLaRegola(int n, int con160)
         {
-            return (n == 1)
-                ? " 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu', e' spenta o non prende " +
-                  "piu' tutti i suoi messaggi. Per toglierlo lo stesso, sceglilo di nuovo in \"Filtri che hai gia' in Gmail...\"."
-                : " " + n + " filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu', e' spenta o non " +
-                  "prende piu' tutti i loro messaggi. Per toglierli lo stesso, sceglili di nuovo in \"Filtri che hai gia' in Gmail...\".";
+            int altri = n - con160;
+            string fuori = "";
+            if (altri > 0)
+                fuori += (altri == 1)
+                    ? " 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu', e' spenta o non prende " +
+                      "piu' tutti i suoi messaggi. Per toglierlo lo stesso, sceglilo di nuovo in \"Filtri che hai gia' in Gmail...\"."
+                    : " " + altri + " filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu', e' spenta o non " +
+                      "prende piu' tutti i loro messaggi. Per toglierli lo stesso, sceglili di nuovo in \"Filtri che hai gia' in Gmail...\".";
+            if (con160 > 0)
+                fuori += (con160 == 1)
+                    ? " 1 filtro scelto con la 1.6.0 resta in Gmail: la 1.6.0 lo sceglieva per l'etichetta, senza ricordare se " +
+                      "archiviava o segnava come letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi " +
+                      "messaggi archiviandoli e segnandoli come letti. Apri di nuovo il file dei filtri in \"Filtri che hai " +
+                      "gia' in Gmail...\": li' si vede che cosa fa, e la finestra propone che cosa farne."
+                    : " " + con160 + " filtri scelti con la 1.6.0 restano in Gmail: la 1.6.0 li sceglieva per l'etichetta, senza " +
+                      "ricordare se archiviavano o segnavano come letto, e nessuna regola accesa con la loro etichetta prende " +
+                      "tutti i loro messaggi archiviandoli e segnandoli come letti. Apri di nuovo il file dei filtri in \"Filtri " +
+                      "che hai gia' in Gmail...\": li' si vede che cosa fanno, e la finestra propone che cosa farne.";
+            return fuori;
+        }
+
+        /// <summary>Quanti dei filtri scelti sono stati scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima).</summary>
+        static int Con160(List<FiltroDaTogliere> scelti)
+        {
+            int n = 0;
+            foreach (FiltroDaTogliere v in scelti) if (FiltriGmail.SceltoConLaVersioneDiPrima(v)) n++;
+            return n;
         }
 
         /// <summary>
@@ -2546,7 +2578,8 @@ namespace Campanella
             sb.AppendLine("Etichette colorate ........... " + (colorate == 0 ? "nessuna" :
                 colorate + " (i colori li mette il servizio Gmail API: passo 8)"));
             int daTogliere = GeneratorePosta.FiltriDaTogliere(S);
-            int senzaRegola = FiltriGmail.SenzaLaRegola(S).Count;
+            List<FiltroDaTogliere> senzaLaRegola = FiltriGmail.SenzaLaRegola(S);
+            int senzaRegola = senzaLaRegola.Count;
             sb.AppendLine("Filtri di Gmail da togliere .. " + (daTogliere == 0 ? "nessuno" :
                 daTogliere + " (li toglie EXTRA_togliFiltri, con il servizio Gmail API: passo 8)"));
             sb.AppendLine();
@@ -2560,7 +2593,7 @@ namespace Campanella
             foreach (Persona p in S.Personale) if (p.Incluso && p.Email == "") senzaMail++;
             if (senzaMail > 0)
                 avvisi.Add(senzaMail + " persone dell'elenco non hanno un indirizzo: verranno ignorate.");
-            if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola).Trim());
+            if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola, Con160(senzaLaRegola)).Trim());
 
             if (avvisi.Count > 0)
             {

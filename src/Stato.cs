@@ -567,6 +567,23 @@ namespace Campanella
         public int FiltriClassiToltiAllAvvio = 0;
 
         /// <summary>
+        /// Una copia per provare le scelte della finestra dei filtri di Gmail
+        /// (FiltriGmail.Prova) senza cambiare niente: le regole e i filtri da
+        /// togliere sono copiati, nello stesso ordine; il resto e' in comune, e
+        /// quello che le scelte cambiano (i mittenti di "La tua scuola") sono
+        /// testi, che nella copia si sostituiscono. Non si salva mai.
+        /// </summary>
+        public Stato CopiaPerLeScelte()
+        {
+            Stato c = (Stato)MemberwiseClone();
+            c.Regole = new List<Regola>();
+            if (Regole != null) foreach (Regola r in Regole) c.Regole.Add(r == null ? null : r.Copia());
+            c.FiltriDaTogliere = new List<FiltroDaTogliere>();
+            if (FiltriDaTogliere != null) foreach (FiltroDaTogliere f in FiltriDaTogliere) c.FiltriDaTogliere.Add(f == null ? null : f.Copia());
+            return c;
+        }
+
+        /// <summary>
         /// Perche' all'avvio campanella.json c'era ma non si e' potuto usare
         /// (illeggibile, o scritto da una versione piu' recente). Finche' non e'
         /// vuoto quel file non si sovrascrive: dentro c'e' qualcosa che qui non si vede.

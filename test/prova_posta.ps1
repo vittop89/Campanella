@@ -24,9 +24,11 @@
     messaggi a una regola unita, le regole gemelle, i filtri che restano se
     la loro regola non li prende piu' tutti; come Gmail cerca i mittenti (un
     sottodominio, un'esclusione con una parte locale), le regole escluse
-    spente o sotto, un filtro con la stessa etichetta che resta in Gmail, lo
-    stesso filtro due volte, quelli scelti con la 1.6.0, con la promessa
-    provata nel motore vero (test\filtri_a_caso.js); e centinaia di scenari
+    spente o sotto, un filtro con la stessa etichetta che resta in Gmail, o
+    con un'etichetta che la regola esclude, lo stesso filtro due volte,
+    quelli scelti con la 1.6.0, i ruoli, "or" minuscolo, le proposte che
+    tengono conto degli altri filtri (il riquadro, il conto, il riepilogo),
+    con la promessa provata nel motore vero (test\filtri_a_caso.js); e centinaia di scenari
     a caso, con un seme fisso (test\filtri_a_caso.ps1). La Ministero e USR
     che non prende la casella della scuola, anche quando sta sopra Dirigenza
     e Segreteria.
@@ -1035,6 +1037,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     }
     function Breve($c) { return $c.Azione + '|' + $(if ($null -ne $c.Regola) { $c.Regola.Etichetta } else { '' }) }
     function Testi($c) { return (@($c.scelte | ForEach-Object { $_.Testo }) -join ' | ') }
+    # il riquadro della riga i della finestra (nell'ordine del file): che cosa
+    # succede con la scelta di adesso e, se resta in Gmail, perche'
+    function Riquadro($ff, $i) {
+        $riga = $tFF.GetField('righe', $FIn).GetValue($ff)[$i]
+        return [string]$tFF.GetMethod('Spiegazione', $FIn).Invoke($ff, @($riga))
+    }
+    function Conto($ff) { return [string]$tFF.GetField('lblConto', $FIn).GetValue($ff).Text }
 
     $sR = StatoRiorganizza
     $filtriR = LeggiRiorganizza
@@ -1447,7 +1456,8 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     # due filtri con la stessa etichetta che archiviano in modo diverso: niente
     # gemella. Ogni regola cerca -label: la sua etichetta, quindi dove si
     # sovrappongono prende la prima e fa solo quello che fa lei: la seconda
-    # non archivierebbe avvisi@portale-uno.example. Quello che archivia resta
+    # non archivierebbe avvisi@portale-uno.example. Quello che archivia resta:
+    # la finestra lo fa gia' partire lasciato, e il riquadro dice perche'
     $sA = StatoRiorganizza
     $portaleNo = UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example)'; label = 'Portali' })
     $portaleSi = UnFiltro ([ordered]@{ hasTheWord = 'from:avvisi@portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
@@ -1456,13 +1466,29 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $ffA = [Activator]::CreateInstance($tFF, @($sA.PSObject.BaseObject))
     $ffA.Carica($listaA)
     $propA = @(0..1 | ForEach-Object { $ffA.Scelta($_).Azione })
+    $riquadroA = Riquadro $ffA 1
     $riepA = [string]$mApplica.Invoke($null, @($sA.PSObject.BaseObject, $ffA.FatteAdesso()))
     $ffA.Dispose()
     $portaliA = @((Leggi $sA 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })
-    Verifica "Portali che non archivia e Portali che archivia: partono tutti e due 'Diventa una regola' ($($propA -join ', ')), ma nasce una regola sola e quello che archivia resta in Gmail ('$($riepA -replace '\r?\n', ' ')')" (
-        ($propA -join ',') -eq 'nuova,nuova' -and $portaliA.Count -eq 1 -and -not $portaliA[0].Archivia -and
+    Verifica "Portali che non archivia e Portali che archivia: il primo parte come 'Diventa una regola', quello che archivia lasciato ($($propA -join ', ')), e il riquadro dice perche'; nasce una regola sola ('$($riepA -replace '\r?\n', ' ')')" (
+        ($propA -join ',') -eq 'nuova,lascia' -and $portaliA.Count -eq 1 -and -not $portaliA[0].Archivia -and
         (Leggi $sA 'FiltriDaTogliere').Count -eq 1 -and (Leggi $sA 'FiltriDaTogliere')[0].Criteri['query'] -eq $portaleNo.Criteri['query'] -and
-        $riepA -match "Portali \(c'e' gia' una regola Portali, nata adesso da un altro filtro, che archivia diversamente")
+        $riquadroA -match "Di partenza resta, e non ""Diventa una regola"": c'e' gia' una regola Portali, nata adesso da un altro filtro, che archivia diversamente")
+    # scelto lo stesso a mano: "Usa questa scelta" non lo fa (nessuna seconda
+    # regola), e il riepilogo dice perche'
+    $sA2 = StatoRiorganizza
+    $ffA2 = [Activator]::CreateInstance($tFF, @($sA2.PSObject.BaseObject))
+    $ffA2.Carica($listaA)
+    $ffA2.Scegli(1, @($ffA2.Scelte(1) | Where-Object { $_.Azione -eq 'nuova' })[0])
+    $contoA2 = Conto $ffA2
+    $riquadroA2 = Riquadro $ffA2 1
+    $riepA2 = ([string]$mApplica.Invoke($null, @($sA2.PSObject.BaseObject, $ffA2.FatteAdesso()))) -replace '\r?\n', ' '
+    $ffA2.Dispose()
+    Verifica "scelto lo stesso 'Diventa una regola', il conto e il riquadro dicono che resta, e il riepilogo perche' ('$contoA2'; '$riepA2')" (
+        $contoA2 -eq 'Da togliere: 1 filtro  -  regole nuove: 1  -  restano in Gmail lo stesso: 1' -and
+        $riquadroA2 -match "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail, e la regola non nasce\." -and
+        @((Leggi $sA2 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' }).Count -eq 1 -and (Leggi $sA2 'FiltriDaTogliere').Count -eq 1 -and
+        $riepA2 -match "Restano in Gmail, perche' la scelta non si puo' piu' fare: Portali \(c'e' gia' una regola Portali, nata adesso da un altro filtro, che archivia diversamente")
     # e una Portali che archivia messa a mano sotto quella che non archivia non
     # "lo fa gia'": i messaggi comuni li prende quella di sopra, senza archiviarli
     $gemellaA = $portaliA[0].Copia()
@@ -1520,14 +1546,33 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $listaK.Add($vecchioK); $listaK.Add($segreteriaK)
     $ffK = [Activator]::CreateInstance($tFF, @($sK.PSObject.BaseObject))
     $ffK.Carica($listaK)
-    $ffK.Scegli(1, @($ffK.Scelte(1) | Where-Object { $_.Azione -eq 'unisci' -and $_.Regola.Etichetta -eq 'Segreteria' })[0])
+    # di partenza istruzione.it si unisce a Segreteria (uguale a lei): e' lei
+    # che prende quei messaggi, e la finestra lo fa gia' partire lasciato
     $primaK = $ffK.Scelta(0).Testo
+    $riquadroK = Riquadro $ffK 0
     $riepK = [string]$mApplica.Invoke($null, @($sK.PSObject.BaseObject, $ffK.FatteAdesso()))
-    $ffK.Dispose()
     $restaK = Leggi $sK 'FiltriDaTogliere'
-    Verifica "'$primaK', ma dopo istruzione.it unito a Segreteria Ministero e USR non prende piu' i suoi messaggi: resta in Gmail ('$($riepK -replace '\r?\n', ' ')')" (
-        $primaK -eq "Toglilo: lo fa gia' la regola Ministero e USR" -and $restaK.Count -eq 1 -and $restaK[0].Etichetta -eq 'Segreteria' -and
-        $riepK -match "Ministero e USR \(dopo le altre scelte la regola Ministero e USR non prende piu' tutti i suoi messaggi\)")
+    # e scelto lo stesso a mano, il riquadro dice che non si puo' fare
+    $ffK.Scegli(0, @($ffK.Scelte(0) | Where-Object { $_.Azione -eq 'togli' })[0])
+    $riquadroK2 = Riquadro $ffK 0
+    $ffK.Dispose()
+    # lasciato in Gmail il filtro Segreteria di istruzione.it (a mano), mette
+    # Segreteria all'arrivo: Ministero e USR, che la esclude, non prenderebbe
+    # quei messaggi, e il filtro vero di Ministero e USR resta per lui
+    $sK2 = StatoRiorganizza
+    $ffK2 = [Activator]::CreateInstance($tFF, @($sK2.PSObject.BaseObject))
+    $ffK2.Carica($listaK)
+    $ffK2.Scegli(1, $ffK2.Scelte(1)[0])
+    $ffK2.Spunta(0, $true)
+    $riquadroK3 = Riquadro $ffK2 0
+    $ffK2.Dispose()
+    Verifica "'$primaK': istruzione.it unito a Segreteria, Ministero e USR non prende piu' i messaggi del filtro vero di prima, che resta, e il riquadro dice perche' ('$($riepK -replace '\r?\n', ' ')')" (
+        $primaK -eq 'Lascialo in Gmail' -and
+        $riquadroK -match "Di partenza resta, e non ""Toglilo: lo fa gia' la regola Ministero e USR"": dopo le altre scelte la regola Ministero e USR non prende piu' tutti i suoi messaggi" -and
+        $riquadroK2 -match "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail\. Perche': dopo le altre scelte" -and
+        $restaK.Count -eq 1 -and $restaK[0].Etichetta -eq 'Segreteria' -and $riepK -notmatch 'Ministero e USR \(')
+    Verifica "e con il filtro Segreteria di istruzione.it lasciato in Gmail, resta lo stesso: Ministero e USR esclude Segreteria" (
+        $riquadroK3 -match "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail\. Perche': resta in Gmail un filtro con l'etichetta Segreteria, che la regola Ministero e USR esclude")
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: SE LA REGOLA NON C''E'' PIU'''
@@ -1562,8 +1607,16 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Imposta $sO 'Registro' ((Leggi $sO 'Registro') -replace '(?m)^nuvola\r?$', '')
     Verifica "tolto nuvola da 'La tua scuola', anche Registro elettronico resta ('$(Senza $sO)')" (
         (Senza $sO) -eq 'Registro elettronico,Olimpiadi e gare,Famiglie' -and [int]$mDaTogliere.Invoke($null, @($sO)) -eq 11)
-    $avvisoO = [string]$asm.GetType('Campanella.PaginaPosta').GetMethod('TestoSenzaLaRegola', $FS).Invoke($null, @([int]3))
+    $mAvviso = $asm.GetType('Campanella.PaginaPosta').GetMethod('TestoSenzaLaRegola', $FS)
+    $avvisoO = [string]$mAvviso.Invoke($null, @([int]3, [int]0))
     Verifica "il passo 4 lo dice ('$avvisoO')" ($avvisoO -match "3 filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu'")
+    # quelli scelti con la 1.6.0 una regola non l'hanno mai avuta: il passo 4
+    # dice un'altra cosa, e di riaprire il file dei filtri
+    $avviso160 = [string]$mAvviso.Invoke($null, @([int]3, [int]1))
+    Verifica "per quelli scelti con la 1.6.0 dice un'altra cosa, e di riaprire il file dei filtri ('$avviso160')" (
+        $avviso160 -match "^ 2 filtri scelti restano in Gmail: la regola che li sostituiva" -and
+        $avviso160 -match " 1 filtro scelto con la 1\.6\.0 resta in Gmail: la 1\.6\.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come letto" -and
+        $avviso160 -match "Apri di nuovo il file dei filtri")
     # la finestra: quelli senza regola, scelti prima, partono lasciati
     $ffO2 = [Activator]::CreateInstance($tFF, @($sO.PSObject.BaseObject))
     $lasciatiO = @(0..13 | Where-Object { $ffO2.Scelta($_).Azione -eq 'lascia' } | ForEach-Object { (Leggi $sO 'FiltriDaTogliere')[$_].Etichetta })
@@ -1645,6 +1698,21 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $ff.Dispose()
         return ($riepilogo -replace '\r?\n', ' ')
     }
+    # lo stesso, e prima di "Usa questa scelta" che cosa dice la finestra:
+    # la scelta di ogni filtro, il suo riquadro e il conto
+    function FinestraEScelta($stato, $filtri, $scelte) {
+        $ff = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))
+        $ff.Carica((ListaFiltri $filtri))
+        if ($null -ne $scelte) {
+            foreach ($i in $scelte.Keys) { $ff.Scegli($i, @($ff.Scelte($i) | Where-Object { $_.Testo -eq $scelte[$i] })[0]) }
+        }
+        $n = @($filtri).Count
+        $fuori = @{ scelte = @(0..($n - 1) | ForEach-Object { $ff.Scelta($_).Testo })
+                    riquadri = @(0..($n - 1) | ForEach-Object { Riquadro $ff $_ }); conto = (Conto $ff) }
+        $fuori.riepilogo = ([string]$mApplica.Invoke($null, @($stato.PSObject.BaseObject, $ff.FatteAdesso()))) -replace '\r?\n', ' '
+        $ff.Dispose()
+        return $fuori
+    }
     function PromessaNelMotore($stato, $filtri, $messaggi, $nome) {
         $voci = @{}
         foreach ($v in (Leggi $stato 'FiltriDaTogliere')) { if ($null -ne $v) { $voci[$v.Chiave()] = $v } }
@@ -1659,7 +1727,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
                                  esplicito = $false })
         }
         $caso = [ordered]@{
-            messaggi = @($messaggi | ForEach-Object { [ordered]@{ da = $_[0]; nome = $_[1] } })
+            messaggi = @($messaggi | ForEach-Object { [ordered]@{ da = $_[0]; nome = $_[1]; oggetto = $(if ($_.Count -gt 2) { $_[2] } else { 'Messaggio' }) } })
             scenari = @([ordered]@{ nome = $nome; configurazione = [string](Genera $stato $false); racconto = ''; filtri = $fj })
         }
         $file = Join-Path $temporanea ('promessa_' + $nome + '.json')
@@ -1798,20 +1866,31 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     # regola con quell'etichetta cerca solo i messaggi che non ce l'hanno
     # (-label:), e a quelli non fa niente. Se quel filtro non archivia (o non
     # segna come letti), uno tolto che lo faceva perderebbe l'archiviazione
-    # dei messaggi che prendono tutti e due: resta anche lui, e il riepilogo
-    # dice perche'. Basta l'etichetta, del filtro o della sua regola
+    # dei messaggi che prendono tutti e due: resta anche lui. La finestra lo
+    # fa gia' partire lasciato e il riquadro dice perche'; scelto lo stesso,
+    # il conto dice che resta e il riepilogo perche'. Basta l'etichetta, del
+    # filtro o della sua regola
     $posteR = @(@('avvisi@portale-uno.example', 'Portale Uno'), @('info@portale-due.example', 'Portale Due'),
                 @('comunicati@sindacato-uno.example', 'Sindacato Uno'), @('info@sindacato-due.example', 'Sindacato Due'))
-    # il caso dei due Portali, prima quello che archivia: nasce la sua regola, ma
-    # l'altro resta (archivia diversamente) e allora resta anche lui
+    # il caso dei due Portali, prima quello che archivia: l'altro diventa la
+    # sua regola, che non archivia, e quello che archivia resta
     $sR1 = StatoRiorganizza
     $portaleSiR = UnFiltro ([ordered]@{ hasTheWord = 'from:avvisi@portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
     $portaleNoR = UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example)'; label = 'Portali' })
-    $riepR1 = UsaLaScelta $sR1 @($portaleSiR, $portaleNoR) $null
+    $r1 = FinestraEScelta $sR1 @($portaleSiR, $portaleNoR) $null
     $motoreR1 = PromessaNelMotore $sR1 @($portaleSiR, $portaleNoR) $posteR 'stessa_etichetta_prima_archivia'
-    Verifica "Portali che archivia e poi Portali che non archivia: resta in Gmail anche quello che archivia, e il riepilogo dice perche' ('$riepR1')" (
-        (Leggi $sR1 'FiltriDaTogliere').Count -eq 0 -and $motoreR1.esito -eq 0 -and $motoreR1.tolti -eq 0 -and
-        $riepR1 -match "Portali \(resta in Gmail un altro filtro con l'etichetta Portali, che non archivia: mette l'etichetta ai messaggi che prende anche lui prima dello script, e la regola Portali non li cerca piu' e non li archivierebbe\)")
+    Verifica "Portali che archivia e poi Portali che non archivia: quello che archivia parte lasciato e il riquadro dice perche', l'altro diventa la regola ($($r1.scelte -join '; '); '$($r1.riepilogo)')" (
+        ($r1.scelte -join ',') -eq 'Lascialo in Gmail,Diventa una regola' -and
+        $r1.riquadri[0] -match "Di partenza resta, e non ""Diventa una regola"": resta in Gmail un altro filtro con l'etichetta Portali, che non archivia: mette l'etichetta ai messaggi che prende anche lui prima dello script, e la regola Portali non li cerca piu' e non li archivierebbe" -and
+        (Leggi $sR1 'FiltriDaTogliere').Count -eq 1 -and $motoreR1.esito -eq 0 -and $motoreR1.tolti -eq 1)
+    $sR1b = StatoRiorganizza
+    $r1b = FinestraEScelta $sR1b @($portaleSiR, $portaleNoR) @{ 0 = 'Diventa una regola' }
+    Verifica "scelto lo stesso 'Diventa una regola', il riquadro e il conto dicono che resta, il riepilogo perche', e la sua regola non nasce ('$($r1b.conto)'; '$($r1b.riepilogo)')" (
+        $r1b.riquadri[0] -match "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail, e la regola non nasce\. Perche': resta in Gmail un altro filtro con l'etichetta Portali, che non archivia" -and
+        $r1b.conto -eq 'Da togliere: 1 filtro  -  regole nuove: 1  -  restano in Gmail lo stesso: 1' -and
+        $r1b.riepilogo -match "Restano in Gmail, perche' la scelta non si puo' piu' fare: Portali \(resta in Gmail un altro filtro con l'etichetta Portali, che non archivia: mette l'etichetta ai messaggi che prende anche lui prima dello script, e la regola Portali non li cerca piu' e non li archivierebbe\)" -and
+        (Leggi $sR1b 'FiltriDaTogliere').Count -eq 1 -and @((Leggi $sR1b 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' }).Count -eq 1 -and
+        -not @((Leggi $sR1b 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })[0].Archivia)
     # "lo fa gia' Sindacati" (che archivia), ma resta un filtro Sindacati con la
     # stella, che non archivia
     $sR2 = StatoRiorganizza
@@ -1820,12 +1899,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $sindStellaR = UnFiltro ([ordered]@{ from = 'comunicati@sindacato-uno.example'; label = 'Sindacati'; shouldStar = 'true' })
     $cTuttiR = ScelteDi $sindTuttiR $sR2
     $cStellaR = ScelteDi $sindStellaR $sR2
-    $riepR2 = UsaLaScelta $sR2 @($sindTuttiR, $sindStellaR) $null
+    $r2 = FinestraEScelta $sR2 @($sindTuttiR, $sindStellaR) $null
     $motoreR2 = PromessaNelMotore $sR2 @($sindTuttiR, $sindStellaR) $posteR 'stessa_etichetta_stella'
-    Verifica "'$($cTuttiR.proposta.Testo)' e '$($cStellaR.proposta.Testo)' (con la stella): restano tutti e due ('$riepR2')" (
+    Verifica "'$($cTuttiR.proposta.Testo)' per il filtro da solo, ma con quello con la stella, che non archivia e resta, parte lasciato e il riquadro dice perche' ($($r2.scelte -join '; '); '$($r2.conto)')" (
         $cTuttiR.proposta.Testo -eq "Toglilo: lo fa gia' la regola Sindacati" -and $cStellaR.proposta.Azione -eq 'lascia' -and
-        (Leggi $sR2 'FiltriDaTogliere').Count -eq 0 -and $motoreR2.esito -eq 0 -and $motoreR2.tolti -eq 0 -and
-        $riepR2 -match "Sindacati \(resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia")
+        ($r2.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and $r2.conto -eq 'Da togliere: nessuno' -and
+        $r2.riquadri[0] -match "Di partenza resta, e non ""Toglilo: lo fa gia' la regola Sindacati"": resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia" -and
+        (Leggi $sR2 'FiltriDaTogliere').Count -eq 0 -and $motoreR2.esito -eq 0 -and $motoreR2.tolti -eq 0)
     # scelto a mano "Toglilo" anche per quello con la stella (che non archivia
     # come Sindacati), vanno via tutti e due
     $sR3 = StatoRiorganizza
@@ -1841,30 +1921,60 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $simileR = UnFiltro ([ordered]@{ from = '@sindacato-due.example'; label = 'Sindacato'; shouldArchive = 'true' })
     $sindNoR = UnFiltro ([ordered]@{ from = 'info@sindacato-due.example'; label = 'Sindacati' })
     $cSimileR = ScelteDi $simileR $sR4
-    $riepR4 = UsaLaScelta $sR4 @($simileR, $sindNoR) $null
+    $r4 = FinestraEScelta $sR4 @($simileR, $sindNoR) $null
     $sR5 = StatoRiorganizza
     (Leggi $sR5 'Regole').Add((NuovaRegolaPortali @('portale-uno.example') ''))
     @((Leggi $sR5 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })[0].SegnaComeLette = $true
     $lettiR = UnFiltro ([ordered]@{ from = 'avvisi@portale-uno.example OR portale-uno.example'; label = 'Portali'; shouldMarkAsRead = 'true' })
     $nonLettiR = UnFiltro ([ordered]@{ from = 'avvisi@portale-uno.example'; label = 'portali' })
-    $riepR5 = UsaLaScelta $sR5 @($lettiR, $nonLettiR) $null
-    Verifica "anche con l'etichetta della regola ('$($cSimileR.proposta.Testo)': '$riepR4'), e per chi segna come letti ('$riepR5')" (
-        $cSimileR.proposta.Testo -eq 'Unisci a Sindacati' -and (Leggi $sR4 'FiltriDaTogliere').Count -eq 0 -and
-        $riepR4 -match "Sindacato \(resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia" -and
-        (Leggi $sR5 'FiltriDaTogliere').Count -eq 0 -and
-        $riepR5 -match "Portali \(resta in Gmail un altro filtro con l'etichetta portali, che non segna come letti: .* non li segnerebbe come letti\)")
+    $r5 = FinestraEScelta $sR5 @($lettiR, $nonLettiR) $null
+    Verifica "anche con l'etichetta della regola ('$($cSimileR.proposta.Testo)' per il filtro da solo: $($r4.scelte -join '; ')), e per chi segna come letti ($($r5.scelte -join '; ')); nessuna regola cambia" (
+        $cSimileR.proposta.Testo -eq 'Unisci a Sindacati' -and $r4.scelte[0] -eq 'Lascialo in Gmail' -and
+        $r4.riquadri[0] -match "Di partenza resta, e non ""Unisci a Sindacati"": resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia" -and
+        (Leggi $sR4 'FiltriDaTogliere').Count -eq 0 -and @((Leggi $sR4 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Count -eq 6 -and
+        $r5.scelte[0] -eq 'Lascialo in Gmail' -and (Leggi $sR5 'FiltriDaTogliere').Count -eq 0 -and
+        $r5.riquadri[0] -match "resta in Gmail un altro filtro con l'etichetta portali, che non segna come letti: .* non li segnerebbe come letti")
+    # scelto lo stesso "Unisci a Sindacati": non si unisce (Sindacati non cambia), e il riepilogo dice perche'
+    $sR4b = StatoRiorganizza
+    $r4b = FinestraEScelta $sR4b @($simileR, $sindNoR) @{ 0 = 'Unisci a Sindacati' }
+    Verifica "scelto lo stesso 'Unisci a Sindacati', Sindacati non prende i suoi mittenti e il riepilogo dice perche' ('$($r4b.riepilogo)')" (
+        $r4b.riquadri[0] -match "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail, e Sindacati non cambia\." -and
+        @((Leggi $sR4b 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Count -eq 6 -and
+        $r4b.riepilogo -notmatch 'Mittenti aggiunti' -and
+        $r4b.riepilogo -match "Sindacato \(resta in Gmail un altro filtro con l'etichetta Sindacati, che non archivia")
 
     # lo stesso filtro due volte, una copia che archiviava e una no:
     # EXTRA_togliFiltri toglie tutte e due, e la regola deve fare quello che
-    # faceva la copia che archivia
+    # faceva la copia che archivia. Per "Diventa una regola" nasce quella della
+    # copia che fa di piu'; con "lo fa gia'" di una regola che non segna come
+    # letti (scelto sulla copia che non lo fa, prima o dopo l'altra) restano
+    # tutte e due, e il riquadro e il riepilogo dicono perche'
     $sR6 = StatoRiorganizza
     $gareLettiR = UnFiltro ([ordered]@{ from = '@gare-uno.example'; label = 'Gare'; shouldMarkAsRead = 'true' })
     $gareArchR = UnFiltro ([ordered]@{ from = '@gare-uno.example'; label = 'Gare'; shouldArchive = 'true'; shouldMarkAsRead = 'true' })
-    $riepR6 = UsaLaScelta $sR6 @($gareLettiR, $gareArchR) $null
+    $r6 = FinestraEScelta $sR6 @($gareLettiR, $gareArchR) $null
     $motoreR6 = PromessaNelMotore $sR6 @($gareLettiR, $gareArchR) @(, @('iscrizioni@gare-uno.example', 'Gara')) 'copie_diverse'
-    Verifica "lo stesso filtro due volte, una copia archivia e l'altra no: nasce la regola della prima, ma il filtro resta ('$riepR6')" (
-        (Leggi $sR6 'FiltriDaTogliere').Count -eq 0 -and $motoreR6.esito -eq 0 -and $motoreR6.tolti -eq 0 -and
-        $riepR6 -match "Gare \(c'e' piu' volte in Gmail, con azioni diverse: andrebbero via tutte le copie, e la regola Gare non archivia")
+    $gareR6 = @((Leggi $sR6 'Regole') | Where-Object { $_.Etichetta -eq 'Gare' })
+    Verifica "lo stesso filtro due volte, una copia archivia e l'altra no: nasce la regola della copia che archivia e segna come letti, e vanno via tutte e due ('$($r6.riepilogo)')" (
+        ($r6.scelte -join ',') -eq 'Diventa una regola,Diventa una regola' -and $gareR6.Count -eq 1 -and $gareR6[0].Archivia -and
+        $gareR6[0].SegnaComeLette -and (Leggi $sR6 'FiltriDaTogliere').Count -eq 1 -and $motoreR6.esito -eq 0 -and $motoreR6.tolti -eq 2)
+    $mimLetti = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR'; shouldMarkAsRead = 'true' })
+    $mimNo = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR' })
+    $posteMim = @(, @('ufficio@mim.gov.it', 'MIM'))
+    $copieStorte = @()
+    foreach ($ordine in @(@($mimLetti, $mimNo), @($mimNo, $mimLetti))) {
+        $sR6b = StatoRiorganizza
+        $iNo = [array]::IndexOf($ordine, $mimNo)
+        $r6b = FinestraEScelta $sR6b $ordine @{ $iNo = "Toglilo: lo fa gia' la regola Ministero e USR" }
+        $motoreR6b = PromessaNelMotore $sR6b $ordine $posteMim ('copie_lo_fa_gia_' + $iNo)
+        if ((Leggi $sR6b 'FiltriDaTogliere').Count -ne 0 -or $motoreR6b.esito -ne 0 -or $motoreR6b.tolti -ne 0 -or
+            $r6b.riquadri[$iNo] -notmatch "^Con le altre scelte questa non si puo' fare: il filtro resta in Gmail\. Perche': c'e' piu' volte in Gmail, con azioni diverse" -or
+            $r6b.riepilogo -notmatch "Ministero e USR \(c'e' piu' volte in Gmail, con azioni diverse: andrebbero via tutte le copie, e la regola Ministero e USR non archivia o non segna come letti come la copia che lo fa\)") {
+            $copieStorte += "copia senza letti in posizione ${iNo}: $($r6b.scelte -join '; ') / $($r6b.riepilogo)"
+        }
+    }
+    Verifica "'lo fa gia'' scelto sulla copia che non segna come letto, prima o dopo quella che lo fa: restano tutte e due$(if ($copieStorte.Count) { ': no ' + ($copieStorte -join '; ') })" (
+        $copieStorte.Count -eq 0)
 
     # uno di quelli che crea Campanella (EXTRA_creaFiltriGmail), ma che in
     # Gmail archivia mentre la regola no: la regola non "lo fa gia'", e scelto
@@ -1884,14 +1994,16 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: QUELLI SCELTI CON LA 1.6.0'
     # La 1.6.0 sceglieva i filtri uguali a una regola per l'etichetta sola, e
-    # non ricordava la regola ne' se archiviavano. Senza il file uno cosi' va
-    # via solo se una regola accesa con la sua etichetta prende tutti i suoi
-    # messaggi (e allora la ricorda); se no resta in Gmail, e il passo 4 lo
-    # dice in ambra. Con il file parte dalla proposta di adesso
+    # non ricordava la regola ne' se archiviavano o segnavano come letto (e
+    # potevano farlo: la 1.6.0 non lo guardava). Senza il file uno cosi' va via
+    # solo se una regola accesa con la sua etichetta prende tutti i suoi
+    # messaggi e archivia e segna come letti, e allora la ricorda; se no resta
+    # in Gmail, e il passo 4 lo dice in ambra e chiede di riaprire il file dei
+    # filtri. Con il file parte dalla proposta di adesso, che le azioni le vede
     $tListaVoci16 = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tDaTogliere)
     function Voci160($stato) {
         $l = [Activator]::CreateInstance($tListaVoci16)
-        foreach ($coppia in @(@('Ministero e USR', '@usr-regione.example'), @('Sindacati', '@flcgil.it'))) {
+        foreach ($coppia in @(@('Ministero e USR', '@usr-regione.example'), @('Sindacati', '@flcgil.it'), @('Ministero e USR', '@mim.gov.it'))) {
             $v = [Activator]::CreateInstance($tDaTogliere)
             $v.Etichetta = $coppia[0]
             $v.Criteri['from'] = $coppia[1]
@@ -1902,38 +2014,234 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     }
     $s16 = StatoRiorganizza
     $voci16 = Voci160 $s16
-    $fuori16 = [bool]$mAncora.Invoke($null, @($voci16[0], $s16))
-    $dentro16 = [bool]$mAncora.Invoke($null, @($voci16[1], $s16))
-    Verifica "senza il file, quello di Ministero e USR da @usr-regione.example (la regola non lo prende) resta in Gmail e in ambra ('$(Senza $s16)'), quello di Sindacati da @flcgil.it va via" (
-        $voci16[0].Archivia -eq $null -and -not $fuori16 -and $dentro16 -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 1 -and
-        (Senza $s16) -eq 'Ministero e USR')
+    $sostituiti16 = @(0..2 | Where-Object { [bool]$mAncora.Invoke($null, @($voci16[$_], $s16)) })
+    Verifica "senza il file restano tutti in Gmail e in ambra: Ministero e USR non prende @usr-regione.example, Sindacati (che non segna come letti) e Ministero e USR (che non archivia) non fanno di sicuro quello che il filtro faceva ('$(Senza $s16)')" (
+        $voci16[0].Archivia -eq $null -and $sostituiti16.Count -eq 0 -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 0 -and
+        (Senza $s16) -eq 'Ministero e USR,Sindacati,Ministero e USR')
+    $avviso16 = [string]$mAvviso.Invoke($null, @([int]3, [int]3))
+    Verifica "l'ambra del passo 4 dice che li sceglieva la 1.6.0, non che la loro regola non c'e' piu' ('$avviso16')" (
+        $avviso16 -match "^ 3 filtri scelti con la 1\.6\.0 restano in Gmail: la 1\.6\.0 li sceglieva per l'etichetta" -and
+        $avviso16 -notmatch "la regola che li sostituiva")
+    # con Sindacati che archivia e segna come letti, quello di @flcgil.it va via
+    $sind16 = @((Leggi $s16 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    $sind16.SegnaComeLette = $true
+    Verifica "con Sindacati che archivia e segna come letti, quello di @flcgil.it va via ('$(Senza $s16)')" (
+        [bool]$mAncora.Invoke($null, @($voci16[1], $s16)) -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 1 -and
+        (Senza $s16) -eq 'Ministero e USR,Ministero e USR')
     $ff16 = [Activator]::CreateInstance($tFF, @($s16.PSObject.BaseObject))
     $gr16 = $tFF.GetField('griglia', $FIn).GetValue($ff16)
     $gr16.CurrentCell = $gr16.Rows[0].Cells[1]
     $dettaglio16 = $tFF.GetField('txtDettaglio', $FIn).GetValue($ff16).Text
-    $partenza16 = @(0..1 | ForEach-Object { $ff16.Scelta($_).Azione })
+    $partenza16 = @(0..2 | ForEach-Object { $ff16.Scelta($_).Testo })
+    $riquadro16 = Riquadro $ff16 1
     $riep16 = ([string]$mApplica.Invoke($null, @($s16.PSObject.BaseObject, $ff16.FatteAdesso()))) -replace '\r?\n', ' '
     $ff16.Dispose()
     $dopo16 = Leggi $s16 'FiltriDaTogliere'
-    Verifica "la finestra senza file lo fa partire lasciato e dice perche'; 'Usa questa scelta' tiene l'altro, che ricorda Sindacati ($($partenza16 -join ', '); '$riep16')" (
-        ($partenza16 -join ',') -eq 'lascia,togli' -and
-        $dettaglio16 -match "scelto prima con una versione di prima, che lo sceglieva per l'etichetta: nessuna regola accesa" -and
+    Verifica "la finestra senza file fa partire lasciati gli altri e dice perche'; quello di Sindacati 'lo fa gia'' la regola, e 'Usa questa scelta' la ricorda ($($partenza16 -join '; '); '$riep16')" (
+        ($partenza16 -join ',') -eq "Lascialo in Gmail,Toglilo: lo fa gia' la regola Sindacati,Lascialo in Gmail" -and
+        $dettaglio16 -match "scelto con una versione di prima \(la 1\.6\.0\)\. La 1\.6\.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e segnandoli come letti" -and
+        $dettaglio16 -match "apri il file dei filtri" -and $riquadro16 -eq "Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola Sindacati." -and
         $dettaglio16 -notmatch '\(\)' -and $dopo16.Count -eq 1 -and $dopo16[0].Criteri['from'] -eq '@flcgil.it' -and
         $dopo16[0].Regola -eq 'Sindacati')
-    # con il file: la proposta di adesso, e nel motore vero ogni messaggio ha Sindacati, archiviato
+    # con il file: la proposta di adesso (quello di @mim.gov.it archivia, e
+    # Ministero e USR no: resta), e nel motore vero ogni messaggio dei filtri
+    # tolti ha l'etichetta della sua regola
     $s16b = StatoRiorganizza
     [void](Voci160 $s16b)
     $filtri16 = @((UnFiltro ([ordered]@{ from = '@usr-regione.example'; label = 'Ministero e USR' })),
-                  (UnFiltro ([ordered]@{ from = '@flcgil.it'; label = 'Sindacati'; shouldArchive = 'true' })))
+                  (UnFiltro ([ordered]@{ from = '@flcgil.it'; label = 'Sindacati'; shouldArchive = 'true' })),
+                  (UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR'; shouldArchive = 'true' })))
     $ff16b = [Activator]::CreateInstance($tFF, @($s16b.PSObject.BaseObject))
     $ff16b.Carica((ListaFiltri $filtri16))
-    $proposte16 = @(0..1 | ForEach-Object { $ff16b.Scelta($_).Testo })
+    $proposte16 = @(0..2 | ForEach-Object { $ff16b.Scelta($_).Testo })
     $riep16b = ([string]$mApplica.Invoke($null, @($s16b.PSObject.BaseObject, $ff16b.FatteAdesso()))) -replace '\r?\n', ' '
     $ff16b.Dispose()
-    $motore16 = PromessaNelMotore $s16b $filtri16 @(@('ufficio@usr-regione.example', 'USR'), @('newsletter@flcgil.it', 'Sindacato')) 'scelti_con_160'
+    $motore16 = PromessaNelMotore $s16b $filtri16 @(@('ufficio@usr-regione.example', 'USR'), @('newsletter@flcgil.it', 'Sindacato'),
+                                                    @('ufficio@mim.gov.it', 'MIM')) 'scelti_con_160'
     Verifica "con il file partono dalla proposta di adesso ($($proposte16 -join '; ')), e nel motore vero ogni loro messaggio ha l'etichetta della sua regola ($($motore16.tolti) tolti; '$riep16b')" (
         $proposte16[0] -eq 'Unisci a Ministero e USR' -and $proposte16[1] -eq "Toglilo: lo fa gia' la regola Sindacati" -and
-        $motore16.esito -eq 0 -and $motore16.tolti -eq 2)
+        $proposte16[2] -eq 'Lascialo in Gmail' -and $motore16.esito -eq 0 -and $motore16.tolti -eq 2)
+    # una voce della 1.6.0 che nel file aperto non c'e' (forse gia' tolta):
+    # il riquadro non dice di aprire il file, e non tiene in Gmail un altro
+    # filtro con la stessa etichetta (non si sa se c'e', ne' se archiviava)
+    $s16c = StatoRiorganizza
+    $voce16c = [Activator]::CreateInstance($tDaTogliere)
+    $voce16c.Etichetta = 'Sindacati'; $voce16c.Criteri['from'] = '@sindacato-uno.example'
+    $lista16c = [Activator]::CreateInstance($tListaVoci16); $lista16c.Add($voce16c)
+    Imposta $s16c 'FiltriDaTogliere' $lista16c
+    $ff16c = [Activator]::CreateInstance($tFF, @($s16c.PSObject.BaseObject))
+    $ff16c.Carica((ListaFiltri @((UnFiltro ([ordered]@{ from = '@snals.it'; label = 'Sindacati'; shouldArchive = 'true' })))))
+    $righe16c = $tFF.GetField('righe', $FIn).GetValue($ff16c)
+    $sugg16c = [string]$tFF.GetMethod('Suggerimento', $FIn).Invoke($ff16c, @($righe16c[1]))
+    $scelte16c = @(0..1 | ForEach-Object { $ff16c.Scelta($_).Testo })
+    $riep16c = ([string]$mApplica.Invoke($null, @($s16c.PSObject.BaseObject, $ff16c.FatteAdesso()))) -replace '\r?\n', ' '
+    $ff16c.Dispose()
+    Verifica "una scelta con la 1.6.0 che nel file aperto non c'e': il suggerimento non dice di aprire il file, e non tiene in Gmail l'altro Sindacati ($($scelte16c -join '; '); '$riep16c')" (
+        $sugg16c -match "^scelto con una versione di prima \(la 1\.6\.0\): nel file non c'e' \(forse l'hai gia' tolto\)\. La 1\.6\.0 lo sceglieva" -and
+        $sugg16c -notmatch 'apri il file' -and ($scelte16c -join ',') -eq "Toglilo: lo fa gia' la regola Sindacati,Lascialo in Gmail" -and
+        (Leggi $s16c 'FiltriDaTogliere').Count -eq 1 -and $riep16c -notmatch 'Restano in Gmail, perche')
+    # una scelta di prima (con la sua regola) che nel file c'e', ma che in Gmail
+    # adesso segna come letto, e la regola no: parte lasciato e il riquadro
+    # dice perche'; "Toglilo" scelto a mano la toglie e basta
+    $s16d = StatoRiorganizza
+    $mimPrima = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR' })
+    $mimAdesso = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR'; shouldMarkAsRead = 'true' })
+    $voce16d = $mimPrima.DaTogliere(); $voce16d.Regola = 'Ministero e USR'
+    $lista16d = [Activator]::CreateInstance($tListaVoci16); $lista16d.Add($voce16d)
+    Imposta $s16d 'FiltriDaTogliere' $lista16d
+    $ff16d = [Activator]::CreateInstance($tFF, @($s16d.PSObject.BaseObject))
+    $ff16d.Carica((ListaFiltri @($mimAdesso)))
+    $sugg16d = [string]$tFF.GetMethod('Suggerimento', $FIn).Invoke($ff16d, @($tFF.GetField('righe', $FIn).GetValue($ff16d)[0]))
+    $ff16d.Dispose()
+    $r16d = FinestraEScelta $s16d @($mimAdesso) $null
+    $motore16d = PromessaNelMotore $s16d @($mimAdesso) @(, @('ufficio@mim.gov.it', 'MIM')) 'prima_poi_letti'
+    Imposta $s16d 'FiltriDaTogliere' $lista16d
+    $r16e = FinestraEScelta $s16d @($mimAdesso) @{ 0 = 'Toglilo' }
+    Verifica "scelto prima con Ministero e USR, ma in Gmail adesso segna come letto: parte lasciato e resta ($($r16d.scelte -join '; ')); 'Toglilo' a mano lo toglie e basta ('$($r16e.riepilogo)')" (
+        $r16d.scelte[0] -eq 'Lascialo in Gmail' -and $motore16d.esito -eq 0 -and $motore16d.tolti -eq 0 -and
+        $sugg16d -match "^scelto prima; la regola che lo sostituiva \(Ministero e USR\) non lo sostituisce piu'" -and
+        (Leggi $s16d 'FiltriDaTogliere').Count -eq 1 -and (Leggi $s16d 'FiltriDaTogliere')[0].Regola -eq '' -and
+        (Leggi $s16d 'FiltriDaTogliere')[0].SegnaLetto -eq $true)
+    # lo stesso filtro scelto due volte (non succede: Applica e la lettura del
+    # file ne tengono uno), "Toglilo" e basta e con una regola che non lo
+    # sostituisce piu': nel dubbio la configurazione non lo scrive
+    $s16g = StatoRiorganizza
+    $sind16g = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati' })
+    $voceSolo = $sind16g.DaTogliere()
+    $voceConRegola = $sind16g.DaTogliere(); $voceConRegola.Regola = 'Sindacati'
+    $lista16g = [Activator]::CreateInstance($tListaVoci16); $lista16g.Add($voceSolo); $lista16g.Add($voceConRegola)
+    Imposta $s16g 'FiltriDaTogliere' $lista16g
+    Verifica "lo stesso filtro scelto due volte, una voce senza la sua regola: la configurazione non lo scrive ($([int]$mDaTogliere.Invoke($null, @($s16g))))" (
+        [int]$mDaTogliere.Invoke($null, @($s16g)) -eq 0 -and (Senza $s16g) -eq 'Sindacati')
+    # scelta prima con la sua regola, senza il file: la tendina dice la regola
+    # che lo fa gia', come il riquadro e come ricorda "Usa questa scelta"
+    $s16f = StatoRiorganizza
+    $voce16f = (UnFiltro ([ordered]@{ from = '@snals.it'; label = 'Sindacati'; shouldArchive = 'true' })).DaTogliere()
+    $voce16f.Regola = 'Sindacati'
+    $lista16f = [Activator]::CreateInstance($tListaVoci16); $lista16f.Add($voce16f)
+    Imposta $s16f 'FiltriDaTogliere' $lista16f
+    $ff16f = [Activator]::CreateInstance($tFF, @($s16f.PSObject.BaseObject))
+    $scelta16f = $ff16f.Scelta(0).Testo
+    $riquadro16f = Riquadro $ff16f 0
+    $ff16f.Dispose()
+    Verifica "scelta prima con Sindacati, senza il file: '$scelta16f', e il riquadro dice che i suoi messaggi li prende Sindacati" (
+        $scelta16f -eq "Toglilo: lo fa gia' la regola Sindacati" -and
+        $riquadro16f -eq 'Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola Sindacati.')
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'
+    # Studenti esclude Colleghi, Dirigenza e Segreteria; Ministero e USR le
+    # ultime due. Un filtro che resta in Gmail con una di quelle etichette la
+    # mette all'arrivo, e la regola non prende quei messaggi: uno tolto e
+    # sostituito da lei li perderebbe. Resta anche lui, e la finestra lo fa
+    # partire lasciato; non se i mittenti di quel filtro li prende tutti gia'
+    # una regola esclusa, accesa e sopra: quell'etichetta l'avrebbero comunque
+    $posteX = @(@('alunno.uno@scuola.example', 'Alunno Uno'), @('anna.bianchi@scuola.example', 'Anna Bianchi'),
+                @('vicepreside@scuola.example', 'Vicepreside'), @('comunicati@sindacato-uno.example', 'Sindacato Uno'),
+                @('mario.rossi@sindacato-uno.example', 'Mario Rossi'), @('casella@istruzione.it', 'Istituto'),
+                @('comunicazioni@istruzione.it', 'Ministero'), @('segreteria@scuola.example', 'Segreteria'))
+    $sX1 = StatoRiorganizza
+    $colleghiTutti = UnFiltro ([ordered]@{ from = '@scuola.example'; label = 'Colleghi' })
+    $studenteUno = UnFiltro ([ordered]@{ from = 'alunno.uno@scuola.example'; label = 'Studenti' })
+    $x1 = FinestraEScelta $sX1 @($colleghiTutti, $studenteUno) $null
+    $motoreX1 = PromessaNelMotore $sX1 @($colleghiTutti, $studenteUno) $posteX 'colleghi_resta'
+    Verifica "Colleghi da @scuola.example resta in Gmail: il filtro di uno studente non va via con Studenti, e il riquadro dice perche' ($($x1.scelte -join '; '))" (
+        ($x1.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and
+        $x1.riquadri[1] -match "Di partenza resta, e non ""Toglilo: lo fa gia' la regola Studenti"": resta in Gmail un filtro con l'etichetta Colleghi, che la regola Studenti esclude" -and
+        (Leggi $sX1 'FiltriDaTogliere').Count -eq 0 -and $motoreX1.esito -eq 0 -and $motoreX1.tolti -eq 0)
+    # un collega dell'elenco (la regola Colleghi, sopra Studenti, lo prende gia'): Studenti lo fa gia'
+    $sX2 = StatoRiorganizza
+    $colleghiAnna = UnFiltro ([ordered]@{ from = 'anna.bianchi@scuola.example'; label = 'Colleghi'; shouldStar = 'true' })
+    $studentiTutti = UnFiltro ([ordered]@{ from = '@scuola.example'; label = 'Studenti' })
+    $x2 = FinestraEScelta $sX2 @($colleghiAnna, $studentiTutti) $null
+    $motoreX2 = PromessaNelMotore $sX2 @($colleghiAnna, $studentiTutti) $posteX 'colleghi_dell_elenco'
+    Verifica "con Colleghi di un collega dell'elenco in Gmail, Studenti lo fa gia' per tutto @scuola.example ($($x2.scelte -join '; '); $($motoreX2.tolti) tolti)" (
+        $x2.scelte[1] -eq "Toglilo: lo fa gia' la regola Studenti" -and $motoreX2.esito -eq 0 -and $motoreX2.tolti -eq 1)
+    # Dirigenza da un dominio, che segna come letti, resta: Ministero e USR non si unisce
+    $sX3 = StatoRiorganizza
+    $dirigenzaSind = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Dirigenza'; shouldMarkAsRead = 'true' })
+    $ministeroSind = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Ministero e USR' })
+    $x3 = FinestraEScelta $sX3 @($dirigenzaSind, $ministeroSind) $null
+    $motoreX3 = PromessaNelMotore $sX3 @($dirigenzaSind, $ministeroSind) $posteX 'dirigenza_resta'
+    $minX3 = @((Leggi $sX3 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    Verifica "Dirigenza da @sindacato-uno.example resta in Gmail: Ministero e USR non prende il dominio, e il riquadro dice perche' ($($x3.scelte -join '; '))" (
+        $x3.scelte[1] -eq 'Lascialo in Gmail' -and $minX3.Da.Count -eq 4 -and
+        $x3.riquadri[1] -match "Di partenza resta, e non ""Unisci a Ministero e USR"": resta in Gmail un filtro con l'etichetta Dirigenza, che la regola Ministero e USR esclude" -and
+        (Leggi $sX3 'FiltriDaTogliere').Count -eq 0 -and $motoreX3.esito -eq 0 -and $motoreX3.tolti -eq 0)
+    # con i filtri veri (Stato.Filtri) il filtro vero di Segreteria etichetta la
+    # casella della scuola all'arrivo, anche con Segreteria spenta o sotto
+    # Ministero e USR: niente "lo fa gia'" ne' "Unisci a Ministero e USR"
+    $sX4 = StatoRiorganizza
+    Imposta $sX4 'Filtri' $true
+    @((Leggi $sX4 'Regole') | Where-Object { $_.Etichetta -eq 'Segreteria' })[0].Attiva = $false
+    $casellaMin = UnFiltro ([ordered]@{ from = 'casella@istruzione.it'; label = 'Ministero e USR' })
+    $casellaIst = UnFiltro ([ordered]@{ from = 'casella@istruzione.it'; label = 'Istituto' })
+    $cCasellaMin = ScelteDi $casellaMin $sX4
+    $cCasellaIst = ScelteDi $casellaIst $sX4
+    $voceX4 = $casellaMin.DaTogliere(); $voceX4.Regola = 'Ministero e USR'
+    Imposta $sX4 'Filtri' $false
+    $senzaFiltriVeri = ScelteDi $casellaMin $sX4
+    $sostituitoX4 = [bool]$mAncora.Invoke($null, @($voceX4, $sX4))
+    Imposta $sX4 'Filtri' $true
+    Verifica "con i filtri veri e Segreteria spenta, la casella della scuola: niente 'lo fa gia'' ($(Testi $cCasellaMin)) ne' 'Unisci a Ministero e USR' ($(Testi $cCasellaIst)), e scelta prima non va via (senza i filtri veri: '$($senzaFiltriVeri.proposta.Testo)')" (
+        (Testi $cCasellaMin) -notmatch "lo fa gia'" -and (Testi $cCasellaIst) -notmatch 'Unisci a Ministero e USR' -and
+        -not [bool]$mAncora.Invoke($null, @($voceX4, $sX4)) -and $sostituitoX4 -and
+        $senzaFiltriVeri.proposta.Testo -eq "Toglilo: lo fa gia' la regola Ministero e USR")
+    # il filtro vero di Segreteria nel file, con Segreteria accesa e sopra: la
+    # casella ha Segreteria comunque, e il filtro vero di prima di Ministero e
+    # USR si toglie lo stesso
+    $sX5 = StatoRiorganizza
+    $veroSegreteria = UnFiltro ([ordered]@{ from = 'segreteria@scuola.example OR casella@istruzione.it'; label = 'Segreteria' })
+    $veroMinistero = UnFiltro ([ordered]@{ from = '@istruzione.it OR @posta.istruzione.it OR @miur.it OR @mim.gov.it'; label = 'Ministero e USR' })
+    $x5 = FinestraEScelta $sX5 @($veroSegreteria, $veroMinistero) $null
+    $motoreX5 = PromessaNelMotore $sX5 @($veroSegreteria, $veroMinistero) $posteX 'filtro_vero_segreteria'
+    Verifica "con il filtro vero di Segreteria (accesa, sopra) in Gmail, quello di prima di Ministero e USR si toglie ($($x5.scelte -join '; '); $($motoreX5.tolti) tolto)" (
+        $x5.scelte[0] -eq 'Lascialo in Gmail' -and $x5.scelte[1] -eq "Toglilo: lo fa gia' la regola Ministero e USR" -and
+        $motoreX5.esito -eq 0 -and $motoreX5.tolti -eq 1)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: RUOLI, GEMELLE E OR MINUSCOLO'
+    # la sottoetichetta di un ruolo (Colleghi/Docenti) e' una regola accesa,
+    # subito sotto Colleghi, che non archivia: un filtro con la sua etichetta
+    # che archivia non diventa una regola (in fondo non li archivierebbe), e
+    # una regola Colleghi/Docenti che archivia, sotto di lei, non "lo fa gia'"
+    $sY1 = StatoRiorganizza
+    Imposta $sY1 'EtichettaPerRuolo' $true
+    $docenti = UnFiltro ([ordered]@{ from = 'anna.bianchi@scuola.example OR prof.verdi@scuola.example'; label = 'Colleghi/Docenti'; shouldArchive = 'true' })
+    $cDocenti = ScelteDi $docenti $sY1
+    $percheDocenti = [string]$tFiltri.GetMethod('PercheNonDiventaRegola', $FS).Invoke($null, @($docenti, $cDocenti.x, $sY1))
+    $docentiAnna = UnFiltro ([ordered]@{ from = 'anna.bianchi@scuola.example'; label = 'Colleghi/Docenti'; shouldArchive = 'true' })
+    $regolaDocenti = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $regolaDocenti.Etichetta = 'Colleghi/Docenti'; $regolaDocenti.Da.Add('anna.bianchi@scuola.example'); $regolaDocenti.Archivia = $true
+    (Leggi $sY1 'Regole').Add($regolaDocenti)
+    $cDocentiAnna = ScelteDi $docentiAnna $sY1
+    Verifica "Colleghi/Docenti che archivia: non diventa una regola ('$percheDocenti'), e una regola Colleghi/Docenti che archivia, in fondo, non 'lo fa gia'' ($(Testi $cDocentiAnna))" (
+        $cDocenti.x.Tipo -eq 'uguale' -and (Testi $cDocenti) -notmatch 'Diventa una regola' -and (Breve $cDocenti.proposta) -eq 'lascia|' -and
+        $percheDocenti -match 'sottoetichetta di un ruolo' -and (Testi $cDocentiAnna) -notmatch "lo fa gia'")
+    # tre Portali: A archivia, C no (tutto portale-due.example), B archivia
+    # (info@portale-due.example). Il filtro che Campanella crea per B non lo fa
+    # gia' nessuna: C, sopra B, prende quei messaggi senza archiviarli
+    $sY2 = StatoRiorganizza
+    $regoleY2 = Leggi $sY2 'Regole'
+    $portaleA = NuovaRegolaPortali @('avvisi@portale-uno.example') ''; $portaleA.Archivia = $true
+    $portaleC = NuovaRegolaPortali @('portale-due.example') ''
+    $portaleB = NuovaRegolaPortali @('info@portale-due.example') ''; $portaleB.Archivia = $true
+    $regoleY2.Add($portaleA); $regoleY2.Add($portaleC); $regoleY2.Add($portaleB)
+    $creatoB = UnFiltro ([ordered]@{ from = 'info@portale-due.example'; label = 'Portali'; shouldArchive = 'true' })
+    $cCreatoB = ScelteDi $creatoB $sY2
+    $voceB = $creatoB.DaTogliere(); $voceB.Regola = 'Portali'
+    Verifica "il filtro che Campanella crea per la terza Portali (che archivia) sotto una che non archivia: niente 'lo fa gia'' ($(Testi $cCreatoB)), e scelto prima non va via" (
+        $cCreatoB.x.Tipo -eq 'campanella' -and (Testi $cCreatoB) -notmatch "lo fa gia'" -and -not [bool]$mAncora.Invoke($null, @($voceB, $sY2)))
+    # "or" minuscolo e' una parola, non l'operatore: due filtri che si
+    # distinguono solo per quello non sono la stessa regola
+    $sY3 = StatoRiorganizza
+    $gareMinuscolo = UnFiltro ([ordered]@{ from = '@appalti.example or @fornitore.example'; subject = 'bando'; label = 'Gare' })
+    $gareMaiuscolo = UnFiltro ([ordered]@{ from = '@appalti.example OR @fornitore.example'; subject = 'bando'; label = 'Gare' })
+    $y3 = FinestraEScelta $sY3 @($gareMinuscolo, $gareMaiuscolo) $null
+    $motoreY3 = PromessaNelMotore $sY3 @($gareMinuscolo, $gareMaiuscolo) @(@('gare@appalti.example', 'Gare', 'Bando di gara'), @('info@fornitore.example', 'Fornitore', 'Bando nuovo')) 'or_minuscolo'
+    $gareY3 = @((Leggi $sY3 'Regole') | Where-Object { $_.Etichetta -eq 'Gare' })
+    Verifica "'or' e 'OR': due regole Gare, e nel motore vero ogni messaggio del filtro con OR ha Gare ($($gareY3.Count) regole; $($motoreY3.tolti) tolti)" (
+        $gareY3.Count -eq 2 -and $motoreY3.esito -eq 0 -and $motoreY3.tolti -eq 2)
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'

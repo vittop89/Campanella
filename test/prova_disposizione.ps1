@@ -683,15 +683,19 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     # ogni filtro parte con la sua proposta (FiltriGmail.Proposta): si tolgono
     # quelli uguali a una regola che non fanno altro, diventano regole i tuoi,
     # si uniscono i simili; restano quelli che inoltrano, eliminano..., e
-    # quelli creati da Campanella
+    # quelli creati da Campanella. Una che con gli altri filtri non si puo'
+    # fare (la riga dice perche': PercheResta) parte lasciata
     $mConfronta = $tFG.GetMethod('Confronta', $FS, $null, [Type[]]@($asm.GetType('Campanella.FiltroGmail'), $tStato), $null)
     $mScelteF = $tFG.GetMethod('Scelte', $FS)
     $mPropostaF = $tFG.GetMethod('Proposta', $FS)
+    $righeFF = $tFF.GetField('righe', $FIf).GetValue($ff)
     $storte = @(); $spuntati = 0
     for ($i = 0; $i -lt 14; $i++) {
         $x = $mConfronta.Invoke($null, @($filtriEs[$i], $stato.PSObject.BaseObject))
         $sc = $mScelteF.Invoke($null, @($filtriEs[$i], $x, $stato.PSObject.BaseObject))
         $proposta = $mPropostaF.Invoke($null, @($sc, $filtriEs[$i], $x, $stato.PSObject.BaseObject, $false))
+        $perche = [string]$righeFF[$i].GetType().GetField('PercheResta').GetValue($righeFF[$i])
+        if ($perche -ne '') { $proposta = $sc[0] }
         if ($proposta.TogliIlFiltro) { $spuntati++ }
         if ($ff.Spuntata($i) -ne $proposta.TogliIlFiltro -or [string]$gr.Rows[$i].Cells[0].Value -ne $proposta.Testo) {
             $storte += $filtriEs[$i].Etichetta
