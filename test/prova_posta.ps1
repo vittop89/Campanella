@@ -22,9 +22,14 @@
     motore vero (test\filtri_diventano_regole.js: le ricerche, il riordino
     su una casella finta, EXTRA_togliFiltri); le esclusioni che non tolgono
     messaggi a una regola unita, le regole gemelle, i filtri che restano se
-    la loro regola non li prende piu' tutti. La Ministero e USR che non
-    prende la casella della scuola, anche quando sta sopra Dirigenza e
-    Segreteria.
+    la loro regola non li prende piu' tutti; come Gmail cerca i mittenti (un
+    sottodominio, un'esclusione con una parte locale), le regole escluse
+    spente o sotto, un filtro con la stessa etichetta che resta in Gmail, lo
+    stesso filtro due volte, quelli scelti con la 1.6.0, con la promessa
+    provata nel motore vero (test\filtri_a_caso.js); e centinaia di scenari
+    a caso, con un seme fisso (test\filtri_a_caso.ps1). La Ministero e USR
+    che non prende la casella della scuola, anche quando sta sopra Dirigenza
+    e Segreteria.
 
     Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
     Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
@@ -2053,6 +2058,23 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $sorgentePosta = [IO.File]::ReadAllText((Join-Path $radice 'src\PaginaPosta.cs'))
     Verifica "il passo 8 dice che restano allo script Studenti e Ministero e USR, non solo Studenti" (
         $sorgentePosta -match 'Studenti\\" e \\"Ministero e USR\\" restano allo' -and $sorgentePosta -notmatch '\\"Studenti\\" resta allo script')
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL A CASO, FINO AL MOTORE VERO'
+    # La promessa a classi, non a casi (test\filtri_a_caso.ps1): centinaia di
+    # scenari inventati con un seme fisso (regole spente e riordinate, filtri
+    # con etichette e mittenti che si sovrappongono, esclusioni, azioni, voci
+    # scelte prima, anche con la 1.6.0), la finestra vera con le proposte e
+    # qualche scelta a caso, "Usa questa scelta", la configurazione e il
+    # motore vero: nessun filtro tolto fa perdere a un suo messaggio
+    # l'etichetta, l'archiviazione o il segna come letto
+    $uscitaCaso = @(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $qui 'filtri_a_caso.ps1') 2>&1 | ForEach-Object { [string]$_ })
+    $codiceCaso = $LASTEXITCODE
+    $uscitaCaso | Select-Object -First 60 | ForEach-Object { Write-Host "        $_" }
+    $riassuntoCaso = [regex]::Match(($uscitaCaso -join "`n"), 'Scenari: (\d+); filtri tolti da EXTRA_togliFiltri: \d+ \((\d+) controllati.*scenari che rompono la promessa: (\d+)')
+    Verifica "a caso: $(if ($riassuntoCaso.Success) { $riassuntoCaso.Groups[1].Value + ' scenari, ' + $riassuntoCaso.Groups[2].Value + ' filtri tolti controllati nel motore vero, ' + $riassuntoCaso.Groups[3].Value + ' che rompono la promessa' } else { 'la prova non ha finito' })" (
+        $codiceCaso -eq 0 -and $riassuntoCaso.Success -and [int]$riassuntoCaso.Groups[1].Value -ge 300 -and
+        [int]$riassuntoCaso.Groups[2].Value -ge 300 -and [int]$riassuntoCaso.Groups[3].Value -eq 0)
 
     # -----------------------------------------------------------------------
     Intestazione 'LE MIE CLASSI: I NOMI E LE PAROLE DELL''OGGETTO'
