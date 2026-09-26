@@ -1346,16 +1346,16 @@ namespace Campanella
         /// un indirizzo (e il nome), e nel dubbio un'esclusione tocca: y senza
         /// chiocciola (una parola come esami, una parte locale come
         /// mario.rossi, anche un dominio) o con il dominio incompleto
-        /// (mario.rossi@, mario.rossi@flc) puo' stare nella parte prima della
+        /// (mario.rossi@, mario.rossi@sind) puo' stare nella parte prima della
         /// chiocciola di qualunque indirizzo; e un d senza chiocciola che non
         /// e' un dominio (una parola, una parte locale come mario.rossi) puo'
         /// essere di qualunque dominio. Altrimenti y tocca d se uno prende
         /// l'altro (CopreLargo: @dominio anche i sottodomini), uno sta dentro
         /// l'altro, o possono essere lo stesso indirizzo: la parte prima della
         /// chiocciola dell'uno finisce con quella dell'altro, e il dominio
-        /// dell'uno comincia con quello dell'altro (mario.rossi@flcgil.i tocca
-        /// @flcgil.it). I segnaposto (@PERSONALE@...) non contano: si
-        /// guardano sciolti.
+        /// dell'uno comincia con quello dell'altro (mario.rossi@sindacato.exampl
+        /// tocca @sindacato.example). I segnaposto (@PERSONALE@...) non
+        /// contano: si guardano sciolti.
         /// </summary>
         static bool Tocca(string y, string d)
         {
@@ -1376,7 +1376,7 @@ namespace Campanella
                    (dominioA.StartsWith(dominioB, StringComparison.Ordinal) || dominioB.StartsWith(dominioA, StringComparison.Ordinal));
         }
 
-        /// <summary>Vero se il mittente ha la chiocciola e dopo un dominio intero, con un punto (x@flcgil.it, @flcgil.it; non x@, x@flc).</summary>
+        /// <summary>Vero se il mittente ha la chiocciola e dopo un dominio intero, con un punto (x@sindacato.example, @sindacato.example; non x@, x@sind).</summary>
         static bool ConDominio(string mittente)
         {
             string t = (mittente ?? "").Trim();
@@ -1472,12 +1472,12 @@ namespace Campanella
         /// Vero se il mittente e di una regola prende di sicuro tutti i
         /// messaggi del mittente d di un filtro. from: di Gmail cerca un pezzo
         /// dell'indirizzo, e nel dubbio si legge stretto: sono uguali; e e' un
-        /// dominio senza chiocciola (flcgil.it) e d e' un indirizzo di quel
-        /// dominio o di un suo sottodominio, o uno dei due domini, con la
+        /// dominio senza chiocciola (sindacato.example) e d e' un indirizzo di
+        /// quel dominio o di un suo sottodominio, o uno dei due domini, con la
         /// chiocciola o senza; e e' @dominio e d e' un indirizzo proprio di
-        /// quel dominio. @flcgil.it non prende x@posta.flcgil.it ne' flcgil.it
-        /// senza chiocciola, che prende anche quello. Un indirizzo intero
-        /// prende solo se stesso, una parola anche.
+        /// quel dominio. @sindacato.example non prende news@posta.sindacato.example
+        /// ne' sindacato.example senza chiocciola, che prende anche quello. Un
+        /// indirizzo intero prende solo se stesso, una parola anche.
         /// </summary>
         static bool Copre(string e, string d)
         {
