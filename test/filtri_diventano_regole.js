@@ -18,11 +18,13 @@
  *     finta, ogni messaggio che il filtro prendeva prenda l'etichetta della
  *     regola (per una regola nuova: proprio quelli, ne' uno di piu' ne' uno
  *     di meno), e sia archiviato se il filtro archiviava: from:(... OR ...),
- *     le esclusioni -from:, i nomi fra virgolette, due from: insieme;
+ *     le esclusioni -from:, i nomi fra virgolette, due from: insieme. Anche
+ *     per un filtro tolto perche' "lo fa gia' la regola X": X lo fa davvero;
  *   - la casella della scuola (in Segreteria) non finisca in Ministero e USR;
  *   - EXTRA_togliFiltri, con la stessa configurazione, tolga i filtri scelti
- *     e che ognuno di quelli diventati regola (o uniti) abbia la sua regola
- *     accesa in quella stessa configurazione: arrivano insieme.
+ *     e che ognuno di quelli diventati regola, uniti o tolti perche' li fa
+ *     gia' una regola abbia la sua regola accesa in quella stessa
+ *     configurazione: arrivano insieme.
  *
  * Le ricerche le valuta un interprete delle ricerche di Gmail fatto qui (con
  * le precedenze di Gmail: OR prima dello spazio), lo stesso per il filtro e
@@ -266,8 +268,10 @@ const esito = contesto.PASSO_3_riordinaPostaEsistente();
 verifica('il riordino finisce (' + String(esito).split('\n')[0] + ')', /RIORDINO COMPLETATO/.test(esito));
 const prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
 const conGruppo = e => (prefisso ? prefisso + '/' : '') + e;
+// quelli che hanno una regola: diventati regola, uniti, o tolti perche' la regola li fa gia'
+const conRegola = f => f.azione === 'nuova' || f.azione === 'unisci' || (f.azione === 'togli' && !!f.regola);
 (scelte.filtri || []).forEach(f => {
-  if (f.azione !== 'nuova' && f.azione !== 'unisci') return;
+  if (!conRegola(f)) return;
   const q = ricercaDelFiltro(f.criteri);
   const presi = cerca(q, casella);
   const etichetta = conGruppo(f.regola);
@@ -322,10 +326,10 @@ verifica('toglie proprio i ' + daTogliere.length + ' filtri scelti (' + tolti.jo
   tolti.slice().sort().join(',') === daTogliere.slice().sort().join(','));
 const senzaRegola = [];
 (scelte.filtri || []).forEach((f, i) => {
-  if (tolti.indexOf('F' + i) < 0 || f.azione === 'togli' || f.azione === 'lascia') return;
+  if (tolti.indexOf('F' + i) < 0 || !conRegola(f)) return;
   if (!perEtichetta[f.regola]) senzaRegola.push(f.etichetta + ' -> ' + f.regola);
 });
-verifica('e ognuno di quelli diventati regola, o uniti a una regola, ha la sua regola accesa nella stessa configurazione' +
+verifica("e ognuno di quelli diventati regola, uniti a una regola o che una regola fa gia' ha la sua regola accesa nella stessa configurazione" +
          (senzaRegola.length ? ': no ' + senzaRegola.join(', ') : ''), senzaRegola.length === 0);
 
 console.log('');

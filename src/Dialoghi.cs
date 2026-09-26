@@ -513,7 +513,8 @@ namespace Campanella
             lblEsito.AutoSize = false;
             // alta quanto l'esito piu' lungo che Carica puo' scrivere
             lblEsito.Height = Tema.AltezzaTesto("Nel file ci sono 999 filtri: 999 uguali a una regola di Campanella " +
-                "(999 da togliere, gli altri fanno anche altro), 999 creati da Campanella, 999 simili, 999 tuoi, " +
+                "(999 da togliere; 999 restano: fanno anche altro; 999 restano: la regola non prende tutti i loro " +
+                "messaggi), 999 creati da Campanella, 999 simili, 999 tuoi, " +
                 "999 senza etichetta o senza criteri, 999 con un criterio che Campanella non capisce, 999 che " +
                 "sembrano di una classe, con degli indirizzi (si tolgono in Gmail). In fondo, 999 scelti prima che " +
                 "nel file non ci sono." + TestoDelleClassiTolti(999),
@@ -602,9 +603,10 @@ namespace Campanella
             y += txtDettaglio.Height + 8;
 
             Label nota = Tema.Testo1(
-                "Di partenza: si tolgono quelli uguali a una regola che non fanno altro (non inoltrano, non " +
-                "eliminano...), e quelli scelti prima; i mittenti di uno simile a una regola vanno in quella regola; " +
-                "uno tuo diventa una regola. Le regole nuove o cambiate e i filtri da togliere vanno insieme nella " +
+                "Di partenza: si tolgono quelli che una regola accesa fa gia' (e che non fanno altro: non inoltrano, " +
+                "non eliminano...) e quelli scelti prima; i mittenti di uno uguale o simile a una regola vanno in " +
+                "quella regola, se si puo'; uno tuo diventa una regola; gli altri restano. Le regole nuove o cambiate " +
+                "e i filtri da togliere vanno insieme nella " +
                 "configurazione: copiala di nuovo (passo 5) prima di eseguire EXTRA_togliFiltri. Prima di togliere un " +
                 "filtro lo script ne scrive una copia nel registro, per rifarlo a mano. Le etichette gia' messe ai " +
                 "messaggi restano.",
@@ -721,7 +723,7 @@ namespace Campanella
             righe.Clear();
             List<string> nelFile = new List<string>();
             Dictionary<string, Riga> primaDellaVoce = new Dictionary<string, Riga>();
-            int uguali = 0, ugualiDaTogliere = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0, classi = 0;
+            int uguali = 0, ugualiDaTogliere = 0, ugualiAltro = 0, diCampanella = 0, simili = 0, tuoi = 0, senza = 0, nonCapiti = 0, classi = 0;
             foreach (FiltroGmail f in filtri ?? new List<FiltroGmail>())
             {
                 Riga r = new Riga();
@@ -747,7 +749,12 @@ namespace Campanella
                 r.Scelta = r.Proposta;
                 righe.Add(r);
                 string tipo = r.Somiglia.Tipo;
-                if (tipo == FiltriGmail.Uguale) { uguali++; if (r.Proposta.TogliIlFiltro) ugualiDaTogliere++; }
+                if (tipo == FiltriGmail.Uguale)
+                {
+                    uguali++;
+                    if (r.Proposta.TogliIlFiltro) ugualiDaTogliere++;
+                    else if (f.AltreAzioni.Count > 0) ugualiAltro++;
+                }
                 else if (tipo == FiltriGmail.DiCampanella) diCampanella++;
                 else if (tipo == FiltriGmail.Simile) simili++;
                 else if (tipo == FiltriGmail.SenzaEtichetta || tipo == FiltriGmail.SenzaCriteri) senza++;
@@ -767,11 +774,22 @@ namespace Campanella
             List<string> parti = new List<string>();
             if (uguali > 0)
             {
-                // quelli che fanno anche altro (inoltrano, eliminano...) si lasciano
+                // restano quelli che fanno anche altro (inoltrano, eliminano...)
+                // e quelli di cui la regola non prende tutti i messaggi
                 string togli;
+                int nonPresi = uguali - ugualiDaTogliere - ugualiAltro;
                 if (ugualiDaTogliere == uguali) togli = (uguali == 1) ? "da togliere" : "tutti da togliere";
-                else if (ugualiDaTogliere == 0) togli = (uguali == 1) ? "resta: fa anche altro" : "restano: fanno anche altro";
-                else togli = ugualiDaTogliere + " da togliere, gli altri fanno anche altro";
+                else
+                {
+                    List<string> come = new List<string>();
+                    if (ugualiDaTogliere > 0) come.Add(ugualiDaTogliere + " da togliere");
+                    string altro = (ugualiAltro == 1) ? "resta: fa anche altro" : "restano: fanno anche altro";
+                    string presi = (nonPresi == 1) ? "resta: la regola non prende tutti i suoi messaggi"
+                                                   : "restano: la regola non prende tutti i loro messaggi";
+                    if (ugualiAltro > 0) come.Add(ugualiAltro == uguali ? altro : ugualiAltro + " " + altro);
+                    if (nonPresi > 0) come.Add(nonPresi == uguali ? presi : nonPresi + " " + presi);
+                    togli = string.Join("; ", come.ToArray());
+                }
                 parti.Add(Quanti(uguali, "uguale", "uguali") + " a una regola di Campanella (" + togli + ")");
             }
             if (diCampanella > 0) parti.Add(Quanti(diCampanella, "creato", "creati") + " da Campanella");
@@ -1048,13 +1066,18 @@ namespace Campanella
             {
                 MittentiFiltro m = FiltriGmail.SoloMittenti(r.Filtro.Criteri);
                 string nome = FiltriGmail.NomeIntero(c.Regola, stato);
-                return (c.Regola.MittentiDallaScuola()
+                return (FiltriGmail.MittentiDaAggiungere(r.Filtro, c.Regola, stato) == 0
+                        ? nome + " ha gia' i suoi mittenti."
+                        : c.Regola.MittentiDallaScuola()
                         ? "I mittenti di " + nome + " si scrivono nella pagina \"La tua scuola\": li aggiungo li'."
                         : "I suoi mittenti vanno fra quelli di " + nome + ".") +
                     (m != null && m.Esclusi.Count > 0
                         ? " Le esclusioni (" + string.Join(" ", m.Esclusi.ToArray()) + ") vanno nella ricerca avanzata di " +
                           nome + ", e valgono per tutta la regola." : "") +
-                    (c.Regola.Attiva ? "" : " " + nome + " e' spenta: la accendo.") +
+                    (c.Regola.Attiva ? "" : FiltriGmail.NienteDaSola(stato, c.Regola)
+                        ? " " + nome + " e' spenta: la accendo."
+                        : " " + nome + " e' spenta: la accendo, e prende di nuovo anche quello che cercava gia' (qui sotto la " +
+                          "ricerca che fara'), non solo i messaggi del filtro" + (c.Regola.Archivia ? ", e li archivia" : "") + ".") +
                     " Poi il filtro si toglie; i suoi messaggi prendono l'etichetta di " + nome + ".";
             }
             return "Nasce una regola con la stessa etichetta (i messaggi che ce l'hanno gia' restano insieme) e la " +

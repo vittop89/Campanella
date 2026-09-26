@@ -542,11 +542,12 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se il filtro parte spuntato: e' uguale a una regola, ma non e'
-        /// uno di quelli creati da Campanella con i criteri di adesso, e non fa
-        /// niente che le regole non facciano (inoltrare, eliminare, stella,
-        /// importante, spam, categoria...). Togliere un filtro cosi' non fa
-        /// perdere niente; gli altri si spuntano a mano.
+        /// Vero se il filtro, uguale a una regola, puo' partire da togliere: non
+        /// e' uno di quelli creati da Campanella con i criteri di adesso, e non
+        /// fa niente che le regole non facciano (inoltrare, eliminare, stella,
+        /// importante, spam, categoria...). Parte da togliere (o da unire alla
+        /// regola) solo se la regola prende davvero i suoi messaggi, o li
+        /// prende unendoli: lo decide Proposta. Gli altri si scelgono a mano.
         /// </summary>
         public static bool DiPartenza(FiltroGmail f, Somiglianza x)
         {
@@ -1250,9 +1251,13 @@ namespace Campanella
         /// Registro elettronico prende solo domini e parole (spaggiari.eu,
         /// @portaleargo.it, nuvola), nessun indirizzo intero: i suoi mittenti
         /// stanno nelle impostazioni (Stato.Impostazioni), non con i dati
-        /// personali, e l'indirizzo di una persona non ci deve finire.
+        /// personali, e l'indirizzo di una persona non ci deve finire. Una
+        /// regola che esclude altre etichette (Ministero e USR esclude Dirigenza
+        /// e Segreteria) non prende un mittente che una di quelle regole prende
+        /// tutto (PresoDaUnaEsclusa: la casella della scuola in Segreteria): i
+        /// suoi messaggi resterebbero senza l'etichetta del filtro.
         /// </summary>
-        public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r)
+        public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r, Stato s)
         {
             if (f == null || m == null || r == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
@@ -1262,19 +1267,122 @@ namespace Campanella
             foreach (string d in r.Da) if (Segnaposto(d)) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
             if (Esclusioni(r.QueryLibera) == null) return false;
-            return r.Archivia == f.Archivia && r.SegnaComeLette == f.SegnaLetto;
+            if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
+            foreach (string d in m.Da) if (PresoDaUnaEsclusa(s, r, d)) return false;
+            return true;
         }
 
-        /// <summary>Vero se la regola prende gia' tutti i mittenti del filtro, con le sue esclusioni: unirli non aggiungerebbe niente.</summary>
+        /// <summary>
+        /// Vero se una delle regole di cui r esclude l'etichetta prende tutti i
+        /// messaggi del mittente: fra i suoi mittenti (quelli di "La tua scuola"
+        /// per Dirigenza e Segreteria, i segnaposto sciolti) c'e' lo stesso
+        /// indirizzo o il suo dominio (Copre). Quei messaggi hanno l'etichetta
+        /// esclusa, e r non li prende.
+        /// </summary>
+        static bool PresoDaUnaEsclusa(Stato s, Regola r, string mittente)
+        {
+            if (s == null || r == null || r.EscludiEtichette.Count == 0) return false;
+            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            foreach (Regola altra in s.Regole)
+            {
+                if (altra == r || !Contiene(r.EscludiEtichette, altra.Etichetta)) continue;
+                List<string> sue = Espandi(GeneratorePosta.MittentiDellaRegola(s, altra), s.DominioPulito(), s.IndirizziPersonale(), gruppi);
+                foreach (string e in sue) if (Copre(e, mittente)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Vero se il mittente e di una regola prende tutti i messaggi del
+        /// mittente d di un filtro: sono uguali (anche uno con la chiocciola
+        /// davanti e l'altro senza), o e e' un dominio (@dominio, o dominio con
+        /// un punto) e d e' un indirizzo di quel dominio o un suo sottodominio.
+        /// Un indirizzo intero prende solo se stesso, una parola anche.
+        /// </summary>
+        static bool Copre(string e, string d)
+        {
+            string a = (e ?? "").Trim().ToLowerInvariant(), b = (d ?? "").Trim().ToLowerInvariant();
+            if (a == "" || b == "") return false;
+            if (a.TrimStart('@') == b.TrimStart('@')) return true;
+            if (a.IndexOf('@') > 0) return false;
+            string dominio = a.TrimStart('@');
+            if (dominio.IndexOf('.') < 0) return false;
+            return b.EndsWith("@" + dominio, StringComparison.Ordinal) || b.EndsWith("." + dominio, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Vero se la regola prende gia' tutti i messaggi del filtro: si
+        /// potrebbe unire (SiPuoUnire: archivia e segna come letti come lui), e'
+        /// accesa nella configurazione, ha gia' tutti i suoi mittenti, ed esclude
+        /// solo quello che esclude anche lui (un'esclusione in piu' nella regola
+        /// lascerebbe fuori dei messaggi del filtro). Toglierlo non fa perdere niente.
+        /// </summary>
         public static bool GiaNellaRegola(FiltroGmail f, Regola r, Stato s)
         {
             MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
-            if (!SiPuoUnire(f, m, r)) return false;
+            if (!SiPuoUnire(f, m, r, s)) return false;
+            if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, s.IndirizziPersonale())) return false;
             List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
             foreach (string d in m.Da) if (!Contiene(da, d)) return false;
-            List<string> esclusi = Esclusioni(r.QueryLibera);
-            foreach (string e in m.Esclusi) if (!Contiene(esclusi, e)) return false;
+            foreach (string e in Esclusioni(r.QueryLibera)) if (!Contiene(m.Esclusi, e)) return false;
             return true;
+        }
+
+        /// <summary>Quanti mittenti del filtro la regola non ha ancora (quelli che l'unione aggiunge); 0 se non si puo' unire.</summary>
+        public static int MittentiDaAggiungere(FiltroGmail f, Regola r, Stato s)
+        {
+            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (!SiPuoUnire(f, m, r, s)) return 0;
+            List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
+            int n = 0;
+            foreach (string d in m.Da) if (!Contiene(da, d)) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// Vero se la regola da sola non cerca niente: nessun mittente (nemmeno
+        /// in "La tua scuola"), niente oggetto, parole o ricerca avanzata. Come
+        /// Genitori di partenza: accesa con i mittenti di un filtro, prende
+        /// solo quelli.
+        /// </summary>
+        public static bool NienteDaSola(Stato s, Regola r)
+        {
+            return r != null && GeneratorePosta.MittentiDellaRegola(s, r).Count == 0 && r.Oggetto.Count == 0 &&
+                   r.Contiene.Count == 0 && (r.QueryLibera ?? "").Trim() == "";
+        }
+
+        /// <summary>Vero se la regola mette proprio quell'etichetta (con il gruppo, maiuscole a parte).</summary>
+        static bool ConEtichetta(Regola r, string etichetta, Stato s)
+        {
+            string e = (etichetta ?? "").Trim().Trim('/').Trim();
+            return e != "" && string.Equals(NomeIntero(r, s).Trim(), e, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// La regola accesa che fa gia' quello che fa il filtro: quella per cui
+        /// Campanella crea proprio quel filtro (DiCampanella); oppure, fra la
+        /// regola simile e quelle con la sua etichetta, una che prende gia'
+        /// tutti i suoi messaggi (GiaNellaRegola) o che e' la regola che il
+        /// filtro diventa (la stessa ricerca, e archivia e segna come letti come
+        /// lui). null se nessuna: avere la stessa etichetta non basta, ne' con
+        /// una regola spenta.
+        /// </summary>
+        public static Regola RegolaCheLoFa(FiltroGmail f, Somiglianza x, Stato s)
+        {
+            if (f == null || x == null || s == null) return null;
+            Regola simile = RegolaDi(x, s);
+            if (x.Tipo == DiCampanella) return simile;
+            List<Regola> candidate = new List<Regola>();
+            if (simile != null) candidate.Add(simile);
+            foreach (Regola r in s.Regole) if (!candidate.Contains(r) && ConEtichetta(r, f.Etichetta, s)) candidate.Add(r);
+            Regola tradotta = Traduci(f, x, s);
+            List<string> personale = s.IndirizziPersonale();
+            foreach (Regola r in candidate)
+            {
+                if (GiaNellaRegola(f, r, s)) return r;
+                if (tradotta != null && StessaRegola(tradotta, r) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) return r;
+            }
+            return null;
         }
 
         /// <summary>
@@ -1367,7 +1475,7 @@ namespace Campanella
         public static Regola DopoLUnione(FiltroGmail f, Regola r, Stato s)
         {
             MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
-            if (!SiPuoUnire(f, m, r)) return null;
+            if (!SiPuoUnire(f, m, r, s)) return null;
             Regola c = r.Copia();
             c.Sorgente = "";
             c.Da = GeneratorePosta.MittentiDellaRegola(s, r);
@@ -1381,11 +1489,12 @@ namespace Campanella
 
         /// <summary>
         /// Che cosa si puo' fare di un filtro, nell'ordine della tendina:
-        /// lasciarlo in Gmail; toglierlo ("lo fa gia' la regola X" se e' uguale
-        /// a una regola o se i suoi mittenti ci sono gia'; con quello che si
-        /// perde, se fa anche altro); unire i mittenti a una regola (prima
-        /// quella simile, poi le altre in ordine, solo dove si puo':
-        /// SiPuoUnire); farne una regola (RegolaDalFiltro). Uno che non si puo'
+        /// lasciarlo in Gmail; toglierlo ("lo fa gia' la regola X" solo se una
+        /// regola accesa prende davvero i suoi messaggi: RegolaCheLoFa; con
+        /// quello che si perde, se fa anche altro); unire i mittenti a una
+        /// regola (prima quella simile, poi le altre in ordine, solo dove si
+        /// puo': SiPuoUnire; a una spenta anche se ha gia' i suoi mittenti,
+        /// per accenderla); farne una regola (RegolaDalFiltro). Uno che non si puo'
         /// togliere (di una classe, senza etichetta o criteri, con un criterio
         /// che non si capisce) si lascia e basta; uno che fa anche altro, di
         /// una classe o creato da Campanella si lascia o si toglie.
@@ -1396,14 +1505,14 @@ namespace Campanella
             fuori.Add(new SceltaFiltro());
             if (f == null || x == null || x.Tipo == DiUnaClasse || f.DaTogliere() == null) return fuori;
             Regola simile = RegolaDi(x, s);
-            bool giaDentro = simile != null && GiaNellaRegola(f, simile, s);
+            Regola fa = RegolaCheLoFa(f, x, s);
             SceltaFiltro togli = new SceltaFiltro();
             togli.Azione = SceltaFiltro.Togli;
             string perse = (f.AltreAzioni.Count > 0) ? " (si perde: " + string.Join(", ", f.AltreAzioni.ToArray()) + ")" : "";
-            if (simile != null && (x.Tipo == Uguale || x.Tipo == DiCampanella || giaDentro))
+            if (fa != null)
             {
-                togli.Regola = simile;
-                togli.Testo = "Toglilo: lo fa gia' la regola " + x.Regola + perse;
+                togli.Regola = fa;
+                togli.Testo = "Toglilo: lo fa gia' la regola " + NomeIntero(fa, s) + perse;
             }
             else togli.Testo = "Toglilo" + perse;
             fuori.Add(togli);
@@ -1417,7 +1526,7 @@ namespace Campanella
                 foreach (Regola r in s.Regole) if (r != simile) ordine.Add(r);
                 foreach (Regola r in ordine)
                 {
-                    if ((r == simile && giaDentro) || !SiPuoUnire(f, m, r)) continue;
+                    if (r == fa || !SiPuoUnire(f, m, r, s)) continue;
                     SceltaFiltro u = new SceltaFiltro();
                     u.Azione = SceltaFiltro.Unisci;
                     u.Regola = r;
@@ -1462,14 +1571,19 @@ namespace Campanella
         }
 
         /// <summary>
-        /// La scelta di partenza, fra quelle di Scelte. Uguale a una regola:
-        /// toglilo, se non fa anche altro; ma se ha dei mittenti che la regola
-        /// non ha e si possono unire, unisci, cosi' non si perdono. Simile:
-        /// toglilo se la regola ha gia' i suoi mittenti, unisci alla regola
-        /// simile se si puo' (e ha senso: DaProporre), altrimenti lascialo;
-        /// simile solo nel nome a Dirigenza o Segreteria (domini, non
-        /// indirizzi) e' come tuo. Tuo: diventa una regola se si puo',
-        /// altrimenti lascialo. Di Campanella, di una classe, che fa anche
+        /// La scelta di partenza, fra quelle di Scelte. Uguale a una regola, se
+        /// non fa anche altro: toglilo se la regola prende gia' i suoi messaggi
+        /// (RegolaCheLoFa); se ha dei mittenti che la regola non ha e si possono
+        /// unire, unisci, cosi' non si perdono; altrimenti (archivia o segna come
+        /// letti diversamente, cerca altro che i mittenti, la regola ha i
+        /// segnaposto) lascialo: con l'etichetta uguale la regola non lo
+        /// sostituisce. Simile: toglilo se una regola accesa lo fa gia', unisci
+        /// alla regola simile se si puo' e ha senso (DaProporre; se e' spenta,
+        /// solo se da sola non cerca niente, come Genitori: accesa prenderebbe
+        /// anche quello che cercava gia'); se si puo' ma non ha senso, diventa
+        /// una regola se si puo'; altrimenti lascialo. Simile solo nel nome a
+        /// Dirigenza o Segreteria (domini, non indirizzi) e' come tuo. Tuo: diventa una regola se si
+        /// puo', altrimenti lascialo. Di Campanella, di una classe, che fa anche
         /// altro, con un criterio che non si capisce: lascialo. Uno scelto prima
         /// (prima): toglilo, come prima.
         /// </summary>
@@ -1483,11 +1597,12 @@ namespace Campanella
             Regola simile = RegolaDi(x, s);
             SceltaFiltro unisci = (simile == null) ? null : Trova(scelte, SceltaFiltro.Unisci, simile);
             SceltaFiltro nuova = Trova(scelte, SceltaFiltro.Nuova, null);
-            if (x.Tipo == Uguale) return !DiPartenza(f, x) ? lascia : (unisci ?? togli);
+            if (x.Tipo == Uguale) return !DiPartenza(f, x) ? lascia : (togli.Regola != null ? togli : (unisci ?? lascia));
             if (x.Tipo == Tuo) return nuova ?? lascia;
             if (x.Tipo != Simile || x.Classe || f.AltreAzioni.Count > 0) return lascia;
             if (togli.Regola != null) return togli;
-            if (unisci != null && DaProporre(SoloMittenti(f.Criteri), simile)) return unisci;
+            if (unisci != null && DaProporre(SoloMittenti(f.Criteri), simile) && (simile.Attiva || NienteDaSola(s, simile)))
+                return unisci;
             if (unisci != null) return nuova ?? lascia;
             return lascia;
         }
@@ -1583,7 +1698,7 @@ namespace Campanella
         static string UnisciAllaRegola(Stato s, FiltroGmail f, Regola r, List<string> unite, List<string> scuola)
         {
             MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
-            if (r == null || !s.Regole.Contains(r) || !SiPuoUnire(f, m, r)) return "non si unisce piu' a quella regola";
+            if (r == null || !s.Regole.Contains(r) || !SiPuoUnire(f, m, r, s)) return "non si unisce piu' a quella regola";
             List<string> aggiunti = new List<string>();
             List<string> gia = GeneratorePosta.MittentiDellaRegola(s, r);
             foreach (string d in m.Da) if (!Contiene(gia, d) && !Contiene(aggiunti, d)) aggiunti.Add(d);
@@ -1607,10 +1722,14 @@ namespace Campanella
             if (nuoveEsclusioni > 0) r.QueryLibera = string.Join(" ", esclusi.ToArray());
             bool accesa = !r.Attiva;
             r.Attiva = true;
-            string detto = r.Etichetta + ": " + (aggiunti.Count == 1 ? "1 mittente" : aggiunti.Count + " mittenti") +
-                (nuoveEsclusioni == 0 ? "" : nuoveEsclusioni == 1 ? " e 1 esclusione" : " e " + nuoveEsclusioni + " esclusioni") +
-                " dal filtro \"" + f.Etichetta + "\"" +
-                (nuoveEsclusioni > 0 ? " (le esclusioni valgono per tutta la regola)" : "") +
+            // una spenta che aveva gia' i mittenti del filtro: si accende e basta
+            string detto = r.Etichetta + ": " +
+                (aggiunti.Count == 0 && nuoveEsclusioni == 0
+                    ? "i mittenti del filtro \"" + f.Etichetta + "\" li aveva gia'"
+                    : (aggiunti.Count == 1 ? "1 mittente" : aggiunti.Count + " mittenti") +
+                      (nuoveEsclusioni == 0 ? "" : nuoveEsclusioni == 1 ? " e 1 esclusione" : " e " + nuoveEsclusioni + " esclusioni") +
+                      " dal filtro \"" + f.Etichetta + "\"" +
+                      (nuoveEsclusioni > 0 ? " (le esclusioni valgono per tutta la regola)" : "")) +
                 (accesa ? "; era spenta, adesso e' accesa" : "");
             (r.MittentiDallaScuola() ? scuola : unite).Add(detto);
             return "";
@@ -1632,7 +1751,7 @@ namespace Campanella
                 // la finestra riaperta sullo stesso file, o due filtri con la stessa etichetta
                 if (GiaNellaRegola(f, esistente, s) || StessaRegola(r, esistente)) return "";
                 MittentiFiltro m = SoloMittenti(f.Criteri);
-                if (m != null && SiPuoUnire(f, m, esistente)) return UnisciAllaRegola(s, f, esistente, unite, scuola);
+                if (m != null && SiPuoUnire(f, m, esistente, s)) return UnisciAllaRegola(s, f, esistente, unite, scuola);
                 if (!createAdesso.Contains(esistente)) return "c'e' gia' la regola " + NomeIntero(esistente, s);
             }
             r.Colore = ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
@@ -1650,11 +1769,16 @@ namespace Campanella
             return "";
         }
 
-        /// <summary>Vero se le due regole cercano la stessa cosa e fanno lo stesso (etichetta, mittenti, ricerca, archivia, letti).</summary>
+        /// <summary>
+        /// Vero se la regola b cerca la stessa cosa della regola a, nata da un
+        /// filtro, e fa lo stesso: etichetta, mittenti, ricerca, archivia,
+        /// letti; e b non ha altri criteri ne' etichette escluse.
+        /// </summary>
         static bool StessaRegola(Regola a, Regola b)
         {
             if (!string.Equals(a.Etichetta.Trim(), b.Etichetta.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
             if (a.Da.Count != b.Da.Count || b.Oggetto.Count > 0 || b.Contiene.Count > 0 || b.UnoQualsiasi) return false;
+            if (b.Sorgente != "" || b.EscludiEtichette.Count > 0) return false;
             foreach (string d in a.Da) if (!Contiene(b.Da, d)) return false;
             return string.Equals((a.QueryLibera ?? "").Trim(), (b.QueryLibera ?? "").Trim(), StringComparison.OrdinalIgnoreCase) &&
                    a.Archivia == b.Archivia && a.SegnaComeLette == b.SegnaComeLette;
