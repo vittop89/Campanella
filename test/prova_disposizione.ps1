@@ -725,7 +725,10 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
 
     # i casi veri (resi anonimi) di test\filtri_gmail_riorganizza.xml: regole
     # nuove e mittenti da unire, con le tendine e le ricerche lunghe; la
-    # finestra sta in piedi e il dettaglio di Famiglie (Genitori spenta) ci sta
+    # finestra sta in piedi e il dettaglio di Famiglie (Genitori spenta) ci sta.
+    # Come nel caso vero, la casella della scuola e' in Segreteria: il filtro
+    # del ministero la esclude, e unito a Ministero e USR non le toglie niente
+    $tStato.GetField('Segreteria', $FI).SetValue($stato, 'casella@istruzione.it')
     $filtriR = $tFG.GetMethod('LeggiFile', $FS).Invoke($null, @([string](Join-Path $radice 'test\filtri_gmail_riorganizza.xml')))
     $ffR = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))
     $ffR.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
@@ -744,6 +747,7 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     ControllaPannello $ffR "Filtri che hai gia' in Gmail, i casi veri"
     $ffR.Close()
     $ffR.Dispose()
+    $tStato.GetField('Segreteria', $FI).SetValue($stato, '')
 
     # il passo 4 dice quanti ce ne sono da togliere
     $lblF = $posta.GetType().GetField('lblFiltri', $FIp).GetValue($posta)

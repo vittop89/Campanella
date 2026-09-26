@@ -1110,6 +1110,46 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "lo fa gia' anche la regola che prende i mittenti con il dominio (@spaggiari.eu) o con l'elenco del personale (Colleghi): '$($cRegDominio.proposta.Testo)', '$($cColleghiElenco.proposta.Testo)'" (
         $cRegDominio.proposta.Testo -eq "Toglilo: lo fa gia' la regola Registro elettronico" -and
         $cColleghiElenco.proposta.Testo -eq "Toglilo: lo fa gia' la regola Colleghi")
+    # una regola che esclude le etichette di altre regole "lo fa gia'" anche se
+    # i messaggi con quelle etichette non li prende: e' quello che fa (qui
+    # Studenti, che lascia i colleghi a Colleghi)
+    $cStudenti = ScelteDi (UnFiltro ([ordered]@{ from = '@scuola.example'; label = 'Studenti' })) $sR
+    Verifica "tutto il dominio della scuola in Studenti: lo fa gia' la regola Studenti, che esclude Colleghi ('$($cStudenti.proposta.Testo)')" (
+        $cStudenti.proposta.Testo -eq "Toglilo: lo fa gia' la regola Studenti")
+    # un filtro con delle esclusioni si unisce solo se non tolgono niente:
+    # unito, valgono per tutta la regola. -from:esami puo' stare in qualunque
+    # indirizzo, anche dei mittenti che Sindacati ha gia' (esami@flcgil.it);
+    # -from:newsletter@flcgil.it toglie una parte di @flcgil.it, che Sindacati
+    # prende. Il filtro del ministero si unisce a Ministero e USR anche con
+    # -from:casella@istruzione.it (qui sopra): la casella la prende gia' Segreteria
+    $sindEsami = UnFiltro ([ordered]@{ hasTheWord = 'from:(sindacato-uno.example OR sindacato-due.example) -from:esami'; label = 'Sindacati'; shouldArchive = 'true' })
+    $sindDegliEsami = UnFiltro ([ordered]@{ hasTheWord = 'from:esami.sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $sindNewsletter = UnFiltro ([ordered]@{ hasTheWord = 'from:(@flcgil.it OR cobas.example) -from:newsletter@flcgil.it'; label = 'Sindacati'; shouldArchive = 'true' })
+    $cEsami = ScelteDi $sindEsami $sR
+    $cDegliEsami = ScelteDi $sindDegliEsami $sR
+    $cNewsletter = ScelteDi $sindNewsletter $sR
+    Verifica "con un'esclusione che toglierebbe dei messaggi a Sindacati (-from:esami, -from:newsletter@flcgil.it) niente 'Unisci a Sindacati', e resta ($(Testi $cEsami); $(Testi $cNewsletter))" (
+        (Testi $cEsami) -notmatch 'Unisci a Sindacati' -and (Testi $cNewsletter) -notmatch 'Unisci a Sindacati' -and
+        (Breve $cEsami.proposta) -eq 'lascia|' -and (Breve $cNewsletter.proposta) -eq 'lascia|')
+    Verifica "senza esclusioni, quello degli esami si unisce ('$($cDegliEsami.proposta.Testo)')" ((Breve $cDegliEsami.proposta) -eq 'unisci|Sindacati')
+    # e un'esclusione che la regola ha gia' e il filtro no non deve toccare i suoi mittenti
+    $sEscl = StatoRiorganizza
+    @((Leggi $sEscl 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].QueryLibera = '-from:esami'
+    $cEscl = ScelteDi $sindDegliEsami $sEscl
+    $cEsclFuori = ScelteDi (UnFiltro ([ordered]@{ hasTheWord = 'from:cobas.example -from:esami'; label = 'Sindacati'; shouldArchive = 'true' })) $sEscl
+    Verifica "Sindacati con -from:esami: quello degli esami non si unisce; uno con la stessa esclusione si' ($(Testi $cEscl); $($cEsclFuori.proposta.Testo))" (
+        (Testi $cEscl) -notmatch 'Unisci a Sindacati' -and (Breve $cEsclFuori.proposta) -eq 'unisci|Sindacati')
+    # e il riquadro della finestra dice perche'
+    $ffN = [Activator]::CreateInstance($tFF, @($sR.PSObject.BaseObject))
+    $listaN = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFiltroGmail))
+    $listaN.Add($sindNewsletter)
+    $ffN.Carica($listaN)
+    $grN = $tFF.GetField('griglia', $FIn).GetValue($ffN)
+    $grN.CurrentCell = $grN.Rows[0].Cells[1]
+    $detN = $tFF.GetField('txtDettaglio', $FIn).GetValue($ffN).Text
+    $ffN.Dispose()
+    Verifica "e il riquadro dice perche' non si unisce" (
+        $detN -match "Non si unisce a Sindacati: un'esclusione, che vale per tutta la regola, toglierebbe dei messaggi alla regola o al filtro")
     # una regola spenta non fa niente: con i mittenti che ha gia', la scelta e'
     # accenderla (Unisci, "la accendo"); di partenza pero' si accende solo una
     # che da sola non cerca niente (Genitori), non una con i mittenti suoi
@@ -1250,19 +1290,34 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $null -ne $lettaR.CONFIG -and @($lettaR.CONFIG.regole | Where-Object { $_.nota -like 'Da un filtro di Gmail:*' }).Count -eq 10 -and
         @($lettaR.CONFIG.filtriDaTogliere).Count -eq 14)
     # le scelte di ogni filtro (e la regola che lo prende), con la
-    # configurazione generata: le prova testiltri_diventano_regole.js
+    # configurazione generata: le prova test\filtri_diventano_regole.js. Conta
+    # quello che e' successo davvero, dallo Stato: un filtro che Applica ha
+    # lasciato in Gmail, o che la sua regola non sostituisce piu'
+    # (AncoraSostituito, come per la configurazione), e' "lascia"; la regola
+    # e' quella che ricorda la sua voce
+    $mAncora = $tFiltri.GetMethod('AncoraSostituito', $FS)
     function NelMotore($stato, $filtriM, $fatteM, $nome) {
         $fileM = Join-Path $temporanea ('Configurazione_' + $nome + '.gs')
         Scrivi $fileM (Genera $stato $false)
+        $voci = New-Object 'System.Collections.Generic.Dictionary[string,object]'
+        $scelteM = Leggi $stato 'FiltriDaTogliere'
+        if ($null -ne $scelteM) {
+            foreach ($v in $scelteM) {
+                if ($null -ne $v -and [bool]$mAncora.Invoke($null, @($v, $stato))) { $voci[$v.Chiave()] = $v }
+            }
+        }
         $filtriJ = @()
         for ($i = 0; $i -lt $filtriM.Count; $i++) {
             $f = $filtriM[$i]; $c = $fatteM[$i].Scelta
             $criteriJ = [ordered]@{}
             foreach ($k in $f.Criteri.Keys) { $criteriJ[$k] = $f.Criteri[$k] }
-            $regolaJ = if ($c.Azione -eq 'nuova') { [string]$tFiltri.GetMethod('EtichettaNelGruppo', $FS).Invoke($null, @($f.Etichetta, $stato)) }
-                       elseif ($null -ne $c.Regola) { $c.Regola.Etichetta } else { '' }
+            $voce = $f.DaTogliere()
+            $v = $null
+            if ($null -ne $voce -and $voci.ContainsKey($voce.Chiave())) { $v = $voci[$voce.Chiave()] }
+            $azioneJ = if ($null -eq $v) { 'lascia' } elseif ($c.Azione -eq 'lascia') { 'togli' } else { $c.Azione }
+            $regolaJ = if ($null -eq $v) { '' } else { [string]$v.Regola }
             $filtriJ += [ordered]@{ etichetta = $f.Etichetta; criteri = $criteriJ; archivia = $f.Archivia; letti = $f.SegnaLetto
-                                    azione = $c.Azione; regola = $regolaJ }
+                                    azione = $azioneJ; regola = $regolaJ }
         }
         $ricercheJ = @()
         $personaleM = $stato.IndirizziPersonale()
@@ -1375,6 +1430,41 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         @($riaperteD | Where-Object { $_.Azione -eq 'togli' -and $null -ne $_.Regola }).Count -eq 4 -and
         [object]::ReferenceEquals($riaperteD[0].Regola, $portaliD[0]) -and [object]::ReferenceEquals($riaperteD[1].Regola, $portaliD[1]) -and
         [object]::ReferenceEquals($riaperteD[2].Regola, $gareD[0]) -and [object]::ReferenceEquals($riaperteD[3].Regola, $gareD[0]))
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UNISCI CON LE ESCLUSIONI'
+    # Le esclusioni di un filtro unito valgono per tutta la regola: si unisce
+    # solo se non tolgono niente ai mittenti che la regola ha gia' (e a quelli
+    # degli altri filtri uniti), e dopo tutte le scelte ogni filtro va via solo
+    # se la sua regola prende ancora tutti i suoi messaggi. Qui "Unisci a
+    # Sindacati" arriva lo stesso ai due filtri con l'esclusione (come da una
+    # finestra di prima): Applica non lo fa, e restano in Gmail. Poi nel motore
+    # vero, insieme ai 14 filtri del docente
+    $sU = StatoRiorganizza
+    $filtriU = LeggiRiorganizza
+    $filtriU.Add($sindEsami); $filtriU.Add($sindDegliEsami); $filtriU.Add($sindNewsletter)
+    $ffU = [Activator]::CreateInstance($tFF, @($sU.PSObject.BaseObject))
+    $ffU.Carica($filtriU)
+    $fatteU = $ffU.FatteAdesso()
+    $ffU.Dispose()
+    $sindU = @((Leggi $sU 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    foreach ($i in @(14, 16)) {
+        $unisciForzato = [Activator]::CreateInstance($tSceltaF)
+        $unisciForzato.Azione = 'unisci'
+        $unisciForzato.Regola = $sindU
+        $unisciForzato.Testo = 'Unisci a Sindacati'
+        $fatteU[$i].Scelta = $unisciForzato
+    }
+    $riepU = [string]$mApplica.Invoke($null, @($sU.PSObject.BaseObject, $fatteU))
+    $chiaviU = @((Leggi $sU 'FiltriDaTogliere') | ForEach-Object { $_.Chiave() })
+    Verifica "i due con l'esclusione restano in Gmail e Sindacati non la prende; quello degli esami si unisce ('$($riepU -replace '\r?\n', ' ')')" (
+        $sindU.QueryLibera -eq '' -and (@($sindU.Da) -contains 'esami.sindacato-uno.example') -and
+        $chiaviU -notcontains $sindEsami.DaTogliere().Chiave() -and $chiaviU -notcontains $sindNewsletter.DaTogliere().Chiave() -and
+        $chiaviU -contains $sindDegliEsami.DaTogliere().Chiave() -and $chiaviU.Count -eq 15 -and
+        $riepU -match "Restano in Gmail, perche' la scelta non si puo' piu' fare: Sindacati \(unito a Sindacati, un'esclusione, che vale per tutta la regola, toglierebbe dei messaggi alla regola o al filtro\); Sindacati \(unito a Sindacati")
+    $motoreU = NelMotore $sU $filtriU $fatteU 'unisci_esclusioni'
+    Verifica "nel motore vero Sindacati prende ancora la newsletter di @flcgil.it e gli esiti degli esami, archiviati ($($motoreU.ok) controlli)" (
+        $motoreU.esito -eq 0 -and $motoreU.ok -ge 24)
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: SE LA REGOLA NON C''E'' PIU'''

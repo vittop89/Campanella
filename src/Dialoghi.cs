@@ -1075,7 +1075,11 @@ namespace Campanella
             {
                 if (r.Voce == null) return "Resta in Gmail: non si puo' togliere da qui.";
                 string perche = (r.Filtro == null) ? "" : FiltriGmail.PercheNonDiventaRegola(r.Filtro, r.Somiglia, stato);
-                return "Resta in Gmail com'e'." + (perche == "" ? "" : " Non puo' diventare una regola: " + perche + ".");
+                // uguale o simile a una regola, ma unito le esclusioni toglierebbero dei messaggi
+                Regola simile = (r.Filtro == null) ? null : FiltriGmail.RegolaDi(r.Somiglia, stato);
+                string esclusioni = (simile == null) ? "" : FiltriGmail.EsclusioniCheNonSiUniscono(r.Filtro, simile, stato);
+                return "Resta in Gmail com'e'." + (perche == "" ? "" : " Non puo' diventare una regola: " + perche + ".") +
+                       (esclusioni == "" ? "" : " Non si unisce a " + FiltriGmail.NomeIntero(simile, stato) + ": " + esclusioni + ".");
             }
             if (c.Azione == SceltaFiltro.Togli)
                 return (c.Regola != null

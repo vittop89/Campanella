@@ -1246,8 +1246,14 @@ namespace Campanella
         /// elettronico: vanno li'), nessun altro criterio (oggetto, parole,
         /// "basta uno dei due"), nella ricerca avanzata al piu' delle esclusioni
         /// di mittenti, e archivia e segna come letti come il filtro. Le
-        /// esclusioni del filtro (-from:y) vanno nella ricerca avanzata: valgono
-        /// per tutta la regola. Una regola spenta si accende (Applica).
+        /// esclusioni del filtro (-from:y) vanno nella ricerca avanzata e
+        /// valgono per tutta la regola: solo se non tolgono niente dei mittenti
+        /// che la regola ha gia' (Innocua: -from:esami puo' stare in qualunque
+        /// indirizzo, -from:newsletter@flcgil.it toglie una parte di
+        /// @flcgil.it), se no la regola perderebbe dei messaggi che prendeva, e
+        /// quelli degli altri filtri uniti a lei. Allo stesso modo le esclusioni
+        /// che la regola ha gia' e il filtro no non devono toccare i mittenti
+        /// del filtro. Una regola spenta si accende (Applica).
         /// Registro elettronico prende solo domini e le parole dei registri noti
         /// (spaggiari.eu, @portaleargo.it, nuvola: DelRegistro), nessun
         /// indirizzo intero ne' altre parole: i suoi mittenti stanno nelle
@@ -1260,6 +1266,27 @@ namespace Campanella
         /// </summary>
         public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r, Stato s)
         {
+            return SiPuoUnireIMittenti(f, m, r, s) && EsclusioniCompatibili(m, r, s);
+        }
+
+        const string ToglieDelleEsclusioni = "un'esclusione, che vale per tutta la regola, toglierebbe dei messaggi alla " +
+                                             "regola o al filtro";
+
+        /// <summary>
+        /// Perche' i mittenti del filtro non si uniscono alla regola quando e'
+        /// per le esclusioni (EsclusioniCompatibili), a parole; "" se si
+        /// uniscono o se non e' per quelle. Per il riquadro della finestra.
+        /// </summary>
+        public static string EsclusioniCheNonSiUniscono(FiltroGmail f, Regola r, Stato s)
+        {
+            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (!SiPuoUnireIMittenti(f, m, r, s) || EsclusioniCompatibili(m, r, s)) return "";
+            return ToglieDelleEsclusioni;
+        }
+
+        /// <summary>SiPuoUnire senza guardare le esclusioni (EsclusioniCompatibili).</summary>
+        static bool SiPuoUnireIMittenti(FiltroGmail f, MittentiFiltro m, Regola r, Stato s)
+        {
             if (f == null || m == null || r == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
             if (r.Sorgente == "registro")
@@ -1270,6 +1297,71 @@ namespace Campanella
             if (Esclusioni(r.QueryLibera) == null) return false;
             if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
             foreach (string d in m.Da) if (PresoDaUnaEsclusa(s, r, d)) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Vero se, uniti il filtro e la regola, nessuna esclusione toglie dei
+        /// messaggi all'uno o all'altra: quelle della regola che il filtro non
+        /// ha non toccano i mittenti del filtro, e quelle del filtro che la
+        /// regola non ha non toccano i mittenti che la regola ha gia'
+        /// (Innocua), con i segnaposto sciolti.
+        /// </summary>
+        static bool EsclusioniCompatibili(MittentiFiltro m, Regola r, Stato s)
+        {
+            List<string> esclusi = (r == null) ? null : Esclusioni(r.QueryLibera);
+            if (m == null || esclusi == null || s == null) return false;
+            foreach (string e in esclusi)
+                if (!Contiene(m.Esclusi, e) && !Innocua(s, r, e, m.Da)) return false;
+            List<string> sue = null;
+            foreach (string e in m.Esclusi)
+            {
+                if (Contiene(esclusi, e)) continue;
+                if (sue == null) sue = MittentiSciolti(s, r, s.IndirizziPersonale());
+                if (!Innocua(s, r, e, sue)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Vero se l'esclusione y (quello che segue -from:, un mittente) puo'
+        /// togliere dei messaggi del mittente d: y prende d o una sua parte, o d
+        /// prende y (Copre, in un senso o nell'altro), uno dei due sta dentro
+        /// l'altro (Gmail cerca anche i pezzi di un indirizzo), oppure uno dei
+        /// due e' una parola senza punto (esami, nuvola), che puo' stare
+        /// nell'indirizzo o nel nome di qualunque mittente. I segnaposto
+        /// (@PERSONALE@...) non contano: si guardano sciolti.
+        /// </summary>
+        static bool Tocca(string y, string d)
+        {
+            if (Segnaposto(d)) return false;
+            string a = (y ?? "").Trim().ToLowerInvariant(), b = (d ?? "").Trim().ToLowerInvariant();
+            if (a == "" || b == "") return false;
+            string a0 = a.TrimStart('@'), b0 = b.TrimStart('@');
+            if (a0.IndexOf('.') < 0 || b0.IndexOf('.') < 0) return true;
+            return Copre(a, b) || Copre(b, a) || a0.IndexOf(b0, StringComparison.Ordinal) >= 0 ||
+                   b0.IndexOf(a0, StringComparison.Ordinal) >= 0;
+        }
+
+        /// <summary>
+        /// Vero se l'esclusione (un termine -from:... di Esclusioni) non toglie
+        /// alla regola r nessun messaggio di quei mittenti: non ne tocca nessuno
+        /// (Tocca), o quello che toglie lo prende tutto una delle regole di cui
+        /// r esclude l'etichetta (PresoDaUnaEsclusa: la casella della scuola in
+        /// Segreteria, per Ministero e USR), e r non lo prenderebbe comunque. Un
+        /// nome fra virgolette puo' essere quello di qualunque mittente.
+        /// </summary>
+        static bool Innocua(Stato s, Regola r, string esclusione, List<string> mittenti)
+        {
+            string e = (esclusione ?? "").Trim();
+            List<string> tolti = (e.Length > 6) ? ElencoMittenti(e.Substring(6)) : null;
+            foreach (string d in mittenti)
+            {
+                if (Segnaposto(d)) continue;
+                if (tolti == null) return false;
+                foreach (string y in tolti)
+                    if (Tocca(y, d) && !PresoDaUnaEsclusa(s, r, y)) return false;
+            }
             return true;
         }
 
@@ -1347,10 +1439,13 @@ namespace Campanella
         /// esclusioni), archivia e segna come letti come lui, ogni suo mittente
         /// lo prende uno della regola (lo stesso, o il suo dominio; con
         /// l'elenco del personale, il dominio e i gruppi sciolti: Colleghi con
-        /// i colleghi dell'elenco), esclude solo quello che esclude anche lui
-        /// (un'esclusione in piu' lascerebbe fuori dei messaggi del filtro), e
-        /// nessuna delle regole di cui esclude l'etichetta prende tutto un suo
-        /// mittente. Toglierlo non fa perdere niente.
+        /// i colleghi dell'elenco), ogni esclusione che il filtro non ha non
+        /// tocca i suoi mittenti (Innocua: un'esclusione in piu' lascerebbe
+        /// fuori dei messaggi del filtro), e nessuna delle regole di cui esclude
+        /// l'etichetta prende tutto un suo mittente. I messaggi che hanno
+        /// l'etichetta di una regola che esclude (i colleghi per Studenti, la
+        /// casella della scuola per Ministero e USR) non li prende: e' quello
+        /// che fa, e non conta. Toglierlo non fa perdere niente.
         /// </summary>
         public static bool GiaNellaRegola(FiltroGmail f, Regola r, Stato s)
         {
@@ -1366,7 +1461,8 @@ namespace Campanella
             List<string> sue = MittentiSciolti(s, r, personale);
             foreach (string d in m.Da)
                 if (!PresoDa(sue, d) || PresoDaUnaEsclusa(s, r, d)) return false;
-            foreach (string e in esclusi) if (!Contiene(m.Esclusi, e)) return false;
+            foreach (string e in esclusi)
+                if (!Contiene(m.Esclusi, e) && !Innocua(s, r, e, m.Da)) return false;
             return true;
         }
 
@@ -1811,7 +1907,8 @@ namespace Campanella
         static string UnisciAllaRegola(Stato s, FiltroGmail f, Regola r, List<string> unite, List<string> scuola)
         {
             MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
-            if (r == null || !s.Regole.Contains(r) || !SiPuoUnire(f, m, r, s)) return "non si unisce piu' a quella regola";
+            if (r == null || !s.Regole.Contains(r) || !SiPuoUnireIMittenti(f, m, r, s)) return "non si unisce piu' a quella regola";
+            if (!EsclusioniCompatibili(m, r, s)) return "unito a " + NomeIntero(r, s) + ", " + ToglieDelleEsclusioni;
             List<string> aggiunti = new List<string>();
             List<string> gia = GeneratorePosta.MittentiDellaRegola(s, r);
             foreach (string d in m.Da) if (!Contiene(gia, d) && !Contiene(aggiunti, d)) aggiunti.Add(d);

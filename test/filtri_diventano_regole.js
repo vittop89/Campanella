@@ -21,6 +21,9 @@
  *     le esclusioni -from:, i nomi fra virgolette, due from: insieme. Anche
  *     per un filtro tolto perche' "lo fa gia' la regola X": X lo fa davvero;
  *   - la casella della scuola (in Segreteria) non finisca in Ministero e USR;
+ *   - un filtro unito a una regola non le tolga i messaggi che prendeva gia'
+ *     ne' quelli degli altri filtri uniti a lei (Sindacati: la newsletter di
+ *     @flcgil.it, gli esiti di esami.sindacato-uno.example);
  *   - EXTRA_togliFiltri, con la stessa configurazione, tolga i filtri scelti
  *     e che ognuno di quelli diventati regola, uniti o tolti perche' li fa
  *     gia' una regola abbia la sua regola accesa in quella stessa
@@ -187,6 +190,11 @@ messaggio('info@gare-scientifiche.example', 'Gare', 'Iscrizioni aperte');
 messaggio('olimat@olimpiadi.example', 'Olimpiadi', 'Risultati');
 messaggio('news@editore-uno.example', 'Editore', 'Nuovi libri');
 const sindacato = messaggio('comunicati@sindacato-uno.example', 'Sindacato', 'Assemblea');
+// due filtri Sindacati uniti alla regola (prova_posta.ps1, "unisci con le
+// esclusioni"): uno esclude "esami", che e' proprio il mittente dell'altro; e
+// uno esclude la newsletter di un dominio che Sindacati prende gia'
+const esamiSindacato = messaggio('esiti@esami.sindacato-uno.example', 'Sindacato', 'Esiti');
+const newsletterSindacato = messaggio('newsletter@flcgil.it', 'Sindacato', 'Newsletter');
 messaggio('redazione@notizie-scuola.example', 'Notizie', 'Novita\' normative');
 const github = messaggio('noreply@github.com', 'GitHub', 'Notifica');
 messaggio('mailer-daemon@googlemail.com', 'Mail Delivery Subsystem', 'Delivery Status Notification');
@@ -315,6 +323,18 @@ verifica('la casella della scuola (in Segreteria) ha Segreteria e non Ministero 
   casellaScuola.etichette.has(conGruppo('Segreteria')) && !casellaScuola.etichette.has(conGruppo('Ministero e USR')));
 verifica('le notifiche e i sindacati sono archiviati, e hanno solo la loro etichetta',
   !github.inArrivo && !sindacato.inArrivo && github.etichette.size === 1 && sindacato.etichette.size === 1);
+// un filtro unito a una regola non le toglie i messaggi che prendeva gia' (le
+// sue esclusioni valgono per tutta la regola), ne' quelli di un altro filtro
+// unito a lei
+const sindacati = perEtichetta.Sindacati;
+if (sindacati && (sindacati.da || []).indexOf('@flcgil.it') >= 0) {
+  verifica('Sindacati prende ancora la newsletter di @flcgil.it, che prendeva gia\' (' + [...newsletterSindacato.etichette].join(', ') + ')',
+    newsletterSindacato.etichette.has(conGruppo('Sindacati')) && !newsletterSindacato.inArrivo);
+}
+if (sindacati && (sindacati.da || []).some(d => /sindacato-uno\.example$/.test(d))) {
+  verifica('e gli esiti di esami.sindacato-uno.example, archiviati (' + [...esamiSindacato.etichette].join(', ') + ')',
+    esamiSindacato.etichette.has(conGruppo('Sindacati')) && !esamiSindacato.inArrivo);
+}
 
 // ---------------------------------------------------------------------------
 console.log('\nEXTRA_togliFiltri CON LA STESSA CONFIGURAZIONE');
