@@ -1022,6 +1022,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         return @{ x = $x; scelte = $sc; proposta = $p }
     }
     function Breve($c) { return $c.Azione + '|' + $(if ($null -ne $c.Regola) { $c.Regola.Etichetta } else { '' }) }
+    function Testi($c) { return (@($c.scelte | ForEach-Object { $_.Testo }) -join ' | ') }
 
     $sR = StatoRiorganizza
     $filtriR = LeggiRiorganizza
@@ -1066,11 +1067,18 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "a Registro elettronico non si unisce un filtro con l'indirizzo di una persona, che finirebbe nelle impostazioni ('$testiRegP'); con domini e parole si' ('$testiRegD')" (
         $testiRegP -notmatch 'Unisci a Registro elettronico' -and (Breve $cRegP.proposta) -ne 'unisci|Registro elettronico' -and
         $testiRegD -match 'Unisci a Registro elettronico \(in "La tua scuola"\)')
+    # e nemmeno il nome di una persona scritto come parola: ci vanno i domini e
+    # le parole dei registri noti (nuvola, argo...)
+    $nomiP = @('from:(mario.rossi OR spaggiari.eu)', 'from:(rossi OR spaggiari.eu)', 'from:(spaggiari.eu OR segreteria.didattica)') | Where-Object {
+        (Testi (ScelteDi (UnFiltro ([ordered]@{ hasTheWord = $_; label = 'Registro elettronico' })) $sR)) -match 'Unisci a Registro elettronico' }
+    $registriP = @('from:(argo OR classeviva OR @axioscloud.it OR mastercom.cloud)', 'from:(@registro-due.example OR didup)') | Where-Object {
+        (Testi (ScelteDi (UnFiltro ([ordered]@{ hasTheWord = $_; label = 'Registro elettronico' })) $sR)) -notmatch 'Unisci a Registro elettronico' }
+    Verifica "a Registro elettronico non si unisce il nome di una persona scritto come parola (mario.rossi, rossi), si' i domini e i registri noti$(if (@($nomiP).Count + @($registriP).Count) { ': no ' + ((@($nomiP) + @($registriP)) -join '; ') })" (
+        @($nomiP).Count -eq 0 -and @($registriP).Count -eq 0)
     # "Toglilo: lo fa gia' la regola X" solo se X, accesa, prende davvero i suoi
     # messaggi. Uguale nel nome ma con i mittenti che la regola non ha e non puo'
     # prendere (archivia o segna come letti diversamente, la regola ha i
     # segnaposto, il filtro cerca l'oggetto): resta in Gmail
-    function Testi($c) { return (@($c.scelte | ForEach-Object { $_.Testo }) -join ' | ') }
     $nonPresi = [ordered]@{
         'Registro elettronico, archivia' = [ordered]@{ hasTheWord = 'from:(spaggiari.eu OR mailspaggiari.eu OR portaleargo.it OR argosoft.it OR madisoft.it OR nuvola)'; label = 'Registro elettronico'; shouldArchive = 'true' }
         'Registro elettronico, segna come letti' = [ordered]@{ hasTheWord = 'from:(argo.example OR nuvola)'; label = 'Registro elettronico'; shouldMarkAsRead = 'true' }

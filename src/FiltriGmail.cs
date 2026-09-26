@@ -1248,10 +1248,11 @@ namespace Campanella
         /// di mittenti, e archivia e segna come letti come il filtro. Le
         /// esclusioni del filtro (-from:y) vanno nella ricerca avanzata: valgono
         /// per tutta la regola. Una regola spenta si accende (Applica).
-        /// Registro elettronico prende solo domini e parole (spaggiari.eu,
-        /// @portaleargo.it, nuvola), nessun indirizzo intero: i suoi mittenti
-        /// stanno nelle impostazioni (Stato.Impostazioni), non con i dati
-        /// personali, e l'indirizzo di una persona non ci deve finire. Una
+        /// Registro elettronico prende solo domini e le parole dei registri noti
+        /// (spaggiari.eu, @portaleargo.it, nuvola: DelRegistro), nessun
+        /// indirizzo intero ne' altre parole: i suoi mittenti stanno nelle
+        /// impostazioni (Stato.Impostazioni), non con i dati personali, e
+        /// l'indirizzo o il nome di una persona non ci devono finire. Una
         /// regola che esclude altre etichette (Ministero e USR esclude Dirigenza
         /// e Segreteria) non prende un mittente che una di quelle regole prende
         /// tutto (PresoDaUnaEsclusa: la casella della scuola in Segreteria): i
@@ -1262,7 +1263,7 @@ namespace Campanella
             if (f == null || m == null || r == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
             if (r.Sorgente == "registro")
-                foreach (string d in m.Da) if (d.IndexOf('@') > 0) return false;
+                foreach (string d in m.Da) if (!DelRegistro(d)) return false;
             if (LeMieClassi.ClasseDi(r) != null) return false;
             foreach (string d in r.Da) if (Segnaposto(d)) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
@@ -1270,6 +1271,35 @@ namespace Campanella
             if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
             foreach (string d in m.Da) if (PresoDaUnaEsclusa(s, r, d)) return false;
             return true;
+        }
+
+        // le parole con cui scrivono i registri elettronici piu' diffusi: fra i
+        // mittenti di Registro elettronico, nelle impostazioni, vanno solo queste
+        // e i domini (DelRegistro)
+        static readonly string[] ParoleDeiRegistri =
+        {
+            "spaggiari", "mailspaggiari", "classeviva", "argo", "argosoft", "portaleargo", "didup", "nuvola",
+            "madisoft", "axios", "axioscloud", "mastercom", "registroelettronico"
+        };
+
+        // un dominio: nomi di lettere, cifre e trattini separati da punti, e in
+        // fondo un dominio di primo livello di due lettere (it, eu) o uno di
+        // quelli generici; .example e' quello dei dati inventati delle prove
+        static readonly Regex DominioDelRegistro = new Regex(
+            @"^@?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2}|com|net|org|edu|gov|info|biz|cloud|online|school|education|example)$",
+            RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Vero se il mittente puo' stare fra quelli di Registro elettronico,
+        /// nelle impostazioni: un dominio (spaggiari.eu, @portaleargo.it) o la
+        /// parola di un registro noto (nuvola). Non un indirizzo, ne' una parola
+        /// qualsiasi, che puo' essere il nome di una persona (rossi,
+        /// mario.rossi): i nomi delle persone stanno con i dati personali.
+        /// </summary>
+        static bool DelRegistro(string mittente)
+        {
+            string t = (mittente ?? "").Trim().ToLowerInvariant();
+            return DominioDelRegistro.IsMatch(t) || Array.IndexOf(ParoleDeiRegistri, t) >= 0;
         }
 
         /// <summary>
