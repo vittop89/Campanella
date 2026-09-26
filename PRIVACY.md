@@ -148,7 +148,8 @@ perché i loro criteri possono contenere indirizzi: Campanella tiene solo
 quelli da togliere, con l'etichetta, i criteri, il nome della regola che
 li sostituisce e se archiviavano o segnavano come letti (quelli scelti con
 la 1.6.0 non li hanno: prendono il nome della regola quando una regola con
-la loro etichetta prende tutti i loro messaggi). Una regola nata da un
+la loro etichetta prende tutti i loro messaggi, archiviandoli e segnandoli
+come letti). Una regola nata da un
 filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
 possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
 filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra

@@ -274,13 +274,21 @@ POSTA - riordinare la casella
      tutti), archivia e segna come letti come lui, e sopra di lei non c'e'
      una regola con la stessa etichetta che archivia o segna come letti
      diversamente; oppure fa proprio la sua ricerca (per uno creato da
-     Campanella, se archivia e segna come letti come la regola). Una regola
+     Campanella, la regola che crea proprio lui, se archivia e segna come
+     letti come lui e sopra di lei non ce n'e' una con la stessa etichetta
+     che fa diversamente). Una regola
      che esclude le etichette di altre regole (Studenti, Ministero e USR)
      lo fa gia' anche se non prende i messaggi che hanno quelle etichette
      (i colleghi, la casella della scuola): e' quello che fa di partenza;
-     purche' nessuna di quelle regole, accesa e sopra di lei, prenda tutti
-     i messaggi di un suo mittente (il filtro di un collega dell'elenco non
-     lo fa gia' Studenti: i suoi messaggi andrebbero tutti in Colleghi).
+     purche' nessuna di quelle regole, accesa e sopra di lei, possa
+     prendere tutti i messaggi di un suo mittente (il filtro di un collega
+     dell'elenco non lo fa gia' Studenti: i suoi messaggi andrebbero tutti
+     in Colleghi; nel dubbio si': preside@ sta dentro vicepreside@, e
+     @dominio prende quasi tutto il dominio scritto senza chiocciola). Con
+     i filtri veri di Gmail ("Voglio anche i filtri veri", passo 8) contano
+     anche quelle regole spente o sotto di lei: il loro filtro vero resta
+     in Gmail anche spegnendo la regola, e mette la loro etichetta appena
+     arriva il messaggio.
      Mettere la stessa etichetta non basta: una
      regola con lo stesso nome ma altri mittenti non sostituisce il
      filtro. Per un filtro che fa anche
@@ -321,17 +329,26 @@ POSTA - riordinare la casella
      indirizzo che una di loro, accesa e sopra di lei, prende gia', come la
      casella della scuola: i suoi messaggi resterebbero senza l'etichetta
      del filtro. Con Segreteria spenta, o sotto Ministero e USR, la casella
-     la prende Ministero e USR, e un filtro che la esclude non si unisce.
+     la prende Ministero e USR, e un filtro che la esclude non si unisce;
+     ma non con i filtri veri di Gmail: il filtro vero di Segreteria resta
+     in Gmail e mette Segreteria alla casella appena arriva, e Ministero e
+     USR non la prende (un filtro con la casella non si unisce a lei, e lei
+     non lo fa gia').
    - "Diventa una regola": nasce una regola con la stessa etichetta del
      filtro, cosi' i messaggi che ce l'hanno gia' restano insieme, e la
      stessa ricerca, scritta come la scrive Gmail (i mittenti fra i
      mittenti, il resto nella ricerca avanzata), che archivia e segna come
      letti se lo faceva il filtro, con il primo colore libero. Solo se la
      ricerca si scrive esatta, se l'etichetta sta dentro il gruppo
-     ("Raggruppa sotto") e nessuna regola ce l'ha gia', e se il filtro non
+     ("Raggruppa sotto") e nessuna regola ce l'ha gia' (nemmeno la
+     sottoetichetta di un ruolo, come Colleghi/Docenti, con le
+     sottoetichette dei ruoli accese: e' gia' una regola, subito sotto
+     Colleghi, che non archivia e non segna come letti), e se il filtro non
      fa altro: altrimenti il riquadro sotto dice perche'. Due filtri con
      la stessa etichetta diventano una regola sola se escludono le stesse
-     cose; altrimenti due regole con la stessa etichetta e lo stesso
+     cose (o fanno proprio la stessa ricerca: un "or" minuscolo, che per
+     Gmail e' una parola, non e' l'operatore OR); altrimenti due regole
+     con la stessa etichetta e lo stesso
      colore, una sotto l'altra, perche' le esclusioni dell'uno non tolgano
      i messaggi dell'altro; solo se archiviano e segnano come letti allo
      stesso modo: ogni regola cerca solo i messaggi che non hanno ancora la
@@ -345,7 +362,15 @@ POSTA - riordinare la casella
    se da sola non cerca niente, come Genitori: una spenta con dei mittenti
    suoi, accesa, prenderebbe anche quelli), e quelli tuoi diventano regole;
    quelli scelti prima si tolgono (quelli scelti con la 1.6.0, che li
-   sceglieva per l'etichetta sola, partono dalla proposta di adesso).
+   sceglieva per l'etichetta sola, partono dalla proposta di adesso, e
+   quelli che la loro regola non sostituisce piu', anche perche' in Gmail
+   adesso archiviano o segnano come letto e lei no, partono lasciati).
+   La proposta tiene conto degli altri filtri: una che "Usa questa scelta"
+   non potrebbe fare, per quelli che restano in Gmail (qui sotto), parte
+   "Lascialo in Gmail" e il riquadro dice perche'; se la scegli lo
+   stesso, il riquadro dice che non si puo' fare, il conto sotto la
+   griglia quanti restano in Gmail lo stesso, e per quel filtro non si
+   cambia nessuna regola.
    Restano quelli creati da Campanella,
    quelli che fanno anche altro, quelli uguali o simili che nessuna regola
    prende e quelli che non si possono unire. Un filtro simile a
@@ -365,9 +390,20 @@ POSTA - riordinare la casella
    segna come letto quando in Gmail resta un altro filtro con la stessa
    etichetta (o quella della sua regola) che non lo fa: quello mette
    l'etichetta appena arriva il messaggio, e la regola, che cerca solo i
-   messaggi senza la sua etichetta, non li archivierebbe. Lo stesso filtro
+   messaggi senza la sua etichetta, non li archivierebbe. E resta uno la
+   cui regola esclude altre etichette (Studenti, Ministero e USR) quando
+   in Gmail resta un filtro con una di quelle etichette che puo' prendere
+   anche i suoi messaggi (un filtro Colleghi di tutto il dominio, uno
+   Dirigenza con un dominio): la mette appena arriva il messaggio, e la
+   regola non lo prende. Non se tutti i mittenti di quel filtro li prende
+   gia' la regola esclusa, accesa e sopra (un collega dell'elenco, il
+   filtro vero di Segreteria): quei messaggi l'etichetta l'avrebbero
+   comunque. Un filtro scelto prima che nel file aperto non c'e' non
+   conta fra quelli che restano. Lo stesso filtro
    due volte in Gmail va via con tutte e due le copie, e la regola deve
-   fare quello che fa la copia che archivia o segna come letto. Riaperta
+   fare quello che fa la copia che archivia o segna come letto: conta la
+   scelta con una regola ("Unisci", "Diventa una regola", poi "lo fa
+   gia'"), e "Diventa una regola" nasce dalla copia che fa di piu'. Riaperta
    con lo stesso file, la finestra riconosce
    le regole
    nate dai filtri e i mittenti gia' uniti ("Toglilo: lo fa gia' la regola
@@ -390,11 +426,17 @@ POSTA - riordinare la casella
    aggiungi un'esclusione che li tocca, non archivia piu' come lui, togli
    la sua gemella e l'altra esclude i suoi mittenti), il filtro
    resta in Gmail, la configurazione non lo scrive piu' e il passo 4 lo
-   dice in ambra; riaprendo la finestra parte "Lascialo in Gmail", e per
-   toglierlo lo stesso basta sceglierlo di nuovo. Uno scelto con la 1.6.0,
-   che non ricorda la regola ne' se archiviava, va via solo se una regola
-   accesa con la sua etichetta prende tutti i suoi messaggi (e da allora la
-   ricorda); se no resta in Gmail, e il passo 4 lo dice in ambra.
+   dice in ambra; riaprendo la finestra parte "Lascialo in Gmail" (anche
+   con il file, se in Gmail adesso archivia o segna come letto e la regola
+   no), e per toglierlo lo stesso basta scegliere "Toglilo" a mano. Senza
+   il file, uno che la sua regola sostituisce ancora parte "Toglilo: lo
+   fa gia' la regola ...". Uno scelto con la 1.6.0, che non ricorda la
+   regola ne' se archiviava o segnava come letto (la 1.6.0 non lo
+   guardava), va via solo se una regola accesa con la sua etichetta prende
+   tutti i suoi messaggi e archivia e segna come letti, cosi' fa di sicuro
+   quello che faceva il filtro (e da allora la ricorda); se no resta in
+   Gmail, e il passo 4 lo dice in ambra: riapri il file dei filtri nella
+   finestra, che vede che cosa fa e propone che cosa farne.
    EXTRA_togliFiltri toglie solo un
    filtro che ha proprio quei criteri, nessuno in piu', e mette proprio
    quell'etichetta; prima di

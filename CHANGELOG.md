@@ -24,15 +24,23 @@ Ministero e USR fixed in step 4 reach the script only with it.
     `-from:mario.rossi` or `-from:mario.rossi@`, or a name, may touch them
     all), it archives and marks as read as the filter does and no rule
     above it with the same label archives or marks as read differently; or
-    it makes exactly its search (or Campanella creates exactly that filter
-    for it, and the filter archives and marks as read as the rule does). A
+    it makes exactly its search (or it is the rule for which Campanella
+    creates exactly that filter, when the filter archives and marks as read
+    as it does and no rule above it with the same label does differently:
+    of three Portali rules, the native filter of the third is not "already
+    done" when a second one above it does not archive). A
     rule that excludes other labels (Studenti, Ministero e USR) already
     does it even though it does not take the messages that have those
     labels (colleagues, the school's mailbox): that is what it does by
-    default; provided none of those rules, switched on and above it, takes
-    all the messages of one of the filter's senders (the filter of a
+    default; provided none of those rules, switched on and above it, may
+    take all the messages of one of the filter's senders (the filter of a
     colleague on the staff list is not already done by Studenti: all its
-    messages would go to Colleghi). Having the same
+    messages would go to Colleghi; in doubt they may: `preside@` is inside
+    `vicepreside@`, and `@domain` takes almost all of the domain written
+    without `@`). With native Gmail filters ("Voglio anche i filtri veri",
+    step 8) those rules count also when off or below it: their native
+    filter stays in Gmail, also when the rule is switched off, and labels
+    the messages on arrival. Having the same
     label is not enough. A filter that also does
     something the rules never do (forward, delete, star...) offers only
     these two, and the drop-down says what would be lost.
@@ -70,7 +78,10 @@ Ministero e USR fixed in step 4 reach the script only with it.
     switched on and above it, already takes entirely, such as the school's
     mailbox: those messages would lose the filter's label. With Segreteria
     off, or below Ministero e USR, Ministero e USR takes the school's
-    mailbox, and a filter excluding it is not merged.
+    mailbox, and a filter excluding it is not merged; but not with native
+    Gmail filters: the native filter of Segreteria stays in Gmail and
+    labels the mailbox on arrival, so Ministero e USR does not take it (a
+    filter with the mailbox is not merged into it, nor already done by it).
   - "Diventa una regola": a new rule with the filter's label (so the
     messages that already have it stay together) and the same Gmail search,
     written the way Gmail writes it: the senders among the senders, the rest
@@ -80,9 +91,13 @@ Ministero e USR fixed in step 4 reach the script only with it.
     exactly (not a "doesn't have" with more than one word, whose meaning
     Gmail does not state, nor a size without larger or smaller), when the
     label is inside the label group ("Raggruppa sotto") and no rule has it
-    yet, and when the filter does nothing else; otherwise the box under the
-    grid says why. Two filters with the same label become one rule only when
-    they exclude the same things; otherwise two rules with that label and
+    yet (nor the sub-label of a role, such as Colleghi/Docenti, with role
+    sub-labels on: it already is a rule, right under Colleghi, that neither
+    archives nor marks as read), and when the filter does nothing else;
+    otherwise the box under the grid says why. Two filters with the same
+    label become one rule only when they exclude the same things (or make
+    exactly the same search: a lowercase `or`, a word for Gmail, is not the
+    `OR` operator); otherwise two rules with that label and
     the same colour, one under the other, so that the exclusions of one do
     not drop the messages of the other; only when they archive and mark as
     read the same way (each rule searches only messages without its label
@@ -99,7 +114,14 @@ Ministero e USR fixed in step 4 reach the script only with it.
   filter similar only by name, such as "Amministrazione e stipendio" with
   the salary domains, becomes a rule); your own filters become rules when
   they can; filters chosen earlier are removed (those chosen with 1.6.0,
-  which chose them by label alone, start from today's proposal). Those
+  which chose them by label alone, start from today's proposal, and those
+  whose rule no longer replaces them, also because in Gmail they now
+  archive or mark as read and the rule does not, start as left). The
+  proposals take the other rows into account: one that "Usa questa scelta"
+  could not make, because of the filters staying in Gmail (see below),
+  starts as "Lascialo in Gmail" and the box under the grid says why;
+  chosen anyway, the box says it cannot be made, the count under the grid
+  how many filters stay in Gmail anyway, and no rule changes for them. Those
   created by Campanella,
   those of a class, those that do something else, the equal or similar ones
   no rule takes and those that cannot be merged stay in Gmail.
@@ -118,8 +140,21 @@ Ministero e USR fixed in step 4 reach the script only with it.
   why, when another filter with the same label (or its rule's label)
   stays in Gmail and does not: that one labels the messages on arrival,
   and the rule, which searches only the messages without its label, would
-  not archive them. The same filter twice in Gmail goes with both copies,
-  so the rule must do what the copy that archives or marks as read does. A
+  not archive them. One whose rule excludes other labels (Studenti,
+  Ministero e USR) also stays when a filter with one of those labels that
+  may take its messages too stays in Gmail (a Colleghi filter for the whole
+  school domain, a Dirigenza filter with a domain): it labels them on
+  arrival, and the rule does not take them; not when all the senders of
+  that filter are already taken by the excluded rule, switched on and above
+  (a colleague on the staff list, the native filter of Segreteria), because
+  those messages would get that label anyway. A filter chosen earlier that
+  is not in the open file does not count among those that stay. The
+  same filter twice in Gmail goes with both copies, so the rule must do
+  what the copy that archives or marks as read does: the choice with a rule
+  counts ("Unisci", "Diventa una regola", then "lo fa gia'"), and "Diventa
+  una regola" is made from the copy that does the most. Choices that cannot
+  be made are found on a copy of the settings first, so no rule is merged
+  into or created for a filter that stays in Gmail. A
   filter goes among those to remove only together with its rule, in the
   same configuration: copy
   Configurazione.gs again and paste it before running EXTRA_togliFiltri, so
@@ -138,11 +173,17 @@ Ministero e USR fixed in step 4 reach the script only with it.
   lists
   it, step 4 and the step 5 summary say so in amber, and the window starts
   it as "Lascialo in Gmail" (with the file it is proposed again from
-  scratch). Chosen "Toglilo" again, it is removed without a rule. A filter
-  chosen with 1.6.0, which remembers neither the rule nor what it did, is
-  removed only if a rule switched on with its label takes all its messages
-  (and from then on it remembers it); otherwise it stays in Gmail, and
-  step 4, the step 5 summary and the window say so. The
+  scratch, and it starts as left also when in Gmail it now archives or
+  marks as read and the rule does not). Chosen "Toglilo" again by hand, it
+  is removed without a rule. Without the file, one its rule still replaces
+  starts as "Toglilo: lo fa gia' la regola ...". A filter chosen with
+  1.6.0, which remembers neither the rule nor whether it archived or marked
+  as read (1.6.0 did not look at it), is removed only if a rule switched on
+  with its label takes all its messages and archives and marks as read, so
+  it surely does what the filter did (and from then on it remembers it);
+  otherwise it stays in Gmail, and step 4, the step 5 summary and the
+  window say so, with their own words, and ask to open the filters file
+  again: there the window sees what the filter does. The
   settings files move to format 4, so Campanella 1.6.0 does not overwrite
   them (it would drop the rule and what each filter to remove did, and the
   filter would look chosen by 1.6.0) and says it needs updating.
@@ -277,7 +318,25 @@ Ministero e USR fixed in step 4 reach the script only with it.
   applies them, and in the real engine (EXTRA_togliFiltri, then the
   remaining filters on arrival, smistaNuoviMessaggi or PASSO_3) checks that
   no removed filter makes one of its messages lose its label, archiving or
-  mark as read; before these fixes 51 of the 500 failed. prova_stato.ps1:
+  mark as read; before these fixes 51 of the 500 failed. A message the rule
+  does not take because it has the label of a rule it excludes counts as
+  done only if the rules alone, on the same mailbox without any Gmail
+  filter, give it that label and not the rule's (not if a filter left in
+  Gmail puts it there), and not when the excluded rules take all the
+  messages of one of the filter's senders: with this check 6 of the 500
+  still failed, now none (nor in 2000 scenarios with six other seeds).
+  prova_posta.ps1 also checks: a filter left in Gmail with a label the
+  rule excludes (Colleghi for the whole domain, Dirigenza with a domain),
+  and one whose senders the excluded rule already takes (a colleague on
+  the staff list, the native filter of Segreteria); native filters with
+  Segreteria off; the proposals that start as left because of the other
+  rows, the box, the count and the summary when chosen anyway (no rule
+  changes); the same filter twice with "lo fa gia'" on the copy that does
+  not mark as read, in both orders; a filter chosen earlier that now marks
+  as read in Gmail; entries of 1.6.0 with and without the file, the amber
+  text and the box; a role sub-label filter that archives; the native
+  filter of the third of three Portali rules; a lowercase `or`.
+  prova_stato.ps1:
   the rule that replaces a filter to remove, and whether the filter
   archived or marked as read, are saved and read back, and 1.6.0 (format
   3) does not overwrite them. prova_guscio.ps1: the status line after the

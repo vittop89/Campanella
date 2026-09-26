@@ -110,11 +110,13 @@ Quattro funzioni, tutte facoltative e indipendenti:
   c'è già quando lo script toglie il filtro. Ogni filtro scelto ricorda la
   regola che lo sostituisce e se archiviava o segnava come letto: se quella
   regola non prende più tutti i suoi messaggi, o in Gmail resta un altro
-  filtro con la stessa etichetta che non fa quello che faceva lui, il
-  filtro non va nel file di configurazione, resta in Gmail e Campanella lo
-  dice. Vale anche per quelli scelti con la versione 1.6.0, che non
-  ricordavano la regola: vanno via solo se una regola con la loro
-  etichetta prende tutti i loro messaggi.
+  filtro con la stessa etichetta che non fa quello che faceva lui, o con
+  un'etichetta che la regola esclude e che può prendere anche i suoi
+  messaggi, il filtro non va nel file di configurazione, resta in Gmail e
+  Campanella lo dice. Vale anche per quelli scelti con la versione 1.6.0,
+  che non ricordavano la regola né se archiviavano o segnavano come letto:
+  vanno via solo se una regola con la loro etichetta prende tutti i loro
+  messaggi e li archivia e li segna come letti.
   Il programma sul computer cancella soltanto il proprio file dei dati
   (`campanella-dati.json`): quando il docente, dalle Impostazioni e dopo una
   conferma, sposta i dati in un'altra cartella del Drive o di nuovo sul
