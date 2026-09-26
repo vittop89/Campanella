@@ -1465,6 +1465,24 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $motoreU = NelMotore $sU $filtriU $fatteU 'unisci_esclusioni'
     Verifica "nel motore vero Sindacati prende ancora la newsletter di @flcgil.it e gli esiti degli esami, archiviati ($($motoreU.ok) controlli)" (
         $motoreU.esito -eq 0 -and $motoreU.ok -ge 24)
+    # e se un'altra scelta toglie a una regola i messaggi di un filtro che "lo
+    # fa gia'": qui istruzione.it unito a Segreteria, che Ministero e USR
+    # esclude. Il filtro vero di prima di Ministero e USR non va piu' via
+    $sK = StatoRiorganizza
+    $vecchioK = UnFiltro ([ordered]@{ from = '@istruzione.it OR @posta.istruzione.it OR @miur.it OR @mim.gov.it'; label = 'Ministero e USR' })
+    $segreteriaK = UnFiltro ([ordered]@{ hasTheWord = 'from:istruzione.it'; label = 'Segreteria' })
+    $listaK = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFiltroGmail))
+    $listaK.Add($vecchioK); $listaK.Add($segreteriaK)
+    $ffK = [Activator]::CreateInstance($tFF, @($sK.PSObject.BaseObject))
+    $ffK.Carica($listaK)
+    $ffK.Scegli(1, @($ffK.Scelte(1) | Where-Object { $_.Azione -eq 'unisci' -and $_.Regola.Etichetta -eq 'Segreteria' })[0])
+    $primaK = $ffK.Scelta(0).Testo
+    $riepK = [string]$mApplica.Invoke($null, @($sK.PSObject.BaseObject, $ffK.FatteAdesso()))
+    $ffK.Dispose()
+    $restaK = Leggi $sK 'FiltriDaTogliere'
+    Verifica "'$primaK', ma dopo istruzione.it unito a Segreteria Ministero e USR non prende piu' i suoi messaggi: resta in Gmail ('$($riepK -replace '\r?\n', ' ')')" (
+        $primaK -eq "Toglilo: lo fa gia' la regola Ministero e USR" -and $restaK.Count -eq 1 -and $restaK[0].Etichetta -eq 'Segreteria' -and
+        $riepK -match "Ministero e USR \(dopo le altre scelte la regola Ministero e USR non prende piu' tutti i suoi messaggi\)")
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: SE LA REGOLA NON C''E'' PIU'''
@@ -1525,6 +1543,34 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "Olimpiadi e gare scelto di nuovo 'Toglilo': si toglie e basta; gli altri due senza regola non sono piu' scelti" (
         $olimpiadiDopo.Count -eq 1 -and $olimpiadiDopo[0].Regola -eq '' -and (Senza $sO) -eq '' -and
         (Leggi $sO 'FiltriDaTogliere').Count -eq 12 -and [int]$mDaTogliere.Invoke($null, @($sO)) -eq 12)
+    # le due Portali gemelle (esclusioni diverse): tolta quella degli esami,
+    # l'altra Portali ha ancora il loro dominio ma esclude proprio "esami". Il
+    # filtro degli esami resta, e cosi' se la regola non archivia piu' come lui
+    $sG = StatoRiorganizza
+    $portaleEsclude = UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example) -from:esami'; label = 'Portali'; shouldArchive = 'true' })
+    $portaleEsami = UnFiltro ([ordered]@{ hasTheWord = 'from:esami.portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
+    $listaG = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFiltroGmail))
+    $listaG.Add($portaleEsclude); $listaG.Add($portaleEsami)
+    $ffG = [Activator]::CreateInstance($tFF, @($sG.PSObject.BaseObject))
+    $ffG.Carica($listaG)
+    [void]$mApplica.Invoke($null, @($sG.PSObject.BaseObject, $ffG.FatteAdesso()))
+    $ffG.Dispose()
+    $portaliG = @((Leggi $sG 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })
+    $vociG = Leggi $sG 'FiltriDaTogliere'
+    Verifica "due Portali gemelle, i due filtri si tolgono, e ognuno ricorda che archiviava" (
+        $portaliG.Count -eq 2 -and [int]$mDaTogliere.Invoke($null, @($sG)) -eq 2 -and (Senza $sG) -eq '' -and
+        $vociG.Count -eq 2 -and $vociG[0].Archivia -eq $true -and $vociG[1].Archivia -eq $true -and $vociG[0].SegnaLetto -eq $false)
+    [void](Leggi $sG 'Regole').Remove($portaliG[1])
+    Verifica "tolta la gemella degli esami (come 'Elimina regola'), il suo filtro resta: l'altra Portali esclude -from:esami ('$(Senza $sG)')" (
+        (Senza $sG) -eq 'Portali' -and [int]$mDaTogliere.Invoke($null, @($sG)) -eq 1 -and
+        (@($mSenza.Invoke($null, @($sG)))[0].Criteri['query']) -eq 'from:esami.portale-uno.example')
+    $ffG2 = [Activator]::CreateInstance($tFF, @($sG.PSObject.BaseObject))
+    $sceltiG = @(0..1 | ForEach-Object { $ffG2.Scelta($_).Azione })
+    $ffG2.Dispose()
+    Verifica "riaperta senza file, quello degli esami parte lasciato, l'altro da togliere ($($sceltiG -join ', '))" (($sceltiG -join ',') -eq 'togli,lascia')
+    $portaliG[0].Archivia = $false
+    Verifica "e se la Portali rimasta non archivia piu', come i filtri facevano, resta anche l'altro ('$(Senza $sG)')" (
+        (Senza $sG) -eq 'Portali,Portali' -and [int]$mDaTogliere.Invoke($null, @($sG)) -eq 0)
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'

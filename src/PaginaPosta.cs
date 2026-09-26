@@ -683,8 +683,8 @@ namespace Campanella
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
                 "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
-                "la regola che sostituisce un filtro, o le togli i suoi mittenti, il filtro resta in Gmail, e qui " +
-                "sotto lo dice in ambra.\r\n\r\n" +
+                "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
+                "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));
@@ -2389,10 +2389,10 @@ namespace Campanella
         static string TestoSenzaLaRegola(int n)
         {
             return (n == 1)
-                ? " 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu', e' spenta o non ha piu' " +
-                  "i suoi mittenti. Per toglierlo lo stesso, sceglilo di nuovo in \"Filtri che hai gia' in Gmail...\"."
+                ? " 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu', e' spenta o non prende " +
+                  "piu' tutti i suoi messaggi. Per toglierlo lo stesso, sceglilo di nuovo in \"Filtri che hai gia' in Gmail...\"."
                 : " " + n + " filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu', e' spenta o non " +
-                  "ha piu' i loro mittenti. Per toglierli lo stesso, sceglili di nuovo in \"Filtri che hai gia' in Gmail...\".";
+                  "prende piu' tutti i loro messaggi. Per toglierli lo stesso, sceglili di nuovo in \"Filtri che hai gia' in Gmail...\".";
         }
 
         /// <summary>

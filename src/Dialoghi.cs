@@ -911,8 +911,8 @@ namespace Campanella
         {
             if (r.Filtro == null)
                 return (fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima") +
-                       (r.Orfana ? "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non ha " +
-                                   "piu' i suoi mittenti: resta in Gmail, se non scegli di toglierlo lo stesso" : "");
+                       (r.Orfana ? "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
+                                   "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso" : "");
             return (r.Prima ? "scelto prima; " : "") + r.Somiglia.Testo();
         }
 

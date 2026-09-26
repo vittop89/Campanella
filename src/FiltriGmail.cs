@@ -101,13 +101,23 @@ namespace Campanella
         /// </summary>
         public bool CriteriIncompleti = false;
 
-        /// <summary>La voce da togliere per questo filtro: null se non mette etichette, non ha criteri o uno non si capisce.</summary>
+        /// <summary>
+        /// La voce da togliere per questo filtro, con quello che fa oltre
+        /// all'etichetta (archivia, segna come letto): null se non mette
+        /// etichette, non ha criteri o uno non si capisce.
+        /// </summary>
         public FiltroDaTogliere DaTogliere()
         {
             if (CriteriIncompleti) return null;
             List<KeyValuePair<string, object>> c = new List<KeyValuePair<string, object>>();
             foreach (KeyValuePair<string, string> kv in Criteri) c.Add(new KeyValuePair<string, object>(kv.Key, kv.Value));
-            return FiltroDaTogliere.Da(Etichetta, c);
+            FiltroDaTogliere v = FiltroDaTogliere.Da(Etichetta, c);
+            if (v != null)
+            {
+                v.Archivia = Archivia;
+                v.SegnaLetto = SegnaLetto;
+            }
+            return v;
         }
     }
 
@@ -1434,29 +1444,38 @@ namespace Campanella
 
         /// <summary>
         /// Vero se la regola prende gia' tutti i messaggi del filtro, fatto solo
-        /// di mittenti: e' accesa nella configurazione, cerca solo dei mittenti
-        /// (niente oggetto o parole, nella ricerca avanzata al piu' delle
-        /// esclusioni), archivia e segna come letti come lui, ogni suo mittente
-        /// lo prende uno della regola (lo stesso, o il suo dominio; con
-        /// l'elenco del personale, il dominio e i gruppi sciolti: Colleghi con
-        /// i colleghi dell'elenco), ogni esclusione che il filtro non ha non
-        /// tocca i suoi mittenti (Innocua: un'esclusione in piu' lascerebbe
-        /// fuori dei messaggi del filtro), e nessuna delle regole di cui esclude
-        /// l'etichetta prende tutto un suo mittente. I messaggi che hanno
-        /// l'etichetta di una regola che esclude (i colleghi per Studenti, la
-        /// casella della scuola per Ministero e USR) non li prende: e' quello
-        /// che fa, e non conta. Toglierlo non fa perdere niente.
+        /// di mittenti (PrendeIMittenti). Toglierlo non fa perdere niente.
         /// </summary>
         public static bool GiaNellaRegola(FiltroGmail f, Regola r, Stato s)
         {
-            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (f == null || s == null) return false;
+            return PrendeIMittenti(s, r, SoloMittenti(f.Criteri), f.Archivia, f.SegnaLetto, s.IndirizziPersonale());
+        }
+
+        /// <summary>
+        /// Vero se la regola prende tutti i messaggi di un filtro fatto solo di
+        /// mittenti (m) e fa quello che faceva lui: e' accesa nella
+        /// configurazione, cerca solo dei mittenti (niente oggetto o parole,
+        /// nella ricerca avanzata al piu' delle esclusioni), archivia e segna
+        /// come letti come lui (StesseAzioni), ogni suo mittente lo prende uno
+        /// della regola (lo stesso, o il suo dominio; con l'elenco del
+        /// personale, il dominio e i gruppi sciolti: Colleghi con i colleghi
+        /// dell'elenco), ogni esclusione che il filtro non ha non tocca i suoi
+        /// mittenti (Innocua: un'esclusione in piu' lascerebbe fuori dei
+        /// messaggi del filtro), e nessuna delle regole di cui esclude
+        /// l'etichetta prende tutto un suo mittente. I messaggi che hanno l'etichetta di
+        /// una regola che esclude (i colleghi per Studenti, la casella della
+        /// scuola per Ministero e USR) non li prende: e' quello che fa, e
+        /// non conta.
+        /// </summary>
+        static bool PrendeIMittenti(Stato s, Regola r, MittentiFiltro m, bool? archivia, bool? letti, List<string> personale)
+        {
             if (m == null || r == null || s == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
-            if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
+            if (!StesseAzioni(r, archivia, letti)) return false;
             List<string> esclusi = Esclusioni(r.QueryLibera);
             if (esclusi == null) return false;
-            List<string> personale = s.IndirizziPersonale();
             if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) return false;
             List<string> sue = MittentiSciolti(s, r, personale);
             foreach (string d in m.Da)
@@ -1464,6 +1483,27 @@ namespace Campanella
             foreach (string e in esclusi)
                 if (!Contiene(m.Esclusi, e) && !Innocua(s, r, e, m.Da)) return false;
             return true;
+        }
+
+        /// <summary>
+        /// Vero se la regola, accesa, fa proprio la ricerca di un filtro che non
+        /// e' fatto solo di mittenti, tutta nella ricerca avanzata, e
+        /// nient'altro: nessun mittente, oggetto, parole o etichette escluse;
+        /// archivia e segna come letti come lui (StesseAzioni).
+        /// </summary>
+        static bool FaLaRicerca(Stato s, Regola r, string ricerca, bool? archivia, bool? letti, List<string> personale)
+        {
+            if (r == null || s == null || ricerca == null) return false;
+            if (r.Sorgente != "" || r.Da.Count > 0 || r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi ||
+                r.EscludiEtichette.Count > 0) return false;
+            if (!string.Equals((r.QueryLibera ?? "").Trim(), ricerca.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+            return StesseAzioni(r, archivia, letti) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale);
+        }
+
+        /// <summary>Vero se la regola archivia e segna come letti come il filtro (quello che non si sa, null, va bene).</summary>
+        static bool StesseAzioni(Regola r, bool? archivia, bool? letti)
+        {
+            return (!archivia.HasValue || r.Archivia == archivia.Value) && (!letti.HasValue || r.SegnaComeLette == letti.Value);
         }
 
         /// <summary>I mittenti della regola come li scrive, e con i segnaposto sciolti (l'elenco del personale, il dominio, i gruppi).</summary>
@@ -1766,34 +1806,30 @@ namespace Campanella
         /// Vero se il filtro scelto da togliere ha ancora la regola che lo
         /// sostituisce (FiltroDaTogliere.Regola), accesa nella configurazione:
         /// quella che crea proprio quel filtro (EXTRA_creaFiltriGmail), o una
-        /// con quell'etichetta che ha ancora tutti i suoi mittenti (anche in "La
-        /// tua scuola", con i segnaposto sciolti) o, per uno che non e' fatto
-        /// solo di mittenti, proprio la sua ricerca. Vero anche per uno che si
-        /// toglie e basta. Tolta, spenta o cambiata la regola dopo "Usa questa
-        /// scelta", il filtro resta in Gmail (GeneratorePosta.FiltriJs non lo
-        /// scrive) e il passo 4 lo dice: nessun filtro va via senza la regola
-        /// che lo sostituisce.
+        /// con quell'etichetta che prende ancora tutti i suoi messaggi, come
+        /// "Toglilo: lo fa gia'" (PrendeIMittenti: tutti i suoi mittenti, anche
+        /// in "La tua scuola" e con i segnaposto sciolti, nessuna esclusione in
+        /// piu' che li tocchi, niente oggetto o parole; per uno che non e'
+        /// fatto solo di mittenti FaLaRicerca, proprio la sua ricerca e
+        /// nient'altro), e archivia e segna come letti come lui, se si sa. Vero
+        /// anche per uno che si toglie e basta. Tolta, spenta o cambiata la
+        /// regola dopo "Usa questa scelta" (anche tolta la sua gemella: l'altra
+        /// esclude i suoi mittenti), il filtro resta in Gmail
+        /// (GeneratorePosta.FiltriJs non lo scrive) e il passo 4 lo dice:
+        /// nessun filtro va via senza la regola che lo sostituisce.
         /// </summary>
         public static bool AncoraSostituito(FiltroDaTogliere v, Stato s)
         {
             if (v == null || s == null || (v.Regola ?? "").Trim() == "") return true;
             if (DiCampanellaAdesso(v.Etichetta, v.Criteri, s)) return true;
             MittentiFiltro m = SoloMittenti(v.Criteri);
-            string ricerca = RicercaDelFiltro(v.Criteri);
+            string ricerca = (m == null) ? RicercaDelFiltro(v.Criteri) : null;
             List<string> personale = s.IndirizziPersonale();
             foreach (Regola r in s.Regole)
             {
-                if (!string.Equals((r.Etichetta ?? "").Trim(), v.Regola.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                    !GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) continue;
-                if (m != null)
-                {
-                    List<string> da = MittentiSciolti(s, r, personale);
-                    bool tutti = true;
-                    foreach (string d in m.Da) if (!PresoDa(da, d)) { tutti = false; break; }
-                    if (tutti) return true;
-                }
-                else if (ricerca != null && string.Equals((r.QueryLibera ?? "").Trim(), ricerca.Trim(), StringComparison.OrdinalIgnoreCase))
-                    return true;
+                if (!string.Equals((r.Etichetta ?? "").Trim(), v.Regola.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                if (m != null ? PrendeIMittenti(s, r, m, v.Archivia, v.SegnaLetto, personale)
+                              : FaLaRicerca(s, r, ricerca, v.Archivia, v.SegnaLetto, personale)) return true;
             }
             return false;
         }
@@ -1815,9 +1851,12 @@ namespace Campanella
         /// accende una regola spenta che li prende, crea le regole nuove (dopo
         /// quella simile, o in fondo, con il primo colore libero) e mette fra i
         /// filtri da togliere (FiltriDaTogliere) quelli che non si lasciano, ognuno
-        /// con la regola che lo sostituisce (FiltroDaTogliere.Regola). Un
-        /// filtro che non riesce piu' a diventare regola o a unirsi resta in
-        /// Gmail: nessun filtro va via senza la regola che lo sostituisce. Un
+        /// con la regola che lo sostituisce (FiltroDaTogliere.Regola) e quello
+        /// che faceva (archivia, segna come letto). Un filtro che non riesce
+        /// piu' a diventare regola o a unirsi resta in Gmail, e anche uno la
+        /// cui regola, dopo tutte le scelte, non prende piu' tutti i suoi
+        /// messaggi (AncoraSostituito): nessun filtro va via senza la regola
+        /// che lo sostituisce. Un
         /// filtro uguale a uno gia' fatto (la stessa voce) non si rifa'. Una
         /// regola nuova con l'etichetta di una che c'e' gia' non nasce di
         /// nuovo: se la regola fa gia' quello che faceva il filtro basta lei,
@@ -1867,10 +1906,27 @@ namespace Campanella
                 // la regola che lo sostituisce; con "Toglilo" e basta resta quella
                 // di una scelta di prima, finche' lo sostituisce ancora
                 FiltroDaTogliere voce = x.Voce.Copia();
+                if (x.Filtro != null)
+                {
+                    voce.Archivia = x.Filtro.Archivia;
+                    voce.SegnaLetto = x.Filtro.SegnaLetto;
+                }
                 if (sostituta != null) voce.Regola = sostituta.Etichetta;
                 else if (!AncoraSostituito(voce, s)) voce.Regola = "";
                 togli.Add(voce);
             }
+            // dopo tutte le unioni e le regole nuove, ogni filtro va via solo se
+            // la sua regola, com'e' adesso, prende ancora tutti i suoi messaggi:
+            // un'altra scelta puo' averle aggiunto un'esclusione, o dato a una
+            // regola che esclude un mittente del filtro
+            List<FiltroDaTogliere> tenuti = new List<FiltroDaTogliere>();
+            foreach (FiltroDaTogliere v in togli)
+            {
+                if (AncoraSostituito(v, s)) { tenuti.Add(v); continue; }
+                saltati.Add(v.Etichetta + " (dopo le altre scelte la regola " + v.Regola + " non prende piu' tutti i suoi messaggi)");
+                lasciati++;
+            }
+            togli = tenuti;
             s.FiltriDaTogliere = togli;
 
             StringBuilder sb = new StringBuilder();

@@ -978,6 +978,33 @@ static class ProvaStato
             Stato u = Carica();
             Verifica("e si rilegge", FiltriDi(u) != null && FiltriDi(u).Count == 2 &&
                 (string)campoRegola.GetValue(FiltriDi(u)[0]) == "Genitori" && (string)campoRegola.GetValue(FiltriDi(u)[1]) == "");
+            // e che cosa faceva il filtro (archivia, segna come letto), se si sa:
+            // la regola che lo sostituisce deve fare lo stesso
+            FieldInfo campoArchivia = (FiltriDi(u) != null && FiltriDi(u).Count == 2) ? FiltriDi(u)[0].GetType().GetField("Archivia") : null;
+            FieldInfo campoLetti = (campoArchivia != null) ? FiltriDi(u)[0].GetType().GetField("SegnaLetto") : null;
+            Verifica("un filtro da togliere sa se archiviava e segnava come letto (FiltroDaTogliere.Archivia, SegnaLetto)",
+                campoArchivia != null && campoLetti != null);
+            if (campoArchivia != null && campoLetti != null)
+            {
+                Verifica("scelti senza, non si sa", campoArchivia.GetValue(FiltriDi(u)[0]) == null &&
+                    campoLetti.GetValue(FiltriDi(u)[1]) == null);
+                // si scrive con t, lo Stato che poi sposta i dati: un file
+                // riscritto da un altro Stato non lo sposterebbe
+                campoArchivia.SetValue(FiltriDi(t)[0], (bool?)true);
+                campoLetti.SetValue(FiltriDi(t)[0], (bool?)false);
+                t.Salva();
+                voci = Json(FileDati(c))["filtriDaTogliere"] as object[];
+                v0 = (voci != null && voci.Length == 2) ? voci[0] as Dictionary<string, object> : null;
+                v1 = (voci != null && voci.Length == 2) ? voci[1] as Dictionary<string, object> : null;
+                Verifica("si scrivono solo per chi li ha", v0 != null && v1 != null && v0.ContainsKey("archivia") &&
+                    v0["archivia"] is bool && (bool)v0["archivia"] && v0.ContainsKey("letti") && v0["letti"] is bool &&
+                    !(bool)v0["letti"] && !v1.ContainsKey("archivia") && !v1.ContainsKey("letti"));
+                Stato w = Carica();
+                Verifica("e si rileggono", FiltriDi(w) != null && FiltriDi(w).Count == 2 &&
+                    object.Equals(campoArchivia.GetValue(FiltriDi(w)[0]), true) &&
+                    object.Equals(campoLetti.GetValue(FiltriDi(w)[0]), false) && campoArchivia.GetValue(FiltriDi(w)[1]) == null &&
+                    (string)campoRegola.GetValue(FiltriDi(w)[0]) == "Genitori");
+            }
         }
 
         string errore;

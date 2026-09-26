@@ -121,10 +121,17 @@ namespace Campanella
         /// L'etichetta (senza il gruppo) della regola che lo sostituisce: quella
         /// che lo fa gia', che ha preso i suoi mittenti o che e' nata da lui.
         /// "" se si toglie e basta (e per quelli scelti prima della 1.6.1).
-        /// Senza piu' quella regola, accesa e con i suoi mittenti, non si toglie
-        /// (FiltriGmail.AncoraSostituito). Non fa parte della chiave.
+        /// Senza piu' quella regola, accesa e che prende ancora tutti i suoi
+        /// messaggi, non si toglie (FiltriGmail.AncoraSostituito). Non fa
+        /// parte della chiave.
         /// </summary>
         public string Regola = "";
+        /// <summary>
+        /// Se il filtro archiviava e segnava come letto: la regola che lo
+        /// sostituisce deve fare lo stesso (FiltriGmail.AncoraSostituito).
+        /// null se non si sa (scelto prima della 1.6.1). Non fanno parte della chiave.
+        /// </summary>
+        public bool? Archivia = null, SegnaLetto = null;
 
         /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
         public static readonly string[] NomiCriteri =
@@ -207,6 +214,8 @@ namespace Campanella
             f.Etichetta = Etichetta;
             f.Criteri = new Dictionary<string, string>(Criteri);
             f.Regola = Regola;
+            f.Archivia = Archivia;
+            f.SegnaLetto = SegnaLetto;
             return f;
         }
     }
@@ -1058,6 +1067,9 @@ namespace Campanella
                     d["criteri"] = c;
                     // la regola che lo sostituisce, solo se c'e': i file di prima restano uguali
                     if (!string.IsNullOrEmpty(f.Regola)) d["regola"] = f.Regola;
+                    // e che cosa faceva, se si sa
+                    if (f.Archivia.HasValue) d["archivia"] = f.Archivia.Value;
+                    if (f.SegnaLetto.HasValue) d["letti"] = f.SegnaLetto.Value;
                     filtri.Add(d);
                 }
             r["filtriDaTogliere"] = filtri;
@@ -1404,6 +1416,8 @@ namespace Campanella
                     FiltroDaTogliere f = (c != null) ? FiltroDaTogliere.Da(Str(d, "etichetta", ""), c) : null;
                     if (f == null || chiavi.Contains(f.Chiave())) continue;
                     f.Regola = Str(d, "regola", "").Trim();
+                    if (d.ContainsKey("archivia") && d["archivia"] is bool) f.Archivia = (bool)d["archivia"];
+                    if (d.ContainsKey("letti") && d["letti"] is bool) f.SegnaLetto = (bool)d["letti"];
                     chiavi.Add(f.Chiave());
                     FiltriDaTogliere.Add(f);
                 }
