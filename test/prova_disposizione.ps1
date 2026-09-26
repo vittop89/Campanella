@@ -656,6 +656,10 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $tDT.GetField('Etichetta').SetValue($vecchio, 'Vecchia')
     $criteriVecchio = $tDT.GetField('Criteri').GetValue($vecchio)
     $criteriVecchio['from'] = 'vecchio@scuola.example'
+    # scelto con questa versione, "Toglilo" e basta (uno della 1.6.0, senza le
+    # azioni, senza una regola che lo sostituisce resterebbe)
+    $tDT.GetField('Archivia').SetValue($vecchio, [System.Nullable[bool]]$false)
+    $tDT.GetField('SegnaLetto').SetValue($vecchio, [System.Nullable[bool]]$false)
     $sceltiPrima.Add($vecchio)
     $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, $sceltiPrima)
     $ff = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))

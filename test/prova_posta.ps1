@@ -904,9 +904,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $s6 = NuovoStato
         Imposta $s6 'Prefisso' ''
         $scelti6 = [Activator]::CreateInstance($tListaFiltri)
+        # scelto con questa versione, "Toglilo" e basta: sa che cosa faceva il
+        # filtro (uno scelto con la 1.6.0 non lo sa, e senza una regola resta)
         $viaggi6 = [Activator]::CreateInstance($tDaTogliere)
         $viaggi6.Etichetta = 'Viaggi'
         $viaggi6.Criteri['query'] = '{prenotazione biglietto}'
+        $viaggi6.Archivia = $false
+        $viaggi6.SegnaLetto = $false
         $scelti6.Add($viaggi6)
         Imposta $s6 'FiltriDaTogliere' $scelti6
         $ff6 = NuovaFinestra $s6
@@ -1871,6 +1875,60 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $cCreatoR.x.Tipo -eq 'campanella' -and (Testi $cCreatoR) -notmatch "lo fa gia'" -and
         -not [bool]$mAncora.Invoke($null, @($voceR7, $sR7)) -and
         (ScelteDi $comeLaRegolaR $sR7).scelte[1].Testo -eq "Toglilo: lo fa gia' la regola Portali")
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: QUELLI SCELTI CON LA 1.6.0'
+    # La 1.6.0 sceglieva i filtri uguali a una regola per l'etichetta sola, e
+    # non ricordava la regola ne' se archiviavano. Senza il file uno cosi' va
+    # via solo se una regola accesa con la sua etichetta prende tutti i suoi
+    # messaggi (e allora la ricorda); se no resta in Gmail, e il passo 4 lo
+    # dice in ambra. Con il file parte dalla proposta di adesso
+    $tListaVoci16 = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tDaTogliere)
+    function Voci160($stato) {
+        $l = [Activator]::CreateInstance($tListaVoci16)
+        foreach ($coppia in @(@('Ministero e USR', '@usr-regione.example'), @('Sindacati', '@flcgil.it'))) {
+            $v = [Activator]::CreateInstance($tDaTogliere)
+            $v.Etichetta = $coppia[0]
+            $v.Criteri['from'] = $coppia[1]
+            $l.Add($v)
+        }
+        Imposta $stato 'FiltriDaTogliere' $l
+        return ,$l
+    }
+    $s16 = StatoRiorganizza
+    $voci16 = Voci160 $s16
+    $fuori16 = [bool]$mAncora.Invoke($null, @($voci16[0], $s16))
+    $dentro16 = [bool]$mAncora.Invoke($null, @($voci16[1], $s16))
+    Verifica "senza il file, quello di Ministero e USR da @usr-regione.example (la regola non lo prende) resta in Gmail e in ambra ('$(Senza $s16)'), quello di Sindacati da @flcgil.it va via" (
+        $voci16[0].Archivia -eq $null -and -not $fuori16 -and $dentro16 -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 1 -and
+        (Senza $s16) -eq 'Ministero e USR')
+    $ff16 = [Activator]::CreateInstance($tFF, @($s16.PSObject.BaseObject))
+    $gr16 = $tFF.GetField('griglia', $FIn).GetValue($ff16)
+    $gr16.CurrentCell = $gr16.Rows[0].Cells[1]
+    $dettaglio16 = $tFF.GetField('txtDettaglio', $FIn).GetValue($ff16).Text
+    $partenza16 = @(0..1 | ForEach-Object { $ff16.Scelta($_).Azione })
+    $riep16 = ([string]$mApplica.Invoke($null, @($s16.PSObject.BaseObject, $ff16.FatteAdesso()))) -replace '\r?\n', ' '
+    $ff16.Dispose()
+    $dopo16 = Leggi $s16 'FiltriDaTogliere'
+    Verifica "la finestra senza file lo fa partire lasciato e dice perche'; 'Usa questa scelta' tiene l'altro, che ricorda Sindacati ($($partenza16 -join ', '); '$riep16')" (
+        ($partenza16 -join ',') -eq 'lascia,togli' -and
+        $dettaglio16 -match "scelto prima con una versione di prima, che lo sceglieva per l'etichetta: nessuna regola accesa" -and
+        $dettaglio16 -notmatch '\(\)' -and $dopo16.Count -eq 1 -and $dopo16[0].Criteri['from'] -eq '@flcgil.it' -and
+        $dopo16[0].Regola -eq 'Sindacati')
+    # con il file: la proposta di adesso, e nel motore vero ogni messaggio ha Sindacati, archiviato
+    $s16b = StatoRiorganizza
+    [void](Voci160 $s16b)
+    $filtri16 = @((UnFiltro ([ordered]@{ from = '@usr-regione.example'; label = 'Ministero e USR' })),
+                  (UnFiltro ([ordered]@{ from = '@flcgil.it'; label = 'Sindacati'; shouldArchive = 'true' })))
+    $ff16b = [Activator]::CreateInstance($tFF, @($s16b.PSObject.BaseObject))
+    $ff16b.Carica((ListaFiltri $filtri16))
+    $proposte16 = @(0..1 | ForEach-Object { $ff16b.Scelta($_).Testo })
+    $riep16b = ([string]$mApplica.Invoke($null, @($s16b.PSObject.BaseObject, $ff16b.FatteAdesso()))) -replace '\r?\n', ' '
+    $ff16b.Dispose()
+    $motore16 = PromessaNelMotore $s16b $filtri16 @(@('ufficio@usr-regione.example', 'USR'), @('newsletter@flcgil.it', 'Sindacato')) 'scelti_con_160'
+    Verifica "con il file partono dalla proposta di adesso ($($proposte16 -join '; ')), e nel motore vero ogni loro messaggio ha l'etichetta della sua regola ($($motore16.tolti) tolti; '$riep16b')" (
+        $proposte16[0] -eq 'Unisci a Ministero e USR' -and $proposte16[1] -eq "Toglilo: lo fa gia' la regola Sindacati" -and
+        $motore16.esito -eq 0 -and $motore16.tolti -eq 2)
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'

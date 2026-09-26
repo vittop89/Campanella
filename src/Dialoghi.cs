@@ -706,7 +706,9 @@ namespace Campanella
 
         /// <summary>
         /// Mette nella finestra i filtri di un file, ognuno con la sua proposta
-        /// (FiltriGmail.Proposta); quelli scelti prima partono da togliere.
+        /// (FiltriGmail.Proposta); quelli scelti prima partono da togliere,
+        /// tranne quelli scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima),
+        /// che partono dalla proposta di adesso.
         /// Quelli scelti prima che nel file non ci sono restano, da togliere, in
         /// fondo: forse sono gia' stati tolti. Due filtri uguali partono con la
         /// stessa scelta: il secondo si toglie se si toglie il primo.
@@ -718,6 +720,8 @@ namespace Campanella
             // scelti prima che il file nuovo non ha restano in fondo
             List<string> prima = new List<string>();
             Dictionary<string, string> regolaDiPrima = new Dictionary<string, string>();
+            // quelli scelti con la 1.6.0, che li sceglieva per l'etichetta sola
+            List<string> con160 = new List<string>();
             List<Riga> vecchie = new List<Riga>();
             for (int i = 0; i < righe.Count; i++)
             {
@@ -732,6 +736,7 @@ namespace Campanella
                 }
                 prima.Add(r.Voce.Chiave());
                 regolaDiPrima[r.Voce.Chiave()] = r.Voce.Regola;
+                if (FiltriGmail.SceltoConLaVersioneDiPrima(r.Voce)) con160.Add(r.Voce.Chiave());
                 if (r.Filtro == null) vecchie.Add(r);
                 else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia, false));
             }
@@ -753,7 +758,9 @@ namespace Campanella
                 if (r.Prima) r.Voce.Regola = regolaDiPrima[r.Voce.Chiave()];
                 r.Scelte = (r.Voce == null) ? new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro() })
                                             : FiltriGmail.Scelte(f, r.Somiglia, stato);
-                r.Proposta = FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima);
+                // uno scelto con la 1.6.0 parte dalla proposta di adesso, come uno
+                // nuovo: la 1.6.0 lo sceglieva per l'etichetta sola
+                r.Proposta = FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima && !con160.Contains(r.Voce.Chiave()));
                 if (r.Voce != null)
                 {
                     string k = r.Voce.Chiave();
@@ -911,8 +918,12 @@ namespace Campanella
         {
             if (r.Filtro == null)
                 return (fileAperto ? "scelto prima: nel file non c'e' (forse l'hai gia' tolto)" : "scelto prima") +
-                       (r.Orfana ? "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
-                                   "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso" : "");
+                       (!r.Orfana ? "" : (r.Voce.Regola ?? "").Trim() == ""
+                           ? " con una versione di prima, che lo sceglieva per l'etichetta: nessuna regola accesa con la sua " +
+                             "etichetta prende tutti i suoi messaggi, e resta in Gmail, se non scegli di toglierlo lo stesso " +
+                             "(con il file, la finestra propone che cosa farne)"
+                           : "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
+                             "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso");
             return (r.Prima ? "scelto prima; " : "") + r.Somiglia.Testo();
         }
 

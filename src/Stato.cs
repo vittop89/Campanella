@@ -120,9 +120,12 @@ namespace Campanella
         /// <summary>
         /// L'etichetta (senza il gruppo) della regola che lo sostituisce: quella
         /// che lo fa gia', che ha preso i suoi mittenti o che e' nata da lui.
-        /// "" se si toglie e basta (e per quelli scelti prima della 1.6.1).
-        /// Senza piu' quella regola, accesa e che prende ancora tutti i suoi
-        /// messaggi, non si toglie (FiltriGmail.AncoraSostituito). Non fa
+        /// "" se si toglie e basta. Senza piu' quella regola, accesa e che
+        /// prende ancora tutti i suoi messaggi, non si toglie
+        /// (FiltriGmail.AncoraSostituito). "" anche per quelli scelti con la
+        /// 1.6.0, che non hanno nemmeno Archivia e SegnaLetto: si tolgono solo
+        /// se li sostituisce una regola accesa con la loro etichetta
+        /// (FiltriGmail.RegolaCheLoSostituisce), e allora la ricordano. Non fa
         /// parte della chiave.
         /// </summary>
         public string Regola = "";
