@@ -20,8 +20,11 @@
     anonimi di test\filtri_gmail_riorganizza.xml: le proposte, "Usa questa
     scelta", la finestra riaperta, e la configurazione che ne esce nel
     motore vero (test\filtri_diventano_regole.js: le ricerche, il riordino
-    su una casella finta, EXTRA_togliFiltri). La Ministero e USR che non
-    prende la casella della scuola.
+    su una casella finta, EXTRA_togliFiltri); le esclusioni che non tolgono
+    messaggi a una regola unita, le regole gemelle, i filtri che restano se
+    la loro regola non li prende piu' tutti. La Ministero e USR che non
+    prende la casella della scuola, anche quando sta sopra Dirigenza e
+    Segreteria.
 
     Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
     Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
@@ -1662,7 +1665,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $testoMin -match '^Ministero e USR prende anche casella@istruzione\.it' -and
         $testoMin -match "Di partenza, adesso, Ministero e USR non prende quello che e' gia' in Dirigenza o Segreteria\." -and
         $testoTua -match '^Uffici del ministero prende anche casella@istruzione\.it' -and $testoTua -notmatch 'Di partenza, adesso' -and
-        $testoTua -match 'il bottone')
+        $testoTua -match 'il bottone le fa escludere')
     $minC.QueryLibera = ''
     $minC.Attiva = $false
     Verifica "ne' se la regola e' spenta" ((Prese $sC) -eq '')
@@ -1694,6 +1697,40 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "il filtro vero della Ministero e USR di prima: con la regola di prima e' 'creato da Campanella' e resta ('$($cPrima.proposta.Testo)'), con quella che esclude parte da togliere ('$($cDopo.proposta.Testo)')" (
         $cPrima.x.Tipo -eq 'campanella' -and (Breve $cPrima.proposta) -eq 'lascia|' -and
         $cDopo.x.Tipo -eq 'uguale' -and $cDopo.proposta.Testo -eq "Toglilo: lo fa gia' la regola Ministero e USR")
+    # e l'avviso dice di toglierlo, e la riga di stato dopo il bottone, se al
+    # passo 4 vuoi i filtri veri: lo script non lo toglie da solo, e non lo dice
+    Verifica "l'avviso dice di togliere anche il filtro vero di prima" (
+        $testoMin -match "Se avevi creato i filtri veri di Gmail \(EXTRA_creaFiltriGmail\), quello di Ministero e USR resta in Gmail e prende ancora la casella: dopo il bottone toglilo con ""Filtri che hai gia' in Gmail\.\.\."" ed EXTRA_togliFiltri\.")
+    $tPosta = $asm.GetType('Campanella.PaginaPosta')
+    $mDopoCasella = $tPosta.GetMethod('TestoDopoLaCasella', $FS)
+    $senzaFiltri = [string]$mDopoCasella.Invoke($null, @($sC.PSObject.BaseObject, $minC.PSObject.BaseObject))
+    Imposta $sC 'Filtri' $true
+    $conFiltri = [string]$mDopoCasella.Invoke($null, @($sC.PSObject.BaseObject, $minC.PSObject.BaseObject))
+    Imposta $sC 'Filtri' $false
+    Verifica "dopo il bottone, con i filtri veri, la riga di stato dice di togliere quello di prima ('$conFiltri')" (
+        $conFiltri -match "togli il suo filtro vero di prima con ""Filtri che hai gia' in Gmail\.\.\.""" -and $senzaFiltri -notmatch 'filtro')
+    # una Ministero e USR che esclude Dirigenza e Segreteria ma sta sopra di
+    # loro (portata in cima con "Su"): lo script passa le regole nell'ordine, e
+    # quando tocca a lei la casella della scuola non ha ancora Segreteria
+    $s8 = StatoRiorganizza
+    $regole8 = Leggi $s8 'Regole'
+    $min8 = @($regole8 | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    [void]$regole8.Remove($min8)
+    $regole8.Insert(0, $min8)
+    $testo8 = [string]$mTestoCasella.Invoke($null, @($s8.PSObject.BaseObject, $mCasella.Invoke($null, @($s8))))
+    $bottone8 = [string]$tPosta.GetMethod('TestoBottoneCasella', $FS).Invoke($null, @($s8.PSObject.BaseObject, $min8.PSObject.BaseObject))
+    Verifica "Ministero e USR di partenza portata sopra Dirigenza e Segreteria: l'avviso dice che sta sopra di loro, e il bottone la sposta ('$(Prese $s8)', '$bottone8')" (
+        (Prese $s8) -eq 'Ministero e USR=casella@istruzione.it' -and $testo8 -match "Esclude Dirigenza e Segreteria, ma sta sopra di loro" -and
+        $bottone8 -eq 'Sposta Ministero e USR sotto Dirigenza e Segreteria')
+    [void]$mEscludi.Invoke($null, @($s8.PSObject.BaseObject, $min8.PSObject.BaseObject))
+    $nomi8 = @($regole8 | ForEach-Object { $_.Etichetta })
+    Verifica "il bottone la mette sotto di loro, senza esclusioni doppie, e l'avviso sparisce ($(@($nomi8[0..2]) -join ', '))" (
+        (Prese $s8) -eq '' -and (@($min8.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and
+        [array]::IndexOf($nomi8, 'Ministero e USR') -gt [array]::IndexOf($nomi8, 'Segreteria'))
+    # e il passo 8 dell'installazione dice che restano allo script tutte e due
+    $sorgentePosta = [IO.File]::ReadAllText((Join-Path $radice 'src\PaginaPosta.cs'))
+    Verifica "il passo 8 dice che restano allo script Studenti e Ministero e USR, non solo Studenti" (
+        $sorgentePosta -match 'Studenti\\" e \\"Ministero e USR\\" restano allo' -and $sorgentePosta -notmatch '\\"Studenti\\" resta allo script')
 
     # -----------------------------------------------------------------------
     Intestazione 'LE MIE CLASSI: I NOMI E LE PAROLE DELL''OGGETTO'

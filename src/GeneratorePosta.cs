@@ -446,9 +446,11 @@ namespace Campanella
         /// (@istruzione.it, Prende) la casella istituzionale della scuola
         /// (codice@istruzione.it, anche @pec.istruzione.it) scritta nella pagina
         /// "La tua scuola" fra gli indirizzi della dirigenza o della segreteria,
-        /// senza escludere l'etichetta di quella regola: di solito Ministero e
-        /// USR salvata prima della 1.6.1. I messaggi della scuola prenderebbero
-        /// tutte e due le etichette. Per ogni regola gli indirizzi presi;
+        /// senza escludere l'etichetta di quella regola (di solito Ministero e
+        /// USR salvata prima della 1.6.1), o escludendola ma stando sopra di
+        /// lei: lo script passa le regole nell'ordine, e quando tocca a questa
+        /// quei messaggi non hanno ancora l'etichetta esclusa. I messaggi della
+        /// scuola prenderebbero tutte e due le etichette. Per ogni regola gli indirizzi presi;
         /// un'esclusione scritta nella ricerca avanzata (-from:indirizzo) vale, e
         /// una regola con l'indirizzo scritto intero lo vuole. Conta solo una
         /// Dirigenza o Segreteria accesa.
@@ -464,7 +466,9 @@ namespace Campanella
                 foreach (Regola fonte in s.Regole)
                 {
                     if ((fonte.Sorgente != "dirigenza" && fonte.Sorgente != "segreteria") ||
-                        !AttivaNellaConfigurazione(s, fonte, personale) || Esclude(r, fonte.Etichetta)) continue;
+                        !AttivaNellaConfigurazione(s, fonte, personale)) continue;
+                    // l'esclusione vale solo se la regola gira dopo
+                    if (Esclude(r, fonte.Etichetta) && s.Regole.IndexOf(r) > s.Regole.IndexOf(fonte)) continue;
                     foreach (string grezzo in MittentiDellaRegola(s, fonte))
                     {
                         string a = grezzo.Trim().ToLowerInvariant();
@@ -476,6 +480,19 @@ namespace Campanella
                 if (prese.Count > 0) fuori.Add(new KeyValuePair<Regola, List<string>>(r, prese));
             }
             return fuori;
+        }
+
+        /// <summary>
+        /// Vero se la regola esclude gia' le etichette di Dirigenza e Segreteria
+        /// (tutte le regole con quei mittenti): se prende lo stesso la casella
+        /// della scuola (CasellaDellaScuolaPresa) e' perche' sta sopra di loro.
+        /// </summary>
+        public static bool EscludeGiaDirigenzaESegreteria(Stato s, Regola r)
+        {
+            if (s == null || r == null) return false;
+            foreach (Regola fonte in s.Regole)
+                if ((fonte.Sorgente == "dirigenza" || fonte.Sorgente == "segreteria") && !Esclude(r, fonte.Etichetta)) return false;
+            return true;
         }
 
         /// <summary>Vero se la regola esclude quell'etichetta (maiuscole e spazi ai lati a parte).</summary>

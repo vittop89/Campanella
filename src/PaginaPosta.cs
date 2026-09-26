@@ -973,8 +973,11 @@ namespace Campanella
                 "poi le etichette nuove nascono gia' colorate. Un'etichetta che avevi gia' e a cui " +
                 "avevi dato un colore tu resta com'e' (EXTRA_coloraTutteLeEtichette ricolora anche " +
                 "quelle). I filtri veri: esegui  EXTRA_creaFiltriGmail, cosi' lo smistamento " +
-                "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" resta allo script: un " +
-                "filtro non sa escludere chi e' gia' fra i Colleghi. I filtri che avevi gia' e che hai " +
+                "avviene dentro Gmail, senza aspettare lo script. \"Studenti\" e \"Ministero e USR\" restano allo " +
+                "script, come ogni regola che esclude le etichette di altre regole: un filtro non sa escludere i " +
+                "messaggi che hanno gia' un'altra etichetta (i colleghi, la casella della scuola in Segreteria). Il " +
+                "filtro vero creato prima per Ministero e USR resta in Gmail e prende ancora la casella della scuola: " +
+                "toglilo come quelli che avevi gia'. I filtri che avevi gia' e che hai " +
                 "scelto al passo 4 (\"Filtri che hai gia' in Gmail...\"): esegui  EXTRA_togliFiltri, che " +
                 "prima di togliere ognuno ne scrive una copia nel registro; EXTRA_creaFiltriGmail non rifa' " +
                 "quelli scelti. Se poi cambi una regola, il filtro vecchio va tolto: a mano in Gmail " +
@@ -1116,9 +1119,10 @@ namespace Campanella
                 { "I messaggi della casella della scuola finiscono anche in Ministero e USR",
                   "La casella istituzionale della scuola (il codice della scuola @istruzione.it) e' @istruzione.it " +
                   "come il ministero. Scrivila al passo 2 fra gli indirizzi della Segreteria, o della Dirigenza: " +
-                  "Ministero e USR non prende quello che e' gia' in Dirigenza o Segreteria. Se la tua Ministero e " +
-                  "USR e' di prima della 1.6.1, al passo 4 un avviso in ambra lo dice, e il suo bottone la " +
-                  "sistema; poi copia di nuovo la configurazione (passo 5). Se avevi creato i filtri veri di Gmail, " +
+                  "Ministero e USR non prende quello che e' gia' in Dirigenza o Segreteria, se sta sotto di loro. Se " +
+                  "la tua Ministero e USR e' di prima della 1.6.1, o l'hai spostata sopra di loro, al passo 4 un " +
+                  "avviso in ambra lo dice, e il suo bottone la sistema; poi copia di nuovo la configurazione " +
+                  "(passo 5). Se avevi creato i filtri veri di Gmail, " +
                   "togli anche quello vecchio di Ministero e USR, con \"Filtri che hai gia' in Gmail...\" ed " +
                   "EXTRA_togliFiltri." },
                 { "Nella regola di Dirigenza non riesco a scrivere i mittenti",
@@ -2034,9 +2038,11 @@ namespace Campanella
         /// L'avviso ambra, con il suo bottone, quando una regola prende la
         /// casella della scuola (codice@istruzione.it) scritta in "La tua scuola"
         /// fra gli indirizzi di Dirigenza o Segreteria senza escludere quelle
-        /// etichette (GeneratorePosta.CasellaDellaScuolaPresa): di solito
-        /// Ministero e USR salvata prima della 1.6.1, che di partenza adesso le
-        /// esclude. Le regole salvate non cambiano da sole: lo fa il bottone.
+        /// etichette, o escludendole ma stando sopra di loro
+        /// (GeneratorePosta.CasellaDellaScuolaPresa): di solito Ministero e USR
+        /// salvata prima della 1.6.1, che di partenza adesso le esclude. Le
+        /// regole salvate non cambiano da sole: lo fa il bottone, che le fa
+        /// escludere e la sposta sotto di loro (TestoBottoneCasella).
         /// Sta sotto l'avviso dei doppioni, se c'e'. Si aggiorna con lui.
         /// </summary>
         void AggiornaAvvisoCasella()
@@ -2053,7 +2059,7 @@ namespace Campanella
             lblCasella.Text = TestoAvvisoCasella(S, prese);
             lblCasella.Top = lblDoppioni.Visible ? lblDoppioni.Bottom + 8 : lblDoppioni.Top;
             lblCasella.Height = Tema.AltezzaTesto(lblCasella.Text, lblCasella.Font, lblCasella.Width);
-            btnCasella.Text = "Escludi Dirigenza e Segreteria da " + regolaCasella.Etichetta;
+            btnCasella.Text = TestoBottoneCasella(S, regolaCasella);
             btnCasella.Width = 26 + TextRenderer.MeasureText(btnCasella.Text, btnCasella.Font).Width;
             btnCasella.Top = lblCasella.Bottom + 4;
             lblCasella.Visible = true;
@@ -2064,7 +2070,9 @@ namespace Campanella
         /// Che cosa dice l'avviso della casella della scuola, per la prima delle
         /// regole che la prendono (GeneratorePosta.CasellaDellaScuolaPresa).
         /// Che di partenza non la prende lo dice solo di Ministero e USR: di
-        /// un'altra regola, scritta dall'utente, dice che c'e' il bottone.
+        /// un'altra regola, scritta dall'utente, dice che c'e' il bottone; di
+        /// una che le esclude gia', che sta sopra di loro. E che il filtro vero
+        /// di Gmail creato prima per quella regola va tolto (FiltroVeroDaTogliere).
         /// </summary>
         static string TestoAvvisoCasella(Stato s, List<KeyValuePair<Regola, List<string>>> prese)
         {
@@ -2074,15 +2082,42 @@ namespace Campanella
             string nome = (pre == "" ? "" : pre + "/") + r.Etichetta;
             List<string> indirizzi = prese[0].Value;
             bool ministero = string.Equals((r.Etichetta ?? "").Trim(), "Ministero e USR", StringComparison.OrdinalIgnoreCase);
+            // le esclude gia', ma sta sopra di loro: lo script la passa prima
+            bool sopra = GeneratorePosta.EscludeGiaDirigenzaESegreteria(s, r);
             return nome + " prende anche " + string.Join(", ", indirizzi.ToArray()) +
                 (indirizzi.Count == 1 ? ", che in \"La tua scuola\" e' fra gli indirizzi" : ", che in \"La tua scuola\" sono fra gli indirizzi") +
                 " di Dirigenza o Segreteria: di solito e' la casella della scuola, e i suoi messaggi prenderebbero anche " +
                 nome + "." +
-                (ministero
+                (sopra
+                    ? " Esclude Dirigenza e Segreteria, ma sta sopra di loro: lo script passa le regole nell'ordine, e " +
+                      "quando tocca a " + nome + " quei messaggi non hanno ancora la loro etichetta. Il bottone la sposta " +
+                      "sotto di loro."
+                    : ministero
                     ? " Di partenza, adesso, " + nome + " non prende quello che e' gia' in Dirigenza o Segreteria."
                     : " Se non ti servono li', il bottone le fa escludere Dirigenza e Segreteria, come fa di partenza " +
                       "Ministero e USR.") +
+                " " + FiltroVeroDaTogliere(nome) +
                 (prese.Count > 1 ? " Lo stesso per altre " + (prese.Count - 1) + " regole: il bottone le sistema una alla volta." : "");
+        }
+
+        /// <summary>
+        /// Il filtro vero di Gmail che EXTRA_creaFiltriGmail aveva creato per la
+        /// regola, se li avevi creati: prende ancora la casella della scuola, e
+        /// va tolto (lo script non lo toglie da solo, e non lo dice).
+        /// </summary>
+        static string FiltroVeroDaTogliere(string nome)
+        {
+            return "Se avevi creato i filtri veri di Gmail (EXTRA_creaFiltriGmail), quello di " + nome + " resta in Gmail " +
+                   "e prende ancora la casella: dopo il bottone toglilo con \"Filtri che hai gia' in Gmail...\" ed " +
+                   "EXTRA_togliFiltri.";
+        }
+
+        /// <summary>Il testo del bottone dell'avviso: sposta la regola, se le esclude gia', altrimenti le fa escludere.</summary>
+        static string TestoBottoneCasella(Stato s, Regola r)
+        {
+            return GeneratorePosta.EscludeGiaDirigenzaESegreteria(s, r)
+                ? "Sposta " + r.Etichetta + " sotto Dirigenza e Segreteria"
+                : "Escludi Dirigenza e Segreteria da " + r.Etichetta;
         }
 
         /// <summary>Il bottone dell'avviso della casella della scuola: la regola esclude Dirigenza e Segreteria, e sta sotto di loro.</summary>
@@ -2093,8 +2128,19 @@ namespace Campanella
             Regola r = regolaCasella;
             GeneratorePosta.EscludiDirigenzaESegreteria(S, r);
             AggiornaElencoRegole(S.Regole.IndexOf(r));
-            Guscio.Stato1(r.Etichetta + " non prende piu' quello che e' gia' in Dirigenza o Segreteria: copia di nuovo " +
-                          "la configurazione (passo 5).");
+            Guscio.Stato1(TestoDopoLaCasella(S, r));
+        }
+
+        /// <summary>
+        /// Che cosa dice la riga di stato dopo il bottone dell'avviso della
+        /// casella della scuola; con i filtri veri di Gmail (passo 4) anche di
+        /// togliere quello di prima, che prende ancora la casella.
+        /// </summary>
+        static string TestoDopoLaCasella(Stato s, Regola r)
+        {
+            return r.Etichetta + " non prende piu' quello che e' gia' in Dirigenza o Segreteria: copia di nuovo " +
+                   "la configurazione (passo 5)" +
+                   (s.Filtri ? ", e togli il suo filtro vero di prima con \"Filtri che hai gia' in Gmail...\"." : ".");
         }
 
         void MostraDescrizioneRegola()
