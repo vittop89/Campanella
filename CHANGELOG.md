@@ -963,6 +963,26 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   date still to come, and a resume of ORARI_6_coloraLezioni finding another
   calendar job halfway, resuming by itself or not; prova_guscio.ps1 the
   start-up warning naming the mail script.
+- The live acceptance test of the calendar, for developers
+  (test/collaudo/Collaudo_calendario.gs): pasted with Calendario.gs (or
+  Orari.gs) into a new Apps Script project, also in a personal account,
+  COLLAUDO runs the real calendar functions on test calendars, writes OK or
+  NO for each check with the times, and deletes them. It uses only the
+  services Calendario.gs uses (no mail, no address, no other permission)
+  and the data of one teacher only. A third part (COLLAUDO_3) checks the
+  parents' meetings with dates around today: a weekly session with an
+  invented Meet link skipping a day without lessons and a period without
+  meetings, a single day, series per stretch, title, location = link,
+  colour and mark, ORARI_7_colloqui changing only from today and before a
+  timetable change, ORARI_5_cambioOrario, ORARI_6_coloraLezioni and
+  ORARI_ANNULLA_calendario. Every calendar function gets only the time left
+  up to 300 seconds, a part that does not fit is left for later and named
+  in the summary, and the cleanup (test calendars, jobs halfway, resumes,
+  also those of ORARI_7_colloqui) always runs. test/collaudo/prova_locale.js
+  runs it with Calendario.gs and with Orari.gs on the fake Calendar: the
+  services and functions it names, the third part on every weekday, at the
+  change of the clocks and at New Year, the meetings done wrong on purpose,
+  slow Google and a part that does not fit.
 
 ## 1.5.3 — 24 September 2026
 
