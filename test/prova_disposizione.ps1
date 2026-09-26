@@ -721,6 +721,36 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT)))
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
     Verifica "e senza filtri lo dice" ($lblF.Text -eq 'Nessun filtro di Gmail da togliere.')
+
+    # la casella della scuola in Segreteria e una Ministero e USR salvata
+    # prima, senza esclusioni: l'avviso ambra con il suo bottone, sotto quello
+    # dei doppioni dei ruoli, ci sta; il bottone lo fa sparire
+    $txtSeg = $posta.GetType().GetField('txtSegreteria', $FIp).GetValue($posta)
+    $segPrima = $txtSeg.Text
+    $txtSeg.Text = "segreteria@scuola.example`r`ncasella@istruzione.it"
+    $regoleP = $tStato.GetField('Regole', $FI).GetValue($stato)
+    $minP = @($regoleP | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    $escludePrima = @($minP.EscludiEtichette)
+    $minP.EscludiEtichette.Clear()
+    $posta.GetType().GetMethod('AggiornaElencoRegole', $FIp).Invoke($posta, @([int]0)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $lblCas = $posta.GetType().GetField('lblCasella', $FIp).GetValue($posta)
+    $btnCas = $posta.GetType().GetField('btnCasella', $FIp).GetValue($posta)
+    $lblDop = $posta.GetType().GetField('lblDoppioni', $FIp).GetValue($posta)
+    Verifica "l'avviso della casella della scuola c'e', con il bottone, sotto quello dei doppioni ('$($lblCas.Text.Substring(0, [Math]::Min(60, $lblCas.Text.Length)))...')" (
+        $lblCas.Visible -and $btnCas.Visible -and $lblCas.Text -match 'casella@istruzione\.it' -and
+        $lblCas.ForeColor.ToArgb() -eq (ColoreTema 'Ambra') -and $btnCas.Top -ge $lblCas.Bottom -and
+        (-not $lblDop.Visible -or $lblCas.Top -ge $lblDop.Bottom))
+    ControllaPannello $pannelloF 'Posta / 4 con l''avviso della casella della scuola'
+    $onClickCas = [System.Windows.Forms.Control].GetMethod('OnClick', [System.Reflection.BindingFlags]'NonPublic,Instance')
+    $onClickCas.Invoke($btnCas, @([System.EventArgs]::Empty)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "il bottone fa escludere Dirigenza e Segreteria, e l'avviso sparisce" (
+        -not $lblCas.Visible -and -not $btnCas.Visible -and (@($minP.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria')
+    $minP.EscludiEtichette.Clear()
+    foreach ($e in $escludePrima) { $minP.EscludiEtichette.Add($e) }
+    $txtSeg.Text = $segPrima
+    $posta.GetType().GetMethod('AggiornaElencoRegole', $FIp).Invoke($posta, @([int]0)) | Out-Null
 }
 # --- le mie classi: il bottone del passo 4 e la sua finestra --------------------
 # Il bottone sta accanto a "Filtri che hai gia' in Gmail...", con il suo "?",

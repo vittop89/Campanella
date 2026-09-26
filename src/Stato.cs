@@ -1897,7 +1897,12 @@ namespace Campanella
             ministero.Etichetta = "Ministero e USR";
             ministero.Da.AddRange(new string[]
             { "@istruzione.it", "@posta.istruzione.it", "@miur.it", "@mim.gov.it" });
-            ministero.Descrizione = "Comunicazioni ministeriali e degli uffici scolastici regionali.";
+            // anche la casella istituzionale della scuola (codice@istruzione.it) e'
+            // @istruzione.it: sta fra gli indirizzi di Dirigenza o Segreteria, e
+            // quei messaggi non sono del ministero. Come Studenti, gira dopo di loro
+            ministero.EscludiEtichette.AddRange(new string[] { "Dirigenza", "Segreteria" });
+            ministero.Descrizione = "Comunicazioni ministeriali e degli uffici scolastici regionali, tranne " +
+                "quello che e' gia' in Dirigenza o Segreteria (la casella della scuola, codice@istruzione.it).";
             ministero.Colore = "#434343/#ffffff";
             r.Add(ministero);
 

@@ -108,6 +108,7 @@ var CONFIG = {
       attiva:    true,
       etichetta: "Ministero e USR",
       da:        ["@istruzione.it", "@posta.istruzione.it", "@miur.it", "@mim.gov.it"],
+      escludiEtichette: ["Dirigenza", "Segreteria"],
       colore:    { sfondo: "#434343", testo: "#ffffff" },
       nota:      "Comunicazioni ministeriali e degli uffici scolastici regionali."
     },

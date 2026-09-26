@@ -939,6 +939,29 @@ if ($null -ne $tElenco) {
             $null -ne $campoDoppio.GetValue($clb) -and
             @($elenchi[1..3] | Where-Object { $null -ne $campoDoppio.GetValue($_) }).Count -eq 0 -and
             $campoDoppio.GetValue($clb).Method.DeclaringType.FullName -match 'PaginaPosta')
+
+        # sotto le regole, l'avviso della casella della scuola (1.6.1): una
+        # Ministero e USR salvata prima, senza esclusioni, con la casella
+        # codice@istruzione.it fra gli indirizzi della Segreteria
+        $tPosta = $posta.GetType()
+        $tPosta.GetField('txtSegreteria', $FI).GetValue($posta).Text = "segreteria@scuola.example`r`nxyis01200z@istruzione.it"
+        $ministero = @($regole | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+        $tPosta.GetMethod('AggiornaElencoRegole', $FI).Invoke($posta, @([int]0)) | Out-Null
+        $lblCas = $tPosta.GetField('lblCasella', $FI).GetValue($posta)
+        $btnCas = $tPosta.GetField('btnCasella', $FI).GetValue($posta)
+        # la finestra non si mostra, quindi Visible e' sempre falso: conta quello
+        # che la pagina ha chiesto (lo stato "visibile" del controllo)
+        $mStatoC = [System.Windows.Forms.Control].GetMethod('GetState', $FI)
+        function Chiesto($c) { return [bool]$mStatoC.Invoke($c, @([int]2)) }
+        Verifica "con la Ministero e USR di partenza (esclude Dirigenza e Segreteria) nessun avviso" (-not (Chiesto $lblCas) -and -not (Chiesto $btnCas))
+        $ministero.EscludiEtichette.Clear()
+        $tPosta.GetMethod('AggiornaElencoRegole', $FI).Invoke($posta, @([int]0)) | Out-Null
+        Verifica "salvata prima, senza esclusioni: l'avviso dice la casella, e c'e' il bottone" (
+            (Chiesto $lblCas) -and (Chiesto $btnCas) -and $lblCas.Text -match '^Ministero e USR prende anche xyis01200z@istruzione\.it' -and
+            $btnCas.Text -eq 'Escludi Dirigenza e Segreteria da Ministero e USR')
+        $onClick.Invoke($btnCas, @([System.EventArgs]::Empty)) | Out-Null
+        Verifica "il bottone la fa escludere Dirigenza e Segreteria, e l'avviso va via" (
+            (@($ministero.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and -not (Chiesto $lblCas) -and -not (Chiesto $btnCas))
     }
     catch {
         Verifica "gli elenchi con le spunte si provano senza errori ($($_.Exception.GetBaseException().Message))" $false

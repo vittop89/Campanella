@@ -179,8 +179,8 @@ namespace Campanella
             sb.AppendLine();
             sb.AppendLine("  // ---- le regole --------------------------------------------------------");
             sb.AppendLine("  //  Le etichette si sommano: un messaggio puo' prenderne piu' d'una.");
-            sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti va sotto le regole");
-            sb.AppendLine("  //  che esclude (Colleghi, Dirigenza, Segreteria).");
+            sb.AppendLine("  //  L'ordine conta solo per escludiEtichette: Studenti e Ministero e USR");
+            sb.AppendLine("  //  vanno sotto le regole che escludono (Colleghi, Dirigenza, Segreteria).");
             sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   \u00b7   @DOMINIO@ = tutto il dominio");
             if (gruppi.Count > 0)
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
@@ -435,6 +435,96 @@ namespace Campanella
                 }
             }
             return fuori;
+        }
+
+        /// <summary>
+        /// Le regole accese, con i mittenti propri, che prendono la casella
+        /// istituzionale della scuola (codice@istruzione.it, anche
+        /// @pec.istruzione.it) scritta nella pagina "La tua scuola" fra gli
+        /// indirizzi della dirigenza o della segreteria, senza escludere
+        /// l'etichetta di quella regola: di solito Ministero e USR salvata prima
+        /// della 1.6.1, con @istruzione.it fra i mittenti. I messaggi della
+        /// scuola prenderebbero tutte e due le etichette. Per ogni regola gli
+        /// indirizzi presi; un'esclusione scritta nella ricerca avanzata
+        /// (-from:indirizzo) vale. Conta solo una Dirigenza o Segreteria accesa.
+        /// </summary>
+        public static List<KeyValuePair<Regola, List<string>>> CasellaDellaScuolaPresa(Stato s)
+        {
+            List<KeyValuePair<Regola, List<string>>> fuori = new List<KeyValuePair<Regola, List<string>>>();
+            List<string> personale = s.IndirizziPersonale();
+            foreach (Regola r in s.Regole)
+            {
+                if (r.Sorgente != "" || !AttivaNellaConfigurazione(s, r, personale)) continue;
+                List<string> prese = new List<string>();
+                foreach (Regola fonte in s.Regole)
+                {
+                    if ((fonte.Sorgente != "dirigenza" && fonte.Sorgente != "segreteria") ||
+                        !AttivaNellaConfigurazione(s, fonte, personale) || Esclude(r, fonte.Etichetta)) continue;
+                    foreach (string grezzo in MittentiDellaRegola(s, fonte))
+                    {
+                        string a = grezzo.Trim().ToLowerInvariant();
+                        if (!a.EndsWith("@istruzione.it") && !a.EndsWith(".istruzione.it")) continue;
+                        if (a.IndexOf('@') <= 0 || prese.Contains(a) || !Prende(r, a)) continue;
+                        prese.Add(a);
+                    }
+                }
+                if (prese.Count > 0) fuori.Add(new KeyValuePair<Regola, List<string>>(r, prese));
+            }
+            return fuori;
+        }
+
+        /// <summary>Vero se la regola esclude quell'etichetta (maiuscole e spazi ai lati a parte).</summary>
+        static bool Esclude(Regola r, string etichetta)
+        {
+            foreach (string e in r.EscludiEtichette)
+                if (string.Equals((e ?? "").Trim(), (etichetta ?? "").Trim(), StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Vero se un mittente della regola (non i segnaposto) prende
+        /// l'indirizzo: uguale, "@dominio" con l'indirizzo in quel dominio o in
+        /// un suo sottodominio, o il dominio senza chiocciola; e la ricerca
+        /// avanzata non lo esclude con -from:indirizzo.
+        /// </summary>
+        static bool Prende(Regola r, string indirizzo)
+        {
+            if (Regex.IsMatch(r.QueryLibera ?? "", "(^|\\s)-from:" + Regex.Escape(indirizzo) + "(\\s|$)",
+                              RegexOptions.IgnoreCase)) return false;
+            foreach (string grezzo in r.Da)
+            {
+                string t = (grezzo ?? "").Trim().ToLowerInvariant();
+                if (t == "" || (t.StartsWith("@") && t.EndsWith("@"))) continue;
+                if (t == indirizzo) return true;
+                if (t.StartsWith("@") && (indirizzo.EndsWith(t) || indirizzo.EndsWith("." + t.Substring(1)))) return true;
+                if (t.IndexOf('@') < 0 && (indirizzo.EndsWith("@" + t) || indirizzo.EndsWith("." + t))) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Fa escludere a una regola le etichette di Dirigenza e Segreteria
+        /// (quelle che ancora non esclude), come Ministero e USR di partenza, e
+        /// la sposta sotto di loro se sta sopra: nel riordino le escluse devono
+        /// girare prima. Per l'avviso del passo 4 (CasellaDellaScuolaPresa).
+        /// </summary>
+        public static void EscludiDirigenzaESegreteria(Stato s, Regola r)
+        {
+            if (s == null || r == null || !s.Regole.Contains(r)) return;
+            int ultima = -1;
+            for (int i = 0; i < s.Regole.Count; i++)
+            {
+                Regola fonte = s.Regole[i];
+                if (fonte.Sorgente != "dirigenza" && fonte.Sorgente != "segreteria") continue;
+                if (!Esclude(r, fonte.Etichetta)) r.EscludiEtichette.Add(fonte.Etichetta);
+                ultima = i;
+            }
+            int dove = s.Regole.IndexOf(r);
+            if (ultima > dove)
+            {
+                s.Regole.RemoveAt(dove);
+                s.Regole.Insert(ultima, r);
+            }
         }
 
         /// <summary>

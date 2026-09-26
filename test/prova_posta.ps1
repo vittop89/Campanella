@@ -908,6 +908,58 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     }
 
     # -----------------------------------------------------------------------
+    Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
+    # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
+    # indirizzi di Segreteria o Dirigenza: Ministero e USR, con @istruzione.it
+    # fra i mittenti, di partenza esclude quelle due etichette, e gira dopo
+    $partenza = $tStato.GetMethod('RegoleDiDefault', $FS).Invoke($null, @())
+    $nomiP = @($partenza | ForEach-Object { $_.Etichetta })
+    $iMin = [array]::IndexOf($nomiP, 'Ministero e USR')
+    Verifica "di partenza Ministero e USR esclude Dirigenza e Segreteria, e sta sotto di loro" (
+        (@($partenza[$iMin].EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and
+        $iMin -gt [array]::IndexOf($nomiP, 'Dirigenza') -and $iMin -gt [array]::IndexOf($nomiP, 'Segreteria'))
+    $mCasella = $tGen.GetMethod('CasellaDellaScuolaPresa', $FS)
+    $mEscludi = $tGen.GetMethod('EscludiDirigenzaESegreteria', $FS)
+    function Prese($stato) { return (@($mCasella.Invoke($null, @($stato)) | ForEach-Object { $_.Key.Etichetta + '=' + (@($_.Value) -join ',') }) -join '; ') }
+    $sC = NuovoStato
+    Imposta $sC 'Dominio' 'scuola.example'
+    Imposta $sC 'Prefisso' ''
+    Imposta $sC 'EtichettaPerRuolo' $false
+    Imposta $sC 'Dirigenza' 'preside@scuola.example'
+    Imposta $sC 'Segreteria' "segreteria@scuola.example`r`ncasella@istruzione.it"
+    AggiungiPersona $sC 'BIANCHI ANNA' 'DOCENTE' 'anna.bianchi@scuola.example' $true
+    Verifica "con le regole di partenza nessun avviso, anche con la casella della scuola in Segreteria" ((Prese $sC) -eq '')
+    $minC = @((Leggi $sC 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    $minC.EscludiEtichette.Clear()
+    Verifica "una Ministero e USR salvata prima, senza esclusioni, prende la casella: l'avviso ('$(Prese $sC)')" (
+        (Prese $sC) -eq 'Ministero e USR=casella@istruzione.it')
+    Imposta $sC 'Segreteria' 'segreteria@scuola.example'
+    Imposta $sC 'Dirigenza' "preside@scuola.example`r`nCASELLA@istruzione.it"
+    Verifica "anche con la casella in Dirigenza, scritta in maiuscolo ('$(Prese $sC)')" ((Prese $sC) -eq 'Ministero e USR=casella@istruzione.it')
+    Imposta $sC 'Dirigenza' 'preside@scuola.example'
+    Verifica "senza un indirizzo @istruzione.it in Dirigenza o Segreteria, niente avviso" ((Prese $sC) -eq '')
+    Imposta $sC 'Segreteria' "segreteria@scuola.example`r`ncasella@istruzione.it"
+    $minC.QueryLibera = '-from:casella@istruzione.it'
+    Verifica "ne' se la regola la esclude gia' nella ricerca avanzata (-from:)" ((Prese $sC) -eq '')
+    $minC.QueryLibera = ''
+    $minC.Attiva = $false
+    Verifica "ne' se la regola e' spenta" ((Prese $sC) -eq '')
+    $minC.Attiva = $true
+    $regoleC = Leggi $sC 'Regole'
+    [void]$regoleC.Remove($minC)
+    $regoleC.Insert(0, $minC)
+    [void]$mEscludi.Invoke($null, @($sC.PSObject.BaseObject, $minC.PSObject.BaseObject))
+    $nomiC = @($regoleC | ForEach-Object { $_.Etichetta })
+    Verifica "il bottone dell'avviso: esclude Dirigenza e Segreteria, e la sposta sotto di loro ($(@($nomiC[0..2]) -join ', '))" (
+        (@($minC.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria' -and (Prese $sC) -eq '' -and
+        [array]::IndexOf($nomiC, 'Ministero e USR') -eq [array]::IndexOf($nomiC, 'Segreteria') + 1)
+    [void]$mEscludi.Invoke($null, @($sC.PSObject.BaseObject, $minC.PSObject.BaseObject))
+    Verifica "premuto due volte, niente doppioni" ((@($minC.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria')
+    $testoC = Genera $sC $true
+    Verifica "nella configurazione Ministero e USR ha escludiEtichette" (
+        $testoC -match 'etichetta: "Ministero e USR",\s+da:\s+\[[^\]]*\],\s+escludiEtichette: \["Dirigenza", "Segreteria"\],')
+
+    # -----------------------------------------------------------------------
     Intestazione 'LE MIE CLASSI: I NOMI E LE PAROLE DELL''OGGETTO'
     # Posta, passo 4, "Le mie classi...": una regola per classe. Gmail cerca
     # parole intere: 3B, "3 B" (dovrebbe prendere anche 3^B e la B dopo il segno di grado) e III B
@@ -1393,7 +1445,15 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
         Verifica "senza classi la configurazione non ha unoQualsiasi, ne' il suo commento" (
             -not $confSenza.Contains('unoQualsiasi') -and -not $confSenza.Contains('@CLASSE:'))
         if ($null -ne $mImpronta) {
-            Verifica "e l'impronta e' quella della 1.5.3 (E9111A66)" (([string]$mImpronta.Invoke($null, @($senza.PSObject.BaseObject))) -eq 'E9111A66')
+            # con le regole salvate dalla 1.5.3: la 1.6.1 ha cambiato solo la
+            # Ministero e USR di partenza (esclude Dirigenza e Segreteria), e le
+            # regole gia' salvate non cambiano da sole
+            $impNuova = [string]$mImpronta.Invoke($null, @($senza.PSObject.BaseObject))
+            $minSenza = @((Leggi $senza 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+            $minSenza.EscludiEtichette.Clear()
+            $minSenza.Descrizione = 'Comunicazioni ministeriali e degli uffici scolastici regionali.'
+            Verifica "e con le regole salvate dalla 1.5.3 l'impronta e' quella della 1.5.3 (E9111A66); con quelle di partenza di adesso un'altra ($impNuova)" (
+                ([string]$mImpronta.Invoke($null, @($senza.PSObject.BaseObject))) -eq 'E9111A66' -and $impNuova -ne 'E9111A66')
         }
         $conClasse = NuovoStato
         $classe = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))

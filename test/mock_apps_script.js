@@ -377,7 +377,12 @@ verifica('l\'anteprima dice la versione dello script',
     piatta.indexOf('Nota: Scuola/Studenti e\' una stima per eccesso. Esclude le conversazioni con ' +
                    'Scuola/Colleghi (non esiste ancora), Scuola/Dirigenza (non esiste ancora), ' +
                    'Scuola/Segreteria (non esiste ancora)') >= 0);
-  verifica('le altre regole no', (anteprima.match(/stima per eccesso/g) || []).length === 1 &&
+  // anche Ministero e USR, che di partenza esclude Dirigenza e Segreteria (la
+  // casella della scuola e' @istruzione.it)
+  verifica('anche Ministero e USR, per Dirigenza e Segreteria',
+    piatta.indexOf('Nota: Scuola/Ministero e USR e\' una stima per eccesso. Esclude le conversazioni con ' +
+                   'Scuola/Dirigenza (non esiste ancora), Scuola/Segreteria (non esiste ancora)') >= 0);
+  verifica('le altre regole no', (anteprima.match(/stima per eccesso/g) || []).length === 2 &&
     anteprima.indexOf('non esistono ancora') < 0);
   verifica('le regole che archiviano lo dicono', /^  Scuola\/Sindacati .*\(archivia\)$/m.test(anteprima));
 }

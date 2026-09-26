@@ -47,7 +47,10 @@ namespace Campanella
 
         ElencoSpunte clbRegole;
         TextBox txtPrefisso;
-        Label lblPrefisso, lblDoppioni, lblFiltri;
+        Label lblPrefisso, lblDoppioni, lblFiltri, lblCasella;
+        // l'avviso della casella della scuola presa da una regola, e la regola
+        Button btnCasella;
+        Regola regolaCasella;
         bool zitto = false;
         TextBox txtDescrizioneRegola;
         // il colore dell'etichetta della regola scelta e, per Colleghi, quelli
@@ -270,7 +273,10 @@ namespace Campanella
                 "preceduto dalla chiocciola (@spaggiari.eu).\r\n\r\n" +
                 "Con il dominio la regola vale per tutti gli indirizzi di quel dominio: comodo " +
                 "per il registro elettronico, che scrive da mittenti sempre diversi.\r\n\r\n" +
-                "Vale per tutte e tre le caselle di questa pagina.");
+                "Vale per tutte e tre le caselle di questa pagina.\r\n\r\n" +
+                "La casella istituzionale della scuola (il codice della scuola @istruzione.it) scrivila fra " +
+                "gli indirizzi della Segreteria, o della Dirigenza: cosi' i suoi messaggi non finiscono anche " +
+                "in Ministero e USR.");
             txtRegistro = Tema.CasellaMulti(0, y + 20, 300, 50, "@spaggiari.eu");
             p.Controls.Add(txtRegistro);
             return p;
@@ -594,7 +600,9 @@ namespace Campanella
                 "L'ordine conta solo per le regole che escludono le altre. Studenti prende la " +
                 "posta del dominio della scuola che non e' gia' finita in Colleghi, Dirigenza o " +
                 "Segreteria: per saperlo quelle regole devono girare prima, e per questo " +
-                "Studenti sta sotto. \"Su\" e \"Giu'\" servono a questo.\r\n\r\n" +
+                "Studenti sta sotto. Cosi' anche Ministero e USR, che non prende quello che e' gia' in " +
+                "Dirigenza o Segreteria: la casella della scuola (codice@istruzione.it) scrivila fra i loro " +
+                "indirizzi, nella pagina \"La tua scuola\". \"Su\" e \"Giu'\" servono a questo.\r\n\r\n" +
                 "Le regole con \"Archivia\" (di partenza Sindacati e Newsletter) tolgono i " +
                 "messaggi dalla Posta in arrivo: restano sotto la loro etichetta e in Tutti i " +
                 "messaggi. Nessuna regola cancella niente.");
@@ -784,6 +792,18 @@ namespace Campanella
             lblDoppioni = Tema.Testo1("", 0, Math.Max(y + 410, lblFiltri.Bottom + 8), 900, Tema.Normale, Ruolo.Avviso);
             lblDoppioni.Visible = false;
             p.Controls.Add(lblDoppioni);
+
+            // una regola (di solito Ministero e USR salvata prima della 1.6.1) che
+            // prende la casella della scuola scritta in Dirigenza o Segreteria:
+            // l'avviso e il bottone li mostra AggiornaDoppioni, sotto l'altro avviso
+            lblCasella = Tema.Testo1("", 0, lblDoppioni.Top, 900, Tema.Normale, Ruolo.Avviso);
+            lblCasella.Visible = false;
+            p.Controls.Add(lblCasella);
+            string escludi = "Escludi Dirigenza e Segreteria";
+            btnCasella = Tema.Bottone(escludi, 0, lblDoppioni.Top, 26 + TextRenderer.MeasureText(escludi, Tema.Normale).Width,
+                                      delegate { EscludiLaCasella(); });
+            btnCasella.Visible = false;
+            p.Controls.Add(btnCasella);
             return p;
         }
 
@@ -1974,6 +1994,56 @@ namespace Campanella
             lblDoppioni.Text = doppi.Count == 0 ? "" : string.Join("\r\n", doppi.ToArray());
             lblDoppioni.Height = Tema.AltezzaTesto(lblDoppioni.Text, lblDoppioni.Font, lblDoppioni.Width);
             lblDoppioni.Visible = doppi.Count > 0;
+            AggiornaAvvisoCasella();
+        }
+
+        /// <summary>
+        /// L'avviso ambra, con il suo bottone, quando una regola prende la
+        /// casella della scuola (codice@istruzione.it) scritta in "La tua scuola"
+        /// fra gli indirizzi di Dirigenza o Segreteria senza escludere quelle
+        /// etichette (GeneratorePosta.CasellaDellaScuolaPresa): di solito
+        /// Ministero e USR salvata prima della 1.6.1, che di partenza adesso le
+        /// esclude. Le regole salvate non cambiano da sole: lo fa il bottone.
+        /// Sta sotto l'avviso dei doppioni, se c'e'. Si aggiorna con lui.
+        /// </summary>
+        void AggiornaAvvisoCasella()
+        {
+            if (lblCasella == null) return;
+            List<KeyValuePair<Regola, List<string>>> prese = GeneratorePosta.CasellaDellaScuolaPresa(S);
+            regolaCasella = (prese.Count > 0) ? prese[0].Key : null;
+            if (regolaCasella == null)
+            {
+                lblCasella.Visible = false;
+                btnCasella.Visible = false;
+                return;
+            }
+            string pre = S.PrefissoPulito();
+            string nome = (pre == "" ? "" : pre + "/") + regolaCasella.Etichetta;
+            List<string> indirizzi = prese[0].Value;
+            lblCasella.Text = nome + " prende anche " + string.Join(", ", indirizzi.ToArray()) +
+                (indirizzi.Count == 1 ? ", che in \"La tua scuola\" e' fra gli indirizzi" : ", che in \"La tua scuola\" sono fra gli indirizzi") +
+                " di Dirigenza o Segreteria: di solito e' la casella della scuola, e i suoi messaggi prenderebbero anche " +
+                nome + ". Di partenza, adesso, " + nome + " non prende quello che e' gia' in Dirigenza o Segreteria." +
+                (prese.Count > 1 ? " Lo stesso per altre " + (prese.Count - 1) + " regole: il bottone le sistema una alla volta." : "");
+            lblCasella.Top = lblDoppioni.Visible ? lblDoppioni.Bottom + 8 : lblDoppioni.Top;
+            lblCasella.Height = Tema.AltezzaTesto(lblCasella.Text, lblCasella.Font, lblCasella.Width);
+            btnCasella.Text = "Escludi Dirigenza e Segreteria da " + regolaCasella.Etichetta;
+            btnCasella.Width = 26 + TextRenderer.MeasureText(btnCasella.Text, btnCasella.Font).Width;
+            btnCasella.Top = lblCasella.Bottom + 4;
+            lblCasella.Visible = true;
+            btnCasella.Visible = true;
+        }
+
+        /// <summary>Il bottone dell'avviso della casella della scuola: la regola esclude Dirigenza e Segreteria, e sta sotto di loro.</summary>
+        void EscludiLaCasella()
+        {
+            if (regolaCasella == null) return;
+            LeggiSpunteRegole();
+            Regola r = regolaCasella;
+            GeneratorePosta.EscludiDirigenzaESegreteria(S, r);
+            AggiornaElencoRegole(S.Regole.IndexOf(r));
+            Guscio.Stato1(r.Etichetta + " non prende piu' quello che e' gia' in Dirigenza o Segreteria: copia di nuovo " +
+                          "la configurazione (passo 5).");
         }
 
         void MostraDescrizioneRegola()
