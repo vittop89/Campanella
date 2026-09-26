@@ -1068,12 +1068,14 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $testiRegP -notmatch 'Unisci a Registro elettronico' -and (Breve $cRegP.proposta) -ne 'unisci|Registro elettronico' -and
         $testiRegD -match 'Unisci a Registro elettronico \(in "La tua scuola"\)')
     # e nemmeno il nome di una persona scritto come parola: ci vanno i domini e
-    # le parole dei registri noti (nuvola, argo...)
-    $nomiP = @('from:(mario.rossi OR spaggiari.eu)', 'from:(rossi OR spaggiari.eu)', 'from:(spaggiari.eu OR segreteria.didattica)') | Where-Object {
+    # le parole dei registri noti (nuvola, argo...). Anche con due lettere in
+    # fondo: .re e .li sono domini di primo livello, mario.re e giulia.li nomi
+    $nomiP = @('from:(mario.rossi OR spaggiari.eu)', 'from:(rossi OR spaggiari.eu)', 'from:(spaggiari.eu OR segreteria.didattica)',
+               'from:(spaggiari.eu OR mario.re)', 'from:(giulia.li OR spaggiari.eu)', 'from:(@anna.re OR spaggiari.eu)') | Where-Object {
         (Testi (ScelteDi (UnFiltro ([ordered]@{ hasTheWord = $_; label = 'Registro elettronico' })) $sR)) -match 'Unisci a Registro elettronico' }
     $registriP = @('from:(argo OR classeviva OR @axioscloud.it OR mastercom.cloud)', 'from:(@registro-due.example OR didup)') | Where-Object {
         (Testi (ScelteDi (UnFiltro ([ordered]@{ hasTheWord = $_; label = 'Registro elettronico' })) $sR)) -notmatch 'Unisci a Registro elettronico' }
-    Verifica "a Registro elettronico non si unisce il nome di una persona scritto come parola (mario.rossi, rossi), si' i domini e i registri noti$(if (@($nomiP).Count + @($registriP).Count) { ': no ' + ((@($nomiP) + @($registriP)) -join '; ') })" (
+    Verifica "a Registro elettronico non si unisce il nome di una persona scritto come parola (mario.rossi, rossi, mario.re, giulia.li), si' i domini e i registri noti$(if (@($nomiP).Count + @($registriP).Count) { ': no ' + ((@($nomiP) + @($registriP)) -join '; ') })" (
         @($nomiP).Count -eq 0 -and @($registriP).Count -eq 0)
     # "Toglilo: lo fa gia' la regola X" solo se X, accesa, prende davvero i suoi
     # messaggi. Uguale nel nome ma con i mittenti che la regola non ha e non puo'

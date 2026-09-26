@@ -1385,18 +1385,21 @@ namespace Campanella
         };
 
         // un dominio: nomi di lettere, cifre e trattini separati da punti, e in
-        // fondo un dominio di primo livello di due lettere (it, eu) o uno di
-        // quelli generici; .example e' quello dei dati inventati delle prove
+        // fondo uno dei domini di primo livello dei registri (it, eu) o di
+        // quelli generici; .example e' quello dei dati inventati delle prove.
+        // Non uno qualsiasi di due lettere: mario.re e giulia.li sono nomi di
+        // persona (.re e .li sono domini di primo livello)
         static readonly Regex DominioDelRegistro = new Regex(
-            @"^@?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2}|com|net|org|edu|gov|info|biz|cloud|online|school|education|example)$",
+            @"^@?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:it|eu|com|net|org|edu|gov|info|biz|cloud|online|school|education|example)$",
             RegexOptions.IgnoreCase);
 
         /// <summary>
         /// Vero se il mittente puo' stare fra quelli di Registro elettronico,
-        /// nelle impostazioni: un dominio (spaggiari.eu, @portaleargo.it) o la
-        /// parola di un registro noto (nuvola). Non un indirizzo, ne' una parola
-        /// qualsiasi, che puo' essere il nome di una persona (rossi,
-        /// mario.rossi): i nomi delle persone stanno con i dati personali.
+        /// nelle impostazioni: un dominio .it, .eu o generico (spaggiari.eu,
+        /// @portaleargo.it, mastercom.cloud) o la parola di un registro noto
+        /// (nuvola). Non un indirizzo, ne' una parola qualsiasi, che puo' essere
+        /// il nome di una persona (rossi, mario.rossi, mario.re): i nomi delle
+        /// persone stanno con i dati personali.
         /// </summary>
         static bool DelRegistro(string mittente)
         {
