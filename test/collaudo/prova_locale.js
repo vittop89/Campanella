@@ -19,11 +19,16 @@
  *   - COLLAUDO dica OK a tutti i controlli, con Calendario.gs e con Orari.gs,
  *     con le NOTE sui punti mai provati dal vivo, e alla fine non resti
  *     niente: calendari di prova, trigger, lavori degli orari a meta';
- *   - COLLAUDO_1 e COLLAUDO_2, uno dopo l'altro, facciano lo stesso;
+ *   - COLLAUDO_1, COLLAUDO_2 e COLLAUDO_3, uno dopo l'altro, facciano lo
+ *     stesso; la parte 3 (i colloqui, con le date intorno a oggi) sia tutta
+ *     OK in ogni giorno della settimana, al cambio dell'ora e a capodanno;
  *   - il collaudo dica NO quando Google o lo script non fanno quello che
  *     devono (la prova della prova): setTimeZone senza effetto, le serie nel
  *     fuso con cui e' nato il calendario, il calendario creato senza fuso
- *     come la 1.5; e pulisca lo stesso;
+ *     come la 1.5, ORARI_7_colloqui che cambia anche i colloqui passati, i
+ *     colloqui senza il link come luogo, senza il loro colore, anche nei
+ *     giorni senza colloqui, ORARI_ANNULLA_calendario che li lascia; e
+ *     pulisca lo stesso;
  *   - finito il tempo si fermi, dica di eseguire le parti a parte, e pulisca;
  *     con Google lento lasci alle funzioni del calendario solo il tempo che
  *     resta (_ORARI_MAX_SECONDI) e finisca, pulizia compresa, prima dei 360
@@ -95,10 +100,16 @@ const fabbrica = vm.runInThisContext(
   '         imposta(nome, valore) {\n' +
   '           if (nome === \'fusoDiGoogle\') fusoDiGoogle = valore;\n' +
   '           else if (nome === \'coloreDiGoogle\') coloreDiGoogle = valore;\n' +
+  '           else if (nome === \'oggi\') oggiFinto = valore;\n' +
   '           else throw new Error(\'non so impostare \' + nome);\n' +
   '         },\n' +
   '         avanti(ms) { orologio += ms; } };\n})',
   { filename: percorsoBanco, lineOffset: righePrima - 2 });
+
+// il giorno delle prove: la parte 3 mette i colloqui intorno a oggi. Un
+// giovedi': il ricevimento del mercoledi' ha un incontro ieri e uno la
+// settimana prossima nello stesso tratto, che ORARI_7_colloqui rifa' fino a ieri
+const OGGI = new Date(2026, 9, 1, 9, 30);
 
 /**
  * Un progetto di prova: finte API nuove, lo script del calendario
@@ -113,6 +124,7 @@ function progetto(opzioni) {
   const f = fabbrica('io@scuola-esempio.edu.it');
   if (opzioni.fusoDiGoogle) f.imposta('fusoDiGoogle', opzioni.fusoDiGoogle);
   if (opzioni.coloreDiGoogle) f.imposta('coloreDiGoogle', opzioni.coloreDiGoogle);
+  f.imposta('oggi', opzioni.oggi === undefined ? OGGI : opzioni.oggi);
   const comuni = { CalendarApp: f.CalendarApp, PropertiesService: f.PropertiesService, LockService: f.LockService,
                    ScriptApp: f.ScriptApp, Logger: f.Logger, Utilities: f.Utilities, Date: f.DateFinta, JSON, Math, String,
                    Number, Object, Array, RegExp, Error, isNaN, console };
@@ -234,7 +246,7 @@ function controllaPermessi(testo) {
 
 // quanti controlli fa COLLAUDO adesso: uno nuovo nel collaudo va contato qui,
 // cosi' uno che sparisce (o viene saltato in silenzio) si vede
-const CONTROLLI = 47;
+const CONTROLLI = 76;
 const controlliParte = {};
 
 // i controlli che il collaudo deve fare davvero (non saltarli in silenzio)
@@ -280,6 +292,45 @@ const ATTESI_PARTE_2 = [
   'dopo ORARI_ANNULLA_calendario e ORARI_4_calendario: dal 26/10, finita l\'ora legale, le lezioni sono alla stessa ora di prima',
   'il calendario di prova "Collaudo Campanella vecchio" non c\'e\' piu\' (cancellato adesso con deleteCalendar)'
 ];
+// oggi e' giovedi' 01/10/2026: il periodo va dal 14/09 al 23/10, il giorno
+// senza lezione e' il 23/09, i colloqui sono sospesi dal 12/10 al 16/10 (la
+// giornata e' il 15/10), l'orario nuovo vale dal 12/10
+const ATTESI_PARTE_3 = [
+  'ORARI_1_anteprima dice i colloqui da mettere: 1 ricevimento settimanale (3 serie, 4 incontri), 1 giornata singola; 2 incontri ' +
+    'saltati nei giorni senza lezione o senza colloqui. Colore dei colloqui: Pavone.',
+  'ORARI_4_calendario mette l\'orario e i colloqui, in un calendario che crea con il fuso Europe/Rome',
+  'c\'e\' il calendario "Collaudo Campanella colloqui"',
+  'dopo ORARI_4_calendario: le lezioni sono quelle dell\'orario (6, 2B il lunedi\'), con il colore della classe',
+  'dopo ORARI_4_calendario: i colloqui sono proprio quelli scritti (4 incontri del ricevimento e 1 giornata), con il titolo scritto',
+  'dopo ORARI_4_calendario: ogni colloquio ha come luogo il suo link del Meet (https://meet.google.com/abc-defg-hij)',
+  'dopo ORARI_4_calendario: ogni colloquio ha il colore dei colloqui (Pavone)',
+  'dopo ORARI_4_calendario: ogni colloquio (5) ha il contrassegno dei colloqui e la descrizione di Campanella, con il suo link',
+  'dopo ORARI_4_calendario: nessun incontro del ricevimento il 23/09 (giorno senza lezione) ne\' dal 12/10 al 16/10 (colloqui ' +
+    'sospesi); la giornata del 15/10, in quei giorni, c\'e\'',
+  'dopo ORARI_4_calendario: il ricevimento e\' a tratti, una serie per ogni tratto di settimane (3: 16/09; 30/09, 07/10; 21/10), ' +
+    'e la giornata e\' un evento singolo',
+  'ORARI_7_colloqui con il ricevimento dalle 16 alle 17 e un altro link aggiorna i colloqui da oggi: ricevimenti rifatti fino a ' +
+    'ieri 1, tolti 1, giornate tolte 1',
+  'dopo ORARI_7_colloqui: gli incontri prima di oggi (2) sono rimasti come erano',
+  'dopo ORARI_7_colloqui: da oggi ci sono proprio i colloqui nuovi (3), un\'ora dopo, con il link nuovo e il colore dei colloqui',
+  'dopo ORARI_7_colloqui: ogni colloquio (5) ha il contrassegno dei colloqui',
+  'dopo ORARI_7_colloqui: le lezioni e "Colloquio con la dirigente (collaudo)", che non e\' di Campanella, sono rimasti come erano',
+  'ORARI_1_anteprima con l\'orario nuovo dal 12/10 dice che anche ORARI_7_colloqui mette i colloqui nuovi da quel giorno',
+  'ORARI_7_colloqui prima del cambio d\'orario aggiorna i colloqui dal 12/10',
+  'e fino al 11/10 i colloqui sono rimasti come erano',
+  'e dal 12/10 ci sono i colloqui dell\'orario nuovo (2, il ricevimento il giovedi\' con il terzo link)',
+  'e le lezioni sono ancora quelle dell\'orario di prima, anche dal 12/10',
+  'ORARI_5_cambioOrario cambia l\'orario dal 12/10 (serie rifatte fino al giorno prima: 1) e dice i colloqui da quel giorno',
+  'dopo ORARI_5_cambioOrario: le lezioni prima del 12/10 sono rimaste, e da quel giorno c\'e\' l\'orario nuovo (2B il martedi\', 2 lezioni)',
+  'dopo ORARI_5_cambioOrario: i colloqui sono come li ha lasciati ORARI_7_colloqui',
+  'dopo ORARI_5_cambioOrario: ogni colloquio (5) ha il contrassegno dei colloqui',
+  'ORARI_6_coloraLezioni da\' a tutti i colloqui (5, anche quelli prima di oggi e quelli rifatti) il colore nuovo dei colloqui, Vinaccia',
+  'e le lezioni restano con il colore della loro classe, e niente e\' spostato, aggiunto o tolto',
+  'ORARI_ANNULLA_calendario toglie tutte le lezioni e tutti i colloqui di Campanella',
+  'e lascia "Colloquio con la dirigente (collaudo)", che non e\' di Campanella',
+  'il calendario di prova "Collaudo Campanella colloqui" non c\'e\' piu\' (cancellato adesso con deleteCalendar)'
+];
+
 // ---------------------------------------------------------------------------
 //  COLLAUDO: tutto OK, con Calendario.gs e con Orari.gs
 // ---------------------------------------------------------------------------
@@ -290,11 +341,11 @@ for (const script of ['Calendario.gs', 'Orari.gs']) {
   verifica('COLLAUDO non lancia errori', !e.errore, e.errore && e.errore.stack);
   verifica('nessun controllo NO (' + e.no.length + ')', e.no.length === 0, e.no.join('\n'));
   verifica('tutti i controlli OK: ' + e.ok.length + ' (devono essere ' + CONTROLLI + ')', e.ok.length === CONTROLLI);
-  verifica('il riepilogo dice NO: 0, "Tutti i controlli sono OK", le due parti fatte e niente da fare, con lo script (' +
+  verifica('il riepilogo dice NO: 0, "Tutti i controlli sono OK", le tre parti fatte e niente da fare, con lo script (' +
     script + ' ' + VERSIONE + ')', /NO: 0\n/.test(e.riepilogo) && e.riepilogo.indexOf('Tutti i controlli sono OK.') >= 0 &&
-    /Parti fatte: 1 in \d+\.\d s, 2 in \d+\.\d s\./.test(e.riepilogo) && e.riepilogo.indexOf('Da fare') < 0 &&
+    /Parti fatte: 1 in \d+\.\d s, 2 in \d+\.\d s, 3 in \d+\.\d s\./.test(e.riepilogo) && e.riepilogo.indexOf('Da fare') < 0 &&
     e.riepilogo.indexOf('== RIEPILOGO di COLLAUDO (' + script + ' ' + VERSIONE + ')\n') === 0, e.riepilogo);
-  ATTESI_PARTE_1.concat(ATTESI_PARTE_2, ['nessun trigger rimasto nel progetto'])
+  ATTESI_PARTE_1.concat(ATTESI_PARTE_2, ATTESI_PARTE_3, ['nessun trigger rimasto nel progetto'])
     .forEach(atteso => verifica('OK: ' + atteso, contiene(e.ok, atteso)));
   // le NOTE sui punti mai provati dal vivo, con quello che il finto calendario suppone
   verifica('NOTA: setTime su una lezione di una serie sposta solo quella, che resta nella serie',
@@ -313,17 +364,20 @@ for (const script of ['Calendario.gs', 'Orari.gs']) {
     e.note.every(n => e.riepilogo.indexOf(n) >= 0));
   // il tempo di ogni passo
   verifica('una riga PASSO con i secondi per ogni passo (' + e.passi.length + '), anche per la pulizia',
-    e.passi.length >= 35 && e.passi.every(r => /: \d+\.\d s \(\d+\.\d s dall'inizio\)/.test(r)) &&
-    contiene(e.passi, 'ORARI_5_cambioOrario rieseguito: ') && contiene(e.passi, 'pulizia: '), e.passi.join('\n'));
+    e.passi.length >= 50 && e.passi.every(r => /: \d+\.\d s \(\d+\.\d s dall'inizio\)/.test(r)) &&
+    contiene(e.passi, 'ORARI_5_cambioOrario rieseguito: ') && contiene(e.passi, 'ORARI_7_colloqui prima del cambio d\'orario: ') &&
+    contiene(e.passi, 'pulizia: '), e.passi.join('\n'));
   verifica('il riepilogo dice il tempo in tutto e i passi piu\' lenti', /Tempo: \d+\.\d s in tutto, \d+ passi/.test(e.riepilogo) &&
     e.riepilogo.indexOf('I piu\' lenti: ') >= 0);
   // le funzioni vere dello script hanno lavorato davvero (le loro righe nel registro)
-  verifica('nel registro ci sono i messaggi veri di ' + script + ' (anteprima, cambio, colori, annulla)',
+  verifica('nel registro ci sono i messaggi veri di ' + script + ' (anteprima, cambio, colori, colloqui, annulla)',
     e.testo.indexOf(script === 'Orari.gs' ? 'ANTEPRIMA - non viene mandato niente.' :
                                             'ANTEPRIMA - sul calendario non viene messo niente.') >= 0 &&
     e.testo.indexOf(script + ' versione ' + VERSIONE + '; fuso orario dello script: Europe/Rome.') >= 0 &&
     e.testo.indexOf('Cambio d\'orario dal 2026-11-02') >= 0 &&
     e.testo.indexOf('Colori delle classi nel calendario "Collaudo Campanella"') >= 0 &&
+    e.testo.indexOf('Colloqui aggiornati dal 2026-10-01 nel calendario "Collaudo Campanella colloqui"') >= 0 &&
+    e.testo.indexOf('Colloqui aggiornati dal 2026-10-12 nel calendario "Collaudo Campanella colloqui"') >= 0 &&
     e.testo.indexOf('eventi messi da Campanella dal calendario "Collaudo Campanella"') >= 0);
   verifica('e il messaggio con cui ORARI_4_calendario si ferma sul calendario della 1.5',
     e.testo.indexOf('il suo messaggio: Il calendario "Collaudo Campanella vecchio" ha il fuso orario UTC, non Europe/Rome') >= 0);
@@ -334,23 +388,72 @@ for (const script of ['Calendario.gs', 'Orari.gs']) {
   puliti(p, e, 'COLLAUDO con ' + script);
 }
 
-intestazione('COLLAUDO_1 E COLLAUDO_2, UNO DOPO L\'ALTRO, NELLO STESSO PROGETTO');
+intestazione('COLLAUDO_1, COLLAUDO_2 E COLLAUDO_3, UNO DOPO L\'ALTRO, NELLO STESSO PROGETTO');
 for (const script of ['Calendario.gs', 'Orari.gs']) {
   const p = progetto({ script });
   const e1 = esegui(p, 'COLLAUDO_1');
   verifica(script + ', COLLAUDO_1: nessun NO, e fa solo la parte 1', !e1.errore && e1.no.length === 0 && e1.ok.length > 20 &&
-    e1.testo.indexOf('PARTE 2') < 0 && e1.testo.indexOf('Collaudo Campanella vecchio') < 0 &&
+    e1.testo.indexOf('PARTE 2') < 0 && e1.testo.indexOf('PARTE 3') < 0 && e1.testo.indexOf('Collaudo Campanella vecchio') < 0 &&
     e1.riepilogo.indexOf('Tutti i controlli sono OK.') >= 0 && /Parti fatte: 1 in /.test(e1.riepilogo), e1.no.join('\n'));
   puliti(p, e1, script + ', COLLAUDO_1');
   const e2 = esegui(p, 'COLLAUDO_2');
   verifica(script + ', COLLAUDO_2: nessun NO, e fa solo la parte 2', !e2.errore && e2.no.length === 0 && e2.ok.length > 10 &&
-    e2.testo.indexOf('PARTE 1') < 0, e2.no.join('\n'));
+    e2.testo.indexOf('PARTE 1') < 0 && e2.testo.indexOf('PARTE 3') < 0, e2.no.join('\n'));
   puliti(p, e2, script + ', COLLAUDO_2');
-  // la pulizia di ognuno controlla i trigger: una volta in piu' di COLLAUDO
-  verifica(script + ': insieme fanno i controlli di COLLAUDO (' + e1.ok.length + ' + ' + e2.ok.length + ' = ' + CONTROLLI +
-    ' + 1)', e1.ok.length + e2.ok.length === CONTROLLI + 1);
+  const e3 = esegui(p, 'COLLAUDO_3');
+  verifica(script + ', COLLAUDO_3: nessun NO, e fa solo la parte 3', !e3.errore && e3.no.length === 0 && e3.ok.length > 25 &&
+    e3.testo.indexOf('PARTE 1') < 0 && e3.testo.indexOf('PARTE 2') < 0 && e3.testo.indexOf('Collaudo Campanella vecchio') < 0,
+    e3.no.join('\n'));
+  ATTESI_PARTE_3.forEach(atteso => { if (!contiene(e3.ok, atteso)) verifica(script + ', COLLAUDO_3: OK: ' + atteso, false); });
+  puliti(p, e3, script + ', COLLAUDO_3');
+  // la pulizia di ognuno controlla i trigger: due volte in piu' di COLLAUDO
+  verifica(script + ': insieme fanno i controlli di COLLAUDO (' + e1.ok.length + ' + ' + e2.ok.length + ' + ' + e3.ok.length +
+    ' = ' + CONTROLLI + ' + 2)', e1.ok.length + e2.ok.length + e3.ok.length === CONTROLLI + 2);
   controlliParte[1] = e1.ok.length;
   controlliParte[2] = e2.ok.length;
+  controlliParte[3] = e3.ok.length;
+}
+
+// ---------------------------------------------------------------------------
+//  LA PARTE 3 IN OGNI GIORNO: le date sono intorno a oggi
+// ---------------------------------------------------------------------------
+intestazione('LA PARTE 3 IN OGNI GIORNO DELLA SETTIMANA, AL CAMBIO DELL\'ORA E A CAPODANNO');
+{
+  const giorni = [];
+  for (let g = 28; g <= 34; g++) giorni.push(new Date(2026, 8, g, 18, 0));          // da lunedi' 28/09 a domenica 04/10, la sera
+  giorni.push(new Date(2026, 9, 25, 10, 0), new Date(2026, 9, 28, 16, 30),          // la fine dell'ora legale, e dopo
+              new Date(2027, 2, 28, 3, 30), new Date(2026, 11, 30, 23, 50),         // l'inizio, e capodanno
+              new Date(2027, 0, 1, 0, 10));
+  const male = [];
+  for (const oggi of giorni) {
+    const p = progetto({ oggi });
+    const e = esegui(p, 'COLLAUDO_3');
+    const calendari = p.f.calendari.filter(c => /^Collaudo Campanella/.test(c.nome)).length;
+    if (e.errore || e.no.length || e.ok.length !== controlliParte[3] || calendari || p.f.trigger.length || p.f.proprieta.size) {
+      male.push(oggi.toString().slice(0, 21) + ': ' + (e.errore ? e.errore.message : e.no.join('; ') + ' (' + e.ok.length + ' OK)'));
+    }
+  }
+  verifica('COLLAUDO_3 e\' tutto OK (' + controlliParte[3] + ' controlli) e pulisce in ogni giorno della settimana, al cambio ' +
+    'dell\'ora e a capodanno (' + giorni.length + ' giorni)', !male.length, male.join('\n'));
+  // con il giorno vero di oggi
+  const p = progetto({ oggi: null });
+  const e = esegui(p, 'COLLAUDO_3');
+  verifica('e con il giorno vero di oggi (' + new Date().toDateString() + ')', !e.errore && !e.no.length &&
+    e.ok.length === controlliParte[3], e.no.join('\n'));
+  puliti(p, e, 'oggi');
+  // il giorno cambia a meta' della parte 3: ORARI_7_colloqui aggiornerebbe da un altro giorno
+  const q = progetto();
+  const vero = q.contesto.ORARI_4_calendario;
+  q.contesto.ORARI_4_calendario = function () {
+    const r = vero.apply(this, arguments);
+    q.f.imposta('oggi', new Date(2026, 9, 2, 0, 5));
+    return r;
+  };
+  const f = esegui(q, 'COLLAUDO_3');
+  verifica('se il giorno cambia a meta\' della parte 3 lo dice, non esegue ORARI_7_colloqui e pulisce',
+    contiene(f.no, 'il giorno e\' cambiato durante la parte 3 (era il 2026-10-01, adesso e\' il 2026-10-02)') &&
+    f.testo.indexOf('Colloqui aggiornati') < 0 && f.testo.indexOf('Riesegui COLLAUDO_3.') >= 0, f.no.join('\n'));
+  puliti(q, f, 'giorno cambiato');
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +515,40 @@ intestazione('LA PROVA DELLA PROVA: EVENTSERIES.SETCOLOR CHE COPRE LE LEZIONI CO
   puliti(p, e, 'setColor della serie sopra quello a mano');
 }
 
+intestazione('LA PROVA DELLA PROVA: I COLLOQUI SBAGLIATI');
+{
+  const casi = [
+    ['ORARI_7_colloqui che cambia anche i colloqui prima di oggi',
+     mutato('return (oggi < periodo.inizio) ? periodo.inizio : oggi;', 'return periodo.inizio;', 'il giorno di ORARI_7_colloqui'),
+     ['ORARI_7_colloqui con il ricevimento dalle 16 alle 17 e un altro link aggiorna i colloqui da oggi',
+      'dopo ORARI_7_colloqui: gli incontri prima di oggi (2) sono rimasti come erano']],
+    ['i colloqui senza il link come luogo',
+     mutato('if (voce.link) opzioni.location = voce.link;', '', 'il luogo dei colloqui'),
+     ['dopo ORARI_4_calendario: ogni colloquio ha come luogo il suo link del Meet']],
+    ['i colloqui senza il loro colore',
+     mutato('      if (c.coloreColloqui) {', '      if (false) {', 'il colore dei colloqui'),
+     ['dopo ORARI_4_calendario: ogni colloquio ha il colore dei colloqui (Pavone)']],
+    ['il ricevimento anche nei giorni senza colloqui',
+     mutato('_orariSospeso_(chiave, periodo.sospensioni) || _orariSospeso_(chiave, sospesi)',
+            '_orariSospeso_(chiave, periodo.sospensioni)', 'i periodi senza colloqui'),
+     ['ORARI_1_anteprima dice i colloqui da mettere', 'dopo ORARI_4_calendario: i colloqui sono proprio quelli scritti',
+      'dopo ORARI_4_calendario: nessun incontro del ricevimento il 23/09 (giorno senza lezione) ne\' dal 12/10 al 16/10',
+      'dopo ORARI_4_calendario: il ricevimento e\' a tratti']],
+    ['ORARI_ANNULLA_calendario che lascia i colloqui',
+     mutato(/(      if \(voce\.serie\) voce\.serie\.deleteEventSeries\(\);\n      else voce\.evento\.deleteEvent\(\);\n      tolti\+\+;)/,
+            '      if (voce.colloquio) continue;\n$1', 'ORARI_ANNULLA_calendario'),
+     ['ORARI_ANNULLA_calendario toglie tutte le lezioni e tutti i colloqui di Campanella']]
+  ];
+  for (const [nome, codiceOrari, attesi] of casi) {
+    const p = progetto({ codice: soloCalendario(codiceOrari, testaCalendario) });
+    const e = esegui(p, 'COLLAUDO_3');
+    const mancano = attesi.filter(x => !contiene(e.no, x));
+    verifica('con ' + nome + ' COLLAUDO_3 dice NO (' + e.no.length + ')', !e.errore && mancano.length === 0,
+      'non dice NO a: ' + mancano.join('; ') + '\nNO: ' + e.no.join('\n'));
+    puliti(p, e, nome);
+  }
+}
+
 // ---------------------------------------------------------------------------
 //  IL TEMPO, IL PROGETTO GIUSTO, I RESTI
 // ---------------------------------------------------------------------------
@@ -429,10 +566,10 @@ intestazione('IL TEMPO FINISCE A META\'');
   verifica('si ferma prima del passo dopo, e dice di eseguire le parti una alla volta',
     contiene(e.no, 'tempo: sono passati 300 secondi e Google ferma uno script dopo 360, quindi mi fermo prima di ' +
       '"lettura del calendario (dopo ORARI_5_cambioOrario)"') &&
-    e.testo.indexOf('Esegui le parti una alla volta: COLLAUDO_1 e COLLAUDO_2.') >= 0, e.no.join('\n'));
-  verifica('la parte 2 non la comincia, e il riepilogo dice di eseguirle tutte e due a parte',
-    e.testo.indexOf('PARTE 2') < 0 && e.riepilogo.indexOf('Da fare, per il tempo: esegui COLLAUDO_1, poi COLLAUDO_2, uno ' +
-      'alla volta, e copia anche i loro registri.') >= 0, e.riepilogo);
+    e.testo.indexOf('Esegui le parti una alla volta: COLLAUDO_1, COLLAUDO_2 e COLLAUDO_3.') >= 0, e.no.join('\n'));
+  verifica('le parti 2 e 3 non le comincia, e il riepilogo dice di eseguirle tutte a parte',
+    e.testo.indexOf('PARTE 2') < 0 && e.testo.indexOf('PARTE 3') < 0 && e.riepilogo.indexOf('Da fare, per il tempo: esegui ' +
+      'COLLAUDO_1, poi COLLAUDO_2, poi COLLAUDO_3, uno alla volta, e copia anche i loro registri.') >= 0, e.riepilogo);
   verifica('la pulizia la fa lo stesso', contiene(e.ok, 'il calendario di prova "Collaudo Campanella" non c\'e\' piu\''));
   puliti(p, e, 'tempo finito');
 }
@@ -484,24 +621,24 @@ intestazione('GOOGLE LENTO: LE FUNZIONI DEL CALENDARIO SI FERMANO DA SOLE, E LA 
 intestazione('UNA PARTE CHE NON CI STA NEL TEMPO');
 {
   const p = progetto();
-  // la parte 1 prende 200 secondi: la 2 (fino a 90) non ci sta
+  // la parte 1 prende 130 secondi: la 2 (fino a 90) ci sta, la 3 (fino a 150) no
   const vero = p.contesto.ORARI_6_coloraLezioni;
   p.contesto.ORARI_6_coloraLezioni = function () {
     const r = vero.apply(this, arguments);
-    p.f.avanti(200 * 1000);
+    p.f.avanti(130 * 1000);
     return r;
   };
   const e = esegui(p, 'COLLAUDO');
-  verifica('fa la parte 1, non comincia la 2 e lo dice, senza NO',
-    e.no.length === 0 && e.testo.indexOf('PARTE 2 (COLLAUDO_2)') < 0 &&
-    e.testo.indexOf('== PARTE 2: non la comincio. Sono gia\' passati 200 secondi, questa parte ne puo\' prendere 90') >= 0,
+  verifica('fa le parti 1 e 2, non comincia la 3 e lo dice, senza NO',
+    e.no.length === 0 && e.testo.indexOf('PARTE 2 (COLLAUDO_2)') >= 0 && e.testo.indexOf('PARTE 3 (COLLAUDO_3)') < 0 &&
+    e.testo.indexOf('== PARTE 3: non la comincio. Sono gia\' passati 130 secondi, questa parte ne puo\' prendere 150') >= 0,
     e.no.join('\n'));
-  verifica('il riepilogo dice che i controlli fatti sono OK e di eseguire COLLAUDO_2',
+  verifica('il riepilogo dice che i controlli fatti sono OK e di eseguire COLLAUDO_3',
     e.riepilogo.indexOf('I controlli fatti sono tutti OK.') >= 0 && e.riepilogo.indexOf('Tutti i controlli sono OK.') < 0 &&
-    e.riepilogo.indexOf('Da fare, per il tempo: esegui COLLAUDO_2 e copia anche il suo registro.') >= 0 &&
-    /Parti fatte: 1 in 200\.\d s\./.test(e.riepilogo), e.riepilogo);
-  verifica('e alla fine controlla anche il calendario della parte 2, che non c\'era',
-    contiene(e.ok, 'il calendario di prova "Collaudo Campanella vecchio" non c\'e\' piu\' (non c\'era)'));
+    e.riepilogo.indexOf('Da fare, per il tempo: esegui COLLAUDO_3 e copia anche il suo registro.') >= 0 &&
+    /Parti fatte: 1 in 130\.\d s, 2 in \d+\.\d s\./.test(e.riepilogo), e.riepilogo);
+  verifica('e alla fine controlla anche il calendario della parte 3, che non c\'era',
+    contiene(e.ok, 'il calendario di prova "Collaudo Campanella colloqui" non c\'e\' piu\' (non c\'era)'));
   puliti(p, e, 'parte che non ci sta');
 }
 
@@ -519,7 +656,7 @@ intestazione('NON COMINCIA IN UN PROGETTO CHE NON E\' DI PROVA');
   const r = progetto();
   r.f.proprieta.set('CAMPANELLA_ORARI_CALENDARIO_PROGRESSO', '{"funzione":"ORARI_7_colloqui"}');
   r.f.trigger.push({ fn: 'ORARI_7_colloqui', ms: 60000 });
-  const g = esegui(r, 'COLLAUDO_1');
+  const g = esegui(r, 'COLLAUDO_3');
   verifica('e con un lavoro degli orari a meta\' che non e\' di un collaudo: lo lascia, con la sua ripresa',
     contiene(g.no, 'non comincio: in questo progetto c\'e\' un lavoro degli orari a meta\'') &&
     r.f.proprieta.has('CAMPANELLA_ORARI_CALENDARIO_PROGRESSO') && r.f.trigger.length === 1 && r.f.calendari.length === 0,
@@ -539,10 +676,10 @@ intestazione('NON COMINCIA IN UN PROGETTO CHE NON E\' DI PROVA');
 intestazione('UN CALENDARIO CON LO STESSO NOME, CHE NON E\' DI UN COLLAUDO');
 {
   const p = progetto();
-  p.f.CalendarApp.createCalendar('Collaudo Campanella', { timeZone: 'Europe/Rome' });
-  const e = esegui(p, 'COLLAUDO_1');
+  p.f.CalendarApp.createCalendar('Collaudo Campanella colloqui', { timeZone: 'Europe/Rome' });
+  const e = esegui(p, 'COLLAUDO');
   verifica('non comincia, e lo lascia', contiene(e.no, 'non comincio: c\'e\' gia\' un calendario tuo chiamato "Collaudo ' +
-    'Campanella"') && p.f.calendari.length === 1, e.no.join('\n'));
+    'Campanella colloqui"') && p.f.calendari.length === 1, e.no.join('\n'));
   // Google non bada alle maiuscole: uno con le maiuscole diverse non e' del collaudo, e resta
   const q = progetto();
   q.f.CalendarApp.createCalendar('collaudo campanella', { timeZone: 'Europe/Rome' });
@@ -555,16 +692,18 @@ intestazione('UN CALENDARIO CON LO STESSO NOME, CHE NON E\' DI UN COLLAUDO');
 intestazione('I RESTI DI UN COLLAUDO INTERROTTO');
 {
   const p = progetto();
-  // Google l'ha fermato a meta' di un lavoro degli orari: i calendari, il lavoro a meta', la sua ripresa, il segno
+  // Google l'ha fermato a meta' dei colloqui: i calendari, il lavoro a meta', la sua ripresa, il segno
   p.f.CalendarApp.createCalendar('Collaudo Campanella', { timeZone: 'Europe/Rome' });
   p.f.CalendarApp.createCalendar('Collaudo Campanella vecchio');
-  p.f.proprieta.set('CAMPANELLA_COLLAUDO_CALENDARIO', JSON.stringify({ nomi: ['Collaudo Campanella', 'Collaudo Campanella vecchio'] }));
+  p.f.CalendarApp.createCalendar('Collaudo Campanella colloqui', { timeZone: 'Europe/Rome' });
+  p.f.proprieta.set('CAMPANELLA_COLLAUDO_CALENDARIO', JSON.stringify({ nomi: ['Collaudo Campanella', 'Collaudo Campanella vecchio',
+                                                                              'Collaudo Campanella colloqui'] }));
   p.f.proprieta.set('CAMPANELLA_ORARI_CALENDARIO_PROGRESSO', '{"funzione":"ORARI_7_colloqui"}');
   p.f.trigger.push({ fn: 'ORARI_7_colloqui', ms: 60000 });
   const e = esegui(p, 'COLLAUDO_1');
   verifica('li toglie prima di cominciare, e lo dice', e.testo.indexOf('Un collaudo di prima non aveva finito di pulire: ho ' +
     'tolto i lavori degli orari a meta\', le loro riprese e i suoi calendari ("Collaudo Campanella", "Collaudo Campanella ' +
-    'vecchio")') >= 0, e.testo.split('\n').slice(0, 6).join('\n'));
+    'vecchio", "Collaudo Campanella colloqui")') >= 0, e.testo.split('\n').slice(0, 6).join('\n'));
   verifica('poi il collaudo e\' tutto OK', e.no.length === 0 && e.ok.length === controlliParte[1], e.no.join('\n'));
   puliti(p, e, 'resti');
 }

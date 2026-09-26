@@ -5,13 +5,15 @@
  *
  *  Prova dal vivo, su Google Calendar, le funzioni vere che mettono l'orario
  *  sul calendario (ORARI_1_anteprima, ORARI_4_calendario,
- *  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_ANNULLA_calendario),
- *  quelle di Calendario.gs, la versione solo calendario che l'applicazione
- *  prepara per un altro account (il personale, per esempio), o quelle di
- *  Orari.gs. Dati inventati: il docente PROVA COLLAUDO, le classi 2B, 3B e
- *  4C, ognuna con il suo colore, dal 12/10 al 13/11/2026 con due giorni senza
- *  lezione, e l'orario che cambia dal 02/11. L'ora legale finisce il 25/10,
- *  nel mezzo. Ai docenti non serve.
+ *  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_7_colloqui,
+ *  ORARI_ANNULLA_calendario), quelle di Calendario.gs, la versione solo
+ *  calendario che l'applicazione prepara per un altro account (il
+ *  personale, per esempio), o quelle di Orari.gs. Dati inventati: il docente
+ *  PROVA COLLAUDO, le classi 2B, 3B e 4C, ognuna con il suo colore, dal 12/10
+ *  al 13/11/2026 con due giorni senza lezione e l'orario che cambia dal
+ *  02/11 (l'ora legale finisce il 25/10, nel mezzo), e i colloqui con le
+ *  famiglie, con un link del Meet inventato, intorno a oggi. Ai docenti non
+ *  serve.
  *
  *  COME SI USA (per esempio nel tuo account personale)
  *    1. script.google.com, entrando con l'account da provare -> Nuovo
@@ -39,14 +41,14 @@
  *       (con Orari.gs l'anteprima scrive anche il tuo indirizzo,
  *       Destinatario: toglilo se passi il registro ad altri).
  *    6. Se il riepilogo dice "Da fare", esegui le parti che nomina (per
- *       esempio COLLAUDO_2), una alla volta, e copia anche i loro registri.
- *  COLLAUDO fa le due parti qui sotto in un'esecuzione sola, se ci stanno.
- *  Google ferma uno script dopo 6 minuti: la seconda parte comincia solo se
- *  c'e' il tempo per finirla (_COLLAUDO_STIMA_PARTI), dopo 270 secondi non
- *  comincia piu' nessun passo, e alle funzioni del calendario resta solo il
- *  tempo fino a 300 secondi (_ORARI_MAX_SECONDI: poi si fermano da sole),
- *  cosi' la pulizia si fa sempre. COLLAUDO_1 e COLLAUDO_2 fanno una parte
- *  sola.
+ *       esempio COLLAUDO_3), una alla volta, e copia anche i loro registri.
+ *  COLLAUDO fa le tre parti qui sotto in un'esecuzione sola, se ci stanno.
+ *  Google ferma uno script dopo 6 minuti: una parte dopo la prima comincia
+ *  solo se c'e' il tempo per finirla (_COLLAUDO_STIMA_PARTI), dopo 270
+ *  secondi non comincia piu' nessun passo, e alle funzioni del calendario
+ *  resta solo il tempo fino a 300 secondi (_ORARI_MAX_SECONDI: poi si
+ *  fermano da sole), cosi' la pulizia si fa sempre. COLLAUDO_1, COLLAUDO_2
+ *  e COLLAUDO_3 fanno una parte sola.
  *
  *  COSA CONTROLLA
  *    Parte 1 (COLLAUDO_1): il calendario "Collaudo Campanella", creato da
@@ -75,6 +77,32 @@
  *    - ORARI_ANNULLA_calendario e poi ORARI_4_calendario: le lezioni alla
  *      stessa ora prima e dopo il 25/10. E se setTimeZone ha cambiato l'ora
  *      del ricevimento, che c'era gia' (NOTA).
+ *    Parte 3 (COLLAUDO_3): il calendario "Collaudo Campanella colloqui", con
+ *    le date intorno a oggi (dal lunedi' di due settimane fa al venerdi' fra
+ *    tre settimane: ORARI_7_colloqui aggiorna da oggi). 2B il lunedi', il
+ *    ricevimento il mercoledi' dalle 15 alle 16 con un link del Meet
+ *    inventato, che salta il mercoledi' della settimana scorsa (giorno senza
+ *    lezione) e la settimana fra due (colloqui sospesi), e una giornata di
+ *    colloqui proprio in quella settimana.
+ *    - L'anteprima e ORARI_4_calendario dicono i colloqui; sul calendario ci
+ *      sono proprio quelli, nessuno nei giorni saltati, il ricevimento a
+ *      tratti (una serie per tratto) e la giornata come evento singolo, con
+ *      il titolo scritto, il link come luogo, il colore dei colloqui, il
+ *      loro contrassegno e la descrizione con il link.
+ *    - ORARI_7_colloqui con il ricevimento un'ora dopo e un altro link: gli
+ *      incontri prima di oggi restano come erano, da oggi ci sono quelli
+ *      nuovi (il messaggio dice quanti ricevimenti ha rifatto e tolto); le
+ *      lezioni e un colloquio con la dirigente, che non e' di Campanella,
+ *      non cambiano.
+ *    - Il cambio d'orario dal lunedi' fra due settimane, con i colloqui
+ *      dell'orario nuovo (il giovedi', un terzo link): ORARI_7_colloqui
+ *      prima di quel giorno li mette solo da li' (l'anteprima lo dice
+ *      prima); ORARI_5_cambioOrario cambia le lezioni da quel giorno e lascia
+ *      i colloqui come sono.
+ *    - ORARI_6_coloraLezioni con un altro colore dei colloqui li colora
+ *      tutti, anche quelli rifatti, e non sposta niente.
+ *    - ORARI_ANNULLA_calendario toglie lezioni e colloqui, e lascia il
+ *      colloquio con la dirigente.
  *    Alla fine, anche se qualcosa va storto: via i calendari di prova
  *    (deleteCalendar), i lavori degli orari a meta' e le loro riprese.
  *
@@ -97,17 +125,18 @@ var ORARI;   // i dati degli orari: li mette il collaudo, passo per passo (nient
 
 var _COLLAUDO_NOME           = 'Collaudo Campanella';
 var _COLLAUDO_NOME_VECCHIO   = 'Collaudo Campanella vecchio';
-var _COLLAUDO_NOMI           = ['', _COLLAUDO_NOME, _COLLAUDO_NOME_VECCHIO];  // il calendario di ogni parte
+var _COLLAUDO_NOME_COLLOQUI  = 'Collaudo Campanella colloqui';
+var _COLLAUDO_NOMI           = ['', _COLLAUDO_NOME, _COLLAUDO_NOME_VECCHIO, _COLLAUDO_NOME_COLLOQUI];  // il calendario di ogni parte
 var _COLLAUDO_CHIAVE         = 'CAMPANELLA_COLLAUDO_CALENDARIO';  // i nomi dei calendari di un collaudo non ancora pulito
 var _COLLAUDO_FUSO           = 'Europe/Rome';
 // Google ferma uno script dopo 360 secondi. Dal vivo un'operazione sul
 // calendario prende circa un secondo: la parte 1 un paio di minuti, la 2 uno,
-// e il passo piu' lungo (ORARI_5_cambioOrario) meno di uno
+// la 3 un paio, e il passo piu' lungo (ORARI_5_cambioOrario) meno di uno
 var _COLLAUDO_LIMITE_PASSI   = 270;   // secondi: dopo, nessun passo nuovo, e la pulizia ha tempo
 var _COLLAUDO_LIMITE_ORARI   = 300;   // secondi: le funzioni del calendario si fermano da sole entro qui
 // quanto puo' prendere ogni parte: COLLAUDO comincia una parte dopo la prima
 // solo se, con i secondi gia' passati, resta entro _COLLAUDO_LIMITE_PASSI
-var _COLLAUDO_STIMA_PARTI    = [0, 180, 90];
+var _COLLAUDO_STIMA_PARTI    = [0, 180, 90, 150];
 var _COLLAUDO_DOCENTE        = 'PROVA COLLAUDO';
 var _COLLAUDO_INIZIO         = '2026-10-12';   // un lunedi'
 var _COLLAUDO_FINE           = '2026-11-13';   // un venerdi'
@@ -142,13 +171,26 @@ var _COLLAUDO_COLORATA   = { classe: '2B', il: '2026-10-19 08:00', colore: '11' 
 var _COLLAUDO_RIUNIONE   = { titolo: 'Riunione (collaudo)', il: '2026-10-28 15:00' };        // un'ora, non di Campanella
 var _COLLAUDO_SONDA      = 'Prova del collaudo';      // la serie per le prove mai fatte: sabato 17-18, dal 17/10 al 31/10
 var _COLLAUDO_RICEVIMENTO = 'Ricevimento (collaudo)'; // parte 2: mercoledi' 15-16, dal 14/10 all'11/11
+// parte 3, i colloqui: le date le calcola _collaudoDateColloqui_, intorno a
+// oggi. Il lunedi' 2B (con l'orario nuovo il martedi'), il colore dei colloqui
+// 7 Pavone (per ORARI_6_coloraLezioni 3 Vinaccia); i link sono inventati
+var _COLLAUDO_PRIMA_3     = [{ classe: '2B', giorno: 1, da: 1, a: 2 }];
+var _COLLAUDO_DOPO_3      = [{ classe: '2B', giorno: 2, da: 1, a: 2 }];
+var _COLLAUDO_COLORI_3    = { '2B': '9' };
+var _COLLAUDO_COLORE_COLLOQUI       = '7';
+var _COLLAUDO_COLORE_COLLOQUI_NUOVO = '3';
+var _COLLAUDO_LINK = ['https://meet.google.com/abc-defg-hij', 'https://meet.google.com/kmn-pqrs-tuv',
+                      'https://meet.google.com/wxy-zabc-def'];
+var _COLLAUDO_RICEVIMENTO_3 = 'Ricevimento genitori (collaudo)';
+var _COLLAUDO_GIORNATA_3    = 'Colloqui generali (collaudo)';
+var _COLLAUDO_DIRIGENTE     = 'Colloquio con la dirigente (collaudo)';   // non e' di Campanella
 
 
 // ===========================================================================
 //  LE FUNZIONI DA ESEGUIRE
 // ===========================================================================
 function COLLAUDO() {
-  return _collaudo_('COLLAUDO', [1, 2]);
+  return _collaudo_('COLLAUDO', [1, 2, 3]);
 }
 
 function COLLAUDO_1() {
@@ -159,8 +201,12 @@ function COLLAUDO_2() {
   return _collaudo_('COLLAUDO_2', [2]);
 }
 
+function COLLAUDO_3() {
+  return _collaudo_('COLLAUDO_3', [3]);
+}
+
 /**
- * Le parti (1, 2) una dopo l'altra, con la pulizia alla fine anche se
+ * Le parti (1, 2, 3) una dopo l'altra, con la pulizia alla fine anche se
  * qualcosa va storto; torna il riepilogo. Una parte dopo la prima comincia
  * solo se ci sta nel tempo (_COLLAUDO_STIMA_PARTI): se no resta da fare, e
  * il riepilogo dice di eseguirla a parte. _ORARI_MAX_SECONDI, che il
@@ -193,7 +239,8 @@ function _collaudo_(funzione, parti) {
       var inizio = Date.now();
       try {
         if (parti[p] === 1) _collaudoParte1_(t);
-        else _collaudoParte2_(t);
+        else if (parti[p] === 2) _collaudoParte2_(t);
+        else _collaudoParte3_(t);
       } catch (err) {
         _collaudoNo_(t, 'errore inatteso nel collaudo: ' + (err && err.message), err && err.stack);
       }
@@ -637,6 +684,399 @@ function _collaudoParte2_(t) {
 
 
 // ===========================================================================
+//  PARTE 3: I COLLOQUI CON LE FAMIGLIE, INTORNO A OGGI
+// ===========================================================================
+function _collaudoParte3_(t) {
+  var fuso = Session.getScriptTimeZone(), nome = _COLLAUDO_NOME_COLLOQUI;
+  var g = _collaudoDateColloqui_();
+  _collaudoTitolo_(t, 'PARTE 3 (COLLAUDO_3): i colloqui con le famiglie nel calendario "' + nome + '", dal ' +
+                      _collaudoBreve_(g.inizio) + ' al ' + _collaudoBreve_(g.fine) + ' (oggi e\' il ' + _collaudoBreve_(g.oggi) + ')');
+  var sospensioni = [{ dal: g.senzaLezione, al: g.senzaLezione, nome: 'Giorno senza lezione (collaudo)' }];
+  var sospesi = [{ dal: g.sospesiDal, al: g.sospesiAl }];
+  // i colloqui scritti, quelli cambiati (un'ora dopo, un altro link) e quelli dell'orario nuovo (il giovedi', un terzo link)
+  var k0 = _collaudoColloquiDati_('mercoledi', '15:00', '16:00', _COLLAUDO_LINK[0], g.giornata, '16:00', '19:00', sospesi);
+  var k1 = _collaudoColloquiDati_('mercoledi', '16:00', '17:00', _COLLAUDO_LINK[1], g.giornata, '17:00', '19:00', sospesi);
+  var k2 = _collaudoColloquiDati_('giovedi', '15:00', '16:00', _COLLAUDO_LINK[2], g.fine, '15:00', '18:00', sospesi);
+  var dati = function (blocchi, validoDal, k, colore) {
+    return _collaudoDati_(nome, blocchi, _COLLAUDO_COLORI_3, validoDal,
+                          { inizio: g.inizio, fine: g.fine, sospensioni: sospensioni, colloqui: k, coloreColloqui: colore });
+  };
+  var cc = _COLLAUDO_COLORE_COLLOQUI;
+  var lezioni = _collaudoAttese_(_COLLAUDO_PRIMA_3, g.inizio, g.fine, sospensioni);
+  var a0 = _collaudoColloquiAttesi_(k0, g.inizio, g.fine, sospensioni);
+
+  // --- l'anteprima e ORARI_4_calendario, con i colloqui
+  ORARI = dati(_COLLAUDO_PRIMA_3, '', k0, cc);
+  var riga = _collaudoRigaColloqui_(a0, cc);
+  var r = _collaudoOrari_(t, 'ORARI_1_anteprima', ORARI_1_anteprima);
+  if (t.fermo) return;
+  _collaudoControlla_(t, 'ORARI_1_anteprima dice i colloqui da mettere: ' + riga,
+    !r.errore && _collaudoContiene_(r.testo, ['Colloqui da mettere con ORARI_4_calendario: ' + riga]), _collaudoPerche_(r));
+  r = _collaudoOrari_(t, 'ORARI_4_calendario', ORARI_4_calendario);
+  if (t.fermo) return;
+  var messo = _collaudoControlla_(t, 'ORARI_4_calendario mette l\'orario e i colloqui, in un calendario che crea con il fuso ' +
+    fuso, !r.errore && _collaudoContiene_(r.testo, ['Creato il calendario "' + nome + '", con il fuso orario ' + fuso,
+    'Colloqui messi: ' + riga]), _collaudoPerche_(r));
+  var cal = _collaudoCalendario_(nome);
+  if (!_collaudoControlla_(t, 'c\'e\' il calendario "' + nome + '"', !!cal)) return;
+  var lette = _collaudoLeggi_(t, cal, 'dopo ORARI_4_calendario', g.inizio, g.fine, true);
+  if (!lette) return;
+  var d = _collaudoDiff_(_collaudoVociAttese_(lezioni.lezioni, _COLLAUDO_COLORI_3), _collaudoVoci_(_collaudoNostre_(lette)));
+  _collaudoControlla_(t, 'dopo ORARI_4_calendario: le lezioni sono quelle dell\'orario (' + lezioni.lezioni.length + ', 2B il ' +
+    'lunedi\'), con il colore della classe', _collaudoNostre_(lette).length > 0 && d.uguali, _collaudoDiffTesto_(d));
+  _collaudoControllaColloqui_(t, lette, a0, cc, 'dopo ORARI_4_calendario');
+  _collaudoControllaTratti_(t, lette, a0, g);
+  if (!messo) {
+    Logger.log('Mi fermo qui con la parte 3: senza l\'orario e i colloqui messi da ORARI_4_calendario il resto non si prova.');
+    return;
+  }
+
+  // --- un colloquio che non e' di Campanella: nessuna funzione deve toccarlo
+  var inizioAltro = _collaudoIstante_(g.dirigente + ' 15:00'), fineAltro = _collaudoIstante_(g.dirigente + ' 16:00');
+  r = _collaudoPasso_(t, 'createEvent: "' + _COLLAUDO_DIRIGENTE + '", che non e\' di Campanella', function () {
+    return cal.createEvent(_COLLAUDO_DIRIGENTE, inizioAltro, fineAltro,
+                           { description: 'Evento del collaudo: non e\' di Campanella.' });
+  });
+  if (t.fermo) return;
+  if (r.errore) { _collaudoNo_(t, 'non riesco a creare "' + _COLLAUDO_DIRIGENTE + '"', r.errore.message); return; }
+  var altre = [_collaudoVoce_(_collaudoChiave_(_COLLAUDO_DIRIGENTE, inizioAltro, fineAltro), '')];
+
+  // --- ORARI_7_colloqui: il ricevimento un'ora dopo, con un altro link, da oggi
+  var oggi = _collaudoIstante_(g.oggi);
+  var primaDiOggi = _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio < oggi; });
+  var lezioniPrima = _collaudoVoci_(_collaudoNostre_(lette));
+  var a1 = _collaudoColloquiAttesi_(k1, g.oggi, g.fine, sospensioni);
+  var conti = _collaudoContiTaglio_(a0, g.oggi);
+  ORARI = dati(_COLLAUDO_PRIMA_3, '', k1, cc);
+  if (!_collaudoStessoGiorno_(t, g)) return;
+  r = _collaudoOrari_(t, 'ORARI_7_colloqui', ORARI_7_colloqui);
+  if (t.fermo) return;
+  _collaudoControlla_(t, 'ORARI_7_colloqui con il ricevimento dalle 16 alle 17 e un altro link aggiorna i colloqui da oggi: ' +
+    'ricevimenti rifatti fino a ieri ' + conti.rifatti + ', tolti ' + conti.tolti + ', giornate tolte ' + conti.giornate,
+    !r.errore && _collaudoContiene_(r.testo, [
+      'Colloqui aggiornati dal ' + g.oggi + ' nel calendario "' + nome + '"',
+      'Ricevimenti di prima rifatti fino al ' + g.ieri + ', con gli incontri come erano: ' + conti.rifatti + '\n',
+      'Ricevimenti di prima tolti (nessun incontro prima del ' + g.oggi + '): ' + conti.tolti + '\n',
+      'Giornate di colloqui tolte (dal ' + g.oggi + ' in poi): ' + conti.giornate + '\n',
+      'Colloqui dal ' + g.oggi + ': ' + _collaudoRigaColloqui_(a1, cc)]), _collaudoPerche_(r));
+  lette = _collaudoLeggi_(t, cal, 'dopo ORARI_7_colloqui', g.inizio, g.fine);
+  if (!lette) return;
+  d = _collaudoDiff_(primaDiOggi, _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio < oggi; }));
+  _collaudoControlla_(t, 'dopo ORARI_7_colloqui: gli incontri prima di oggi (' + primaDiOggi.length + ') sono rimasti come erano, ' +
+    'alla stessa ora, con il link e il colore di prima', primaDiOggi.length > 0 && d.uguali, _collaudoDiffTesto_(d));
+  var nuovi = _collaudoVociColloqui_(a1, cc);
+  d = _collaudoDiff_(nuovi, _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio >= oggi; }));
+  _collaudoControlla_(t, 'dopo ORARI_7_colloqui: da oggi ci sono proprio i colloqui nuovi (' + nuovi.length + '), un\'ora dopo, ' +
+    'con il link nuovo e il colore dei colloqui', nuovi.length > 0 && d.uguali, _collaudoDiffTesto_(d));
+  _collaudoControllaContrassegni_(t, lette, 'dopo ORARI_7_colloqui');
+  d = _collaudoDiff_(lezioniPrima, _collaudoVoci_(_collaudoNostre_(lette)));
+  var e = _collaudoDiff_(altre, _collaudoVoci_(_collaudoAltre_(lette)));
+  _collaudoControlla_(t, 'dopo ORARI_7_colloqui: le lezioni e "' + _COLLAUDO_DIRIGENTE + '", che non e\' di Campanella, sono ' +
+    'rimasti come erano', d.uguali && e.uguali, [_collaudoDiffTesto_(d), _collaudoDiffTesto_(e)].join('\n'));
+
+  // --- il cambio d'orario dal lunedi' fra due settimane, con i colloqui dell'orario nuovo
+  var V = g.validoDal, dalV = _collaudoIstante_(V), primaV = _collaudoGiorno_(_collaudoPiu_(dalV, -1));
+  var a2 = _collaudoColloquiAttesi_(k2, V, g.fine, sospensioni);
+  var riga2 = _collaudoRigaColloqui_(a2, cc);
+  ORARI = dati(_COLLAUDO_DOPO_3, V, k2, cc);
+  r = _collaudoOrari_(t, 'ORARI_1_anteprima', ORARI_1_anteprima, 'ORARI_1_anteprima con l\'orario nuovo');
+  if (t.fermo) return;
+  _collaudoControlla_(t, 'ORARI_1_anteprima con l\'orario nuovo dal ' + _collaudoBreve_(V) + ' dice che anche ORARI_7_colloqui ' +
+    'mette i colloqui nuovi da quel giorno', !r.errore && _collaudoContiene_(r.testo, ['L\'orario e\' cambiato: il nuovo vale ' +
+    'dal ' + V, 'Anche ORARI_7_colloqui, prima del ' + V + ', mette i colloqui di DatiOrari.gs da quel giorno']),
+    _collaudoPerche_(r));
+  var prima7 = _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio < dalV; });
+  lezioniPrima = _collaudoVoci_(_collaudoNostre_(lette));
+  conti = _collaudoContiTaglio_(a1, V);
+  if (!_collaudoStessoGiorno_(t, g)) return;
+  r = _collaudoOrari_(t, 'ORARI_7_colloqui', ORARI_7_colloqui, 'ORARI_7_colloqui prima del cambio d\'orario');
+  if (t.fermo) return;
+  _collaudoControlla_(t, 'ORARI_7_colloqui prima del cambio d\'orario aggiorna i colloqui dal ' + _collaudoBreve_(V) + ', e dice ' +
+    'che fino al giorno prima restano quelli dell\'orario di prima', !r.errore && _collaudoContiene_(r.testo, [
+      'Colloqui aggiornati dal ' + V + ' nel calendario "' + nome + '"', 'L\'orario nuovo vale dal ' + V,
+      'Dal ' + g.oggi + ' al ' + primaV + ' restano i colloqui dell\'orario di prima',
+      'Ricevimenti di prima rifatti fino al ' + primaV + ', con gli incontri come erano: ' + conti.rifatti + '\n',
+      'Ricevimenti di prima tolti (nessun incontro prima del ' + V + '): ' + conti.tolti + '\n',
+      'Giornate di colloqui tolte (dal ' + V + ' in poi): ' + conti.giornate + '\n', 'Colloqui dal ' + V + ': ' + riga2]),
+    _collaudoPerche_(r));
+  lette = _collaudoLeggi_(t, cal, 'dopo ORARI_7_colloqui prima del cambio', g.inizio, g.fine);
+  if (!lette) return;
+  d = _collaudoDiff_(prima7, _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio < dalV; }));
+  _collaudoControlla_(t, 'e fino al ' + _collaudoBreve_(primaV) + ' i colloqui sono rimasti come erano (anche quelli da oggi, con ' +
+    'il link di prima)', prima7.length > 0 && d.uguali, _collaudoDiffTesto_(d));
+  var dopoV = _collaudoVociColloqui_(a2, cc);
+  d = _collaudoDiff_(dopoV, _collaudoVoci_(_collaudoColloqui_(lette), function (l) { return l.inizio >= dalV; }));
+  _collaudoControlla_(t, 'e dal ' + _collaudoBreve_(V) + ' ci sono i colloqui dell\'orario nuovo (' + dopoV.length + ', il ' +
+    'ricevimento il giovedi\' con il terzo link)', dopoV.length > 0 && d.uguali, _collaudoDiffTesto_(d));
+  d = _collaudoDiff_(lezioniPrima, _collaudoVoci_(_collaudoNostre_(lette)));
+  _collaudoControlla_(t, 'e le lezioni sono ancora quelle dell\'orario di prima, anche dal ' + _collaudoBreve_(V) + ' (le cambia ' +
+    'ORARI_5_cambioOrario)', d.uguali, _collaudoDiffTesto_(d));
+
+  var colloquiDopo7 = _collaudoVoci_(_collaudoColloqui_(lette));
+  lezioniPrima = _collaudoVoci_(_collaudoNostre_(lette), function (l) { return l.inizio < dalV; });
+  var rifatte = 0;
+  for (var k = 0; k < lezioni.tratti.length; k++) {
+    var lz = lezioni.tratti[k].lezioni;
+    if (lz[0].inizio < dalV && lz[lz.length - 1].inizio >= dalV) rifatte++;
+  }
+  var nuove = _collaudoAttese_(_COLLAUDO_DOPO_3, V, g.fine, sospensioni);
+  r = _collaudoOrari_(t, 'ORARI_5_cambioOrario', ORARI_5_cambioOrario);
+  if (t.fermo) return;
+  _collaudoControlla_(t, 'ORARI_5_cambioOrario cambia l\'orario dal ' + _collaudoBreve_(V) + ' (serie rifatte fino al giorno ' +
+    'prima: ' + rifatte + ') e dice i colloqui da quel giorno', !r.errore && _collaudoContiene_(r.testo, [
+      'Cambio d\'orario dal ' + V + ' nel calendario "' + nome + '"',
+      'Serie dell\'orario di prima rifatte fino al ' + primaV + ', con le lezioni come erano: ' + rifatte + '\n',
+      'Colloqui dal ' + V + ': ' + riga2]), _collaudoPerche_(r));
+  lette = _collaudoLeggi_(t, cal, 'dopo ORARI_5_cambioOrario', g.inizio, g.fine);
+  if (!lette) return;
+  d = _collaudoDiff_(lezioniPrima.concat(_collaudoVociAttese_(nuove.lezioni, _COLLAUDO_COLORI_3)),
+                     _collaudoVoci_(_collaudoNostre_(lette)));
+  _collaudoControlla_(t, 'dopo ORARI_5_cambioOrario: le lezioni prima del ' + _collaudoBreve_(V) + ' sono rimaste, e da quel giorno ' +
+    'c\'e\' l\'orario nuovo (2B il martedi\', ' + nuove.lezioni.length + ' lezioni)', nuove.lezioni.length > 0 && d.uguali,
+    _collaudoDiffTesto_(d));
+  d = _collaudoDiff_(colloquiDopo7, _collaudoVoci_(_collaudoColloqui_(lette)));
+  e = _collaudoDiff_(altre, _collaudoVoci_(_collaudoAltre_(lette)));
+  _collaudoControlla_(t, 'dopo ORARI_5_cambioOrario: i colloqui sono come li ha lasciati ORARI_7_colloqui, e "' +
+    _COLLAUDO_DIRIGENTE + '" com\'era', d.uguali && e.uguali, [_collaudoDiffTesto_(d), _collaudoDiffTesto_(e)].join('\n'));
+  _collaudoControllaContrassegni_(t, lette, 'dopo ORARI_5_cambioOrario');
+
+  // --- un altro colore dei colloqui: ORARI_6_coloraLezioni
+  var nuovo = _COLLAUDO_COLORE_COLLOQUI_NUOVO;
+  ORARI = dati(_COLLAUDO_DOPO_3, V, k2, nuovo);
+  var chiaviPrima6 = _collaudoCampo_(_collaudoTutte_(lette), 'chiave');
+  var lezioniPrima6 = _collaudoVoci_(_collaudoNostre_(lette));
+  r = _collaudoOrari_(t, 'ORARI_6_coloraLezioni', ORARI_6_coloraLezioni);
+  if (t.fermo) return;
+  lette = _collaudoLeggi_(t, cal, 'dopo ORARI_6_coloraLezioni', g.inizio, g.fine);
+  if (!lette) return;
+  var colloqui = _collaudoColloqui_(lette), male = [];
+  for (var c = 0; c < colloqui.length; c++) if (colloqui[c].colore !== nuovo) male.push(colloqui[c].voce);
+  _collaudoControlla_(t, 'ORARI_6_coloraLezioni da\' a tutti i colloqui (' + colloqui.length + ', anche quelli prima di oggi e ' +
+    'quelli rifatti) il colore nuovo dei colloqui, ' + _orariNomeColore_(nuovo), !r.errore && colloqui.length > 0 && !male.length,
+    r.errore ? _collaudoPerche_(r) : 'con un altro colore: ' + _collaudoElenco_(male));
+  d = _collaudoDiff_(lezioniPrima6, _collaudoVoci_(_collaudoNostre_(lette)));
+  e = _collaudoDiff_(chiaviPrima6, _collaudoCampo_(_collaudoTutte_(lette), 'chiave'));
+  _collaudoControlla_(t, 'e le lezioni restano con il colore della loro classe, e niente e\' spostato, aggiunto o tolto',
+    d.uguali && e.uguali, [_collaudoDiffTesto_(d), _collaudoDiffTesto_(e)].join('\n'));
+
+  // --- via tutto
+  r = _collaudoOrari_(t, 'ORARI_ANNULLA_calendario', ORARI_ANNULLA_calendario);
+  if (t.fermo) return;
+  lette = _collaudoLeggi_(t, cal, 'dopo ORARI_ANNULLA_calendario', g.inizio, g.fine);
+  if (!lette) return;
+  var restano = _collaudoVoci_(_collaudoNostre_(lette)).concat(_collaudoVoci_(_collaudoColloqui_(lette)));
+  _collaudoControlla_(t, 'ORARI_ANNULLA_calendario toglie tutte le lezioni e tutti i colloqui di Campanella',
+    !r.errore && !restano.length, r.errore ? _collaudoPerche_(r) : 'restano: ' + _collaudoElenco_(restano));
+  e = _collaudoDiff_(altre, _collaudoVoci_(_collaudoAltre_(lette)));
+  _collaudoControlla_(t, 'e lascia "' + _COLLAUDO_DIRIGENTE + '", che non e\' di Campanella', e.uguali, _collaudoDiffTesto_(e));
+}
+
+/**
+ * Le date della parte 3 ("aaaa-mm-gg", nel fuso dello script), intorno a
+ * oggi: il periodo dal lunedi' di due settimane fa al venerdi' fra tre
+ * settimane; il giorno senza lezione e' il mercoledi' della settimana scorsa,
+ * i colloqui sono sospesi la settimana fra due (da lunedi' a venerdi'), con
+ * la giornata di colloqui il giovedi' di quella settimana; l'orario nuovo
+ * vale dal lunedi' fra due settimane; il colloquio con la dirigente e' il
+ * giovedi' della settimana prossima.
+ */
+function _collaudoDateColloqui_() {
+  var adesso = new Date();
+  var oggi = new Date(adesso.getFullYear(), adesso.getMonth(), adesso.getDate());
+  var lunedi = _collaudoPiu_(oggi, -((oggi.getDay() + 6) % 7));    // il lunedi' di questa settimana
+  var giorno = function (n) { return _collaudoGiorno_(_collaudoPiu_(lunedi, n)); };
+  return { oggi: _collaudoGiorno_(oggi), ieri: _collaudoGiorno_(_collaudoPiu_(oggi, -1)), inizio: giorno(-14), fine: giorno(25),
+           senzaLezione: giorno(-5), sospesiDal: giorno(14), sospesiAl: giorno(18), giornata: giorno(17), validoDal: giorno(14),
+           dirigente: giorno(10) };
+}
+
+/** I colloqui come li scrive Campanella in DatiOrari.gs: il ricevimento settimanale, una giornata, i periodi senza colloqui. */
+function _collaudoColloquiDati_(giorno, dalle, alle, link, giornata, dalleGiornata, alleGiornata, sospesi) {
+  return {
+    settimanali: [{ giorno: giorno, dalle: dalle, alle: alle, dal: '', al: '', nome: _COLLAUDO_RICEVIMENTO_3, link: link }],
+    singoli: [{ data: giornata, dalle: dalleGiornata, alle: alleGiornata, nome: _COLLAUDO_GIORNATA_3, link: link }],
+    sospensioni: sospesi
+  };
+}
+
+/**
+ * I colloqui attesi (k come in DatiOrari.gs) dal giorno "dal" alla fine,
+ * calcolati qui senza le funzioni di Orari.gs: gli incontri del ricevimento
+ * ogni settimana, senza i giorni senza lezione (sospensioni) e quelli senza
+ * colloqui (k.sospensioni), a tratti di settimane (una serie ciascuno); le
+ * giornate da "dal" in poi. Ogni incontro con titolo, inizio, fine, luogo (il
+ * link), giorno, singolo e chiave; i conti come nei messaggi di Orari.gs.
+ */
+function _collaudoColloquiAttesi_(k, dal, fine, sospensioni) {
+  var nomi = ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'];
+  var a = { incontri: [], chiavi: [], perChiave: {}, tratti: [], settimanali: k.settimanali.length, nSettimanali: 0,
+            singoli: 0, saltati: 0 };
+  var metti = function (x, giorno, singolo) {
+    var l = { titolo: x.nome, inizio: _collaudoIstante_(giorno + ' ' + x.dalle), fine: _collaudoIstante_(giorno + ' ' + x.alle),
+              luogo: x.link, giorno: giorno, singolo: singolo };
+    l.chiave = _collaudoChiave_(l.titolo, l.inizio, l.fine);
+    a.incontri.push(l);
+    a.chiavi.push(l.chiave);
+    a.perChiave[l.chiave] = l;
+  };
+  var ultimo = _collaudoIstante_(fine);
+  for (var i = 0; i < k.settimanali.length; i++) {
+    var w = k.settimanali[i], n = nomi.indexOf(w.giorno), tratto = null;
+    for (var g = _collaudoIstante_(dal); g <= ultimo; g = _collaudoPiu_(g, 1)) {
+      if (g.getDay() !== n) continue;
+      if (_collaudoSospeso_(g, sospensioni) || _collaudoSospeso_(g, k.sospensioni)) { a.saltati++; tratto = null; continue; }
+      var giorno = _collaudoGiorno_(g);
+      if (!tratto) { tratto = { giorni: [] }; a.tratti.push(tratto); }
+      tratto.giorni.push(giorno);
+      metti(w, giorno, false);
+      a.nSettimanali++;
+    }
+  }
+  for (var j = 0; j < k.singoli.length; j++) {
+    if (k.singoli[j].data < dal || k.singoli[j].data > fine) continue;
+    metti(k.singoli[j], k.singoli[j].data, true);
+    a.singoli++;
+  }
+  return a;
+}
+
+/** Le voci dei colloqui attesi, con il colore dato e il loro link. */
+function _collaudoVociColloqui_(attesi, colore) {
+  var v = [];
+  for (var i = 0; i < attesi.incontri.length; i++) {
+    v.push(_collaudoVoce_(attesi.incontri[i].chiave, colore, attesi.incontri[i].luogo));
+  }
+  return v;
+}
+
+/**
+ * La riga dei colloqui dei messaggi di Orari.gs, per i colloqui attesi:
+ * "1 ricevimento settimanale (3 serie, 4 incontri), 1 giornata singola; 2
+ * incontri saltati nei giorni senza lezione o senza colloqui. Colore dei
+ * colloqui: Pavone."
+ */
+function _collaudoRigaColloqui_(a, colore) {
+  return (a.settimanali === 1 ? '1 ricevimento settimanale' : a.settimanali + ' ricevimenti settimanali') + ' (' +
+    a.tratti.length + ' serie, ' + a.nSettimanali + ' incontri), ' +
+    (a.singoli === 1 ? '1 giornata singola' : a.singoli + ' giornate singole') +
+    (a.saltati ? '; ' + a.saltati + ' incontri saltati nei giorni senza lezione o senza colloqui' : '') +
+    '. Colore dei colloqui: ' + _orariNomeColore_(colore) + '.';
+}
+
+/**
+ * Per i messaggi di ORARI_7_colloqui (come per il cambio d'orario): dei
+ * colloqui attesi, i ricevimenti (i tratti) che hanno incontri prima di
+ * "dal" e da "dal" in poi (rifatti fino al giorno prima), quelli tutti da
+ * "dal" in poi (tolti) e le giornate da "dal" in poi (tolte).
+ */
+function _collaudoContiTaglio_(attesi, dal) {
+  var c = { rifatti: 0, tolti: 0, giornate: 0 };
+  for (var i = 0; i < attesi.tratti.length; i++) {
+    var giorni = attesi.tratti[i].giorni;
+    if (giorni[0] >= dal) c.tolti++;
+    else if (giorni[giorni.length - 1] >= dal) c.rifatti++;
+  }
+  for (var k = 0; k < attesi.incontri.length; k++) if (attesi.incontri[k].singolo && attesi.incontri[k].giorno >= dal) c.giornate++;
+  return c;
+}
+
+/** Vero se oggi e' ancora il giorno delle date della parte 3; se no un NO: ORARI_7_colloqui aggiorna da oggi. */
+function _collaudoStessoGiorno_(t, g) {
+  var adesso = _collaudoGiorno_(new Date());
+  if (adesso === g.oggi) return true;
+  _collaudoNo_(t, 'il giorno e\' cambiato durante la parte 3 (era il ' + g.oggi + ', adesso e\' il ' + adesso + '): ' +
+    'ORARI_7_colloqui aggiorna da oggi, e i controlli non tornerebbero', 'Riesegui COLLAUDO_3.');
+  return false;
+}
+
+/**
+ * I colloqui letti dal calendario sono quelli attesi, tutti e soli (con il
+ * titolo scritto), ognuno con il suo link come luogo, il colore dei colloqui,
+ * il loro contrassegno e la descrizione di Campanella con il link. Senza
+ * colloqui ogni controllo e' NO.
+ */
+function _collaudoControllaColloqui_(t, lette, attesi, colore, quando) {
+  var colloqui = _collaudoColloqui_(lette);
+  var vuoto = 'nessun colloquio di Campanella nel calendario';
+  var d = _collaudoDiff_(attesi.chiavi, _collaudoCampo_(colloqui, 'chiave'));
+  _collaudoControlla_(t, quando + ': i colloqui sono proprio quelli scritti (' + attesi.nSettimanali + ' incontri del ' +
+    'ricevimento e ' + attesi.singoli + ' giornata), con il titolo scritto, nessuno in piu\' ne\' in meno',
+    colloqui.length > 0 && d.uguali, colloqui.length ? _collaudoDiffTesto_(d) : vuoto);
+  var male = [], link = [];
+  for (var i = 0; i < colloqui.length; i++) {
+    var a = attesi.perChiave[colloqui[i].chiave];
+    if (a && colloqui[i].luogo !== a.luogo) male.push(colloqui[i].chiave + ' @ ' + (colloqui[i].luogo || '(nessun luogo)'));
+  }
+  for (var k = 0; k < attesi.incontri.length; k++) if (link.indexOf(attesi.incontri[k].luogo) < 0) link.push(attesi.incontri[k].luogo);
+  _collaudoControlla_(t, quando + ': ogni colloquio ha come luogo il suo link del Meet (' + link.join(', ') + ')',
+    colloqui.length > 0 && !male.length, colloqui.length ? 'con un altro luogo: ' + _collaudoElenco_(male) : vuoto);
+  male = [];
+  for (var c = 0; c < colloqui.length; c++) if (colloqui[c].colore !== colore) male.push(colloqui[c].voce);
+  _collaudoControlla_(t, quando + ': ogni colloquio ha il colore dei colloqui (' + _orariNomeColore_(colore) + ')',
+    colloqui.length > 0 && !male.length, colloqui.length ? 'con un altro colore (fra le quadre): ' + _collaudoElenco_(male) : vuoto);
+  _collaudoControllaContrassegni_(t, lette, quando);
+}
+
+/** Ogni colloquio ha il contrassegno dei colloqui e la descrizione che comincia con [Campanella] Colloqui e dice il suo link. */
+function _collaudoControllaContrassegni_(t, lette, quando) {
+  var colloqui = _collaudoColloqui_(lette), male = [];
+  for (var i = 0; i < colloqui.length; i++) {
+    var x = colloqui[i];
+    if (x.tag !== _ORARI_TAG_COLLOQUIO) male.push(x.chiave + ': senza il contrassegno dei colloqui');
+    else if (x.descrizione.indexOf(_ORARI_INIZIO_COLLOQUI) !== 0) male.push(x.chiave + ': la descrizione non comincia con "' +
+                                                                           _ORARI_INIZIO_COLLOQUI + '"');
+    else if (x.luogo && x.descrizione.indexOf(x.luogo) < 0) male.push(x.chiave + ': la descrizione non dice il link');
+  }
+  _collaudoControlla_(t, quando + ': ogni colloquio (' + colloqui.length + ') ha il contrassegno dei colloqui e la descrizione ' +
+    'di Campanella, con il suo link', colloqui.length > 0 && !male.length,
+    colloqui.length ? _collaudoElenco_(male) : 'nessun colloquio di Campanella nel calendario');
+}
+
+/**
+ * Dopo ORARI_4_calendario (letto con le serie): nessun incontro del
+ * ricevimento nel giorno senza lezione e nella settimana senza colloqui, la
+ * giornata c'e' anche li'; il ricevimento e' una serie per ogni tratto di
+ * settimane, la giornata un evento singolo.
+ */
+function _collaudoControllaTratti_(t, lette, attesi, g) {
+  var colloqui = _collaudoColloqui_(lette), saltati = [], giornata = false;
+  var fermi = [{ dal: g.senzaLezione, al: g.senzaLezione }, { dal: g.sospesiDal, al: g.sospesiAl }];
+  for (var i = 0; i < colloqui.length; i++) {
+    if (colloqui[i].titolo === _COLLAUDO_GIORNATA_3) giornata = giornata || _collaudoGiorno_(colloqui[i].inizio) === g.giornata;
+    else if (_collaudoSospeso_(colloqui[i].inizio, fermi)) saltati.push(colloqui[i].chiave);
+  }
+  _collaudoControlla_(t, 'dopo ORARI_4_calendario: nessun incontro del ricevimento il ' + _collaudoBreve_(g.senzaLezione) +
+    ' (giorno senza lezione) ne\' dal ' + _collaudoBreve_(g.sospesiDal) + ' al ' + _collaudoBreve_(g.sospesiAl) + ' (colloqui ' +
+    'sospesi); la giornata del ' + _collaudoBreve_(g.giornata) + ', in quei giorni, c\'e\'', colloqui.length > 0 &&
+    !saltati.length && giornata, saltati.length ? 'ci sono: ' + _collaudoElenco_(saltati) : 'manca la giornata');
+  var gruppi = {}, ordine = [], male = [];
+  for (var k = 0; k < colloqui.length; k++) {
+    var x = colloqui[k], a = attesi.perChiave[x.chiave];
+    if (!a) continue;                        // un colloquio in piu': lo dice gia' il controllo di prima
+    if (a.singolo) {
+      if (x.ricorrente) male.push(x.chiave + ': e\' in una serie, non un evento singolo');
+      continue;
+    }
+    if (!x.ricorrente || !x.serie) { male.push(x.chiave + ': non e\' in una serie'); continue; }
+    if (!gruppi[x.serie]) { gruppi[x.serie] = []; ordine.push(x.serie); }
+    gruppi[x.serie].push(_collaudoBreve_(a.giorno));
+  }
+  var trovati = [], tratti = [];
+  for (var s = 0; s < ordine.length; s++) trovati.push(gruppi[ordine[s]].join(', '));
+  for (var n = 0; n < attesi.tratti.length; n++) {
+    var v = [];
+    for (var m = 0; m < attesi.tratti[n].giorni.length; m++) v.push(_collaudoBreve_(attesi.tratti[n].giorni[m]));
+    tratti.push(v.join(', '));
+  }
+  var d = _collaudoDiff_(tratti, trovati);
+  _collaudoControlla_(t, 'dopo ORARI_4_calendario: il ricevimento e\' a tratti, una serie per ogni tratto di settimane (' +
+    tratti.length + ': ' + tratti.join('; ') + '), e la giornata e\' un evento singolo', trovati.length > 0 && d.uguali &&
+    !male.length, [d.uguali ? '' : 'serie attese: ' + tratti.join('; ') + '\nserie trovate: ' + trovati.join('; '),
+    male.join('; ')].join('\n'));
+}
+
+
+// ===========================================================================
 //  I CONTROLLI SULLE LEZIONI
 // ===========================================================================
 /**
@@ -749,16 +1189,17 @@ function _collaudoControllaModifica_(t, cal, cosa, descrizione, attese, altre) {
  * Le lezioni di un orario (blocchi) dal giorno "dal" alla fine del periodo,
  * senza i giorni senza lezione: ognuna con titolo, inizio, fine e chiave. Poi
  * i tratti di settimane senza interruzioni (una serie ciascuno), quante serie
- * e quante lezioni saltate.
+ * e quante lezioni saltate. Di partenza la fine e i giorni senza lezione sono
+ * quelli delle parti 1 e 2.
  */
-function _collaudoAttese_(blocchi, dal) {
+function _collaudoAttese_(blocchi, dal, fine, sospensioni) {
   var fuori = { lezioni: [], chiavi: [], tratti: [], serie: 0, saltate: 0 };
-  var inizio = _collaudoIstante_(dal), fine = _collaudoIstante_(_COLLAUDO_FINE);
+  var inizio = _collaudoIstante_(dal), ultimo = _collaudoIstante_(fine || _COLLAUDO_FINE);
   for (var b = 0; b < blocchi.length; b++) {
     var x = blocchi[b], tratto = null;
-    for (var g = inizio; g <= fine; g = new Date(g.getFullYear(), g.getMonth(), g.getDate() + 1)) {
+    for (var g = inizio; g <= ultimo; g = new Date(g.getFullYear(), g.getMonth(), g.getDate() + 1)) {
       if (g.getDay() !== x.giorno) continue;
-      if (_collaudoSospeso_(g)) { fuori.saltate++; tratto = null; continue; }
+      if (_collaudoSospeso_(g, sospensioni)) { fuori.saltate++; tratto = null; continue; }
       if (!tratto) { tratto = { classe: x.classe, lezioni: [] }; fuori.tratti.push(tratto); }
       var giorno = _collaudoGiorno_(g);
       var l = { titolo: x.classe, inizio: _collaudoIstante_(giorno + ' ' + _COLLAUDO_ORE[x.da - 1]),
@@ -804,9 +1245,12 @@ function _collaudoCambiaVoce_(voci, chiave, nuova) {
  * I dati degli orari come li genera Campanella per un orario del collaudo:
  * quelli "del tuo orario" (AnalisiOrario.GeneraDatiDelDocenteGs), un docente
  * solo e niente orari delle classi, oggetti o nota delle email, che vanno
- * bene a Calendario.gs e a Orari.gs; niente colloqui.
+ * bene a Calendario.gs e a Orari.gs. In piu' (se ci sono): inizio e fine
+ * del periodo, giorni senza lezione, colloqui e il loro colore; se no quelli
+ * delle parti 1 e 2, senza colloqui.
  */
-function _collaudoDati_(nome, blocchi, colori, validoDal) {
+function _collaudoDati_(nome, blocchi, colori, validoDal, piu) {
+  piu = piu || {};
   var celle = [];
   for (var i = 0; i < _COLLAUDO_GIORNI.length * _COLLAUDO_ORE.length; i++) celle.push('');
   for (var b = 0; b < blocchi.length; b++) {
@@ -816,19 +1260,18 @@ function _collaudoDati_(nome, blocchi, colori, validoDal) {
   }
   var c = {};
   for (var k in colori) c[k] = colori[k];
-  var sospensioni = [];
-  for (var s = 0; s < _COLLAUDO_SOSPENSIONI.length; s++) {
-    sospensioni.push({ dal: _COLLAUDO_SOSPENSIONI[s].dal, al: _COLLAUDO_SOSPENSIONI[s].al, nome: _COLLAUDO_SOSPENSIONI[s].nome });
-  }
+  var sospensioni = [], da = piu.sospensioni || _COLLAUDO_SOSPENSIONI;
+  for (var s = 0; s < da.length; s++) sospensioni.push({ dal: da[s].dal, al: da[s].al, nome: da[s].nome });
+  var colloqui = piu.colloqui || { settimanali: [], singoli: [], sospensioni: [] };
   return {
     periodo: 'collaudo',
     ore: _COLLAUDO_ORE.length,
     giorni: _COLLAUDO_GIORNI.slice(0),
     docenti: [{ nome: _COLLAUDO_DOCENTE, celle: celle }],
     calendario: {
-      docente: _COLLAUDO_DOCENTE, nome: nome, inizio: _COLLAUDO_INIZIO, fine: _COLLAUDO_FINE, minutiOra: 60,
-      inizioOre: _COLLAUDO_ORE.slice(0), colore: '', colori: c, sospensioni: sospensioni,
-      colloqui: { settimanali: [], singoli: [], sospensioni: [] }, coloreColloqui: '', validoDal: validoDal
+      docente: _COLLAUDO_DOCENTE, nome: nome, inizio: piu.inizio || _COLLAUDO_INIZIO, fine: piu.fine || _COLLAUDO_FINE,
+      minutiOra: 60, inizioOre: _COLLAUDO_ORE.slice(0), colore: '', colori: c, sospensioni: sospensioni,
+      colloqui: JSON.parse(JSON.stringify(colloqui)), coloreColloqui: piu.coloreColloqui || '', validoDal: validoDal
     }
   };
 }
@@ -842,8 +1285,12 @@ function _collaudoDati_(nome, blocchi, colori, validoDal) {
  * inizio, fine, colore ('' = quello del calendario), se e' di Campanella
  * (il contrassegno, o la descrizione che comincia con [Campanella]), se sta
  * in una serie e, con conSerie, quale; chiave ("2026-10-26 08:00-10:00 2B")
- * e voce (la chiave con il colore fra le quadre). Ogni lettura costa tempo,
- * con Google: solo quello che serve (la descrizione solo senza contrassegno).
+ * e voce (la chiave con il colore fra le quadre). Un colloquio con le
+ * famiglie (colloquio: il contrassegno dei colloqui, o senza la descrizione
+ * che comincia con [Campanella] Colloqui) ha anche la descrizione e il luogo,
+ * che va nella voce ("... [7] @ https://..."). Ogni lettura costa tempo, con
+ * Google: solo quello che serve (la descrizione solo senza contrassegno e
+ * per i colloqui, il luogo solo per loro).
  */
 function _collaudoLezioni_(cal, dal, al, conSerie) {
   var eventi = cal.getEvents(_collaudoIstante_(dal), _collaudoFineGiorno_(al));
@@ -851,23 +1298,33 @@ function _collaudoLezioni_(cal, dal, al, conSerie) {
   for (var i = 0; i < eventi.length; i++) {
     var ev = eventi[i];
     var l = { titolo: String(ev.getTitle() || ''), inizio: ev.getStartTime(), fine: ev.getEndTime(), colore: '',
-              contrassegno: false, nostra: false, ricorrente: false, serie: '' };
+              contrassegno: false, colloquio: false, nostra: false, ricorrente: false, serie: '', tag: '',
+              descrizione: '', luogo: '' };
     // un colore che non e' da "1" a "11" vale come quello del calendario, come per Orari.gs
     try {
       var colore = String(ev.getColor() || '').replace(/^\s+|\s+$/g, '');
       l.colore = /^(?:[1-9]|1[01])$/.test(colore) ? colore : '';
     } catch (e) { l.colore = '?'; }
-    try { l.contrassegno = (ev.getTag(_ORARI_TAG) === _ORARI_TAG_VALORE); } catch (e2) { l.contrassegno = false; }
-    l.nostra = l.contrassegno;
-    if (!l.nostra) {
-      try { l.nostra = String(ev.getDescription() || '').indexOf('[Campanella]') === 0; } catch (e3) { l.nostra = false; }
+    try { l.tag = String(ev.getTag(_ORARI_TAG) || ''); } catch (e2) { l.tag = ''; }
+    l.contrassegno = (l.tag === _ORARI_TAG_VALORE);
+    l.colloquio = (l.tag === _ORARI_TAG_COLLOQUIO);
+    l.nostra = l.contrassegno || l.colloquio;
+    if (!l.nostra || l.colloquio) {
+      try { l.descrizione = String(ev.getDescription() || ''); } catch (e3) { l.descrizione = ''; }
+    }
+    if (!l.nostra && l.descrizione.indexOf('[Campanella]') === 0) {
+      l.nostra = true;
+      l.colloquio = (l.descrizione.indexOf(_ORARI_INIZIO_COLLOQUI) === 0);
+    }
+    if (l.colloquio) {
+      try { l.luogo = String(ev.getLocation() || ''); } catch (e6) { l.luogo = '?'; }
     }
     try { l.ricorrente = !!ev.isRecurringEvent(); } catch (e4) { l.ricorrente = false; }
     if (conSerie && l.ricorrente) {
       try { l.serie = String(ev.getEventSeries().getId()); } catch (e5) { l.serie = ''; }
     }
     l.chiave = _collaudoChiave_(l.titolo, l.inizio, l.fine);
-    l.voce = _collaudoVoce_(l.chiave, l.colore);
+    l.voce = _collaudoVoce_(l.chiave, l.colore, l.luogo);
     fuori.push(l);
   }
   fuori.sort(function (a, b) { return (a.inizio - b.inizio) || (a.voce < b.voce ? -1 : (a.voce > b.voce ? 1 : 0)); });
@@ -896,10 +1353,17 @@ function _collaudoTrova_(cal, titolo, inizio) {
   return null;
 }
 
-/** Le lezioni di Campanella. */
+/** Le lezioni di Campanella (senza i colloqui). */
 function _collaudoNostre_(lette) {
   var v = [];
-  for (var i = 0; i < lette.length; i++) if (lette[i].nostra) v.push(lette[i]);
+  for (var i = 0; i < lette.length; i++) if (lette[i].nostra && !lette[i].colloquio) v.push(lette[i]);
+  return v;
+}
+
+/** I colloqui con le famiglie messi da Campanella. */
+function _collaudoColloqui_(lette) {
+  var v = [];
+  for (var i = 0; i < lette.length; i++) if (lette[i].nostra && lette[i].colloquio) v.push(lette[i]);
   return v;
 }
 
@@ -1019,18 +1483,24 @@ function _collaudoChiave_(titolo, inizio, fine) {
   return _collaudoFormato_(inizio, 'yyyy-MM-dd HH:mm') + '-' + _collaudoFormato_(fine, 'HH:mm') + ' ' + titolo;
 }
 
-/** "2026-10-26 08:00-10:00 2B [9]": la chiave con il colore ("-" = quello del calendario). */
-function _collaudoVoce_(chiave, colore) {
-  return chiave + ' [' + (colore || '-') + ']';
+/**
+ * "2026-10-26 08:00-10:00 2B [9]": la chiave con il colore ("-" = quello del
+ * calendario); con il luogo, se c'e', in fondo ("... [7] @ https://...").
+ */
+function _collaudoVoce_(chiave, colore, luogo) {
+  return chiave + ' [' + (colore || '-') + ']' + (luogo ? ' @ ' + luogo : '');
 }
 
-/** Vero se il giorno (una Date) e' fra quelli senza lezione. */
-function _collaudoSospeso_(g) {
-  var giorno = _collaudoGiorno_(g);
-  for (var i = 0; i < _COLLAUDO_SOSPENSIONI.length; i++) {
-    if (_COLLAUDO_SOSPENSIONI[i].dal <= giorno && giorno <= _COLLAUDO_SOSPENSIONI[i].al) return true;
-  }
+/** Vero se il giorno (una Date) e' fra quelli dati ({ dal, al }), di partenza i giorni senza lezione delle parti 1 e 2. */
+function _collaudoSospeso_(g, sospensioni) {
+  var giorno = _collaudoGiorno_(g), s = sospensioni || _COLLAUDO_SOSPENSIONI;
+  for (var i = 0; i < s.length; i++) if (s[i].dal <= giorno && giorno <= (s[i].al || s[i].dal)) return true;
   return false;
+}
+
+/** Il giorno g (una Date) piu' n giorni, a mezzanotte. */
+function _collaudoPiu_(g, n) {
+  return new Date(g.getFullYear(), g.getMonth(), g.getDate() + n);
 }
 
 /** "20/10, 06/11". */
@@ -1099,7 +1569,7 @@ function _collaudoPasso_(t, nome, fa) {
     t.fermo = true;
     _collaudoNo_(t, 'tempo: sono passati ' + gia.toFixed(0) + ' secondi e Google ferma uno script dopo 360, quindi mi fermo ' +
       'prima di "' + nome + '"; il resto non l\'ho provato',
-      t.funzione === 'COLLAUDO' ? 'Esegui le parti una alla volta: COLLAUDO_1 e COLLAUDO_2.'
+      t.funzione === 'COLLAUDO' ? 'Esegui le parti una alla volta: COLLAUDO_1, COLLAUDO_2 e COLLAUDO_3.'
                                 : 'Google e\' stato piu\' lento del solito: riesegui ' + t.funzione + ' piu\' tardi.');
     return { saltato: true, valore: undefined, errore: null };
   }
