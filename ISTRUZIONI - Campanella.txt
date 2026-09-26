@@ -837,5 +837,6 @@ I FILE
 
 PER CHI SVILUPPA CAMPANELLA (ai docenti non serve)
 Il calendario degli Orari si collauda dal vivo con test\collaudo\ del codice
-sorgente: Collaudo_calendario.gs, con solo Orari.gs, in un progetto Apps
-Script di prova (come si usa: in cima al file).
+sorgente: Collaudo_calendario.gs, con Calendario.gs (o con Orari.gs), in un
+progetto Apps Script di prova, anche nell'account personale (come si usa: in
+cima al file).

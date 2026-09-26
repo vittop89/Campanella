@@ -173,7 +173,7 @@ pubblicare:
 ```powershell
 node test\mock_apps_script.js     # riordino della posta: prova, etichette, ripresa, annulla
 node test\mock_orari.js           # email degli orari, ripresa, orari delle classi, calendario: fuso orario, giorni senza lezione, ripresa, cambio d'orario, colloqui e ORARI_7_colloqui; accanto alla Posta e al file di una classe
-node test\collaudo\prova_locale.js # il collaudo del calendario con il finto calendario di mock_orari.js: tutto OK, NO se Google o Orari.gs sbagliano, pulizia sempre
+node test\collaudo\prova_locale.js # il collaudo del calendario con Calendario.gs e con Orari.gs, sul finto calendario di mock_orari.js: niente permessi in più di Calendario.gs, tutto OK anche con i colloqui, NO se Google o lo script sbagliano, pulizia sempre entro i 6 minuti
 node test\prova_solo_calendario.js # Calendario.gs per un altro account: niente servizi di posta, Gmail o indirizzo, solo le funzioni del calendario, il banco del calendario con i dati di un docente solo
 node test\mock_moduli.js          # moduli: foglio dell'anno, collegamento, chiusura, due anni di fila
 node test\mock_pannello.js        # il foglio di controllo per più moduli
@@ -209,9 +209,11 @@ e basta: va lanciata prima di creare il tag di un rilascio.
 `genera_dati_prova.ps1` non è una prova: scrive in `%TEMP%` un
 `DatiOrari_prova.gs` a partire da un tabellone.
 Il calendario degli Orari si collauda anche dal vivo, su Google:
-`test\collaudo\Collaudo_calendario.gs` va incollato con `Orari.gs` in un
-progetto Apps Script di prova, e la funzione `COLLAUDO` scrive nel registro
-una riga OK o NO per ogni controllo (come si usa: in cima al file).
+`test\collaudo\Collaudo_calendario.gs` va incollato con `Calendario.gs` (o
+con `Orari.gs`) in un progetto Apps Script di prova, anche nell'account
+personale, e la funzione `COLLAUDO` scrive nel registro una riga OK o NO per
+ogni controllo, colloqui con le famiglie compresi (come si usa: in cima al
+file).
 
 Per cambiare le condizioni d'uso si modificano insieme
 `installer\CONDIZIONI-it.txt`, `installer\CONDIZIONI-en.txt` e

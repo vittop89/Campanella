@@ -173,7 +173,7 @@ on every push and pull request, and the release workflow before publishing:
 ```powershell
 node test\mock_apps_script.js     # mail sorting: trial mode, labels, resume, undo
 node test\mock_orari.js           # timetable emails, resume, class timetables, calendar: time zone, days without lessons, resume, timetable change, parents' meetings and ORARI_7_colloqui; next to the mail script and a class file
-node test\collaudo\prova_locale.js # the calendar acceptance test on the fake calendar of mock_orari.js: all OK, NO when Google or Orari.gs get it wrong, always cleans up
+node test\collaudo\prova_locale.js # the calendar acceptance test with Calendario.gs and with Orari.gs, on the fake calendar of mock_orari.js: no permission beyond Calendario.gs, all OK also with the meetings, NO when Google or the script get it wrong, always cleans up within the 6 minutes
 node test\prova_solo_calendario.js # Calendario.gs for another account: no mail, Gmail or address services, the calendar functions only, the calendar bench on it with one teacher's data
 node test\mock_moduli.js          # forms: yearly sheet, linking, closing, two years in a row
 node test\mock_pannello.js        # the control sheet for several forms
@@ -208,9 +208,10 @@ user that never had Campanella. `prova_versioni.ps1` only reads: run it
 before tagging a release. `genera_dati_prova.ps1` is not a test: it writes a
 `DatiOrari_prova.gs` into `%TEMP%` from a timetable.
 The timetable calendar is also tested live, on Google:
-`test\collaudo\Collaudo_calendario.gs` goes with `Orari.gs` into a test Apps
-Script project, and its `COLLAUDO` function writes one OK or NO line per
-check to the log (how to use it: at the top of the file).
+`test\collaudo\Collaudo_calendario.gs` goes with `Calendario.gs` (or with
+`Orari.gs`) into a test Apps Script project, also in a personal account, and
+its `COLLAUDO` function writes one OK or NO line per check to the log,
+parents' meetings included (how to use it: at the top of the file).
 
 To change the terms of use, edit `installer\CONDIZIONI-it.txt`,
 `installer\CONDIZIONI-en.txt` and `Consenso.Testo` in `src\Consenso.cs`
