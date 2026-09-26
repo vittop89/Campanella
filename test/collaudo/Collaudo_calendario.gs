@@ -3,35 +3,50 @@
  *  COLLAUDO DEL CALENDARIO DEGLI ORARI (per chi sviluppa Campanella)
  * ============================================================================
  *
- *  Prova dal vivo, su Google Calendar, le funzioni vere di Orari.gs che
- *  mettono l'orario sul calendario (ORARI_1_anteprima, ORARI_4_calendario,
+ *  Prova dal vivo, su Google Calendar, le funzioni vere che mettono l'orario
+ *  sul calendario (ORARI_1_anteprima, ORARI_4_calendario,
  *  ORARI_5_cambioOrario, ORARI_6_coloraLezioni, ORARI_ANNULLA_calendario),
- *  con dati inventati: il docente PROVA COLLAUDO, le classi 2B, 3B e 4C,
- *  ognuna con il suo colore, dal 12/10 al 13/11/2026 con due giorni senza
+ *  quelle di Calendario.gs, la versione solo calendario che l'applicazione
+ *  prepara per un altro account (il personale, per esempio), o quelle di
+ *  Orari.gs. Dati inventati: il docente PROVA COLLAUDO, le classi 2B, 3B e
+ *  4C, ognuna con il suo colore, dal 12/10 al 13/11/2026 con due giorni senza
  *  lezione, e l'orario che cambia dal 02/11. L'ora legale finisce il 25/10,
  *  nel mezzo. Ai docenti non serve.
  *
- *  COME SI USA
- *    1. script.google.com -> Nuovo progetto. Un progetto di prova, non
- *       quello con la Posta e gli Orari veri.
+ *  COME SI USA (per esempio nel tuo account personale)
+ *    1. script.google.com, entrando con l'account da provare -> Nuovo
+ *       progetto. Un progetto di prova, non quello con gli orari veri.
  *    2. Impostazioni progetto (l'ingranaggio a sinistra) -> Fuso orario:
- *       quello con Roma (Europe/Rome).
- *    3. Editor: nel file Codice.gs incolla src/risorse/Orari.gs e rinominalo
- *       Orari; poi "+" -> Script, chiamalo Collaudo_calendario e incollaci
- *       questo file. Solo questi due: niente DatiOrari.gs, niente Posta.
+ *       quello con Roma (Europe/Rome). Con un altro il collaudo non comincia.
+ *    3. Editor: nel file Codice.gs incolla Calendario.gs (nell'applicazione:
+ *       Orari, passo 4, "in un altro account Google", voce "1. Codice solo
+ *       calendario", Copia negli appunti) al posto di tutto quello che c'e',
+ *       e rinominalo Calendario; poi "+" -> Script, chiamalo
+ *       Collaudo_calendario e incollaci questo file. Solo questi due: niente
+ *       DatiOrari.gs (i dati li mette il collaudo). Al posto di Calendario.gs
+ *       va bene anche src/risorse/Orari.gs, sempre in un progetto nuovo e
+ *       senza la Posta.
  *    4. Scegli COLLAUDO in alto ed esegui. La prima volta Google chiede i
- *       permessi, anche quelli di Gmail: li vede nel codice di Orari.gs. Il
- *       collaudo non manda email.
- *    5. Copia il registro dell'esecuzione. Ogni controllo ha una riga OK o
- *       NO; NOTA dice cosa fa Google dove nessuno l'aveva ancora provato;
- *       PASSO dice quanto ha preso ogni passo; in fondo il riepilogo. Le
- *       righe di Orari.gs stanno in mezzo: l'anteprima scrive anche il tuo
- *       indirizzo (Destinatario), da togliere se passi il registro ad altri.
- *  COLLAUDO fa le due parti qui sotto in un'esecuzione sola. Google ferma uno
- *  script dopo 6 minuti: se la prima parte ha preso piu' di 180 secondi, la
- *  seconda non comincia (esegui COLLAUDO_2), e dopo 270 secondi non comincia
- *  piu' nessun passo, cosi' la pulizia ha tempo. COLLAUDO_1 e COLLAUDO_2
- *  fanno una parte sola.
+ *       permessi: con Calendario.gs solo il Calendario e l'esecuzione quando
+ *       non sei presente (le riprese dei lavori lunghi); con Orari.gs anche
+ *       quelli delle email, che vede nel suo codice. Il collaudo usa solo
+ *       quello che usa Calendario.gs: niente email, niente posta, niente
+ *       Drive, e nemmeno il tuo indirizzo.
+ *    5. Copia tutto il registro dell'esecuzione. Ogni controllo ha una riga
+ *       OK o NO; NOTA dice cosa fa Google dove nessuno l'aveva ancora
+ *       provato; PASSO dice quanto ha preso ogni passo; in fondo il
+ *       riepilogo. Le righe delle funzioni del calendario stanno in mezzo
+ *       (con Orari.gs l'anteprima scrive anche il tuo indirizzo,
+ *       Destinatario: toglilo se passi il registro ad altri).
+ *    6. Se il riepilogo dice "Da fare", esegui le parti che nomina (per
+ *       esempio COLLAUDO_2), una alla volta, e copia anche i loro registri.
+ *  COLLAUDO fa le due parti qui sotto in un'esecuzione sola, se ci stanno.
+ *  Google ferma uno script dopo 6 minuti: la seconda parte comincia solo se
+ *  c'e' il tempo per finirla (_COLLAUDO_STIMA_PARTI), dopo 270 secondi non
+ *  comincia piu' nessun passo, e alle funzioni del calendario resta solo il
+ *  tempo fino a 300 secondi (_ORARI_MAX_SECONDI: poi si fermano da sole),
+ *  cosi' la pulizia si fa sempre. COLLAUDO_1 e COLLAUDO_2 fanno una parte
+ *  sola.
  *
  *  COSA CONTROLLA
  *    Parte 1 (COLLAUDO_1): il calendario "Collaudo Campanella", creato da
@@ -64,15 +79,17 @@
  *    (deleteCalendar), i lavori degli orari a meta' e le loro riprese.
  *
  *  COSA TOCCA
- *    Solo i due calendari di prova, che crea e cancella lui: se uno con quel
+ *    Solo i calendari di prova, che crea e cancella lui: se uno con quel
  *    nome c'e' gia', si ferma senza toccare niente. Un collaudo fermato da
  *    Google prima di pulire si ricorda i nomi dei suoi calendari, e il
  *    collaudo dopo li cancella prima di cominciare. Si ferma anche se nel
  *    progetto trova DatiOrari.gs o la Posta: nel progetto vero toglierebbe un
- *    lavoro degli orari a meta' e le sue riprese.
+ *    lavoro degli orari a meta' e le sue riprese. Usa soltanto servizi che
+ *    usa anche Calendario.gs (il Calendario, i trigger, le proprieta' dello
+ *    script e il suo fuso orario), quindi non chiede altri permessi.
  *
- *  In locale lo fa girare test/collaudo/prova_locale.js, con il finto
- *  calendario di test/mock_orari.js.
+ *  In locale lo fa girare test/collaudo/prova_locale.js, con Orari.gs e con
+ *  Calendario.gs, e con il finto calendario di test/mock_orari.js.
  * ============================================================================
  */
 
@@ -80,13 +97,17 @@ var ORARI;   // i dati degli orari: li mette il collaudo, passo per passo (nient
 
 var _COLLAUDO_NOME           = 'Collaudo Campanella';
 var _COLLAUDO_NOME_VECCHIO   = 'Collaudo Campanella vecchio';
+var _COLLAUDO_NOMI           = ['', _COLLAUDO_NOME, _COLLAUDO_NOME_VECCHIO];  // il calendario di ogni parte
 var _COLLAUDO_CHIAVE         = 'CAMPANELLA_COLLAUDO_CALENDARIO';  // i nomi dei calendari di un collaudo non ancora pulito
 var _COLLAUDO_FUSO           = 'Europe/Rome';
 // Google ferma uno script dopo 360 secondi. Dal vivo un'operazione sul
 // calendario prende circa un secondo: la parte 1 un paio di minuti, la 2 uno,
 // e il passo piu' lungo (ORARI_5_cambioOrario) meno di uno
 var _COLLAUDO_LIMITE_PASSI   = 270;   // secondi: dopo, nessun passo nuovo, e la pulizia ha tempo
-var _COLLAUDO_LIMITE_PARTE_2 = 180;   // secondi: dopo, COLLAUDO non comincia la parte 2
+var _COLLAUDO_LIMITE_ORARI   = 300;   // secondi: le funzioni del calendario si fermano da sole entro qui
+// quanto puo' prendere ogni parte: COLLAUDO comincia una parte dopo la prima
+// solo se, con i secondi gia' passati, resta entro _COLLAUDO_LIMITE_PASSI
+var _COLLAUDO_STIMA_PARTI    = [0, 180, 90];
 var _COLLAUDO_DOCENTE        = 'PROVA COLLAUDO';
 var _COLLAUDO_INIZIO         = '2026-10-12';   // un lunedi'
 var _COLLAUDO_FINE           = '2026-11-13';   // un venerdi'
@@ -138,34 +159,54 @@ function COLLAUDO_2() {
   return _collaudo_('COLLAUDO_2', [2]);
 }
 
-/** Le parti (1, 2) una dopo l'altra, con la pulizia alla fine anche se qualcosa va storto; torna il riepilogo. */
+/**
+ * Le parti (1, 2) una dopo l'altra, con la pulizia alla fine anche se
+ * qualcosa va storto; torna il riepilogo. Una parte dopo la prima comincia
+ * solo se ci sta nel tempo (_COLLAUDO_STIMA_PARTI): se no resta da fare, e
+ * il riepilogo dice di eseguirla a parte. _ORARI_MAX_SECONDI, che il
+ * collaudo abbassa per ogni funzione del calendario, alla fine torna com'era.
+ */
 function _collaudo_(funzione, parti) {
-  var t = { funzione: funzione, partenza: Date.now(), ok: 0, no: [], note: [], passi: [], fermo: false };
+  var t = { funzione: funzione, partenza: Date.now(), ok: 0, no: [], note: [], passi: [], fermo: false,
+            fatte: [], daFare: [], maxOrari: null };
   var nomi = [];
-  for (var i = 0; i < parti.length; i++) nomi.push(parti[i] === 1 ? _COLLAUDO_NOME : _COLLAUDO_NOME_VECCHIO);
+  for (var i = 0; i < parti.length; i++) nomi.push(_COLLAUDO_NOMI[parti[i]]);
   Logger.log('COLLAUDO DEL CALENDARIO DEGLI ORARI (' + funzione + ')');
   var pronto = false;
   try {
     _collaudoPrepara_(t, nomi);
     pronto = true;
+    t.maxOrari = _ORARI_MAX_SECONDI;
     for (var p = 0; p < parti.length; p++) {
-      if (p > 0 && _collaudoSecondi_(t) > _COLLAUDO_LIMITE_PARTE_2) {
-        _collaudoNo_(t, 'la parte ' + parti[p] + ' non l\'ho fatta: sono gia\' passati ' + _collaudoSecondi_(t).toFixed(0) +
-          ' secondi, e Google ferma uno script dopo 360', 'Esegui COLLAUDO_' + parti[p] + ' a parte.');
+      var gia = _collaudoSecondi_(t);
+      if (t.fermo) {
+        t.daFare.push(parti[p]);
         continue;
       }
+      if (p > 0 && gia + _COLLAUDO_STIMA_PARTI[parti[p]] > _COLLAUDO_LIMITE_PASSI) {
+        t.daFare.push(parti[p]);
+        Logger.log('== PARTE ' + parti[p] + ': non la comincio. Sono gia\' passati ' + gia.toFixed(0) + ' secondi, ' +
+                   'questa parte ne puo\' prendere ' + _COLLAUDO_STIMA_PARTI[parti[p]] + ' e Google ferma uno script ' +
+                   'dopo 360: esegui COLLAUDO_' + parti[p] + ' a parte.');
+        continue;
+      }
+      var inizio = Date.now();
       try {
         if (parti[p] === 1) _collaudoParte1_(t);
         else _collaudoParte2_(t);
       } catch (err) {
         _collaudoNo_(t, 'errore inatteso nel collaudo: ' + (err && err.message), err && err.stack);
       }
+      // una parte fermata dal tempo resta da fare
+      if (t.fermo) t.daFare.push(parti[p]);
+      else t.fatte.push({ parte: parti[p], secondi: (Date.now() - inizio) / 1000 });
     }
   } catch (errPrima) {
     _collaudoNo_(t, 'non comincio: ' + (errPrima && errPrima.message));
   } finally {
     if (pronto) _collaudoPulisci_(t, nomi);
     ORARI = undefined;
+    if (t.maxOrari !== null) _ORARI_MAX_SECONDI = t.maxOrari;
   }
   return _collaudoRiepilogo_(t);
 }
@@ -759,7 +800,12 @@ function _collaudoCambiaVoce_(voci, chiave, nuova) {
   return fuori;
 }
 
-/** I dati degli orari come li genera Campanella (DatiOrari.gs), per un orario del collaudo. */
+/**
+ * I dati degli orari come li genera Campanella per un orario del collaudo:
+ * quelli "del tuo orario" (AnalisiOrario.GeneraDatiDelDocenteGs), un docente
+ * solo e niente orari delle classi, oggetti o nota delle email, che vanno
+ * bene a Calendario.gs e a Orari.gs; niente colloqui.
+ */
 function _collaudoDati_(nome, blocchi, colori, validoDal) {
   var celle = [];
   for (var i = 0; i < _COLLAUDO_GIORNI.length * _COLLAUDO_ORE.length; i++) celle.push('');
@@ -776,17 +822,13 @@ function _collaudoDati_(nome, blocchi, colori, validoDal) {
   }
   return {
     periodo: 'collaudo',
-    titolo: 'COLLAUDO',
-    nota: '',
-    oggettoDocente: 'Orario {docente}',
-    oggettoClasse: 'Orario classe {classe}',
     ore: _COLLAUDO_ORE.length,
     giorni: _COLLAUDO_GIORNI.slice(0),
     docenti: [{ nome: _COLLAUDO_DOCENTE, celle: celle }],
-    classi: [],
     calendario: {
       docente: _COLLAUDO_DOCENTE, nome: nome, inizio: _COLLAUDO_INIZIO, fine: _COLLAUDO_FINE, minutiOra: 60,
-      inizioOre: _COLLAUDO_ORE.slice(0), colore: '', colori: c, sospensioni: sospensioni, validoDal: validoDal
+      inizioOre: _COLLAUDO_ORE.slice(0), colore: '', colori: c, sospensioni: sospensioni,
+      colloqui: { settimanali: [], singoli: [], sospensioni: [] }, coloreColloqui: '', validoDal: validoDal
     }
   };
 }
@@ -1057,7 +1099,7 @@ function _collaudoPasso_(t, nome, fa) {
     t.fermo = true;
     _collaudoNo_(t, 'tempo: sono passati ' + gia.toFixed(0) + ' secondi e Google ferma uno script dopo 360, quindi mi fermo ' +
       'prima di "' + nome + '"; il resto non l\'ho provato',
-      t.funzione === 'COLLAUDO' ? 'Esegui COLLAUDO_1 e poi COLLAUDO_2, uno alla volta.'
+      t.funzione === 'COLLAUDO' ? 'Esegui le parti una alla volta: COLLAUDO_1 e COLLAUDO_2.'
                                 : 'Google e\' stato piu\' lento del solito: riesegui ' + t.funzione + ' piu\' tardi.');
     return { saltato: true, valore: undefined, errore: null };
   }
@@ -1072,21 +1114,32 @@ function _collaudoPasso_(t, nome, fa) {
 }
 
 /**
- * Una funzione di Orari.gs (nome, funzione), come passo: torna anche il suo
- * testo. Se si ferma a meta' (tempo, limiti di Google) la riprende subito a
- * mano, al massimo tre volte, e ne toglie la ripresa programmata.
+ * Una funzione del calendario (nome, funzione), come passo: torna anche il
+ * suo testo. Le lascia solo il tempo che resta fino a _COLLAUDO_LIMITE_ORARI
+ * (_ORARI_MAX_SECONDI, poi rimesso com'era): finito quello si ferma da sola,
+ * come a fine esecuzione, e Google non ferma il collaudo prima della
+ * pulizia. Se si ferma a meta' (tempo, limiti di Google) la riprende a mano
+ * fra 20 secondi, se c'e' il tempo, al massimo tre volte, e ne toglie la
+ * ripresa programmata.
  */
 function _collaudoOrari_(t, nome, funzione, etichetta) {
   var r = null;
   for (var giro = 1; giro <= 3; giro++) {
     r = _collaudoPasso_(t, (etichetta || nome) + (giro > 1 ? ' (ripreso a mano, ' + giro + 'a volta)' : ''), function () {
-      return funzione();
+      var resta = Math.floor(_COLLAUDO_LIMITE_ORARI - _collaudoSecondi_(t));
+      _ORARI_MAX_SECONDI = Math.max(5, Math.min(t.maxOrari || 260, resta));
+      try { return funzione(); }
+      finally { _ORARI_MAX_SECONDI = t.maxOrari || 260; }
     });
     r.testo = String(r.valore == null ? '' : r.valore);
     if (r.saltato || r.errore || giro === 3 || !_collaudoAMeta_(r.testo)) return r;
     _togliTriggerOrari_(nome);
-    Logger.log('       ' + nome + ' si e\' fermato a meta\' (' + r.testo.split('\n')[0] + '): lo riprendo io fra 20 secondi.');
-    Utilities.sleep(20000);
+    if (_collaudoSecondi_(t) + 20 > _COLLAUDO_LIMITE_PASSI) {
+      Logger.log('       ' + nome + ' si e\' fermato a meta\' (' + r.testo.split('\n')[0] + '), e il tempo e\' quasi finito.');
+    } else {
+      Logger.log('       ' + nome + ' si e\' fermato a meta\' (' + r.testo.split('\n')[0] + '): lo riprendo io fra 20 secondi.');
+      Utilities.sleep(20000);
+    }
   }
   return r;
 }
@@ -1134,17 +1187,18 @@ function _collaudoCalendario_(nome) {
  * quello dopo. Se qualcosa non va, un errore che dice cosa fare.
  */
 function _collaudoPrepara_(t, nomi) {
-  if (typeof ORARI_4_calendario !== 'function' || typeof ORARI_6_coloraLezioni !== 'function') {
-    throw new Error('in questo progetto non c\'e\' Orari.gs della 1.6.0 (o dopo): incollalo in un file chiamato Orari, ' +
-      'accanto a questo, e riesegui. Non ho toccato niente.');
+  if (typeof ORARI_4_calendario !== 'function' || typeof ORARI_6_coloraLezioni !== 'function' ||
+      typeof ORARI_7_colloqui !== 'function' || typeof _ORARI_MAX_SECONDI !== 'number') {
+    throw new Error('in questo progetto non c\'e\' Calendario.gs (o Orari.gs) della 1.6.0 o dopo: incollalo in un file ' +
+      'chiamato Calendario, accanto a questo, e riesegui. Non ho toccato niente.');
   }
   if (typeof ORARI !== 'undefined' || typeof CONFIG !== 'undefined' || typeof ANNULLA_automazione === 'function') {
     throw new Error('in questo progetto c\'e\' anche DatiOrari.gs o lo script della Posta: sembra quello vero, e il ' +
-      'collaudo ci toglierebbe un lavoro degli orari a meta\'. Mettilo in un progetto nuovo, con solo Orari.gs e ' +
-      'Collaudo_calendario.gs (vedi in cima a questo file). Non ho toccato niente.');
+      'collaudo ci toglierebbe un lavoro degli orari a meta\'. Mettilo in un progetto nuovo, con solo Calendario.gs (o ' +
+      'Orari.gs) e Collaudo_calendario.gs (vedi in cima a questo file). Non ho toccato niente.');
   }
   var fuso = Session.getScriptTimeZone();
-  Logger.log('Orari.gs versione ' + _ORARI_VERSIONE + '; fuso orario dello script: ' + fuso + '.');
+  Logger.log(_collaudoScript_() + ' versione ' + _ORARI_VERSIONE + '; fuso orario dello script: ' + fuso + '.');
   if (fuso !== _COLLAUDO_FUSO) {
     throw new Error('il fuso orario di questo progetto e\' ' + fuso + ', non ' + _COLLAUDO_FUSO + ': Impostazioni progetto ' +
       '(l\'ingranaggio a sinistra) -> Fuso orario -> quello con Roma, poi riesegui. Non ho toccato niente.');
@@ -1184,7 +1238,12 @@ function _collaudoPrepara_(t, nomi) {
              nomi.join('" e "') + '"; altri calendari non li tocca.');
 }
 
-/** Via i lavori degli orari a meta' e le loro riprese (del progetto di prova). */
+/** Lo script del calendario nel progetto: Orari.gs (con le funzioni delle email) o Calendario.gs. */
+function _collaudoScript_() {
+  return (typeof ORARI_2_invia === 'function') ? 'Orari.gs' : 'Calendario.gs';
+}
+
+/** Via i lavori degli orari a meta' e le loro riprese (del progetto di prova), anche quelle dei colloqui. */
 function _collaudoTogliLavori_() {
   var prop = PropertiesService.getUserProperties();
   prop.deleteProperty(_ORARI_CHIAVE_CALENDARIO);
@@ -1192,6 +1251,7 @@ function _collaudoTogliLavori_() {
   _togliTriggerOrari_(_ORARI_TRIGGER_CALENDARIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_CAMBIO);
   _togliTriggerOrari_(_ORARI_TRIGGER_COLORI);
+  _togliTriggerOrari_(_ORARI_TRIGGER_COLLOQUI);
 }
 
 /** Alla fine, anche se qualcosa e' andato storto: via lavori a meta', riprese e calendari di prova. */
@@ -1234,16 +1294,27 @@ function _collaudoPulisci_(t, nomi) {
   Logger.log('PASSO pulizia: ' + secondi.toFixed(1) + ' s (' + _collaudoSecondi_(t).toFixed(1) + ' s dall\'inizio)');
 }
 
-/** In fondo al registro: i conti, i NO, le NOTE e i tempi. */
+/** In fondo al registro: i conti, i NO, le parti da fare ancora, le NOTE e i tempi. */
 function _collaudoRiepilogo_(t) {
   var righe = ['== RIEPILOGO di ' + t.funzione +
-               (typeof _ORARI_VERSIONE !== 'undefined' ? ' (Orari.gs ' + _ORARI_VERSIONE + ')' : '')];
+               (typeof _ORARI_VERSIONE !== 'undefined' ? ' (' + _collaudoScript_() + ' ' + _ORARI_VERSIONE + ')' : '')];
   righe.push('Controlli: ' + (t.ok + t.no.length) + '   OK: ' + t.ok + '   NO: ' + t.no.length);
   if (!t.no.length) {
-    righe.push('Tutti i controlli sono OK.');
+    righe.push(t.daFare.length ? 'I controlli fatti sono tutti OK.' : 'Tutti i controlli sono OK.');
   } else {
     righe.push('I controlli NO:');
     for (var i = 0; i < t.no.length; i++) righe.push('  - ' + t.no[i]);
+  }
+  if (t.daFare.length) {
+    var da = [];
+    for (var f = 0; f < t.daFare.length; f++) da.push('COLLAUDO_' + t.daFare[f]);
+    righe.push('Da fare, per il tempo: esegui ' + da.join(', poi ') +
+               (da.length > 1 ? ', uno alla volta, e copia anche i loro registri.' : ' e copia anche il suo registro.'));
+  }
+  if (t.fatte.length) {
+    var v = [];
+    for (var p = 0; p < t.fatte.length; p++) v.push(t.fatte[p].parte + ' in ' + t.fatte[p].secondi.toFixed(1) + ' s');
+    righe.push('Parti fatte: ' + v.join(', ') + '.');
   }
   if (t.note.length) {
     righe.push('Cosa fa Google dove nessuno l\'aveva provato:');
