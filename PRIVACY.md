@@ -145,8 +145,8 @@ casella, che arrivano senza spunta) non vanno nello script ma restano
 salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
-quelli da togliere, con l'etichetta, i criteri e il nome della regola che
-li sostituisce. Una regola nata da un
+quelli da togliere, con l'etichetta, i criteri, il nome della regola che
+li sostituisce e se archiviavano o segnavano come letti. Una regola nata da un
 filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
 possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
 filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra

@@ -16,10 +16,16 @@ Ministero e USR fixed in step 4 reach the script only with it.
   - "Toglilo": EXTRA_togliFiltri will remove it. It reads "Toglilo: lo fa
     gia' la regola ..." only when that rule, switched on, really takes the
     filter's messages: it already takes all its senders (the same ones, or
-    through their domain or the staff list) and excludes nothing the filter
-    does not, archives and marks as read as the filter does, or
-    makes exactly its search (or Campanella creates exactly that filter for
-    it). Having the same label is not enough. A filter that also does
+    through their domain or the staff list), none of its exclusions that
+    the filter lacks touches the filter's senders (a word such as
+    `-from:esami`, or a name, may touch them all), it archives and marks as
+    read as the filter does and no rule above it with the same label
+    archives or marks as read differently; or it makes exactly its search
+    (or Campanella creates exactly that filter for it). A rule that excludes
+    other labels (Studenti, Ministero e USR) already does it even though it
+    does not take the messages that have those labels (colleagues, the
+    school's mailbox): that is what it does by default. Having the same
+    label is not enough. A filter that also does
     something the rules never do (forward, delete, star...) offers only
     these two, and the drop-down says what would be lost.
   - "Unisci a ...": for a filter made only of senders (`from:a`,
@@ -30,12 +36,19 @@ Ministero e USR fixed in step 4 reach the script only with it.
     rules where this keeps the filter's meaning: rules with their own
     senders (not Colleghi and Studenti, which use the staff list and the
     domain, nor the class rules), no subject or words, archiving and marking
-    as read as the filter does. Dirigenza, Segreteria and Registro
+    as read as the filter does, and where no exclusion drops messages: the
+    filter's do not touch the senders the rule already has
+    (`-from:newsletter@flcgil.it` would drop part of Sindacati's
+    `@flcgil.it`, `-from:esami` any address with "esami" in it), and the
+    rule's do not touch the filter's senders. Otherwise the box under the
+    grid says why, and the filter stays. Dirigenza, Segreteria and Registro
     elettronico take the senders in "La tua scuola", where theirs are
     written; Registro elettronico only domains and the words of the known
     registers (`spaggiari.eu`, `@portaleargo.it`, `nuvola`, `argo`,
     `classeviva`...), never a person's address or a name written as a word
-    (`mario.rossi`), because its senders are kept with the settings, not
+    (`mario.rossi`, nor `mario.re`: domains only with `.it`, `.eu` or a
+    generic ending such as `.com` or `.cloud`), because its senders are
+    kept with the settings, not
     with the personal data. A rule that is off is switched on, also one that
     already has the filter's senders (the choice then just switches it on);
     when it has senders or a search of its own, the box under the grid says
@@ -56,7 +69,10 @@ Ministero e USR fixed in step 4 reach the script only with it.
     grid says why. Two filters with the same label become one rule only when
     they exclude the same things; otherwise two rules with that label and
     the same colour, one under the other, so that the exclusions of one do
-    not drop the messages of the other.
+    not drop the messages of the other; only when they archive and mark as
+    read the same way (each rule searches only messages without its label
+    yet, so where they overlap the first would do only what it does),
+    otherwise the second filter stays in Gmail.
 - The proposals: a filter that a rule, switched on, already does is removed
   if it does nothing else; one equal to a rule, with senders the rule lacks,
   is merged into it when possible, so they are not lost, and otherwise stays
@@ -78,8 +94,11 @@ Ministero e USR fixed in step 4 reach the script only with it.
 - "Usa questa scelta" creates the rules (at the end of the list, or right
   under the similar rule, with the description "Da un filtro di Gmail: la
   stessa etichetta e la stessa ricerca"), merges the senders, chooses the
-  filters to remove and says what it did. A filter goes among those to
-  remove only together with its rule, in the same configuration: copy
+  filters to remove and says what it did. At the end it checks every filter
+  to remove again: if after the other choices its rule no longer takes all
+  its messages, the filter stays in Gmail and the summary says why. A
+  filter goes among those to remove only together with its rule, in the
+  same configuration: copy
   Configurazione.gs again and paste it before running EXTRA_togliFiltri, so
   no filter goes before the rule that replaces it. A choice that can no
   longer be made leaves the filter in Gmail. Reopened with the same file,
@@ -87,9 +106,13 @@ Ministero e USR fixed in step 4 reach the script only with it.
   already merged ("Toglilo: lo fa gia' la regola ...") and does not make
   them again; a new rule with the label of an existing one is not
   duplicated.
-- Each filter to remove remembers the rule that replaces it. If that rule is
-  later deleted, switched off or loses the filter's senders (also in "La
-  tua scuola"), the filter stays in Gmail: Configurazione.gs no longer lists
+- Each filter to remove remembers the rule that replaces it, and whether it
+  archived or marked as read. If that rule is later deleted, switched off or
+  no longer takes all its messages (it loses the filter's senders, also in
+  "La tua scuola", gets an exclusion that touches them, no longer archives
+  as the filter did, or its twin is deleted and the other one excludes the
+  filter's senders), the filter stays in Gmail: Configurazione.gs no longer
+  lists
   it, step 4 and the step 5 summary say so in amber, and the window starts
   it as "Lascialo in Gmail" (with the file it is proposed again from
   scratch). Chosen "Toglilo" again, it is removed without a rule.
@@ -121,12 +144,21 @@ Ministero e USR fixed in step 4 reach the script only with it.
   search (`-from:`) counts; a rule that is off gets no warning, and neither
   does one with that full address among its senders (such as the rule born
   from the filter of the school's mailbox): it wants it. Only for Ministero
-  e USR the warning says the built-in one no longer takes it.
+  e USR the warning says the built-in one no longer takes it. The warning
+  also appears for a rule that excludes them but sits above them (moved up
+  with "Su"): the script goes through the rules in order, and when its turn
+  comes the school's messages do not have their label yet; its button,
+  "Sposta Ministero e USR sotto Dirigenza e Segreteria", moves it back
+  below. The warning, and the status line after the button when step 4
+  asks for native filters, also say to remove the old native filter.
 - EXTRA_creaFiltriGmail creates no native filter for a rule that excludes
   other labels (it stays with the script's sorting), so none for Ministero e
   USR any more. A native filter created for it earlier stays in Gmail and
   keeps taking the school's mailbox: in "Filtri che hai gia' in Gmail..." it
-  starts as "Toglilo: lo fa gia' la regola Ministero e USR".
+  starts as "Toglilo: lo fa gia' la regola Ministero e USR". Step 8 of the
+  guided installation says that Studenti and Ministero e USR, like every
+  rule excluding other labels, stay with the script, and that the old
+  native filter of Ministero e USR is removed like the others.
 
 **Lists with ticks: the tick changes only on its box**
 
@@ -172,20 +204,32 @@ Ministero e USR fixed in step 4 reach the script only with it.
   choice, the school's mailbox not merged into Ministero e USR, the old
   native filter of Ministero e USR, the warning (not for a rule with the
   full address) and its button, and the answers of the rule window's new
-  button. The new
+  button. Also: filters whose exclusions would drop messages of the rule or
+  of another merged filter (`-from:esami`, `-from:newsletter@flcgil.it`),
+  also forced through "Usa questa scelta"; a filter a rule "already does"
+  that another choice takes away from it; two filters with the same label
+  that archive differently; a twin rule deleted; a rule that no longer
+  archives; a Registro filter with `mario.re`; Studenti "already doing" the
+  whole school domain; a Ministero e USR moved above Dirigenza and
+  Segreteria. The new
   test/filtri_diventano_regole.js, launched by prova_posta.ps1, runs the
   generated configuration in the real mail engine: the searches the window
   shows are those of `_queryDellaRegola_`; PASSO_3 on a fake mailbox gives
   every message a filter took the label of its rule (for a new rule exactly
   those, none more) and archives as the filter did; the school's mailbox
-  stays out of Ministero e USR; EXTRA_togliFiltri removes exactly the chosen
+  stays out of Ministero e USR; a merged filter takes no messages away from
+  the rule or from the other merged filters (Sindacati keeps
+  `newsletter@flcgil.it` and the results of `esami.sindacato-uno.example`,
+  archived); EXTRA_togliFiltri removes exactly the chosen
   filters, each with its rule on in the same configuration. It also runs
   after the window is reopened, when every filter is "Toglilo: lo fa gia'
   la regola ...", to check that the rule really takes its messages, and
   with two rules with the same label. It has its own interpreter of Gmail
   searches (OR binds tighter than a space), used for the filters and for the
-  rules alike. prova_stato.ps1: the rule that replaces a filter to remove
-  is saved and read back.
+  rules alike; it takes what really happened from the state, so a filter
+  that "Usa questa scelta" left in Gmail is checked as left. prova_stato.ps1:
+  the rule that replaces a filter to remove, and whether the filter
+  archived or marked as read, are saved and read back.
 - prova_guscio.ps1: the lists with ticks driven by real Windows messages
   (click on the text and on the box, space bar, a letter, double click, a
   tick set by code inside SelectedIndexChanged and ItemCheck),
