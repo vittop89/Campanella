@@ -1726,6 +1726,35 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         (Testi $cGiaT) -notmatch "lo fa gia'" -and (Testi $cLocaleT) -notmatch 'Unisci a Portali' -and
         $cDominioT.proposta.Testo -eq 'Unisci a Portali')
 
+    # una regola esclusa conta solo se e' accesa e sta sopra: con Segreteria
+    # spenta nessuna regola mette Segreteria alla casella della scuola, e un
+    # filtro che la esclude, unito a Ministero e USR, le toglierebbe i suoi
+    # messaggi; con Segreteria sotto Ministero e USR, quando tocca a Ministero
+    # la casella non ha ancora Segreteria, e la prende
+    $sE = StatoRiorganizza
+    $regoleE = Leggi $sE 'Regole'
+    $segreteriaE = @($regoleE | Where-Object { $_.Etichetta -eq 'Segreteria' })[0]
+    $segreteriaE.Attiva = $false
+    $fMinE = UnFiltro ([ordered]@{ from = '@istruzione.it'; label = 'Ministero e USR' })
+    $fEsclE = UnFiltro ([ordered]@{ hasTheWord = 'from:(istruzione.it OR istruzione.gov.it) -from:casella@istruzione.it'; label = 'Ministero e USR' })
+    $cMinE = ScelteDi $fMinE $sE
+    $cEsclE = ScelteDi $fEsclE $sE
+    Verifica "con Segreteria spenta Ministero e USR 'lo fa gia'' per @istruzione.it, casella della scuola compresa ('$($cMinE.proposta.Testo)'), e un filtro che esclude la casella non si unisce a lei ($(Testi $cEsclE))" (
+        $cMinE.proposta.Testo -eq "Toglilo: lo fa gia' la regola Ministero e USR" -and (Testi $cEsclE) -notmatch 'Unisci a Ministero e USR')
+    $riepE = UsaLaScelta $sE @($fMinE, $fEsclE) $null
+    $posteE = @(@('casella@istruzione.it', 'Istituto'), @('comunicazioni@istruzione.it', 'Ministero'), @('usr.regione@istruzione.gov.it', 'USR'))
+    $motoreE = PromessaNelMotore $sE @($fMinE, $fEsclE) $posteE 'segreteria_spenta'
+    Verifica "nel motore vero il filtro di @istruzione.it si toglie e la casella della scuola ha ancora Ministero e USR; l'altro resta ($($motoreE.tolti) tolto; '$riepE')" (
+        $motoreE.esito -eq 0 -and $motoreE.tolti -eq 1)
+    $sE2 = StatoRiorganizza
+    $regoleE2 = Leggi $sE2 'Regole'
+    $segreteriaE2 = @($regoleE2 | Where-Object { $_.Etichetta -eq 'Segreteria' })[0]
+    [void]$regoleE2.Remove($segreteriaE2)
+    $regoleE2.Insert($regoleE2.IndexOf(@($regoleE2 | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]) + 1, $segreteriaE2)
+    $cSottoE = ScelteDi $fEsclE $sE2
+    Verifica "e con Segreteria accesa ma sotto Ministero e USR non si unisce lo stesso ($(Testi $cSottoE))" (
+        (Testi $cSottoE) -notmatch 'Unisci a Ministero e USR')
+
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli

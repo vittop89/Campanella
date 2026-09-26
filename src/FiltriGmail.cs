@@ -1440,15 +1440,21 @@ namespace Campanella
         /// messaggi del mittente: fra i suoi mittenti (quelli di "La tua scuola"
         /// per Dirigenza e Segreteria, i segnaposto sciolti) c'e' lo stesso
         /// indirizzo o il suo dominio (Copre). Quei messaggi hanno l'etichetta
-        /// esclusa, e r non li prende.
+        /// esclusa, e r non li prende. Contano solo le regole accese nella
+        /// configurazione e sopra r: lo script le fa in ordine, e quando tocca
+        /// a r i messaggi hanno gia' solo le etichette di quelle di sopra. Una
+        /// regola esclusa spenta, o sotto r, non toglie niente a r.
         /// </summary>
         static bool PresoDaUnaEsclusa(Stato s, Regola r, string mittente)
         {
             if (s == null || r == null || r.EscludiEtichette.Count == 0) return false;
             Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            List<string> personale = s.IndirizziPersonale();
             foreach (Regola altra in s.Regole)
             {
-                if (altra == r || !Contiene(r.EscludiEtichette, altra.Etichetta)) continue;
+                if (altra == r) break;
+                if (!Contiene(r.EscludiEtichette, altra.Etichetta) ||
+                    !GeneratorePosta.AttivaNellaConfigurazione(s, altra, personale)) continue;
                 List<string> sue = Espandi(GeneratorePosta.MittentiDellaRegola(s, altra), s.DominioPulito(), s.IndirizziPersonale(), gruppi);
                 foreach (string e in sue) if (Copre(e, mittente)) return true;
             }
