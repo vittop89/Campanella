@@ -671,7 +671,8 @@ namespace Campanella
                 "Famiglie.\r\n\r\n" +
                 "Qui apri l'elenco dei tuoi filtri, esportato da Gmail (Impostazioni -> Vedi tutte le impostazioni " +
                 "-> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta), e per ognuno scegli che cosa farne: " +
-                "lasciarlo in Gmail; toglierlo (per esempio se lo fa gia' una regola); unire i suoi mittenti a una " +
+                "lasciarlo in Gmail; toglierlo (per esempio se lo fa gia' una regola: una accesa che prende davvero i " +
+                "suoi messaggi, non basta la stessa etichetta); unire i suoi mittenti a una " +
                 "regola (quelli di Dirigenza, Segreteria e Registro elettronico vanno in \"La tua scuola\"; una " +
                 "regola spenta si accende); farne una regola, con la stessa etichetta, cosi' i messaggi che ce l'hanno " +
                 "gia' restano insieme, e la stessa ricerca. Ogni filtro parte con una proposta, e la finestra dice la " +
@@ -681,7 +682,9 @@ namespace Campanella
                 "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
-                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'.\r\n\r\n" +
+                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
+                "la regola che sostituisce un filtro, o le togli i suoi mittenti, il filtro resta in Gmail, e qui " +
+                "sotto lo dice in ambra.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));

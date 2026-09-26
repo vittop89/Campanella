@@ -188,8 +188,10 @@ POSTA - riordinare la casella
    della scuola, codice@istruzione.it, e' @istruzione.it come il
    ministero): tutte e due stanno sotto le regole che escludono. Una
    Ministero e USR salvata con la 1.6.0 o prima non le esclude, e le regole
-   salvate non cambiano da sole: se prende un indirizzo @istruzione.it
-   scritto nel passo 2 fra quelli della dirigenza o della segreteria, un
+   salvate non cambiano da sole: se prende per il dominio un indirizzo
+   @istruzione.it scritto nel passo 2 fra quelli della dirigenza o della
+   segreteria (una regola con l'indirizzo scritto intero fra i mittenti lo
+   vuole, e non conta), un
    avviso in ambra sotto le regole lo dice, e il suo bottone "Escludi
    Dirigenza e Segreteria da Ministero e USR" la sistema (e la sposta sotto
    di loro, se serve); poi copia di nuovo la configurazione. Con
@@ -254,8 +256,12 @@ POSTA - riordinare la casella
    una tendina gia' scelta:
    - "Lascialo in Gmail": resta com'e'.
    - "Toglilo": lo togliera' EXTRA_togliFiltri. "Toglilo: lo fa gia' la
-     regola ..." quando mette l'etichetta di una regola, o quando i suoi
-     mittenti sono gia' tutti in quella regola. Per un filtro che fa anche
+     regola ..." solo quando quella regola, accesa, prende davvero i suoi
+     messaggi: ha gia' tutti i suoi mittenti (e non esclude niente che il
+     filtro non escluda), archivia e segna come letti come lui, oppure fa
+     proprio la sua ricerca. Mettere la stessa etichetta non basta: una
+     regola con lo stesso nome ma altri mittenti non sostituisce il
+     filtro. Per un filtro che fa anche
      altro (inoltra, elimina, mette la stella...) la tendina dice che cosa
      si perde, e ha solo "Lascialo" e "Toglilo".
    - "Unisci a ...": per un filtro fatto solo di mittenti (from:a, oppure
@@ -268,10 +274,16 @@ POSTA - riordinare la casella
      archiviano e segnano come letti come il filtro. I mittenti di
      Dirigenza, Segreteria e Registro elettronico si scrivono nella pagina
      "La tua scuola": vanno li'. A Registro elettronico si uniscono solo
-     domini e parole (spaggiari.eu, @portaleargo.it, nuvola), non
-     l'indirizzo di una persona: i suoi mittenti stanno nelle impostazioni
-     di Campanella, non con i dati personali. Una regola spenta, come
-     Genitori, si accende.
+     domini e le parole dei registri noti (spaggiari.eu, @portaleargo.it,
+     nuvola, argo, classeviva...), non l'indirizzo o il nome di una
+     persona (mario.rossi): i suoi mittenti stanno nelle impostazioni di
+     Campanella, non con i dati personali. Una regola spenta si accende,
+     anche una che ha gia' i mittenti del filtro (allora la scelta la
+     accende e basta); se ha dei mittenti suoi, o una ricerca, accesa
+     prende anche quelli, e il riquadro sotto lo dice. A una regola che
+     esclude Dirigenza e Segreteria, come Ministero e USR, non si unisce un
+     indirizzo che una di loro prende gia', come la casella della scuola:
+     i suoi messaggi resterebbero senza l'etichetta del filtro.
    - "Diventa una regola": nasce una regola con la stessa etichetta del
      filtro, cosi' i messaggi che ce l'hanno gia' restano insieme, e la
      stessa ricerca, scritta come la scrive Gmail (i mittenti fra i
@@ -279,13 +291,21 @@ POSTA - riordinare la casella
      letti se lo faceva il filtro, con il primo colore libero. Solo se la
      ricerca si scrive esatta, se l'etichetta sta dentro il gruppo
      ("Raggruppa sotto") e nessuna regola ce l'ha gia', e se il filtro non
-     fa altro: altrimenti il riquadro sotto dice perche'.
-   Di partenza si tolgono quelli uguali a una regola che non fanno altro
-   (ma se hanno dei mittenti che la regola non ha si uniscono a lei, cosi'
-   non si perdono), i mittenti di quelli simili vanno nella regola simile,
-   se si puo', e quelli tuoi diventano regole; quelli scelti prima si
-   tolgono. Restano quelli creati da Campanella, quelli che fanno anche
-   altro e quelli simili che non si possono unire. Un filtro simile a
+     fa altro: altrimenti il riquadro sotto dice perche'. Due filtri con
+     la stessa etichetta diventano una regola sola se escludono le stesse
+     cose; altrimenti due regole con la stessa etichetta e lo stesso
+     colore, una sotto l'altra, perche' le esclusioni dell'uno non tolgano
+     i messaggi dell'altro.
+   Di partenza si tolgono quelli che una regola accesa fa gia' e che non
+   fanno altro; uno uguale a una regola, con dei mittenti che la regola
+   non ha, si unisce a lei se si puo', cosi' non si perdono, altrimenti
+   resta (per esempio se archivia e la regola no); i mittenti di quelli
+   simili vanno nella regola simile, se si puo' (in una regola spenta solo
+   se da sola non cerca niente, come Genitori: una spenta con dei mittenti
+   suoi, accesa, prenderebbe anche quelli), e quelli tuoi diventano regole;
+   quelli scelti prima si tolgono. Restano quelli creati da Campanella,
+   quelli che fanno anche altro, quelli uguali o simili che nessuna regola
+   prende e quelli che non si possono unire. Un filtro simile a
    Dirigenza o Segreteria solo nel nome, con dei domini e non degli
    indirizzi (quello degli stipendi chiamato "Amministrazione e
    stipendio"), diventa una regola. Un filtro con un criterio che
@@ -310,7 +330,12 @@ POSTA - riordinare la casella
    (passo 5) e incollala al posto di quella di prima, e solo dopo,
    nell'editor dello script, con il servizio Gmail API (l'ottavo passo
    dell'installazione guidata), esegui EXTRA_togliFiltri. Cosi' nessun
-   filtro va via prima della regola che lo sostituisce. Toglie solo un
+   filtro va via prima della regola che lo sostituisce. E ogni filtro
+   scelto ricorda la regola che lo sostituisce: se dopo la togli, la spegni
+   o le togli i mittenti del filtro (anche in "La tua scuola"), il filtro
+   resta in Gmail, la configurazione non lo scrive piu' e il passo 4 lo
+   dice in ambra; riaprendo la finestra parte "Lascialo in Gmail", e per
+   toglierlo lo stesso basta sceglierlo di nuovo. Toglie solo un
    filtro che ha proprio quei criteri, nessuno in piu', e mette proprio
    quell'etichetta; prima di
    toglierlo ne scrive una copia completa nel registro, con cui lo rifai a

@@ -145,7 +145,8 @@ casella, che arrivano senza spunta) non vanno nello script ma restano
 salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
-quelli da togliere, con l'etichetta e i criteri. Una regola nata da un
+quelli da togliere, con l'etichetta, i criteri e il nome della regola che
+li sostituisce. Una regola nata da un
 filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
 possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
 filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra
@@ -153,8 +154,9 @@ gli indirizzi di dirigenza e segreteria nella pagina «La tua scuola». Le
 regole stanno con l'elenco del personale, come gli indirizzi di dirigenza e
 segreteria, e vanno in `Configurazione.gs`. Il registro elettronico no: i
 suoi mittenti (di solito domini, come `@spaggiari.eu`) stanno nelle
-impostazioni, e dai filtri ci arrivano solo domini e parole, mai
-l'indirizzo di una persona. Un filtro che sembra di una classe e ha degli
+impostazioni, e dai filtri ci arrivano solo domini e le parole dei registri
+più diffusi (come `nuvola`), mai l'indirizzo o il nome di una persona. Un
+filtro che sembra di una classe e ha degli
 indirizzi non si può togliere da qui, né far diventare una regola:
 potrebbero essere quelli degli studenti, e si toglie da Gmail. Sembra di
 una classe se l'ultima parte

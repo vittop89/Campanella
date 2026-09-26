@@ -14,8 +14,11 @@ Ministero e USR fixed in step 4 reach the script only with it.
   proposal.
   - "Lascialo in Gmail": it stays as it is.
   - "Toglilo": EXTRA_togliFiltri will remove it. It reads "Toglilo: lo fa
-    gia' la regola ..." when the filter adds the label of a rule, or when
-    its senders are all in that rule already. A filter that also does
+    gia' la regola ..." only when that rule, switched on, really takes the
+    filter's messages: it already has all its senders (and excludes nothing
+    the filter does not), archives and marks as read as the filter does, or
+    makes exactly its search (or Campanella creates exactly that filter for
+    it). Having the same label is not enough. A filter that also does
     something the rules never do (forward, delete, star...) offers only
     these two, and the drop-down says what would be lost.
   - "Unisci a ...": for a filter made only of senders (`from:a`,
@@ -28,10 +31,17 @@ Ministero e USR fixed in step 4 reach the script only with it.
     domain, nor the class rules), no subject or words, archiving and marking
     as read as the filter does. Dirigenza, Segreteria and Registro
     elettronico take the senders in "La tua scuola", where theirs are
-    written; Registro elettronico only domains and words (`spaggiari.eu`,
-    `@portaleargo.it`, `nuvola`), never a person's address, because its
-    senders are kept with the settings, not with the personal data. A rule
-    that is off, such as Genitori, is switched on.
+    written; Registro elettronico only domains and the words of the known
+    registers (`spaggiari.eu`, `@portaleargo.it`, `nuvola`, `argo`,
+    `classeviva`...), never a person's address or a name written as a word
+    (`mario.rossi`), because its senders are kept with the settings, not
+    with the personal data. A rule that is off is switched on, also one that
+    already has the filter's senders (the choice then just switches it on);
+    when it has senders or a search of its own, the box under the grid says
+    it will take those again too. A rule that excludes Dirigenza and
+    Segreteria (Ministero e USR) does not take a sender one of them already
+    takes entirely, such as the school's mailbox: those messages would lose
+    the filter's label.
   - "Diventa una regola": a new rule with the filter's label (so the
     messages that already have it stay together) and the same Gmail search,
     written the way Gmail writes it: the senders among the senders, the rest
@@ -42,16 +52,23 @@ Ministero e USR fixed in step 4 reach the script only with it.
     Gmail does not state, nor a size without larger or smaller), when the
     label is inside the label group ("Raggruppa sotto") and no rule has it
     yet, and when the filter does nothing else; otherwise the box under the
-    grid says why.
-- The proposals: a filter equal to a rule that does nothing else is removed,
-  or merged into the rule when it has senders the rule lacks, so they are
-  not lost; the senders of a similar filter go into the similar rule when
-  possible (for Dirigenza and Segreteria only full addresses: a filter
-  similar only by name, such as "Amministrazione e stipendio" with the
-  salary domains, becomes a rule); your own filters become rules when they
-  can; filters chosen earlier are removed. Those created by Campanella,
-  those of a class, those that do something else and the similar ones that
-  cannot be merged stay in Gmail.
+    grid says why. Two filters with the same label become one rule only when
+    they exclude the same things; otherwise two rules with that label and
+    the same colour, one under the other, so that the exclusions of one do
+    not drop the messages of the other.
+- The proposals: a filter that a rule, switched on, already does is removed
+  if it does nothing else; one equal to a rule, with senders the rule lacks,
+  is merged into it when possible, so they are not lost, and otherwise stays
+  in Gmail (for instance when it archives and the rule does not): having the
+  rule's label is not enough. The senders of a similar filter go into the
+  similar rule when possible (into a rule that is off only when it searches
+  nothing by itself, such as Genitori: switched on, one with its own senders
+  would take those too; for Dirigenza and Segreteria only full addresses: a
+  filter similar only by name, such as "Amministrazione e stipendio" with
+  the salary domains, becomes a rule); your own filters become rules when
+  they can; filters chosen earlier are removed. Those created by Campanella,
+  those of a class, those that do something else, the equal or similar ones
+  no rule takes and those that cannot be merged stay in Gmail.
 - The box under the grid tells everything about the selected filter, with
   its Gmail search and what the choice does; the last column shows, for each
   filter, the search the rule will make (the new rule, the rule taking the
@@ -69,6 +86,12 @@ Ministero e USR fixed in step 4 reach the script only with it.
   already merged ("Toglilo: lo fa gia' la regola ...") and does not make
   them again; a new rule with the label of an existing one is not
   duplicated.
+- Each filter to remove remembers the rule that replaces it. If that rule is
+  later deleted, switched off or loses the filter's senders (also in "La
+  tua scuola"), the filter stays in Gmail: Configurazione.gs no longer lists
+  it, step 4 and the step 5 summary say so in amber, and the window starts
+  it as "Lascialo in Gmail" (with the file it is proposed again from
+  scratch). Chosen "Toglilo" again, it is removed without a rule.
 - Step 4: the description of the selected rule gets a scroll bar only when
   it does not fit (a rule that took many senders or a long search from a
   filter).
@@ -89,12 +112,15 @@ Ministero e USR fixed in step 4 reach the script only with it.
   estimate by excess. A new configuration with the built-in rules has a
   different fingerprint; rules saved by 1.6.0 keep theirs.
 - Saved rules do not change by themselves. In step 4, when a rule that is on
-  (in practice a Ministero e USR saved by 1.6.0 or earlier) takes an
-  @istruzione.it address written in step 2 for Dirigenza or Segreteria, an
-  amber warning under the rules says so, and its button "Escludi Dirigenza e
-  Segreteria da Ministero e USR" makes it exclude them and moves it below
-  them. An exclusion already written in its advanced search (`-from:`)
-  counts; a rule that is off gets no warning.
+  (in practice a Ministero e USR saved by 1.6.0 or earlier) takes through
+  its domain an @istruzione.it address written in step 2 for Dirigenza or
+  Segreteria, an amber warning under the rules says so, and its button
+  "Escludi Dirigenza e Segreteria da Ministero e USR" makes it exclude them
+  and moves it below them. An exclusion already written in its advanced
+  search (`-from:`) counts; a rule that is off gets no warning, and neither
+  does one with that full address among its senders (such as the rule born
+  from the filter of the school's mailbox): it wants it. Only for Ministero
+  e USR the warning says the built-in one no longer takes it.
 - EXTRA_creaFiltriGmail creates no native filter for a rule that excludes
   other labels (it stays with the script's sorting), so none for Ministero e
   USR any more. A native filter created for it earlier stays in Gmail and
@@ -108,7 +134,7 @@ Ministero e USR fixed in step 4 reach the script only with it.
   description) and no longer changes its tick; the tick changes with a
   click on its box or with the space bar, and typing a letter jumps to an
   item without ticking it. A double click on the name of a rule opens
-  "Modifica".
+  "Modifica". A tick set by the program while a click arrives is kept.
 
 **Posta: "Apri La tua scuola" in the rule window**
 
@@ -127,7 +153,8 @@ Ministero e USR fixed in step 4 reach the script only with it.
 
 - test/filtri_gmail_riorganizza.xml: an invented export shaped like the 14
   filters of a real teacher (names, codes and addresses invented): the
-  school's mailbox with the school code as label, a department, two `from:`
+  school's mailbox with the school code as label (the same address the
+  ministry filter excludes, written in Segreteria), a department, two `from:`
   together, Classroom except one person, the ministry except the school's
   mailbox, the electronic registers, certified mail, salary and pension
   (similar to Segreteria only by name), competitions, publishers, unions
@@ -138,24 +165,34 @@ Ministero e USR fixed in step 4 reach the script only with it.
   (FiltriGmail.SoloMittenti, RicercaDelFiltro), the proposals for the 14
   cases, "Usa questa scelta" (FiltriGmail.Applica), the window reopened with
   and without the previous choice, a Registro filter with a person's
-  address, the old native filter of Ministero e USR, the warning and its
-  button, and the answers of the rule window's new button. The new
+  address or name, filters equal to a rule that does not take their
+  messages, a rule that is off, two filters with the same label and
+  different exclusions, rules deleted, switched off or changed after the
+  choice, the school's mailbox not merged into Ministero e USR, the old
+  native filter of Ministero e USR, the warning (not for a rule with the
+  full address) and its button, and the answers of the rule window's new
+  button. The new
   test/filtri_diventano_regole.js, launched by prova_posta.ps1, runs the
   generated configuration in the real mail engine: the searches the window
   shows are those of `_queryDellaRegola_`; PASSO_3 on a fake mailbox gives
   every message a filter took the label of its rule (for a new rule exactly
   those, none more) and archives as the filter did; the school's mailbox
   stays out of Ministero e USR; EXTRA_togliFiltri removes exactly the chosen
-  filters, each with its rule on in the same configuration. It has its own
-  interpreter of Gmail searches (OR binds tighter than a space), used for
-  the filters and for the rules alike.
+  filters, each with its rule on in the same configuration. It also runs
+  after the window is reopened, when every filter is "Toglilo: lo fa gia'
+  la regola ...", to check that the rule really takes its messages, and
+  with two rules with the same label. It has its own interpreter of Gmail
+  searches (OR binds tighter than a space), used for the filters and for the
+  rules alike. prova_stato.ps1: the rule that replaces a filter to remove
+  is saved and read back.
 - prova_guscio.ps1: the lists with ticks driven by real Windows messages
-  (click on the text and on the box, space bar, a letter, double click),
+  (click on the text and on the box, space bar, a letter, double click, a
+  tick set by code inside SelectedIndexChanged and ItemCheck),
   the Ministero e USR warning, and the way from the Segreteria, Dirigenza
   and Registro rules to step 2. prova_disposizione.ps1: the filters window
   with the 14 cases, the rule description with the scroll bar, the amber
-  warning with its button, and the rule window with the new button, shown
-  off screen. mock_apps_script.js: the estimate note of Ministero e USR in
+  warning with its button, the amber note of a filter whose rule is gone,
+  and the rule window with the new button, shown off screen. mock_apps_script.js: the estimate note of Ministero e USR in
   the preview.
 
 ## 1.6.0 — 26 September 2026
