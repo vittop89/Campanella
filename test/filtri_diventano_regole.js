@@ -194,6 +194,13 @@ messaggio('segreteria@liceo-uno.example', 'Liceo', 'Scambio di classi');
 messaggio('ds@istituto-due.example', 'Istituto', 'Rete di scuole');
 messaggio('prof@scuola.edu.it', 'Altra scuola', 'Progetto');
 messaggio('mamma.rossi@gmail.com', 'Famiglia Rossi', 'Giustificazione');
+// due filtri con la stessa etichetta (prova_posta.ps1, "due filtri con la
+// stessa etichetta"): Portali esclude gli esami, che prende l'altro Portali
+messaggio('avvisi@portale-uno.example', 'Portale', 'Avviso');
+messaggio('info@portale-due.example', 'Portale', 'Novita');
+messaggio('esiti@esami.portale-uno.example', 'Portale', 'Esiti');
+messaggio('iscrizioni@gare-uno.example', 'Gara', 'Iscrizioni');
+messaggio('risultati@gare-due.example', 'Gara', 'Risultati');
 messaggio('papa.verdi@libero.it', 'Famiglia Verdi', 'Colloquio');
 messaggio('preside@scuola.example', 'Dirigente', 'Collegio docenti');
 messaggio('anna.bianchi@scuola.example', 'Anna Bianchi', 'Verbale');
@@ -244,12 +251,16 @@ cfg.inviaReport = false;
 // ---------------------------------------------------------------------------
 console.log('\nLE RICERCHE CHE MOSTRA LA FINESTRA SONO QUELLE DEL MOTORE');
 const regole = contesto._regoleAttive_(cfg);
-const perEtichetta = {};
-regole.forEach(r => { perEtichetta[r.etichetta] = r; });
+// due regole possono avere la stessa etichetta (due filtri con la stessa
+// etichetta e esclusioni diverse): si confrontano nell'ordine
+const perEtichetta = {}, tutteDi = {}, viste = {};
+regole.forEach(r => { perEtichetta[r.etichetta] = r; (tutteDi[r.etichetta] = tutteDi[r.etichetta] || []).push(r); });
 const diverse = [];
 let confrontate = 0;
 (scelte.ricerche || []).forEach(x => {
-  const r = perEtichetta[x.etichetta];
+  const k = viste[x.etichetta] || 0;
+  viste[x.etichetta] = k + 1;
+  const r = (tutteDi[x.etichetta] || [])[k];
   if (!r) { if (x.ricerche.length) diverse.push(x.etichetta + ': nel motore non c\'e\''); return; }
   const proprie = ' -label:' + contesto._virgolette_(contesto._etichettaCompleta_(cfg, r));
   const delMotore = contesto._queryDellaRegola_(cfg, r).map(q =>
@@ -281,8 +292,13 @@ const conRegola = f => f.azione === 'nuova' || f.azione === 'unisci' || (f.azion
   let testo = f.etichetta + ' (' + f.azione + ' -> ' + etichetta + '): ' + presi.length + ' messaggi del filtro';
   let ok = presi.length > 0 && senza.length === 0 && archivio.length === 0 && letti.length === 0;
   if (f.azione === 'nuova') {
-    // una regola nuova prende proprio quelli del filtro
-    const inPiu = casella.filter(m => m.etichette.has(etichetta) && presi.indexOf(m) < 0).map(m => m.da);
+    // le regole nuove con quell'etichetta prendono proprio quelli dei filtri
+    // diventati regola con quell'etichetta (di solito uno)
+    const deiFiltri = new Set();
+    (scelte.filtri || []).forEach(g => {
+      if (g.azione === 'nuova' && conGruppo(g.regola) === etichetta) cerca(ricercaDelFiltro(g.criteri), casella).forEach(m => deiFiltri.add(m));
+    });
+    const inPiu = casella.filter(m => m.etichette.has(etichetta) && !deiFiltri.has(m)).map(m => m.da);
     ok = ok && inPiu.length === 0;
     if (inPiu.length) testo += '; in piu\': ' + inPiu.join(', ');
   }

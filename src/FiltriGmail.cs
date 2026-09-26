@@ -1619,9 +1619,10 @@ namespace Campanella
         /// filtro uguale a uno gia' fatto (la stessa voce) non si rifa'. Una
         /// regola nuova con l'etichetta di una che c'e' gia' non nasce di
         /// nuovo: se la regola fa gia' quello che faceva il filtro basta lei,
-        /// se si puo' ci si uniscono i mittenti; un altro filtro con la stessa
-        /// etichetta, appena diventato regola, ne fa un'altra con la stessa
-        /// etichetta. Dice che cosa ha fatto, a parole.
+        /// se si puo', con le stesse esclusioni, ci si uniscono i mittenti; un
+        /// altro filtro con la stessa etichetta, appena diventato regola, ne fa
+        /// altrimenti un'altra con la stessa etichetta (CreaRegola). Dice che
+        /// cosa ha fatto, a parole.
         /// </summary>
         public static string Applica(Stato s, List<FiltroScelto> scelti)
         {
@@ -1736,8 +1737,16 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Crea la regola che il filtro diventa; con l'etichetta di una regola
-        /// che c'e' gia' vedi Applica. "" se l'ha fatto, altrimenti il perche'.
+        /// Crea la regola che il filtro diventa. Con l'etichetta di una regola
+        /// che c'e' gia' (la finestra riaperta sullo stesso file, o due filtri
+        /// con la stessa etichetta): se una di quelle regole fa gia' quello che
+        /// faceva il filtro basta lei; se a una si possono unire i mittenti e
+        /// il filtro esclude le stesse cose (nessuna, o le stesse -from:) ci si
+        /// uniscono; altrimenti, se sono regole appena nate da altri filtri, ne
+        /// nasce un'altra con la stessa etichetta e lo stesso colore, subito
+        /// sotto: unite, le esclusioni dell'uno varrebbero anche per i mittenti
+        /// dell'altro. Con una regola che c'era gia', il filtro resta. "" se
+        /// l'ha fatto, altrimenti il perche'.
         /// </summary>
         static string CreaRegola(Stato s, FiltroScelto x, Dictionary<Regola, int> dopo, List<Regola> createAdesso,
                                  List<string> nuove, List<string> unite, List<string> scuola)
@@ -1745,19 +1754,36 @@ namespace Campanella
             FiltroGmail f = x.Filtro;
             Regola r = Traduci(f, x.Somiglia, s);
             if (r == null) return "non si scrive come regola";
-            Regola esistente = RegolaConEtichetta(s, f.Etichetta);
-            if (esistente != null)
+            List<string> personale = s.IndirizziPersonale();
+            MittentiFiltro m = SoloMittenti(f.Criteri);
+            Regola cera = null, gemella = null;
+            foreach (Regola e in s.Regole)
             {
-                // la finestra riaperta sullo stesso file, o due filtri con la stessa etichetta
-                if (GiaNellaRegola(f, esistente, s) || StessaRegola(r, esistente)) return "";
-                MittentiFiltro m = SoloMittenti(f.Criteri);
-                if (m != null && SiPuoUnire(f, m, esistente, s)) return UnisciAllaRegola(s, f, esistente, unite, scuola);
-                if (!createAdesso.Contains(esistente)) return "c'e' gia' la regola " + NomeIntero(esistente, s);
+                if (!ConEtichetta(e, f.Etichetta, s)) continue;
+                if (GiaNellaRegola(f, e, s) || (StessaRegola(r, e) && GeneratorePosta.AttivaNellaConfigurazione(s, e, personale)))
+                    return "";
+                if (!createAdesso.Contains(e)) { if (cera == null) cera = e; }
+                else gemella = e;
             }
-            r.Colore = ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
+            foreach (Regola e in s.Regole)
+                if (ConEtichetta(e, f.Etichetta, s) && m != null && SiPuoUnire(f, m, e, s) &&
+                    StesseEsclusioni(m.Esclusi, Esclusioni(e.QueryLibera)))
+                    return UnisciAllaRegola(s, f, e, unite, scuola);
+            if (cera != null) return "c'e' gia' la regola " + NomeIntero(cera, s);
+            r.Colore = (gemella != null) ? gemella.Colore : ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
             Regola simile = (x.Somiglia != null && x.Somiglia.Tipo == Simile) ? RegolaDi(x.Somiglia, s) : null;
             int dove = s.Regole.Count;
-            if (simile != null && s.Regole.Contains(simile))
+            if (gemella != null)
+            {
+                dove = s.Regole.IndexOf(gemella) + 1;
+                // dentro le regole nuove messe sotto una simile: sono una di piu'
+                foreach (Regola k in new List<Regola>(dopo.Keys))
+                {
+                    int i = s.Regole.IndexOf(k);
+                    if (i >= 0 && dove > i && dove <= i + dopo[k] + 1) dopo[k] = dopo[k] + 1;
+                }
+            }
+            else if (simile != null && s.Regole.Contains(simile))
             {
                 int gia = dopo.ContainsKey(simile) ? dopo[simile] : 0;
                 dove = Math.Min(s.Regole.Count, s.Regole.IndexOf(simile) + 1 + gia);
@@ -1767,6 +1793,15 @@ namespace Campanella
             createAdesso.Add(r);
             nuove.Add(NomeIntero(r, s));
             return "";
+        }
+
+        /// <summary>Vero se i due elenchi hanno le stesse esclusioni (maiuscole e ordine a parte).</summary>
+        static bool StesseEsclusioni(List<string> a, List<string> b)
+        {
+            if (a == null || b == null) return false;
+            foreach (string e in a) if (!Contiene(b, e)) return false;
+            foreach (string e in b) if (!Contiene(a, e)) return false;
+            return true;
         }
 
         /// <summary>

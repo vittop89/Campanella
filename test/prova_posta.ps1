@@ -1117,8 +1117,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $accendi.Scelta = @($cDentro.scelte | Where-Object { $_.Azione -eq 'unisci' })[0]
     $listaAccendi.Add($accendi)
     $riepAccendi = [string]$mApplica.Invoke($null, @($sSpenta.PSObject.BaseObject, $listaAccendi))
-    Verifica "scelta a mano, Sindacati si accende senza mittenti in piu', e il filtro va via con lei ('$($riepAccendi -replace '?
-', ' ')')" (
+    Verifica "scelta a mano, Sindacati si accende senza mittenti in piu', e il filtro va via con lei ('$($riepAccendi -replace '\r?\n', ' ')')" (
         $sindSpenta.Attiva -and $sindSpenta.Da.Count -eq 6 -and (Leggi $sSpenta 'FiltriDaTogliere').Count -eq 1 -and
         $riepAccendi -match "Sindacati: i mittenti del filtro ""Sindacati"" li aveva gia'; era spenta, adesso e' accesa")
     # e unire a mano quello con altri mittenti alla Sindacati spenta: la
@@ -1235,12 +1234,12 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         @($lettaR.CONFIG.filtriDaTogliere).Count -eq 14)
     # le scelte di ogni filtro (e la regola che lo prende), con la
     # configurazione generata: le prova testiltri_diventano_regole.js
-    function NelMotore($stato, $fatteM, $nome) {
+    function NelMotore($stato, $filtriM, $fatteM, $nome) {
         $fileM = Join-Path $temporanea ('Configurazione_' + $nome + '.gs')
         Scrivi $fileM (Genera $stato $false)
         $filtriJ = @()
-        for ($i = 0; $i -lt $filtriR.Count; $i++) {
-            $f = $filtriR[$i]; $c = $fatteM[$i].Scelta
+        for ($i = 0; $i -lt $filtriM.Count; $i++) {
+            $f = $filtriM[$i]; $c = $fatteM[$i].Scelta
             $criteriJ = [ordered]@{}
             foreach ($k in $f.Criteri.Keys) { $criteriJ[$k] = $f.Criteri[$k] }
             $regolaJ = if ($c.Azione -eq 'nuova') { [string]$tFiltri.GetMethod('EtichettaNelGruppo', $FS).Invoke($null, @($f.Etichetta, $stato)) }
@@ -1261,7 +1260,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $uscita | ForEach-Object { Write-Host "        $_" }
         return @{ esito = $codice; ok = @($uscita -match '^\s+OK ').Count }
     }
-    $motoreR = NelMotore $sR $fatte 'riorganizza'
+    $motoreR = NelMotore $sR $filtriR $fatte 'riorganizza'
     Verifica "nel motore vero: le stesse ricerche, ogni messaggio dei filtri nella sua regola, e i filtri tolti con le regole ($($motoreR.ok) controlli)" (
         $motoreR.esito -eq 0 -and $motoreR.ok -ge 20)
 
@@ -1295,7 +1294,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $ffR3.Dispose()
     Verifica "e le regole restano quelle" ((Leggi $sR 'Regole').Count -eq $regolePrima + 10 -and (Leggi $sR 'FiltriDaTogliere').Count -eq 14)
     # e nel motore vero ogni "lo fa gia' la regola X" e' vero: X prende i messaggi del filtro
-    $motore3 = NelMotore $sR $fatte3 'riaperta'
+    $motore3 = NelMotore $sR $filtriR $fatte3 'riaperta'
     Verifica "nel motore vero la regola che 'lo fa gia'' prende davvero ogni messaggio di quel filtro ($($motore3.ok) controlli)" (
         $motore3.esito -eq 0 -and $motore3.ok -ge 20)
     # e se proprio arriva una regola nuova con un'etichetta che c'e' gia' (PEC): niente doppione
@@ -1313,6 +1312,52 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "una regola nuova con l'etichetta di una che c'e' gia', uguale: niente doppione, e il filtro si toglie" (
         @((Leggi $sR 'Regole') | Where-Object { $_.Etichetta -eq 'PEC' }).Count -eq 1 -and (Leggi $sR 'FiltriDaTogliere').Count -eq 1 -and
         $riepForzata -notmatch 'regole nuove')
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: DUE FILTRI CON LA STESSA ETICHETTA'
+    # Due filtri con la stessa etichetta, tutti e due "Diventa una regola":
+    # senza esclusioni (o con le stesse) una regola sola, con i mittenti di
+    # tutti e due; con esclusioni diverse due regole, con lo stesso colore,
+    # una sotto l'altra, perche' le esclusioni dell'uno non valgano per i
+    # mittenti dell'altro (Portali esclude "esami", che e' proprio il mittente
+    # dell'altro Portali). Poi nel motore vero, insieme ai 14 filtri del docente
+    $sD = StatoRiorganizza
+    $filtriD = LeggiRiorganizza
+    $filtriD.Add((UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example) -from:esami'; label = 'Portali'; shouldArchive = 'true' })))
+    $filtriD.Add((UnFiltro ([ordered]@{ hasTheWord = 'from:esami.portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })))
+    $filtriD.Add((UnFiltro ([ordered]@{ from = 'gare-uno.example'; label = 'Gare' })))
+    $filtriD.Add((UnFiltro ([ordered]@{ from = 'gare-due.example'; label = 'Gare' })))
+    $ffD = [Activator]::CreateInstance($tFF, @($sD.PSObject.BaseObject))
+    $ffD.Carica($filtriD)
+    $fatteD = $ffD.FatteAdesso()
+    $propD = @(14..17 | ForEach-Object { $ffD.Scelta($_).Azione })
+    $ffD.Dispose()
+    $riepD = [string]$mApplica.Invoke($null, @($sD.PSObject.BaseObject, $fatteD))
+    $regoleD = Leggi $sD 'Regole'
+    $portaliD = @($regoleD | Where-Object { $_.Etichetta -eq 'Portali' })
+    $gareD = @($regoleD | Where-Object { $_.Etichetta -eq 'Gare' })
+    Verifica "i due Portali e le due Gare partono come 'Diventa una regola' ($($propD -join ', '))" (($propD -join ',') -eq 'nuova,nuova,nuova,nuova')
+    Verifica "Portali, con esclusioni diverse: due regole, ognuna con i suoi mittenti e le sue esclusioni, con lo stesso colore, una sotto l'altra" (
+        $portaliD.Count -eq 2 -and (@($portaliD[0].Da) -join ',') -eq 'portale-uno.example,portale-due.example' -and
+        $portaliD[0].QueryLibera -eq '-from:esami' -and (@($portaliD[1].Da) -join ',') -eq 'esami.portale-uno.example' -and
+        $portaliD[1].QueryLibera -eq '' -and $portaliD[0].Archivia -and $portaliD[1].Archivia -and
+        $portaliD[0].Colore -eq $portaliD[1].Colore -and $regoleD.IndexOf($portaliD[1]) -eq $regoleD.IndexOf($portaliD[0]) + 1)
+    Verifica "Gare, senza esclusioni: una regola sola, con i mittenti di tutti e due" (
+        $gareD.Count -eq 1 -and (@($gareD[0].Da) -join ',') -eq 'gare-uno.example,gare-due.example' -and $gareD[0].QueryLibera -eq '')
+    Verifica "e i 18 filtri sono fra quelli da togliere ('$($riepD -replace '\r?\n', ' ')')" ((Leggi $sD 'FiltriDaTogliere').Count -eq 18)
+    $motoreD = NelMotore $sD $filtriD $fatteD 'stessa_etichetta'
+    Verifica "nel motore vero ogni messaggio dei due Portali ha l'etichetta Portali, anche quelli degli esami ($($motoreD.ok) controlli)" (
+        $motoreD.esito -eq 0 -and $motoreD.ok -ge 24)
+    # riaperta con lo stesso file: ognuno lo fa gia' la sua regola
+    Imposta $sD 'FiltriDaTogliere' $null
+    $ffD2 = [Activator]::CreateInstance($tFF, @($sD.PSObject.BaseObject))
+    $ffD2.Carica($filtriD)
+    $riaperteD = @(14..17 | ForEach-Object { $ffD2.Scelta($_) })
+    $ffD2.Dispose()
+    Verifica "riaperta, ogni Portali 'lo fa gia'' la sua regola, e le Gare quella sola ($(@($riaperteD | ForEach-Object { $_.Testo }) -join '; '))" (
+        @($riaperteD | Where-Object { $_.Azione -eq 'togli' -and $null -ne $_.Regola }).Count -eq 4 -and
+        [object]::ReferenceEquals($riaperteD[0].Regola, $portaliD[0]) -and [object]::ReferenceEquals($riaperteD[1].Regola, $portaliD[1]) -and
+        [object]::ReferenceEquals($riaperteD[2].Regola, $gareD[0]) -and [object]::ReferenceEquals($riaperteD[3].Regola, $gareD[0]))
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
