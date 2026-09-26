@@ -1272,7 +1272,11 @@ namespace Campanella
         /// regola che esclude altre etichette (Ministero e USR esclude Dirigenza
         /// e Segreteria) non prende un mittente che una di quelle regole prende
         /// tutto (PresoDaUnaEsclusa: la casella della scuola in Segreteria): i
-        /// suoi messaggi resterebbero senza l'etichetta del filtro.
+        /// suoi messaggi resterebbero senza l'etichetta del filtro. Nemmeno una
+        /// regola con sopra un'altra regola accesa con la stessa etichetta che
+        /// archivia o segna come letti diversamente (PrimaUnaDiversa): dove
+        /// prendono gli stessi messaggi li prende quella di sopra, e fa solo
+        /// quello che fa lei.
         /// </summary>
         public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r, Stato s)
         {
@@ -1306,6 +1310,9 @@ namespace Campanella
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
             if (Esclusioni(r.QueryLibera) == null) return false;
             if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
+            // sopra di lei una regola accesa con la stessa etichetta che archivia
+            // o segna come letti diversamente: i messaggi comuni li prende quella
+            if (PrimaUnaDiversa(s, r, s.IndirizziPersonale())) return false;
             foreach (string d in m.Da) if (PresoDaUnaEsclusa(s, r, d)) return false;
             return true;
         }

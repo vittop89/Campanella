@@ -1755,6 +1755,34 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "e con Segreteria accesa ma sotto Ministero e USR non si unisce lo stesso ($(Testi $cSottoE))" (
         (Testi $cSottoE) -notmatch 'Unisci a Ministero e USR')
 
+    # due regole con la stessa etichetta che archiviano diversamente: a quella
+    # di sotto non si uniscono i mittenti di un filtro (li prenderebbe quella
+    # di sopra, senza archiviarli), e anche arrivata lo stesso "Usa questa
+    # scelta" non lo fa
+    $sP = StatoRiorganizza
+    $regoleP = Leggi $sP 'Regole'
+    $portaliSopra = NuovaRegolaPortali @('avvisi@portale-uno.example') ''
+    $portaliSotto = NuovaRegolaPortali @('notizie@portale-due.example') ''
+    $portaliSotto.Archivia = $true
+    $regoleP.Add($portaliSopra); $regoleP.Add($portaliSotto)
+    $fTerzoP = UnFiltro ([ordered]@{ from = 'terzo@portale-tre.example'; label = 'Portali'; shouldArchive = 'true' })
+    $cTerzoP = ScelteDi $fTerzoP $sP
+    Verifica "sotto una Portali che non archivia, a una Portali che archivia non si uniscono i mittenti di un filtro che archivia ($(Testi $cTerzoP))" (
+        (Testi $cTerzoP) -notmatch 'Unisci a Portali' -and $cTerzoP.proposta.Azione -eq 'lascia')
+    $forzataP = [Activator]::CreateInstance($tScelto)
+    $forzataP.Filtro = $fTerzoP
+    $forzataP.Voce = $fTerzoP.DaTogliere()
+    $forzataP.Somiglia = $cTerzoP.x
+    $forzataP.Scelta = [Activator]::CreateInstance($tSceltaF)
+    $forzataP.Scelta.Azione = 'unisci'
+    $forzataP.Scelta.Regola = $portaliSotto
+    $listaP = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tScelto))
+    $listaP.Add($forzataP)
+    $riepP = ([string]$mApplica.Invoke($null, @($sP.PSObject.BaseObject, $listaP))) -replace '\r?\n', ' '
+    Verifica "e 'Unisci a Portali' arrivato lo stesso non si fa: il filtro resta ('$riepP')" (
+        $portaliSotto.Da.Count -eq 1 -and (Leggi $sP 'FiltriDaTogliere').Count -eq 0 -and
+        $riepP -match "Portali \(non si unisce piu' a quella regola\)")
+
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
