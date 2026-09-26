@@ -290,7 +290,7 @@ function CambiaLeEscluse($s, $altro) {
     }
 }
 
-function UnFiltro($caso, [string]$prefisso) {
+function UnFiltro($caso, [string]$prefisso, $altro) {
     $e = Uno $caso $etichette
     if ($prefisso -ne '' -and (ACaso $caso 0.85)) { $e = $prefisso + '/' + $e }
     if (ACaso $caso 0.1) { $e = $e.ToLowerInvariant() }
@@ -317,6 +317,8 @@ function UnFiltro($caso, [string]$prefisso) {
     if (ACaso $caso 0.4) { $prop['shouldArchive'] = 'true' }
     if (ACaso $caso 0.25) { $prop['shouldMarkAsRead'] = 'true' }
     if (ACaso $caso 0.1) { $prop['shouldStar'] = 'true' }
+    # a volte manda nel cestino
+    if (ACaso $altro 0.07) { $prop['shouldTrash'] = 'true' }
     return @{ etichetta = $e; prop = $prop }
 }
 
@@ -380,7 +382,7 @@ foreach ($n in $quali) {
             foreach ($c in $f.prop.Keys) { if ($c.StartsWith('should') -and (ACaso $caso 0.7)) { $copia.prop[$c] = $f.prop[$c] } }
             if (ACaso $caso 0.2) { $copia.prop['shouldArchive'] = 'true' }
             $filtri += ,$copia
-        } else { $filtri += ,(UnFiltro $caso $prefisso) }
+        } else { $filtri += ,(UnFiltro $caso $prefisso $altro) }
     }
     $accanto = FiltriAccanto $s $altro $prefisso
     foreach ($f in $accanto) { $filtri += ,$f }
@@ -520,7 +522,8 @@ foreach ($n in $quali) {
         $regola = if ($chiave -ne '' -and $voci.ContainsKey($chiave)) { [string]$voci[$chiave].Regola } else { '' }
         $esplicito = ($chiave -ne '' -and $esplicite.Contains($chiave) -and $regola -eq '')
         $fj.Add('{"etichetta":' + (J $f.Etichetta) + ',"criteri":{' + $criteri + '},"archivia":' + $(if ($f.Archivia) { 'true' } else { 'false' }) +
-                ',"letti":' + $(if ($f.SegnaLetto) { 'true' } else { 'false' }) + ',"regola":' + (J $regola) +
+                ',"letti":' + $(if ($f.SegnaLetto) { 'true' } else { 'false' }) + ',"cestino":' + $(if ($f.Azioni -contains 'elimina (nel cestino)') { 'true' } else { 'false' }) +
+                ',"regola":' + (J $regola) +
                 ',"esplicito":' + $(if ($esplicito) { 'true' } else { 'false' }) + '}')
     }
     $scenariJson.Add('{"nome":' + (J $n) + ',"configurazione":' + (J $configurazione) + ',"racconto":' + (J $racconto.ToString()) +

@@ -13,7 +13,8 @@
  *      del file) dice quali filtri vanno via davvero;
  *   2. su una casella finta sempre uguale, con i messaggi di mittenti che si
  *      sovrappongono, i filtri rimasti in Gmail fanno il loro lavoro
- *      all'arrivo (etichetta, archivia, segna come letto), poi gira lo
+ *      all'arrivo (etichetta, archivia, segna come letto, manda nel cestino:
+ *      la ricerca dello script nel cestino non guarda), poi gira lo
  *      smistamento (smistaNuoviMessaggi) oppure il riordino (PASSO_3);
  *   3. ogni messaggio di ogni filtro tolto deve avere ancora l'etichetta
  *      della regola che lo sostituisce (quella del filtro, se si toglie
@@ -32,7 +33,7 @@
  *      il filtro non lo sostituisce nessuno.
  *
  * scenari.json: { messaggi: [{ da, nome }], scenari: [{ nome, configurazione,
- * racconto, filtri: [{ etichetta, criteri, archivia, letti, regola,
+ * racconto, filtri: [{ etichetta, criteri, archivia, letti, cestino, regola,
  * esplicito }] }] }. regola e' quella che la voce da togliere ricorda ("" se
  * nessuna); esplicito, un "Toglilo" senza regola scelto apposta.
  *
@@ -56,7 +57,7 @@ const zitto = { log: () => {}, warn: () => {}, error: () => {}, info: () => {} }
 function nuovaCasella() {
   return dati.messaggi.map((x, i) => ({
     id: 'm' + i, da: x.da, nome: x.nome || '', oggetto: x.oggetto || 'Messaggio', testo: '',
-    etichette: new Set(), inArrivo: true, letto: false, getId() { return this.id; }
+    etichette: new Set(), inArrivo: true, letto: false, cestino: false, getId() { return this.id; }
   }));
 }
 
@@ -66,6 +67,7 @@ function applicaFiltri(filtri, casella) {
     m.etichette.add(f.etichetta);
     if (f.archivia) m.inArrivo = false;
     if (f.letti) m.letto = true;
+    if (f.cestino) m.cestino = true;
   }));
 }
 
@@ -85,7 +87,8 @@ function contesto(configurazione, casella) {
   }));
   const ctx = vm.createContext({
     GmailApp: {
-      search: (q, inizio, quanti) => cerca(q, casella).slice(inizio || 0, (inizio || 0) + (quanti || 500)),
+      // come Gmail: la ricerca non guarda nel cestino
+      search: (q, inizio, quanti) => cerca(q, casella.filter(m => !m.cestino)).slice(inizio || 0, (inizio || 0) + (quanti || 500)),
       getUserLabelByName: nome => etichette.get(String(nome).toLowerCase()) || null,
       createLabel: nome => { const l = new Label(nome); etichette.set(String(nome).toLowerCase(), l); return l; },
       getUserLabels: () => [...etichette.values()],

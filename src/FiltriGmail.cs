@@ -131,6 +131,12 @@ namespace Campanella
         /// <summary>Archivia (shouldArchive) e segna come letto (shouldMarkAsRead): le due che anche le regole fanno.</summary>
         public bool Archivia = false, SegnaLetto = false;
         /// <summary>
+        /// Manda nel cestino (shouldTrash). Restando in Gmail, un filtro cosi'
+        /// toglie ai messaggi che prende le etichette delle regole: la loro
+        /// ricerca nel cestino non guarda (FiltriGmail.Applica).
+        /// </summary>
+        public bool Cestino = false;
+        /// <summary>
         /// Le azioni che le regole di Campanella non fanno mai (tutte tranne
         /// etichetta, archivia e segna come letto), a parole: inoltra, elimina,
         /// stella, importante, spam, categoria, e quelle che Campanella non
@@ -424,7 +430,11 @@ namespace Campanella
                 // archiviare e segnare come letto le regole lo fanno; il resto no
                 if (nome == "shouldArchive") f.Archivia = true;
                 else if (nome == "shouldMarkAsRead") f.SegnaLetto = true;
-                else f.AltreAzioni.Add(AzioniSiNo[i, 1]);
+                else
+                {
+                    if (nome == "shouldTrash") f.Cestino = true;
+                    f.AltreAzioni.Add(AzioniSiNo[i, 1]);
+                }
             }
             note.Add("smartLabelToApply");
             if (valori.ContainsKey("smartLabelToApply") && valori["smartLabelToApply"].Trim() != "")
@@ -2313,8 +2323,10 @@ namespace Campanella
         /// togliere: restando, quello mette la sua etichetta all'arrivo, e uno
         /// con la stessa etichetta che archivia o segna come letto
         /// (ConLaStessaEtichetta), o la cui regola esclude quell'etichetta
-        /// (ConUnaEtichettaEsclusa), perderebbe dei messaggi. Come in "Usa
-        /// questa scelta", restando un filtro ne puo' far restare un altro.
+        /// (ConUnaEtichettaEsclusa), perderebbe dei messaggi; e uno che manda
+        /// nel cestino ne toglie l'etichetta a quelli che prende anche un
+        /// altro (ConUnoNelCestino). Come in "Usa questa scelta", restando un
+        /// filtro ne puo' far restare un altro.
         /// </summary>
         public static List<FiltroDaTogliere> CheRestano(Stato s)
         {
@@ -2339,11 +2351,14 @@ namespace Campanella
             for (bool ancora = true; ancora; )
             {
                 ancora = false;
+                List<FiltroDaTogliere> nelCestino = new List<FiltroDaTogliere>();
+                foreach (FiltroDaTogliere g in restano) if (g.Cestino) nelCestino.Add(g);
                 foreach (FiltroDaTogliere v in new List<FiltroDaTogliere>(vanno))
                 {
-                    if (ConLaStessaEtichetta(v, restano, s) == "" && ConUnaEtichettaEsclusa(v, restano, s) == "") continue;
+                    if (PercheResta(v, restano, nelCestino, s) == "") continue;
                     vanno.Remove(v);
                     restano.Add(v);
+                    if (v.Cestino) nelCestino.Add(v);
                     ancora = true;
                 }
             }
@@ -2447,8 +2462,10 @@ namespace Campanella
         ///    non segna come letti come lui (ConLaStessaEtichetta), o con
         ///    un'etichetta che la sua regola esclude (ConUnaEtichettaEsclusa):
         ///    quel filtro mette l'etichetta all'arrivo, e la regola non prende o
-        ///    non tocca piu' quei messaggi. Restando, un filtro ne puo' far
-        ///    restare un altro.
+        ///    non tocca piu' quei messaggi; o un filtro che manda nel cestino e
+        ///    puo' prendere gli stessi messaggi (ConUnoNelCestino): nel cestino
+        ///    la regola non guarda. Restando, un filtro ne puo' far restare un
+        ///    altro.
         /// Due filtri uguali sono la stessa voce: conta la scelta con una regola
         /// (Unisci o Diventa una regola, poi "lo fa gia'"), se c'e', altrimenti
         /// quella del primo. Una regola nuova con l'etichetta di una che c'e'
@@ -2493,6 +2510,7 @@ namespace Campanella
                 {
                     voce.Archivia = x.Filtro.Archivia;
                     voce.SegnaLetto = x.Filtro.SegnaLetto;
+                    voce.Cestino = x.Filtro.Cestino;
                 }
                 // lo stesso filtro piu' volte in Gmail: EXTRA_togliFiltri le toglie
                 // tutte, e ai loro messaggi, che sono gli stessi, facevano quello
@@ -2507,6 +2525,7 @@ namespace Campanella
                     if (x.Filtro != null && (y.Filtro.Archivia != x.Filtro.Archivia || y.Filtro.SegnaLetto != x.Filtro.SegnaLetto)) diverse = true;
                     if (y.Filtro.Archivia) voce.Archivia = true;
                     if (y.Filtro.SegnaLetto) voce.SegnaLetto = true;
+                    if (y.Filtro.Cestino) voce.Cestino = true;
                 }
                 if (sostituta != null) voce.Regola = sostituta.Etichetta;
                 else if (SceltoConLaVersioneDiPrima(voce))
@@ -2566,19 +2585,19 @@ namespace Campanella
             // ancora (-label:), e a quelli che prende anche lui non fa niente; una
             // regola che esclude quell'etichetta non li prende proprio. Restando,
             // un filtro ne puo' far restare un altro
-            List<FiltroDaTogliere> inGmail = QuelliCheRestano(scelti, togli);
+            List<FiltroDaTogliere> nelCestino = new List<FiltroDaTogliere>();
+            List<FiltroDaTogliere> inGmail = QuelliCheRestano(scelti, togli, nelCestino);
             for (bool ancora = true; ancora; )
             {
                 ancora = false;
                 foreach (FiltroDaTogliere v in new List<FiltroDaTogliere>(togli))
                 {
-                    string perche = ConLaStessaEtichetta(v, inGmail, s);
-                    if (perche == "") perche = ConUnaEtichettaEsclusa(v, inGmail, s);
+                    string perche = PercheResta(v, inGmail, nelCestino, s);
                     if (perche == "") continue;
                     togli.Remove(v);
                     Rifiuta(e, rifiutati, v, perche);
                     // resta lui, e con lui i filtri uguali
-                    inGmail = QuelliCheRestano(scelti, togli);
+                    inGmail = QuelliCheRestano(scelti, togli, nelCestino);
                     ancora = true;
                 }
             }
@@ -2607,6 +2626,42 @@ namespace Campanella
             s.FiltriDaTogliere = togli;
             e.Togli = togli;
             return e;
+        }
+
+        /// <summary>
+        /// Perche' il filtro v, sostituito da una regola, deve restare in Gmail
+        /// per quelli che ci restano (restano; nelCestino: quelli che mandano nel
+        /// cestino): ConLaStessaEtichetta, ConUnaEtichettaEsclusa o
+        /// ConUnoNelCestino. "" se niente.
+        /// </summary>
+        static string PercheResta(FiltroDaTogliere v, List<FiltroDaTogliere> restano, List<FiltroDaTogliere> nelCestino, Stato s)
+        {
+            string perche = ConLaStessaEtichetta(v, restano, s);
+            if (perche == "") perche = ConUnaEtichettaEsclusa(v, restano, s);
+            if (perche == "") perche = ConUnoNelCestino(v, nelCestino);
+            return perche;
+        }
+
+        /// <summary>
+        /// Perche' il filtro v, sostituito da una regola, deve restare in Gmail
+        /// per un filtro che ci resta e manda nel cestino, se possono prendere
+        /// gli stessi messaggi (PossonoSovrapporsi: nel dubbio si'): quello li
+        /// mette nel cestino all'arrivo, e la ricerca della regola, che nel
+        /// cestino non guarda, non darebbe loro l'etichetta che dava v. "" se
+        /// non ce n'e', o se v si toglie e basta, senza una regola.
+        /// </summary>
+        static string ConUnoNelCestino(FiltroDaTogliere v, List<FiltroDaTogliere> nelCestino)
+        {
+            if (v == null || (v.Regola ?? "").Trim() == "" || nelCestino == null) return "";
+            foreach (FiltroDaTogliere g in nelCestino)
+            {
+                if (!PossonoSovrapporsi(v.Criteri, g.Criteri)) continue;
+                string quale = (g.Etichetta ?? "").Trim();
+                return "resta in Gmail un filtro che manda nel cestino" + (quale == "" ? "" : " (" + quale + ")") + " e puo' " +
+                       "prendere gli stessi messaggi: nel cestino la regola " + v.Regola.Trim() + " non li cerca, e non avrebbero " +
+                       "piu' la sua etichetta";
+            }
+            return "";
         }
 
         /// <summary>Le etichette che escludono le regole con quell'etichetta (senza il gruppo), come le scrivono.</summary>
@@ -2726,13 +2781,17 @@ namespace Campanella
         /// che nel file aperto non ci sono (FiltroScelto.FuoriDalFile: forse
         /// sono gia' stati tolti). Ognuno con l'etichetta, i criteri (nessuno se
         /// uno non si capisce: allora puo' prendere qualunque messaggio) e
-        /// quello che fa (null: non si sa, un filtro scelto con la 1.6.0).
+        /// quello che fa (null: non si sa, un filtro scelto con la 1.6.0). In
+        /// nelCestino, se non e' null, quelli che mandano nel cestino, anche
+        /// senza etichetta.
         /// </summary>
-        static List<FiltroDaTogliere> QuelliCheRestano(List<FiltroScelto> scelti, List<FiltroDaTogliere> togli)
+        static List<FiltroDaTogliere> QuelliCheRestano(List<FiltroScelto> scelti, List<FiltroDaTogliere> togli,
+                                                       List<FiltroDaTogliere> nelCestino)
         {
             List<string> via = new List<string>();
             foreach (FiltroDaTogliere v in togli) via.Add(v.Chiave());
             List<FiltroDaTogliere> fuori = new List<FiltroDaTogliere>();
+            if (nelCestino != null) nelCestino.Clear();
             foreach (FiltroScelto x in scelti ?? new List<FiltroScelto>())
             {
                 if (x == null || x.FuoriDalFile || (x.Voce != null && via.Contains(x.Voce.Chiave()))) continue;
@@ -2743,6 +2802,7 @@ namespace Campanella
                     r.Criteri = x.Filtro.CriteriIncompleti ? new Dictionary<string, string>() : x.Filtro.Criteri;
                     r.Archivia = x.Filtro.Archivia;
                     r.SegnaLetto = x.Filtro.SegnaLetto;
+                    r.Cestino = x.Filtro.Cestino;
                 }
                 else if (x.Voce != null)
                 {
@@ -2750,7 +2810,10 @@ namespace Campanella
                     r.Criteri = x.Voce.Criteri;
                     r.Archivia = x.Voce.Archivia;
                     r.SegnaLetto = x.Voce.SegnaLetto;
+                    r.Cestino = x.Voce.Cestino;
                 }
+                // uno che manda nel cestino conta anche senza etichetta
+                if (nelCestino != null && r.Cestino) nelCestino.Add(r);
                 if ((r.Etichetta ?? "").Trim() != "") fuori.Add(r);
             }
             return fuori;

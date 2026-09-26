@@ -1016,6 +1016,10 @@ static class ProvaStato
             if (campoEscluse != null && campoAccanto != null)
             {
                 campoEscluse.SetValue(FiltriDi(t)[0], new List<string>(new string[] { "Colleghi", "Dirigenza" }));
+                // e se mandava nel cestino: se resta in Gmail, fa restare gli altri che prendono gli stessi messaggi
+                FieldInfo campoCestino = FiltriDi(t)[0].GetType().GetField("Cestino");
+                Verifica("un filtro da togliere ricorda se mandava nel cestino (FiltroDaTogliere.Cestino)", campoCestino != null);
+                if (campoCestino != null) campoCestino.SetValue(FiltriDi(t)[0], true);
                 object accanto = Activator.CreateInstance(FiltriDi(t)[0].GetType(), true);
                 accanto.GetType().GetField("Etichetta").SetValue(accanto, "Colleghi");
                 ((Dictionary<string, string>)accanto.GetType().GetField("Criteri").GetValue(accanto))["from"] =
@@ -1032,7 +1036,8 @@ static class ProvaStato
                     e0 != null && e1 != null && ListaNelFile(e0, "escluse") == "Colleghi|Dirigenza" && a0 != null &&
                     Convert.ToString(a0["etichetta"]) == "Colleghi" && ca0 != null &&
                     Convert.ToString(ca0["from"]) == "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
-                    !e1.ContainsKey("escluse") && !e1.ContainsKey("accanto") && !Leggi(Impostazioni()).Contains("marco.verdi"));
+                    !e1.ContainsKey("escluse") && !e1.ContainsKey("accanto") && !Leggi(Impostazioni()).Contains("marco.verdi") &&
+                    e0.ContainsKey("cestino") && e0["cestino"] is bool && (bool)e0["cestino"] && !e1.ContainsKey("cestino"));
                 Stato sx = Carica();
                 IList accantoLetti = (FiltriDi(sx) != null && FiltriDi(sx).Count == 2) ? (IList)campoAccanto.GetValue(FiltriDi(sx)[0]) : null;
                 List<string> esclusiLette = (accantoLetti != null) ? campoEscluse.GetValue(FiltriDi(sx)[0]) as List<string> : null;
@@ -1041,7 +1046,9 @@ static class ProvaStato
                     g0 != null && (string)g0.GetType().GetField("Etichetta").GetValue(g0) == "Colleghi" &&
                     ((Dictionary<string, string>)g0.GetType().GetField("Criteri").GetValue(g0))["from"] ==
                         "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
-                    campoEscluse.GetValue(FiltriDi(sx)[1]) == null && ((IList)campoAccanto.GetValue(FiltriDi(sx)[1])).Count == 0);
+                    campoEscluse.GetValue(FiltriDi(sx)[1]) == null && ((IList)campoAccanto.GetValue(FiltriDi(sx)[1])).Count == 0 &&
+                    campoCestino != null && object.Equals(campoCestino.GetValue(FiltriDi(sx)[0]), true) &&
+                    object.Equals(campoCestino.GetValue(FiltriDi(sx)[1]), false));
             }
         }
 

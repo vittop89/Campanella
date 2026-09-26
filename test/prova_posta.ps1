@@ -1722,7 +1722,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
             foreach ($k in $f.Criteri.Keys) { $criteri[$k] = $f.Criteri[$k] }
             $v = $f.DaTogliere()
             $chiave = if ($null -eq $v) { '' } else { $v.Chiave() }
-            $fj += ,([ordered]@{ etichetta = $f.Etichetta; criteri = $criteri; archivia = $f.Archivia; letti = $f.SegnaLetto
+            $fj += ,([ordered]@{ etichetta = $f.Etichetta; criteri = $criteri; archivia = $f.Archivia; letti = $f.SegnaLetto; cestino = ($f.Azioni -contains 'elimina (nel cestino)')
                                  regola = $(if ($chiave -ne '' -and $voci.ContainsKey($chiave)) { [string]$voci[$chiave].Regola } else { '' })
                                  esplicito = $false })
         }
@@ -2406,6 +2406,50 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $primaD3 -eq 2 -and (Senza $sD3) -eq 'Segreteria,Ministero e USR' -and [int]$mDaTogliere.Invoke($null, @($sD3)) -eq 0 -and
         $motoreD3.esito -eq 0 -and $motoreD3.tolti -eq 0 -and
         $avvisoD3 -match "^ 1 filtro scelto resta in Gmail: la regola che lo sostituiva" -and $avvisoD3 -match " 1 filtro scelto resta in Gmail per un altro filtro")
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA E MANDA NEL CESTINO'
+    # Un filtro che resta in Gmail e manda nel cestino toglie le etichette
+    # delle regole ai messaggi che prende: la ricerca dello script nel cestino
+    # non guarda. Uno tolto e sostituito da una regola, che puo' prendere gli
+    # stessi messaggi, resta anche lui, e il riquadro dice perche'; non se non
+    # possono prendere gli stessi messaggi
+    $posteC = @(@('segreteria@sindacato-quattro.example', 'Sindacato Quattro'), @('mario.bianchi@sindacato-quattro.example', 'Mario Bianchi'),
+                @('info@altro-ente.example', 'Altro ente'))
+    $sC1 = StatoRiorganizza
+    @((Leggi $sC1 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-quattro.example')
+    $tuttiC = UnFiltro ([ordered]@{ from = '@sindacato-quattro.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $cestinoC = UnFiltro ([ordered]@{ from = 'mario.bianchi@sindacato-quattro.example'; label = 'Da buttare'; shouldTrash = 'true' })
+    $altroC = UnFiltro ([ordered]@{ from = 'info@altro-ente.example'; shouldTrash = 'true' })
+    $cTuttiC = ScelteDi $tuttiC $sC1
+    $c1 = FinestraEScelta $sC1 @($tuttiC, $cestinoC) $null
+    $motoreC1 = PromessaNelMotore $sC1 @($tuttiC, $cestinoC) $posteC 'resta_uno_che_manda_nel_cestino'
+    $sC2 = StatoRiorganizza
+    @((Leggi $sC2 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-quattro.example')
+    $c2 = FinestraEScelta $sC2 @($tuttiC, $altroC) $null
+    $motoreC2 = PromessaNelMotore $sC2 @($tuttiC, $altroC) $posteC 'nel_cestino_altri_messaggi'
+    Verifica "'$($cTuttiC.proposta.Testo)' da solo, ma con un filtro che resta e manda nel cestino i messaggi di mario.bianchi@sindacato-quattro.example parte lasciato e il riquadro dice perche'; con uno che butta altri messaggi, anche senza etichetta, si toglie ($($c1.scelte -join '; ') / $($c2.scelte -join '; '))" (
+        $cTuttiC.proposta.Testo -eq "Toglilo: lo fa gia' la regola Sindacati" -and ($c1.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and
+        $c1.riquadri[0] -match "Di partenza resta, e non ""Toglilo: lo fa gia' la regola Sindacati"": resta in Gmail un filtro che manda nel cestino \(Da buttare\) e puo' prendere gli stessi messaggi: nel cestino la regola Sindacati non li cerca" -and
+        (Leggi $sC1 'FiltriDaTogliere').Count -eq 0 -and $motoreC1.esito -eq 0 -and $motoreC1.tolti -eq 0 -and
+        $c2.scelte[0] -eq "Toglilo: lo fa gia' la regola Sindacati" -and $motoreC2.esito -eq 0 -and $motoreC2.tolti -eq 1)
+    # anche senza il file: tolti tutti e due, quello che manda nel cestino con
+    # la sua regola (la regola Da buttare, scelto a mano: si perde il cestino),
+    # poi la regola Da buttare si spegne. Quello resta in Gmail, e la voce
+    # ricorda che manda nel cestino: resta anche quello di Sindacati
+    $sC3 = StatoRiorganizza
+    $regoleC3 = Leggi $sC3 'Regole'
+    @($regoleC3 | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-quattro.example')
+    $buttare = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $buttare.Etichetta = 'Da buttare'; $buttare.Da.Add('mario.bianchi@sindacato-quattro.example')
+    $regoleC3.Add($buttare)
+    $c3 = FinestraEScelta $sC3 @($tuttiC, $cestinoC) @{ 1 = "Toglilo: lo fa gia' la regola Da buttare (si perde: elimina (nel cestino))" }
+    $vociC3 = @((Leggi $sC3 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola + $(if ($_.Cestino) { ' (cestino)' } else { '' }) })
+    $buttare.Attiva = $false
+    $motoreC3 = PromessaNelMotore $sC3 @($tuttiC, $cestinoC) $posteC 'resta_nel_cestino_senza_file'
+    Verifica "tolti tutti e due ($($vociC3 -join ', ')), poi spenta la regola Da buttare: senza il file restano tutti e due ('$(Senza $sC3)'), e nel motore vero nessun messaggio perde niente" (
+        ($vociC3 -join ',') -eq 'Sindacati>Sindacati,Da buttare>Da buttare (cestino)' -and (Senza $sC3) -eq 'Da buttare,Sindacati' -and
+        [int]$mDaTogliere.Invoke($null, @($sC3)) -eq 0 -and $motoreC3.esito -eq 0 -and $motoreC3.tolti -eq 0)
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: RUOLI, GEMELLE E OR MINUSCOLO'

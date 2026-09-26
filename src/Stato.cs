@@ -180,6 +180,14 @@ namespace Campanella
         /// </summary>
         public bool? Archivia = null, SegnaLetto = null;
         /// <summary>
+        /// Se il filtro mandava nel cestino: se poi resta in Gmail (la sua regola
+        /// non lo sostituisce piu'), toglie le etichette delle regole ai
+        /// messaggi che prende, e un altro filtro scelto che puo' prendere gli
+        /// stessi messaggi resta anche lui (FiltriGmail.CheRestano). Non fa
+        /// parte della chiave.
+        /// </summary>
+        public bool Cestino = false;
+        /// <summary>
         /// Le etichette (come le scrive la regola, senza il gruppo) che la regola
         /// che lo sostituisce escludeva quando si e' scelto (Studenti: Colleghi,
         /// Dirigenza, Segreteria). Se poi ne esclude un'altra, un filtro rimasto
@@ -285,6 +293,7 @@ namespace Campanella
             f.Regola = Regola;
             f.Archivia = Archivia;
             f.SegnaLetto = SegnaLetto;
+            f.Cestino = Cestino;
             f.Escluse = (Escluse == null) ? null : new List<string>(Escluse);
             f.Accanto = new List<FiltroDaTogliere>();
             if (Accanto != null) foreach (FiltroDaTogliere g in Accanto) if (g != null) f.Accanto.Add(g.Copia());
@@ -691,7 +700,8 @@ namespace Campanella
         /// senza dirlo l'oggetto E gli studenti.
         /// Formato 4 (1.6.1): dentro ogni filtro di Gmail da togliere
         /// ("filtriDaTogliere") la regola che lo sostituisce ("regola"), se il
-        /// filtro archiviava e segnava come letto ("archivia", "letti"), le
+        /// filtro archiviava, segnava come letto o mandava nel cestino
+        /// ("archivia", "letti", "cestino"), le
         /// etichette che la regola escludeva ("escluse") e i filtri rimasti in
         /// Gmail con una di quelle ("accanto"); la 1.6.0
         /// riscrivendo il file li perderebbe: il filtro sembrerebbe scelto con
@@ -1167,6 +1177,7 @@ namespace Campanella
                     // e che cosa faceva, se si sa
                     if (f.Archivia.HasValue) d["archivia"] = f.Archivia.Value;
                     if (f.SegnaLetto.HasValue) d["letti"] = f.SegnaLetto.Value;
+                    if (f.Cestino) d["cestino"] = true;
                     // le etichette che la sua regola escludeva, e i filtri rimasti
                     // in Gmail con una di quelle (solo se ce ne sono)
                     if (f.Escluse != null) d["escluse"] = new List<string>(f.Escluse);
@@ -1534,6 +1545,7 @@ namespace Campanella
                     f.Regola = Str(d, "regola", "").Trim();
                     if (d.ContainsKey("archivia") && d["archivia"] is bool) f.Archivia = (bool)d["archivia"];
                     if (d.ContainsKey("letti") && d["letti"] is bool) f.SegnaLetto = (bool)d["letti"];
+                    if (d.ContainsKey("cestino") && d["cestino"] is bool) f.Cestino = (bool)d["cestino"];
                     if (d.ContainsKey("escluse")) f.Escluse = Lista(d, "escluse");
                     object[] accanto = d.ContainsKey("accanto") ? d["accanto"] as object[] : null;
                     if (accanto != null)
