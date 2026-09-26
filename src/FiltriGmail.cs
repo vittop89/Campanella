@@ -1349,7 +1349,7 @@ namespace Campanella
             if (a == "" || b == "") return false;
             string a0 = a.TrimStart('@'), b0 = b.TrimStart('@');
             if (a0.IndexOf('.') < 0 || b0.IndexOf('.') < 0) return true;
-            return Copre(a, b) || Copre(b, a) || a0.IndexOf(b0, StringComparison.Ordinal) >= 0 ||
+            return CopreLargo(a, b) || CopreLargo(b, a) || a0.IndexOf(b0, StringComparison.Ordinal) >= 0 ||
                    b0.IndexOf(a0, StringComparison.Ordinal) >= 0;
         }
 
@@ -1428,13 +1428,40 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se il mittente e di una regola prende tutti i messaggi del
-        /// mittente d di un filtro: sono uguali (anche uno con la chiocciola
-        /// davanti e l'altro senza), o e e' un dominio (@dominio, o dominio con
-        /// un punto) e d e' un indirizzo di quel dominio o un suo sottodominio.
-        /// Un indirizzo intero prende solo se stesso, una parola anche.
+        /// Vero se il mittente e di una regola prende di sicuro tutti i
+        /// messaggi del mittente d di un filtro. from: di Gmail cerca un pezzo
+        /// dell'indirizzo, e nel dubbio si legge stretto: sono uguali; e e' un
+        /// dominio senza chiocciola (flcgil.it) e d e' un indirizzo di quel
+        /// dominio o di un suo sottodominio, o uno dei due domini, con la
+        /// chiocciola o senza; e e' @dominio e d e' un indirizzo proprio di
+        /// quel dominio. @flcgil.it non prende x@posta.flcgil.it ne' flcgil.it
+        /// senza chiocciola, che prende anche quello. Un indirizzo intero
+        /// prende solo se stesso, una parola anche.
         /// </summary>
         static bool Copre(string e, string d)
+        {
+            string a = (e ?? "").Trim().ToLowerInvariant(), b = (d ?? "").Trim().ToLowerInvariant();
+            if (a == "" || b == "") return false;
+            if (a == b) return true;
+            int chiocciola = a.IndexOf('@');
+            if (chiocciola > 0) return false;
+            if (chiocciola == 0)
+            {
+                string suo = a.Substring(1);
+                int k = b.IndexOf('@');
+                return suo.IndexOf('.') > 0 && suo.IndexOf('@') < 0 && k > 0 && k == b.LastIndexOf('@') &&
+                       b.Substring(k + 1) == suo;
+            }
+            if (a.IndexOf('.') < 0) return false;
+            return b.EndsWith("@" + a, StringComparison.Ordinal) || b.EndsWith("." + a, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Copre letto largo, per le esclusioni (Tocca): @dominio prende anche
+        /// i sottodomini e il dominio senza chiocciola, che Gmail forse trova.
+        /// Nel dubbio un'esclusione tocca.
+        /// </summary>
+        static bool CopreLargo(string e, string d)
         {
             string a = (e ?? "").Trim().ToLowerInvariant(), b = (d ?? "").Trim().ToLowerInvariant();
             if (a == "" || b == "") return false;

@@ -1609,6 +1609,79 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         (Senza $sG) -eq 'Portali,Portali' -and [int]$mDaTogliere.Invoke($null, @($sG)) -eq 0)
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: COME GMAIL CERCA I MITTENTI'
+    # from: di Gmail cerca un pezzo dell'indirizzo: from:@dominio prende
+    # x@dominio, non x@posta.dominio; from:dominio prende anche quello. Nel
+    # dubbio "lo fa gia'" si legge stretto, e le esclusioni toccano largo. La
+    # promessa si prova nel motore vero con test\filtri_a_caso.js, lo stesso
+    # delle prove a caso: EXTRA_togliFiltri, i filtri rimasti che lavorano
+    # all'arrivo, lo smistamento e il riordino; ogni messaggio di un filtro
+    # tolto ha l'etichetta della sua regola, ed e' archiviato e segnato come
+    # letto se il filtro lo faceva
+    $tListaFiltriGmail = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFiltroGmail)
+    function ListaFiltri($filtri) {
+        $l = [Activator]::CreateInstance($tListaFiltriGmail)
+        foreach ($f in $filtri) { $l.Add($f) }
+        return ,$l
+    }
+    # la finestra vera, costruita e mai mostrata, con le proposte (o le scelte
+    # date, per testo), e "Usa questa scelta"; il riepilogo di Applica
+    function UsaLaScelta($stato, $filtri, $scelte) {
+        $ff = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))
+        $ff.Carica((ListaFiltri $filtri))
+        if ($null -ne $scelte) {
+            foreach ($i in $scelte.Keys) { $ff.Scegli($i, @($ff.Scelte($i) | Where-Object { $_.Testo -eq $scelte[$i] })[0]) }
+        }
+        $riepilogo = [string]$mApplica.Invoke($null, @($stato.PSObject.BaseObject, $ff.FatteAdesso()))
+        $ff.Dispose()
+        return ($riepilogo -replace '\r?\n', ' ')
+    }
+    function PromessaNelMotore($stato, $filtri, $messaggi, $nome) {
+        $voci = @{}
+        foreach ($v in (Leggi $stato 'FiltriDaTogliere')) { if ($null -ne $v) { $voci[$v.Chiave()] = $v } }
+        $fj = @()
+        foreach ($f in $filtri) {
+            $criteri = [ordered]@{}
+            foreach ($k in $f.Criteri.Keys) { $criteri[$k] = $f.Criteri[$k] }
+            $v = $f.DaTogliere()
+            $chiave = if ($null -eq $v) { '' } else { $v.Chiave() }
+            $fj += ,([ordered]@{ etichetta = $f.Etichetta; criteri = $criteri; archivia = $f.Archivia; letti = $f.SegnaLetto
+                                 regola = $(if ($chiave -ne '' -and $voci.ContainsKey($chiave)) { [string]$voci[$chiave].Regola } else { '' })
+                                 esplicito = $false })
+        }
+        $caso = [ordered]@{
+            messaggi = @($messaggi | ForEach-Object { [ordered]@{ da = $_[0]; nome = $_[1] } })
+            scenari = @([ordered]@{ nome = $nome; configurazione = [string](Genera $stato $false); racconto = ''; filtri = $fj })
+        }
+        $file = Join-Path $temporanea ('promessa_' + $nome + '.json')
+        Scrivi $file (ConvertTo-Json -InputObject $caso -Depth 8)
+        $uscita = @(& node (Join-Path $qui 'filtri_a_caso.js') $file $motore 2>&1 | ForEach-Object { [string]$_ })
+        $codice = $LASTEXITCODE
+        $uscita | Where-Object { $_ -match '^(SCENARIO|    )' } | ForEach-Object { Write-Host "        $_" }
+        $m = [regex]::Match(($uscita -join "`n"), 'filtri tolti da EXTRA_togliFiltri: (\d+)')
+        return @{ esito = $codice; tolti = $(if ($m.Success) { [int]$m.Groups[1].Value } else { -1 }) }
+    }
+
+    $sM = StatoRiorganizza
+    @((Leggi $sM 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-uno.example')
+    $fIndirizzoM = UnFiltro ([ordered]@{ from = 'comunicati@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $fSottoM = UnFiltro ([ordered]@{ from = 'news@mail.sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $fSenzaM = UnFiltro ([ordered]@{ hasTheWord = 'from:sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $cIndM = ScelteDi $fIndirizzoM $sM
+    $cSottoM = ScelteDi $fSottoM $sM
+    $cSenzaM = ScelteDi $fSenzaM $sM
+    Verifica "Sindacati, con @sindacato-uno.example, 'lo fa gia'' per comunicati@sindacato-uno.example ('$($cIndM.proposta.Testo)'), non per news@mail.sindacato-uno.example ('$($cSottoM.proposta.Testo)') ne' per sindacato-uno.example senza chiocciola ('$($cSenzaM.proposta.Testo)'): si uniscono" (
+        $cIndM.proposta.Testo -eq "Toglilo: lo fa gia' la regola Sindacati" -and (Testi $cSottoM) -notmatch "lo fa gia'" -and
+        (Testi $cSenzaM) -notmatch "lo fa gia'" -and $cSottoM.proposta.Azione -eq 'unisci' -and $cSenzaM.proposta.Azione -eq 'unisci')
+    $filtriM = @($fIndirizzoM, $fSottoM, $fSenzaM)
+    $riepM = UsaLaScelta $sM $filtriM $null
+    $posteM = @(@('comunicati@sindacato-uno.example', 'Sindacato Uno'), @('news@mail.sindacato-uno.example', 'Sindacato Uno'),
+                @('esiti@esami.sindacato-uno.example', 'Sindacato Uno'))
+    $motoreM = PromessaNelMotore $sM $filtriM $posteM 'sottodominio'
+    Verifica "nel motore vero i tre filtri si tolgono e ogni loro messaggio, anche quelli dei sottodomini, ha Sindacati ed e' archiviato ($($motoreM.tolti) tolti; '$riepM')" (
+        $motoreM.esito -eq 0 -and $motoreM.tolti -eq 3)
+
+    # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'
     # La casella istituzionale della scuola (codice@istruzione.it) va fra gli
     # indirizzi di Segreteria o Dirigenza: Ministero e USR, con @istruzione.it
