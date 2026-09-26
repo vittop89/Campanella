@@ -182,8 +182,10 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   the zone was checked. At start-up Campanella says once, to whoever chose
   a teacher or a calendar name in step 4, that a calendar put with 1.5 or
   earlier shows the lessons one hour early from 26 October, and how to fix
-  it (remembered in campanella.json, `avvisoFusoCalendario`; not decided
-  while the data file cannot be read).
+  it, pasting again also the mail script when it is in the same project (the
+  old ANNULLA_automazione does not stop the calendar's resumes; the
+  instructions say so too) (remembered in campanella.json,
+  `avvisoFusoCalendario`; not decided while the data file cannot be read).
   ORARI_1_anteprima prints the script's time zone, warns when it is not
   Europe/Rome (Project settings -> Time zone), and says when the calendar
   has another zone and whether it already holds lessons. While the
@@ -359,10 +361,14 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   VERIFICA") gets the colour of the 2B and is not a class without colour;
   one put back with the colour chosen by hand keeps it, like the same
   lesson inside its series, and the message names it. With the job of
-  ORARI_4_calendario or ORARI_5_cambioOrario halfway it colours nothing
-  (also in a resume of its own) and says how to finish that first, as
-  those two do with each other: colouring the old series of a change
-  halfway made the lesson coloured by hand, already put back as a single
+  ORARI_4_calendario, ORARI_5_cambioOrario or ORARI_7_colloqui halfway it
+  colours nothing and says how to finish that first, as those do with each
+  other; a resume of its own that finds that job resuming by itself waits
+  for it and tries again a minute later (before, its trigger was already
+  gone and the colours stayed halfway with no message saying so), and when
+  the job does not resume by itself, its final message, once it is run by
+  hand, says to run ORARI_6_coloraLezioni again. Colouring the old series
+  of a change halfway made the lesson coloured by hand, already put back as a single
   event, lose its colour, or, if Google gives the colour of a series also
   to the lessons coloured on their own (not tried live), disappear when the
   change resumed. It takes the same lock as the other
@@ -461,19 +467,32 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   event; the rest is the name (by default Ricevimento, or Colloqui for a
   day). The dates of a weekly meeting may also come after `ogni` or the
   name, as circulars write them (`ogni giovedi 10:10-11:10 Ricevimento dal
-  12/10/2026 al 22/05/2027`). One entry per line: a line with another date,
-  `fino al` (the end only), another weekday or another time in the name, a
-  period without meetings inside it (`sospeso dal ... al ...`), two links
-  or an `http://` one is not understood, with the reason, instead of ending
-  up in the title and on the calendar for the whole period. Hours with a
+  12/10/2026 al 22/05/2027`, also in brackets), but only on their own: with
+  a period without meetings before or after them (`(dal 14/12 al 09/01
+  sospeso)`, `(scrutini dal 25/01 al 05/02)`, holidays, `no`) or something
+  else after them (`in presenza dal 12/10 al 18/12 poi online`) the line is
+  not understood, instead of putting the weekly meeting only in those weeks.
+  One entry per line: a line with another date, `fino al` (the end only),
+  another weekday (also shortened, `ogni gio 10-11 e ven 9-10`) or another
+  time in the name (also a second slot without minutes, `ogni giovedi 10-11
+  e 12-13`), two links or an `http://` one is not understood, with the
+  reason, instead of ending up in the title and on the calendar for the
+  whole period. A Meet link without `https://` (`meet.google.com/...`, as
+  Calendar and Meet show it) is the link, not the name; the label left in
+  brackets around a link (`(Meet: https://...)`) and the typographic
+  apostrophe after the weekday do not end up in the title, and `ogni` in
+  the name of a day is part of the name. Hours with a
   dot after a date (`15/12/2026 16.10-18.10`) and `alle 10:10-11:10` are
   hours. Dates are read by the same reader as the days without lessons
   (Calendario.cs), not by a second one.
 - "Importa da un file..." reads a .csv or .xlsx (Xlsx.cs) and adds its
   lines at the end of the box, which stays the only source: the columns are
   found from the header, `data` or `giorno`, `dalle` and `alle` (or
-  `inizio` and `fine`), `cosa`, `descrizione` or `titolo`, `link`, and
-  `dal` and `al` for a weekly meeting; dates and times saved by Excel as
+  `inizio` and `fine`, or `ora` or `orario` with the slot, `15:00-18:00`),
+  `cosa`, `descrizione` or `titolo`, `link` (a Meet link without `https://`
+  gets it), `classe` or `classi` (the classes of general meetings, added to
+  the name in brackets), and `dal` and `al` for a weekly meeting; dates and
+  times saved by Excel as
   numbers work. A date, also with its weekday (`giovedi 17/12/2026`, in
   either column, or the weekday in the other one), is one day, written with
   the weekday so the box says whether it matches; only a weekday alone is a
@@ -481,20 +500,30 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   shows in amber. Rows with neither a date nor a weekday are skipped, and
   the status bar says how many. Lines already in the box are not added
   again (the same file imported twice), and the status bar says how many.
-  A file with columns about people (cognome, nome, classe, genitore,
-  email, telefono...) is not imported: it is a list of bookings, and the
+  A file with columns about people (cognome, nome, genitore, madre, padre,
+  email, telefono, prenotato da, richiedente, partecipante, utente..., and
+  the class next to them) is not imported: it is a list of bookings, and the
   message says they stay in the electronic register (before, "nome" was
   taken as the title, and a list of bookings put students' names on the
-  calendar and in DatiOrari.gs).
+  calendar and in DatiOrari.gs). Nor is the school's timetable of the
+  meeting hours of all teachers (a column docente, prof., insegnante,
+  referente...): it would put the colleagues' meetings and Meet links on the
+  teacher's calendar, without their names. Names written inside the `cosa`
+  column are not recognised: the guide says to check the file first.
 - Under the box, the same read-only list as the days without lessons: how
   every line was read (`riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per
   tutto il periodo, con il link del Meet`, `riga 2: non capita: ...`).
   In amber the doubtful lines: without a time, with only the start, or with
   the end before the start (kept in the box, but not put on the calendar),
   on a weekday that is not in the timetable, with a weekday that does not
-  match the date, outside the period, with a cadence or an exception in the
-  name (`a settimane alterne`, `tranne`: it goes on the calendar every
-  week), or with a link that is not Google Meet (a warning, not an error:
+  match the date, outside the period, at night or late in the evening
+  (before 7 or after 21: `dalle 3 alle 6` for the afternoon), with a cadence
+  or an exception in the name (`a settimane alterne`, `tranne`, `ogni 15
+  giorni`, `settimane dispari`, `una settimana si' e una no`, `sospeso`: it
+  goes on the calendar every week), with a period in words and no dates
+  (`fino a maggio`, `da ottobre a maggio`, `primo quadrimestre`: it goes on
+  the calendar for the whole period), or with a link that is not Google
+  Meet (a warning, not an error:
   it goes on the calendar), the lines not understood, and an entry equal to
   one above, which goes on the calendar and in DatiOrari.gs once. The summary counts the meetings (weekly ones, their series,
   meetings and days) and the lines to check.
@@ -519,7 +548,14 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   lessons, by the same technique as the timetable change (today as the
   date): the weekly meetings with sessions before today are done again up
   to yesterday, sessions moved or changed by hand before today come back as
-  they are, then the meetings of DatiOrari.gs from today. Only events with
+  they are, then the meetings of DatiOrari.gs from today. With a new
+  timetable valid from a day still to come (`validoDal`), the meetings of
+  DatiOrari.gs are the new timetable's: it updates them from that day, as
+  ORARI_5_cambioOrario does, and the weeks before keep the meetings of the
+  timetable before (before, run between ORARI_5_cambioOrario and that day,
+  it gave the last weeks of the old timetable the time and link of the new
+  one); its message and ORARI_1_anteprima say so, with the days of meetings
+  of DatiOrari.gs in those weeks that it did not put. Only events with
   the mark are touched. It takes the lock, resumes by itself (the day is the
   one it started on, also after midnight), stops with DatiOrari.gs changed
   halfway, and the other calendar functions wait for it; ANNULLA_automazione
@@ -915,7 +951,18 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   `Https://`, ORARI_4_calendario run again after adding the meetings and
   ORARI_7_colloqui after it, and, in Calendario.gs, the DatiOrari.gs of the
   whole timetable; prova_disposizione.ps1 the import of lines already in
-  the box.
+  the box. Then: prova_orario.ps1 the dates of the weekly meeting with a
+  period without meetings or something else around them, the Meet link
+  without `https://`, a second slot, a shortened weekday, the hours at
+  night, cadences and periods in words, the typographic apostrophe, `ogni`
+  in the name of a day, the label of the link in brackets, and the import of
+  the school's timetable of all teachers (refused), of more lists of
+  bookings (refused), of the `ora`, `orario`, `classe` and `classi` columns
+  and of a Meet link without `https://`; mock_orari.js (also
+  --solo-calendario) ORARI_7_colloqui between ORARI_5_cambioOrario and a
+  date still to come, and a resume of ORARI_6_coloraLezioni finding another
+  calendar job halfway, resuming by itself or not; prova_guscio.ps1 the
+  start-up warning naming the mail script.
 
 ## 1.5.3 — 24 September 2026
 
