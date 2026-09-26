@@ -731,7 +731,8 @@ namespace Campanella
     //  descrizione la spegneva senza volerlo. Qui un clic sul testo sceglie la
     //  voce e basta: la spunta cambia con un clic sul quadratino (anche di una
     //  voce non scelta), con la barra spaziatrice sulla voce scelta e,
-    //  naturalmente, dal codice (SetItemChecked). Nemmeno scrivere una lettera
+    //  naturalmente, dal codice (SetItemChecked), anche dentro
+    //  SelectedIndexChanged o ItemCheck. Nemmeno scrivere una lettera
     //  per saltare a una voce la cambia. Un doppio clic sul testo non la
     //  cambia e alza DoppioClicSulTesto (Posta, passo 4: apre "Modifica").
     //
@@ -748,9 +749,11 @@ namespace Campanella
         // la voce su cui e' sceso il tasto del mouse (-1 = nessuna), e se sul suo quadratino
         int voceGiu = -1;
         bool giuSulQuadratino = false;
-        // vero mentre arriva una notifica dell'elenco di Windows: un clic, un
-        // doppio clic, una lettera o una freccia. E' li' che il CheckedListBox
-        // cambia la spunta da solo
+        // vero dall'inizio di una notifica dell'elenco di Windows (un clic, un
+        // doppio clic, una lettera o una freccia) finche' il CheckedListBox non
+        // prova a cambiare da solo la spunta della voce scelta, subito, prima di
+        // SelectedIndexChanged: e' solo quella la spunta da fermare. Quelle che
+        // mette il codice dopo, in SelectedIndexChanged o in ItemCheck, valgono
         bool notifica = false;
         // la voce la cui spunta il messaggio del mouse di adesso puo' cambiare: -1 = nessuna
         int permessa = -1;
@@ -847,15 +850,28 @@ namespace Campanella
             finally { notifica = prima; }
         }
 
+        protected override void OnSelectedIndexChanged(EventArgs e)
+        {
+            // la spunta che il CheckedListBox cambia da solo e' gia' passata (o
+            // non c'era): quelle che mette qui il codice valgono
+            notifica = false;
+            base.OnSelectedIndexChanged(e);
+        }
+
         protected override void OnItemCheck(ItemCheckEventArgs ice)
         {
-            // una notifica dell'elenco di Windows cambia la spunta solo per un
-            // clic sul quadratino di quella voce; la barra spaziatrice e il
-            // codice passano da qui fuori da una notifica
-            if (notifica && ice.Index != permessa)
+            // una notifica dell'elenco di Windows cambia la spunta della voce
+            // scelta, una volta, e vale solo per un clic sul suo quadratino; la
+            // barra spaziatrice e il codice passano da qui fuori da una notifica,
+            // o dopo quella spunta
+            if (notifica && ice.Index == SelectedIndex)
             {
-                ice.NewValue = ice.CurrentValue;
-                return;
+                notifica = false;
+                if (ice.Index != permessa)
+                {
+                    ice.NewValue = ice.CurrentValue;
+                    return;
+                }
             }
             base.OnItemCheck(ice);
         }

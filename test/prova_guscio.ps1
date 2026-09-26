@@ -879,6 +879,30 @@ if ($null -ne $tElenco) {
         $el.SetItemChecked(0, $false)
         $el.SetItemCheckState(2, [System.Windows.Forms.CheckState]::Checked)
         Verifica "le spunte messe dal codice funzionano ($(Spunte $el))" ((Spunte $el) -eq '-xx')
+        # anche mentre arriva una notifica dell'elenco: dal codice dentro
+        # SelectedIndexChanged (un clic sul testo di un'altra voce) e dentro
+        # ItemCheck (un clic sul quadratino). Si ferma solo la spunta che il
+        # CheckedListBox cambia da solo, quella della voce scelta
+        $script:inScelta = $false
+        $el.add_SelectedIndexChanged({ if ($script:inScelta) { $script:inScelta = $false; $el.SetItemChecked(0, $true) } })
+        $script:inScelta = $true
+        $t1 = SulTesto $el 1
+        Clic $el $t1[0] $t1[1]
+        Verifica "una spunta messa dal codice dentro SelectedIndexChanged vale, e il clic sul testo non cambia la sua ($(Spunte $el))" (
+            $el.SelectedIndex -eq 1 -and (Spunte $el) -eq 'xxx' -and -not $script:inScelta)
+        $script:inSpunta = $false
+        $el.add_ItemCheck({ param($o, $e) if ($script:inSpunta -and $e.Index -eq 2) { $script:inSpunta = $false; $el.SetItemChecked(0, $false) } })
+        $el.SetItemChecked(0, $true)
+        $el.SetItemChecked(2, $true)
+        $script:inSpunta = $true
+        $q2 = SulQuadratino $el 2
+        Clic $el $q2[0] $q2[1]
+        Verifica "e cosi' una messa dal codice dentro ItemCheck, con il clic sul quadratino di un'altra voce ($(Spunte $el))" (
+            $el.SelectedIndex -eq 2 -and (Spunte $el) -eq '-x-' -and -not $script:inSpunta)
+        $script:inSpunta = $false
+        $t0 = SulTesto $el 0
+        Clic $el $t0[0] $t0[1]
+        Verifica "e dopo, un clic sul testo continua a non cambiare la spunta ($(Spunte $el))" ($el.SelectedIndex -eq 0 -and (Spunte $el) -eq '-x-')
         # il quadratino: quanto il segno di spunta di Windows, nei DPI dello schermo, piu' il margine
         $gr = $el.CreateGraphics()
         try {
