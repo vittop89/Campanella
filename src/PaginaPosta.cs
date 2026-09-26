@@ -2078,6 +2078,17 @@ namespace Campanella
 
             txtDescrizioneRegola.Text = sb.ToString();
             txtDescrizioneRegola.Select(0, 0);
+            // di solito ci sta tutta, senza barra; una regola che ha preso i
+            // mittenti o la ricerca di un filtro di Gmail puo' essere piu' lunga:
+            // allora, e solo allora, la barra per scorrere (nei colori del tema)
+            int serve = Tema.AltezzaTesto(txtDescrizioneRegola.Text.TrimEnd(), txtDescrizioneRegola.Font,
+                                          txtDescrizioneRegola.ClientSize.Width - 8);
+            ScrollBars barre = (serve > txtDescrizioneRegola.ClientSize.Height) ? ScrollBars.Vertical : ScrollBars.None;
+            if (txtDescrizioneRegola.ScrollBars != barre)
+            {
+                txtDescrizioneRegola.ScrollBars = barre;
+                Tema.Applica(txtDescrizioneRegola);
+            }
             chkArchiviaRegola.Checked = r.Archivia;
         }
 

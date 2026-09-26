@@ -563,6 +563,26 @@ if ($campioneRegola -ne $null -and $mini -ne $null -and $iColleghi -ge 0) {
     [System.Windows.Forms.Application]::DoEvents()
     Verifica "la descrizione di ogni regola ci sta nel riquadro, mittenti compresi$(if ($tagliate.Count) { ': no ' + ($tagliate -join ', ') })" (
         $tagliate.Count -eq 0)
+    # una regola nata da un filtro di Gmail, con tanti mittenti e una ricerca
+    # lunga, non ci sta: allora, e solo allora, il riquadro ha la barra per
+    # scorrere; le regole di partenza no (qui sopra)
+    $lungaR = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+    $lungaR.Etichetta = 'Notifiche Google'
+    $lungaR.Descrizione = 'Da un filtro di Gmail: la stessa etichetta e la stessa ricerca, e archivia.'
+    foreach ($m in (1..14 | ForEach-Object { "notifiche$_@servizio-lungo.example" })) { $lungaR.Da.Add($m) }
+    $lungaR.QueryLibera = '-from:classroom.google.com -from:registro-uno.example -from:istruzione.it -from:"NOME ESEMPIO"'
+    $regoleStato.Add($lungaR)
+    $posta.GetType().GetMethod('AggiornaElencoRegole', $FIp).Invoke($posta, @([int]($regoleStato.Count - 1))) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $conBarra = $txtDescr.ScrollBars
+    $clb.SelectedIndex = 0
+    [System.Windows.Forms.Application]::DoEvents()
+    $senzaBarra = $txtDescr.ScrollBars
+    [void]$regoleStato.Remove($lungaR)
+    $posta.GetType().GetMethod('AggiornaElencoRegole', $FIp).Invoke($posta, @([int]$iColleghi)) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "una regola lunga, nata da un filtro di Gmail, ha la barra per scorrere ($conBarra); le altre no ($senzaBarra)" (
+        $conBarra -eq [System.Windows.Forms.ScrollBars]::Vertical -and $senzaBarra -eq [System.Windows.Forms.ScrollBars]::None)
 
     # la finestra dei colori di Colleghi, con le cinque sottoetichette
     $tForm = $asm.GetType('Campanella.FormColore')

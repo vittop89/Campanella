@@ -1320,7 +1320,9 @@ namespace Campanella
             List<string> fa = new List<string>();
             if (f.Archivia) fa.Add("archivia");
             if (f.SegnaLetto) fa.Add("segna come letti");
-            r.Descrizione = DaUnFiltro + ricerca + (fa.Count > 0 ? " (e " + string.Join(", ", fa.ToArray()) + ")" : "");
+            // la ricerca la dicono i mittenti e la ricerca avanzata, sotto la descrizione
+            r.Descrizione = DaUnFiltro + "la stessa etichetta e la stessa ricerca" +
+                            (fa.Count > 0 ? ", e " + string.Join(", ", fa.ToArray()) : "") + ".";
             return r;
         }
 
