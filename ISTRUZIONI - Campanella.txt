@@ -257,8 +257,9 @@ POSTA - riordinare la casella
    - "Lascialo in Gmail": resta com'e'.
    - "Toglilo": lo togliera' EXTRA_togliFiltri. "Toglilo: lo fa gia' la
      regola ..." solo quando quella regola, accesa, prende davvero i suoi
-     messaggi: ha gia' tutti i suoi mittenti (e non esclude niente che il
-     filtro non escluda), archivia e segna come letti come lui, oppure fa
+     messaggi: prende gia' tutti i suoi mittenti (gli stessi, o con il
+     loro dominio, o con l'elenco del personale) e non esclude niente che
+     il filtro non escluda, archivia e segna come letti come lui, oppure fa
      proprio la sua ricerca. Mettere la stessa etichetta non basta: una
      regola con lo stesso nome ma altri mittenti non sostituisce il
      filtro. Per un filtro che fa anche

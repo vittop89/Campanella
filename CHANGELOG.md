@@ -15,8 +15,9 @@ Ministero e USR fixed in step 4 reach the script only with it.
   - "Lascialo in Gmail": it stays as it is.
   - "Toglilo": EXTRA_togliFiltri will remove it. It reads "Toglilo: lo fa
     gia' la regola ..." only when that rule, switched on, really takes the
-    filter's messages: it already has all its senders (and excludes nothing
-    the filter does not), archives and marks as read as the filter does, or
+    filter's messages: it already takes all its senders (the same ones, or
+    through their domain or the staff list) and excludes nothing the filter
+    does not, archives and marks as read as the filter does, or
     makes exactly its search (or Campanella creates exactly that filter for
     it). Having the same label is not enough. A filter that also does
     something the rules never do (forward, delete, star...) offers only
