@@ -724,7 +724,7 @@ namespace Campanella
             lblFiltri.Height = Math.Max(
                 Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoToltiAllAvvio(99),
                                   Tema.Piccolo, 400),
-                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoSenzaLaRegola(99, 49),
+                Tema.AltezzaTesto("99 filtri di Gmail da togliere: li toglie EXTRA_togliFiltri." + TestoSenzaLaRegola(99, 33, 33),
                                   Tema.Piccolo, 400));
             p.Controls.Add(lblFiltri);
 
@@ -2435,7 +2435,7 @@ namespace Campanella
             int senza = senzaLaRegola.Count;
             lblFiltri.Text = ((n == 0) ? "Nessun filtro di Gmail da togliere." :
                 n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: li toglie EXTRA_togliFiltri.") +
-                (senza == 0 ? "" : TestoSenzaLaRegola(senza, Con160(senzaLaRegola))) +
+                (senza == 0 ? "" : TestoSenzaLaRegola(senza, Con160(senzaLaRegola), PerGliAltri(senzaLaRegola, S))) +
                 (tolti == 0 ? "" : TestoToltiAllAvvio(tolti));
             lblFiltri.Tag = (tolti > 0 || senza > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
             Tema.Applica(lblFiltri);
@@ -2448,11 +2448,14 @@ namespace Campanella
         /// questi con160 scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima),
         /// che una regola che li sostituiva non l'hanno mai avuta: la 1.6.0 li
         /// sceglieva per l'etichetta, senza ricordare se archiviavano o
-        /// segnavano come letto. Con il file dei filtri la finestra lo vede.
+        /// segnavano come letto; e perGliAltri che la regola sostituisce ancora,
+        /// ma non con i filtri che restano in Gmail (FiltriGmail.PerGliAltriFiltri:
+        /// sono cambiate le regole che lei esclude). Con il file dei filtri la
+        /// finestra lo vede.
         /// </summary>
-        static string TestoSenzaLaRegola(int n, int con160)
+        static string TestoSenzaLaRegola(int n, int con160, int perGliAltri)
         {
-            int altri = n - con160;
+            int altri = n - con160 - perGliAltri;
             string fuori = "";
             if (altri > 0)
                 fuori += (altri == 1)
@@ -2470,7 +2473,36 @@ namespace Campanella
                       "ricordare se archiviavano o segnavano come letto, e senza il file dei filtri non si vede che cosa fanno, " +
                       "ne' se in Gmail ce ne sono altri con la stessa etichetta. Apri di nuovo il file dei filtri in \"Filtri " +
                       "che hai gia' in Gmail...\": li' si vede che cosa fanno, e la finestra propone che cosa farne.";
+            if (perGliAltri > 0)
+                fuori += (perGliAltri == 1)
+                    ? " 1 filtro scelto resta in Gmail per un altro filtro che resta in Gmail e puo' prendere i suoi messaggi " +
+                      "(con un'etichetta che la sua regola esclude, o con la stessa etichetta senza archiviare o segnare come " +
+                      "letto): dopo la scelta sono cambiate le regole escluse (spente, spostate sotto, con altri mittenti o un " +
+                      "altro elenco del personale) o la regola ne esclude un'altra, o un altro filtro scelto resta in Gmail. Apri " +
+                      "di nuovo il file dei filtri in \"Filtri che hai gia' in Gmail...\": li' si vedono gli altri filtri, e la " +
+                      "finestra propone che cosa farne."
+                    : " " + perGliAltri + " filtri scelti restano in Gmail per altri filtri che restano in Gmail e possono " +
+                      "prendere i loro messaggi (con un'etichetta che la loro regola esclude, o con la stessa etichetta senza " +
+                      "archiviare o segnare come letto): dopo la scelta sono cambiate le regole escluse (spente, spostate sotto, " +
+                      "con altri mittenti o un altro elenco del personale) o la regola ne esclude un'altra, o un altro filtro " +
+                      "scelto resta in Gmail. Apri di nuovo il file dei filtri in \"Filtri che hai gia' in Gmail...\": li' si " +
+                      "vedono gli altri filtri, e la finestra propone che cosa farne.";
             return fuori;
+        }
+
+        /// <summary>
+        /// Quanti dei filtri scelti che restano in Gmail restano per gli altri
+        /// filtri, non perche' la loro regola non c'e' piu': la regola, da sola,
+        /// li sostituirebbe ancora (FiltriGmail.CheRestano), o non regge con i
+        /// filtri rimasti che la voce ricorda (FiltriGmail.PerGliAltriFiltri).
+        /// </summary>
+        static int PerGliAltri(List<FiltroDaTogliere> restano, Stato s)
+        {
+            int n = 0;
+            foreach (FiltroDaTogliere v in restano)
+                if (!FiltriGmail.SceltoConLaVersioneDiPrima(v) &&
+                    (FiltriGmail.AncoraSostituito(v, s) || FiltriGmail.PerGliAltriFiltri(v, s) != "")) n++;
+            return n;
         }
 
         /// <summary>Quanti dei filtri scelti sono stati scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima).</summary>
@@ -2593,7 +2625,7 @@ namespace Campanella
             foreach (Persona p in S.Personale) if (p.Incluso && p.Email == "") senzaMail++;
             if (senzaMail > 0)
                 avvisi.Add(senzaMail + " persone dell'elenco non hanno un indirizzo: verranno ignorate.");
-            if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola, Con160(senzaLaRegola)).Trim());
+            if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola, Con160(senzaLaRegola), PerGliAltri(senzaLaRegola, S)).Trim());
 
             if (avvisi.Count > 0)
             {

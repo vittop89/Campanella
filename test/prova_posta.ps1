@@ -1608,11 +1608,11 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "tolto nuvola da 'La tua scuola', anche Registro elettronico resta ('$(Senza $sO)')" (
         (Senza $sO) -eq 'Registro elettronico,Olimpiadi e gare,Famiglie' -and [int]$mDaTogliere.Invoke($null, @($sO)) -eq 11)
     $mAvviso = $asm.GetType('Campanella.PaginaPosta').GetMethod('TestoSenzaLaRegola', $FS)
-    $avvisoO = [string]$mAvviso.Invoke($null, @([int]3, [int]0))
+    $avvisoO = [string]$mAvviso.Invoke($null, @([int]3, [int]0, [int]0))
     Verifica "il passo 4 lo dice ('$avvisoO')" ($avvisoO -match "3 filtri scelti restano in Gmail: la regola che li sostituiva non c'e' piu'")
     # quelli scelti con la 1.6.0 una regola non l'hanno mai avuta: il passo 4
     # dice un'altra cosa, e di riaprire il file dei filtri
-    $avviso160 = [string]$mAvviso.Invoke($null, @([int]3, [int]1))
+    $avviso160 = [string]$mAvviso.Invoke($null, @([int]3, [int]1, [int]0))
     Verifica "per quelli scelti con la 1.6.0 dice un'altra cosa, e di riaprire il file dei filtri ('$avviso160')" (
         $avviso160 -match "^ 2 filtri scelti restano in Gmail: la regola che li sostituiva" -and
         $avviso160 -match " 1 filtro scelto con la 1\.6\.0 resta in Gmail: la 1\.6\.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come letto" -and
@@ -2018,7 +2018,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "senza il file restano tutti in Gmail e in ambra: Ministero e USR non prende @usr-regione.example, Sindacati (che non segna come letti) e Ministero e USR (che non archivia) non fanno di sicuro quello che il filtro faceva ('$(Senza $s16)')" (
         $voci16[0].Archivia -eq $null -and $sostituiti16.Count -eq 0 -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 0 -and
         (Senza $s16) -eq 'Ministero e USR,Sindacati,Ministero e USR')
-    $avviso16 = [string]$mAvviso.Invoke($null, @([int]3, [int]3))
+    $avviso16 = [string]$mAvviso.Invoke($null, @([int]3, [int]3, [int]0))
     Verifica "l'ambra del passo 4 dice che li sceglieva la 1.6.0, non che la loro regola non c'e' piu' ('$avviso16')" (
         $avviso16 -match "^ 3 filtri scelti con la 1\.6\.0 restano in Gmail: la 1\.6\.0 li sceglieva per l'etichetta" -and
         $avviso16 -notmatch "la regola che li sostituiva")
@@ -2320,6 +2320,92 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "con il filtro vero di Segreteria (accesa, sopra) in Gmail, quello di prima di Ministero e USR si toglie ($($x5.scelte -join '; '); $($motoreX5.tolti) tolto)" (
         $x5.scelte[0] -eq 'Lascialo in Gmail' -and $x5.scelte[1] -eq "Toglilo: lo fa gia' la regola Ministero e USR" -and
         $motoreX5.esito -eq 0 -and $motoreX5.tolti -eq 1)
+
+    # Andato via perche' i mittenti del filtro rimasto li prendeva gia' la
+    # regola esclusa, accesa e sopra: la voce se lo ricorda (le etichette
+    # escluse e quel filtro). Se poi la regola esclusa si spegne, va sotto,
+    # cambia mittenti o cambia l'elenco del personale, o la regola ne esclude
+    # un'altra, senza il file non si vede piu' se regge: il filtro resta in
+    # Gmail, la configurazione non lo scrive e l'ambra chiede di riaprire il
+    # file. Un collega in piu' nell'elenco no: regge ancora
+    $posteD = @(@('anna.bianchi@scuola.example', 'Anna Bianchi'), @('marco.verdi@scuola.example', 'Marco Verdi', 'Compito in classe'),
+                @('alunno.uno@scuola.example', 'Alunno Uno'), @('casella@istruzione.it', 'Istituto'),
+                @('comunicazioni@istruzione.it', 'Ministero'))
+    $sD1 = StatoRiorganizza
+    Imposta $sD1 'Filtri' $true
+    AggiungiPersona $sD1 'VERDI MARCO' 'DOCENTE' 'marco.verdi@scuola.example' $true
+    $veroColleghiD = @($tFiltri.GetMethod('FiltriDiCampanella', $FS).Invoke($null, @($sD1.PSObject.BaseObject)) | Where-Object { $_.Etichetta -eq 'Colleghi' })[0]
+    $colleghiD = UnFiltro ([ordered]@{ from = $veroColleghiD.Criteri['from']; label = 'Colleghi' })
+    $studentiD = UnFiltro ([ordered]@{ from = '@scuola.example'; label = 'Studenti' })
+    $d1 = FinestraEScelta $sD1 @($colleghiD, $studentiD) $null
+    $voceD1 = (Leggi $sD1 'FiltriDaTogliere')[0]
+    Verifica "con il filtro vero di Colleghi in Gmail (anna e marco dell'elenco), Studenti lo fa gia' per @scuola.example, e la voce ricorda le etichette escluse e quel filtro ($($d1.scelte -join '; '); escluse: $($voceD1.Escluse -join ', '); accanto: $(@($voceD1.Accanto | ForEach-Object { $_.Etichetta + ' ' + $_.Criteri['from'] }) -join ', '))" (
+        ($d1.scelte -join ',') -eq "Lascialo in Gmail,Toglilo: lo fa gia' la regola Studenti" -and (Leggi $sD1 'FiltriDaTogliere').Count -eq 1 -and
+        ($voceD1.Escluse -join ',') -eq 'Colleghi,Dirigenza,Segreteria' -and $voceD1.Accanto.Count -eq 1 -and
+        $voceD1.Accanto[0].Etichetta -eq 'Colleghi' -and $voceD1.Accanto[0].Criteri['from'] -eq $veroColleghiD.Criteri['from'] -and
+        (Senza $sD1) -eq '')
+    AggiungiPersona $sD1 'ROSSI LUCA' 'DOCENTE' 'luca.rossi@scuola.example' $true
+    $conUnoInPiu = [int]$mDaTogliere.Invoke($null, @($sD1))
+    foreach ($p in (Leggi $sD1 'Personale')) { if ($p.Email -eq 'marco.verdi@scuola.example') { $p.Incluso = $false } }
+    $motoreD1 = PromessaNelMotore $sD1 @($colleghiD, $studentiD) $posteD 'escluse_cambiate_personale'
+    $ffD1 = [Activator]::CreateInstance($tFF, @($sD1.PSObject.BaseObject))
+    $partenzaD1 = $ffD1.Scelta(0).Testo
+    $suggD1 = [string]$tFF.GetMethod('Suggerimento', $FIn).Invoke($ffD1, @($tFF.GetField('righe', $FIn).GetValue($ffD1)[0]))
+    $ffD1.Dispose()
+    $avvisoD1 = [string]$mAvviso.Invoke($null, @([int]1, [int]0, [int]1))
+    Verifica "con un collega in piu' nell'elenco regge ancora ($conUnoInPiu da togliere); marco.verdi tolto dall'elenco, il filtro di Studenti resta in Gmail: la configurazione non lo scrive ('$(Senza $sD1)'), la finestra senza il file lo lascia e dice perche' ('$suggD1'), e nel motore vero nessun messaggio perde niente" (
+        $conUnoInPiu -eq 1 -and (Senza $sD1) -eq 'Studenti' -and [int]$mDaTogliere.Invoke($null, @($sD1)) -eq 0 -and
+        $motoreD1.esito -eq 0 -and $motoreD1.tolti -eq 0 -and $partenzaD1 -eq 'Lascialo in Gmail' -and
+        $suggD1 -match "resta in Gmail un filtro con l'etichetta Colleghi, che la regola Studenti esclude" -and $suggD1 -match 'apri il file dei filtri' -and
+        $avvisoD1 -match "^ 1 filtro scelto resta in Gmail per un altro filtro che resta in Gmail e puo. prendere i suoi messaggi \(con un.etichetta che la sua regola esclude" -and
+        $avvisoD1 -match 'Apri di nuovo il file dei filtri')
+    $dD1 = FinestraEScelta $sD1 @($colleghiD, $studentiD) $null
+    Verifica "con il file la finestra lo vede di nuovo, e lo lascia ($($dD1.scelte -join '; '))" (
+        ($dD1.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and (Leggi $sD1 'FiltriDaTogliere').Count -eq 0)
+    # senza i filtri veri: resta Segreteria con la casella della scuola e la
+    # stella, e Ministero e USR lo fa gia' per @istruzione.it. Poi Segreteria
+    # va sotto, si spegne o perde la casella: resta anche lui
+    $cambiD2 = @()
+    foreach ($cambio in @('sotto', 'spenta', 'senza la casella', 'esclude')) {
+        $sD2 = StatoRiorganizza
+        $segreteriaD2 = UnFiltro ([ordered]@{ from = 'casella@istruzione.it'; label = 'Segreteria'; shouldStar = 'true' })
+        $ministeroD2 = UnFiltro ([ordered]@{ from = '@istruzione.it'; label = 'Ministero e USR' })
+        $d2 = FinestraEScelta $sD2 @($segreteriaD2, $ministeroD2) $null
+        $primaD2 = [int]$mDaTogliere.Invoke($null, @($sD2))
+        $regoleD2 = Leggi $sD2 'Regole'
+        $segD2 = @($regoleD2 | Where-Object { $_.Etichetta -eq 'Segreteria' })[0]
+        $minD2 = @($regoleD2 | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+        if ($cambio -eq 'sotto') { [void]$regoleD2.Remove($segD2); $regoleD2.Add($segD2) }
+        elseif ($cambio -eq 'spenta') { $segD2.Attiva = $false }
+        elseif ($cambio -eq 'senza la casella') { Imposta $sD2 'Segreteria' 'segreteria@scuola.example' }
+        else { $minD2.EscludiEtichette.Remove('Segreteria') | Out-Null; $minD2.EscludiEtichette.Add('Istituto') }
+        $motoreD2 = PromessaNelMotore $sD2 @($segreteriaD2, $ministeroD2) $posteD ('escluse_cambiate_' + ($cambio -replace ' ', '_'))
+        if ($d2.scelte[1] -ne "Toglilo: lo fa gia' la regola Ministero e USR" -or $primaD2 -ne 1 -or (Senza $sD2) -ne 'Ministero e USR' -or
+            [int]$mDaTogliere.Invoke($null, @($sD2)) -ne 0 -or $motoreD2.esito -ne 0 -or $motoreD2.tolti -ne 0) {
+            $cambiD2 += "$cambio ($($d2.scelte -join '; '); prima $primaD2, dopo '$(Senza $sD2)')"
+        }
+    }
+    Verifica "Ministero e USR, andato via con Segreteria accesa e sopra che prende la casella: con Segreteria sotto, spenta o senza la casella, o con la regola che esclude un'altra etichetta, resta in Gmail$(if ($cambiD2.Count) { ': no ' + ($cambiD2 -join '; ') })" (
+        $cambiD2.Count -eq 0)
+    # restando, un filtro scelto ne fa restare un altro anche senza il file:
+    # tolti tutti e due quello di Segreteria con la casella (la stella si
+    # perde, scelto a mano) e quello di Ministero e USR, poi Segreteria perde
+    # la casella. Quello di Segreteria resta (la regola non lo prende piu'),
+    # mette Segreteria alla casella all'arrivo, e Ministero e USR non la
+    # prenderebbe: resta anche quello di Ministero e USR
+    $sD3 = StatoRiorganizza
+    $segreteriaD3 = UnFiltro ([ordered]@{ from = 'casella@istruzione.it'; label = 'Segreteria'; shouldStar = 'true' })
+    $ministeroD3 = UnFiltro ([ordered]@{ from = '@istruzione.it'; label = 'Ministero e USR' })
+    $d3 = FinestraEScelta $sD3 @($segreteriaD3, $ministeroD3) @{ 0 = "Toglilo: lo fa gia' la regola Segreteria (si perde: aggiunge la stella)" }
+    $primaD3 = [int]$mDaTogliere.Invoke($null, @($sD3))
+    Imposta $sD3 'Segreteria' 'segreteria@scuola.example'
+    $motoreD3 = PromessaNelMotore $sD3 @($segreteriaD3, $ministeroD3) $posteD 'resta_uno_resta_l_altro'
+    $avvisoD3 = [string]$mAvviso.Invoke($null, @([int]2, [int]0, [int]1))
+    Verifica "tolti Segreteria (a mano) e Ministero e USR, poi Segreteria senza la casella: restano tutti e due ('$(Senza $sD3)'; prima $primaD3 da togliere), e nel motore vero nessun messaggio perde niente" (
+        ($d3.scelte -join ',') -eq "Toglilo: lo fa gia' la regola Segreteria (si perde: aggiunge la stella),Toglilo: lo fa gia' la regola Ministero e USR" -and
+        $primaD3 -eq 2 -and (Senza $sD3) -eq 'Segreteria,Ministero e USR' -and [int]$mDaTogliere.Invoke($null, @($sD3)) -eq 0 -and
+        $motoreD3.esito -eq 0 -and $motoreD3.tolti -eq 0 -and
+        $avvisoD3 -match "^ 1 filtro scelto resta in Gmail: la regola che lo sostituiva" -and $avvisoD3 -match " 1 filtro scelto resta in Gmail per un altro filtro")
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: RUOLI, GEMELLE E OR MINUSCOLO'

@@ -266,19 +266,20 @@ namespace Campanella
         /// si scrive una volta; nemmeno una che sembra di una classe e cerca
         /// degli indirizzi (FiltriGmail.DiUnaClasseConIndirizzi), ne' una che
         /// non ha piu' la regola che la sostituisce (tolta, spenta o senza i
-        /// suoi mittenti: FiltriGmail.AncoraSostituito), che resta in Gmail;
-        /// con la stessa voce ripetuta, basta una delle due.
+        /// suoi mittenti: FiltriGmail.AncoraSostituito), che resta in Gmail,
+        /// ne' una che non si puo' togliere per un altro filtro scelto che
+        /// resta (FiltriGmail.CheRestano); con la stessa voce ripetuta, basta
+        /// una delle due.
         /// </summary>
         static List<string> FiltriJs(Stato s)
         {
             List<string> fuori = new List<string>(), chiavi = new List<string>();
             if (s.FiltriDaTogliere == null) return fuori;
-            // lo stesso filtro scelto due volte (non succede: Applica e la
-            // lettura del file ne tengono uno) va via solo se lo sostituiscono
-            // tutte e due le voci: nel dubbio resta in Gmail
+            // quelli che restano in Gmail, e quelli che per loro non si possono
+            // piu' togliere (anche lo stesso filtro scelto due volte, se una
+            // delle due voci resta): nel dubbio restano in Gmail
             List<string> senzaRegola = new List<string>();
-            foreach (FiltroDaTogliere scelto in s.FiltriDaTogliere)
-                if (scelto != null && !FiltriGmail.AncoraSostituito(scelto, s)) senzaRegola.Add(scelto.Chiave());
+            foreach (FiltroDaTogliere resta in FiltriGmail.CheRestano(s)) senzaRegola.Add(resta.Chiave());
             foreach (FiltroDaTogliere scelto in s.FiltriDaTogliere)
             {
                 // uno che sembra di una classe e cerca degli indirizzi, scelto

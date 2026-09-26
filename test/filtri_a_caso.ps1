@@ -91,6 +91,9 @@ $messaggi = @(
     @('newsletter@flcgil.it', 'Sindacato'),
     @('comunicazioni@istruzione.it', 'Ministero'),
     @('casella@istruzione.it', 'Istituto'),
+    # un altro indirizzo del ministero: nella casella vera @istruzione.it ne ha
+    # tanti, e le regole escluse che ne prendono alcuni non li prendono tutti
+    @('ufficio.scolastico@istruzione.it', 'Ufficio scolastico'),
     @('usr.regione@istruzione.gov.it', 'USR'),
     @('ufficio@mim.gov.it', 'MIM'),
     @('noreply@spaggiari.eu', 'ClasseViva'),
@@ -224,7 +227,67 @@ function NuovoStato($caso, $altro) {
         $min = Regola $s 'Ministero e USR'
         [void]$regole.Remove($min); $regole.Insert(0, $min)
     }
+    # i filtri veri di Gmail (EXTRA_creaFiltriGmail), a volte con un collega in piu'
+    if (ACaso $altro 0.12) {
+        Imposta $s 'Filtri' $true
+        if ($personale.Count -and (ACaso $altro 0.5)) {
+            $p = [Activator]::CreateInstance($tPersona)
+            $p.Nome = 'ROSSI MARIO'; $p.Ruolo = 'DOCENTE'; $p.Email = 'mario.rossi@scuola.example'; $p.Incluso = $true
+            $personale.Add($p)
+        }
+    }
     return $s
+}
+
+# I filtri che restano in Gmail con un'etichetta che una regola esclude, i
+# cui mittenti li prende gia' la regola esclusa: il filtro vero di Colleghi
+# (con i filtri veri), uno di Segreteria con la casella della scuola e la
+# stella; e con loro quelli di Studenti e di Ministero e USR, che la regola
+# fa gia' e che ricordano quei filtri. Dopo "Usa questa scelta" le regole
+# escluse spesso cambiano
+function FiltriAccanto($s, $altro, [string]$prefisso) {
+    $fuori = @()
+    $davanti = $(if ($prefisso -ne '') { $prefisso + '/' } else { '' })
+    if ((Leggi $s 'Filtri') -and (ACaso $altro 0.7)) {
+        foreach ($v in $mCampanella.Invoke($null, @($s.PSObject.BaseObject))) {
+            if ($v.Etichetta -ne $davanti + 'Colleghi') { continue }
+            $prop = [ordered]@{}
+            foreach ($k in $v.Criteri.Keys) { $prop[$k] = $v.Criteri[$k] }
+            $fuori += ,@{ etichetta = $v.Etichetta; prop = $prop }
+            $fuori += ,@{ etichetta = $davanti + 'Studenti'; prop = [ordered]@{ from = '@scuola.example' } }
+        }
+    }
+    if (ACaso $altro 0.1) {
+        $fuori += ,@{ etichetta = $davanti + 'Segreteria'; prop = [ordered]@{ from = 'casella@istruzione.it'; shouldStar = 'true' } }
+        $fuori += ,@{ etichetta = $davanti + 'Ministero e USR'; prop = [ordered]@{ from = (Uno $altro @('@istruzione.it', 'istruzione.it OR @mim.gov.it')) } }
+    }
+    return ,$fuori
+}
+
+# Dopo "Usa questa scelta" le regole escluse cambiano: una si spegne o va in
+# fondo, cambia l'elenco del personale o la casella della scuola, o una
+# regola ne esclude un'altra. Come lo dice
+function CambiaLeEscluse($s, $altro) {
+    $regole = Leggi $s 'Regole'
+    $cambio = Uno $altro @('spenta', 'sotto', 'personale', 'collega', 'segreteria', 'esclude')
+    $quale = Uno $altro @('Segreteria', 'Dirigenza', 'Colleghi')
+    switch ($cambio) {
+        'spenta' { (Regola $s $quale).Attiva = $false; return "$quale spenta" }
+        'sotto' { $r = Regola $s $quale; [void]$regole.Remove($r); $regole.Add($r); return "$quale in fondo" }
+        'personale' { foreach ($p in (Leggi $s 'Personale')) { $p.Incluso = $false }; return "nessuno incluso nell'elenco del personale" }
+        'collega' {
+            $p = [Activator]::CreateInstance($tPersona)
+            $p.Nome = 'VERDI GIULIA'; $p.Ruolo = 'DOCENTE'; $p.Email = 'giulia.verdi@scuola.example'; $p.Incluso = $true
+            (Leggi $s 'Personale').Add($p)
+            return 'una collega in piu'
+        }
+        'segreteria' { Imposta $s 'Segreteria' 'segreteria@scuola.example'; return 'Segreteria senza la casella della scuola' }
+        default {
+            $r = Regola $s (Uno $altro @('Ministero e USR', 'Studenti'))
+            $r.EscludiEtichette.Add((Uno $altro @('Colleghi', 'Sindacati', 'Portali')))
+            return $r.Etichetta + ' esclude anche ' + $r.EscludiEtichette[$r.EscludiEtichette.Count - 1]
+        }
+    }
 }
 
 function UnFiltro($caso, [string]$prefisso) {
@@ -273,7 +336,8 @@ function Descrivi($s) {
     $sb = New-Object System.Text.StringBuilder
     $persone = @((Leggi $s 'Personale') | ForEach-Object { $_.Email }) -join ', '
     [void]$sb.AppendLine("gruppo: '" + (Leggi $s 'Prefisso') + "'; personale: " + $persone +
-                         $(if (Leggi $s 'EtichettaPerRuolo') { '; con le sottoetichette dei ruoli' } else { '' }))
+                         $(if (Leggi $s 'EtichettaPerRuolo') { '; con le sottoetichette dei ruoli' } else { '' }) +
+                         $(if (Leggi $s 'Filtri') { '; con i filtri veri' } else { '' }))
     [void]$sb.AppendLine('La tua scuola: Dirigenza=' + ((Leggi $s 'Dirigenza') -replace "`r`n", ' ') + '; Segreteria=' +
                          ((Leggi $s 'Segreteria') -replace "`r`n", ' ') + '; Registro=' + ((Leggi $s 'Registro') -replace "`r`n", ' '))
     foreach ($r in (Leggi $s 'Regole')) {
@@ -289,7 +353,8 @@ $scenariJson = New-Object System.Collections.Generic.List[string]
 $Solo = @($Solo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ })
 $quali = if ($Solo.Count) { $Solo } else { 0..($Scenari - 1) }
 $inizio = Get-Date
-$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0
+$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0; $cambiate = 0
+$mCampanella = $tFiltri.GetMethod('FiltriDiCampanella', $FS)
 $fRighe = $tFF.GetField('righe', $FI)
 # quello che la finestra sbaglia da sola, senza il motore: una scelta fatta a
 # mano che cambia aprendo di nuovo lo stesso file
@@ -317,6 +382,8 @@ foreach ($n in $quali) {
             $filtri += ,$copia
         } else { $filtri += ,(UnFiltro $caso $prefisso) }
     }
+    $accanto = FiltriAccanto $s $altro $prefisso
+    foreach ($f in $accanto) { $filtri += ,$f }
     $totaleFiltri += $filtri.Count
     $xml = Esporta $filtri
     $lista = $mLeggi.Invoke($null, @([string]$xml))
@@ -399,11 +466,13 @@ foreach ($n in $quali) {
         $comeErano = @($fRighe.GetValue($ff) | ForEach-Object { @{ aMano = [bool]$_.AMano; testo = [string]$_.Scelta.Testo } })
         $lista = $mLeggi.Invoke($null, @([string]$xml))
         $ff.Carica($lista)
-        $comeSono = @($fRighe.GetValue($ff))
+        $comeSono = @($fRighe.GetValue($ff) | ForEach-Object { [string]$_.Scelta.Testo })
         for ($i = 0; $i -lt $lista.Count; $i++) {
-            if ($comeErano[$i].aMano -and $comeSono[$i].Scelta.Testo -ne $comeErano[$i].testo) {
-                $finestraStorta.Add("scenario ${n}, filtro ${i}: scelto a mano '" + $comeErano[$i].testo + "', aperto di nuovo '" + $comeSono[$i].Scelta.Testo + "'")
+            if ($comeErano[$i].aMano -and $comeSono[$i] -ne $comeErano[$i].testo) {
+                $finestraStorta.Add("scenario ${n}, filtro ${i}: scelto a mano '" + $comeErano[$i].testo + "', aperto di nuovo '" + $comeSono[$i] + "'")
             }
+        }
+        for ($i = 0; $i -lt $lista.Count; $i++) {
             $scelte = $ff.Scelte($i)
             if ($scelte.Count -ge 2 -and (ACaso $altro 0.1)) {
                 $c = $scelte[$altro.Next($scelte.Count)]
@@ -420,6 +489,19 @@ foreach ($n in $quali) {
     if ($modo -ne 'configurazione') {
         $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $fatte))
         [void]$racconto.AppendLine('Applica: ' + ($esito -replace '\r?\n', ' '))
+    }
+    # a volte, dopo "Usa questa scelta" con il file, le regole escluse cambiano;
+    # poi la configurazione copiata cosi' com'e', o la finestra senza il file
+    # e "Usa questa scelta"
+    if ($modo -eq 'file' -and (ACaso $altro $(if ($accanto.Count) { 0.6 } else { 0.2 }))) {
+        $cambiate++
+        [void]$racconto.AppendLine('poi: ' + (CambiaLeEscluse $s $altro))
+        if (ACaso $altro 0.5) {
+            $ff = [Activator]::CreateInstance($tFF, @($s.PSObject.BaseObject))
+            $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $ff.FatteAdesso()))
+            $ff.Dispose()
+            [void]$racconto.AppendLine('finestra senza il file, Applica: ' + ($esito -replace '\r?\n', ' '))
+        }
     }
     $voci = @{}
     foreach ($v in (Leggi $s 'FiltriDaTogliere')) {
@@ -449,8 +531,8 @@ $mj = ($messaggi | ForEach-Object { '{"da":' + (J $_[0]) + ',"nome":' + (J $_[1]
 $file = Join-Path $temporanea 'scenari.json'
 [System.IO.File]::WriteAllText($file, '{"messaggi":[' + $mj + '],"scenari":[' + ($scenariJson -join ',') + ']}', (New-Object System.Text.UTF8Encoding($false)))
 $preparati = [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1)
-Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file, {5} con il file aperto di nuovo; {6} scelte a caso nella tendina) preparati in {7} s" -f
-    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $riaperti, $sceltiACaso, $preparati)
+Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file, {5} con il file aperto di nuovo, {6} con le regole escluse cambiate dopo; {7} scelte a caso nella tendina) preparati in {8} s" -f
+    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $riaperti, $cambiate, $sceltiACaso, $preparati)
 foreach ($x in $finestraStorta) { Write-Host "FINESTRA: $x" }
 try {
     & node (Join-Path $qui 'filtri_a_caso.js') $file $motore

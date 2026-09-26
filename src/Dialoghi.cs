@@ -1081,6 +1081,10 @@ namespace Campanella
                            "letto: senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la " +
                            "stessa etichetta che non lo fa. Resta in Gmail, se non scegli di toglierlo lo stesso" +
                            (fileAperto ? "" : "; apri il file dei filtri: la finestra vede che cosa fa e propone che cosa farne");
+                string altri = FiltriGmail.PerGliAltriFiltri(r.Voce, stato);
+                if (altri != "")
+                    return chi + "; " + altri + ". Resta in Gmail, se non scegli di toglierlo lo stesso" +
+                           (fileAperto ? "" : "; apri il file dei filtri: la finestra vede gli altri filtri e propone che cosa farne");
                 return chi + "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
                        "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso";
             }

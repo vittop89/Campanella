@@ -179,6 +179,28 @@ namespace Campanella
         /// null se non si sa (scelto prima della 1.6.1). Non fanno parte della chiave.
         /// </summary>
         public bool? Archivia = null, SegnaLetto = null;
+        /// <summary>
+        /// Le etichette (come le scrive la regola, senza il gruppo) che la regola
+        /// che lo sostituisce escludeva quando si e' scelto (Studenti: Colleghi,
+        /// Dirigenza, Segreteria). Se poi ne esclude un'altra, un filtro rimasto
+        /// in Gmail con quell'etichetta potrebbe toglierle dei messaggi, e senza
+        /// il file non si vede: il filtro non si toglie piu'
+        /// (FiltriGmail.AncoraSostituito). null se non si sa (scelto prima, o
+        /// senza una regola). Non fa parte della chiave.
+        /// </summary>
+        public List<string> Escluse = null;
+        /// <summary>
+        /// I filtri che restavano in Gmail con una di quelle etichette e che
+        /// potevano prendere i suoi messaggi, con l'etichetta e i criteri:
+        /// quando si e' scelto i loro mittenti li prendeva gia' una regola
+        /// esclusa, accesa e sopra la sua (FiltriGmail.PresiDalleEscluse), e
+        /// quell'etichetta quei messaggi l'avrebbero avuta comunque. Se poi
+        /// quella regola si spegne, si sposta sotto o cambia mittenti (anche
+        /// con l'elenco del personale), il filtro non si toglie piu'. Vuota se
+        /// non ce n'erano. I criteri possono avere indirizzi: e' un dato
+        /// personale, come i suoi. Non fa parte della chiave.
+        /// </summary>
+        public List<FiltroDaTogliere> Accanto = new List<FiltroDaTogliere>();
 
         /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
         public static readonly string[] NomiCriteri =
@@ -263,6 +285,9 @@ namespace Campanella
             f.Regola = Regola;
             f.Archivia = Archivia;
             f.SegnaLetto = SegnaLetto;
+            f.Escluse = (Escluse == null) ? null : new List<string>(Escluse);
+            f.Accanto = new List<FiltroDaTogliere>();
+            if (Accanto != null) foreach (FiltroDaTogliere g in Accanto) if (g != null) f.Accanto.Add(g.Copia());
             return f;
         }
     }
@@ -665,8 +690,10 @@ namespace Campanella
         /// nel Drive, e perderebbe unoQualsiasi: la regola di una classe vorrebbe
         /// senza dirlo l'oggetto E gli studenti.
         /// Formato 4 (1.6.1): dentro ogni filtro di Gmail da togliere
-        /// ("filtriDaTogliere") la regola che lo sostituisce ("regola") e se il
-        /// filtro archiviava e segnava come letto ("archivia", "letti"); la 1.6.0
+        /// ("filtriDaTogliere") la regola che lo sostituisce ("regola"), se il
+        /// filtro archiviava e segnava come letto ("archivia", "letti"), le
+        /// etichette che la regola escludeva ("escluse") e i filtri rimasti in
+        /// Gmail con una di quelle ("accanto"); la 1.6.0
         /// riscrivendo il file li perderebbe: il filtro sembrerebbe scelto con
         /// lei, e non si saprebbe piu' quale regola lo sostituisce ne' se deve
         /// archiviare o segnare come letti come lui.
@@ -1140,6 +1167,24 @@ namespace Campanella
                     // e che cosa faceva, se si sa
                     if (f.Archivia.HasValue) d["archivia"] = f.Archivia.Value;
                     if (f.SegnaLetto.HasValue) d["letti"] = f.SegnaLetto.Value;
+                    // le etichette che la sua regola escludeva, e i filtri rimasti
+                    // in Gmail con una di quelle (solo se ce ne sono)
+                    if (f.Escluse != null) d["escluse"] = new List<string>(f.Escluse);
+                    if (f.Accanto != null && f.Accanto.Count > 0)
+                    {
+                        List<object> accanto = new List<object>();
+                        foreach (FiltroDaTogliere g in f.Accanto)
+                        {
+                            if (g == null) continue;
+                            Dictionary<string, object> a = new Dictionary<string, object>();
+                            a["etichetta"] = g.Etichetta;
+                            Dictionary<string, object> ca = new Dictionary<string, object>();
+                            foreach (KeyValuePair<string, string> kv in g.Criteri) ca[kv.Key] = kv.Value;
+                            a["criteri"] = ca;
+                            accanto.Add(a);
+                        }
+                        d["accanto"] = accanto;
+                    }
                     filtri.Add(d);
                 }
             r["filtriDaTogliere"] = filtri;
@@ -1489,6 +1534,21 @@ namespace Campanella
                     f.Regola = Str(d, "regola", "").Trim();
                     if (d.ContainsKey("archivia") && d["archivia"] is bool) f.Archivia = (bool)d["archivia"];
                     if (d.ContainsKey("letti") && d["letti"] is bool) f.SegnaLetto = (bool)d["letti"];
+                    if (d.ContainsKey("escluse")) f.Escluse = Lista(d, "escluse");
+                    object[] accanto = d.ContainsKey("accanto") ? d["accanto"] as object[] : null;
+                    if (accanto != null)
+                        foreach (object o2 in accanto)
+                        {
+                            Dictionary<string, object> a = o2 as Dictionary<string, object>;
+                            string et = (a == null) ? "" : Str(a, "etichetta", "").Trim();
+                            if (et == "") continue;
+                            Dictionary<string, object> ca = a.ContainsKey("criteri") ? a["criteri"] as Dictionary<string, object> : null;
+                            FiltroDaTogliere g = (ca != null) ? FiltroDaTogliere.Da(et, ca) : null;
+                            // criteri che non si capiscono: nel dubbio quel filtro puo'
+                            // prendere qualunque messaggio
+                            if (g == null) { g = new FiltroDaTogliere(); g.Etichetta = et; }
+                            f.Accanto.Add(g);
+                        }
                     chiavi.Add(f.Chiave());
                     FiltriDaTogliere.Add(f);
                 }

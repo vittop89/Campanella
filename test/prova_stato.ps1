@@ -1006,6 +1006,43 @@ static class ProvaStato
                     object.Equals(campoLetti.GetValue(FiltriDi(w)[0]), false) && campoArchivia.GetValue(FiltriDi(w)[1]) == null &&
                     (string)campoRegola.GetValue(FiltriDi(w)[0]) == "Genitori");
             }
+            // le etichette che la sua regola escludeva e i filtri rimasti in
+            // Gmail con una di quelle (1.6.1): per ricontrollarlo senza il file
+            // quando le regole escluse cambiano. Solo per chi li ha
+            FieldInfo campoEscluse = (FiltriDi(t) != null && FiltriDi(t).Count == 2) ? FiltriDi(t)[0].GetType().GetField("Escluse") : null;
+            FieldInfo campoAccanto = (campoEscluse != null) ? FiltriDi(t)[0].GetType().GetField("Accanto") : null;
+            Verifica("un filtro da togliere ricorda le etichette che la regola escludeva e i filtri rimasti accanto (FiltroDaTogliere.Escluse, Accanto)",
+                campoEscluse != null && campoAccanto != null);
+            if (campoEscluse != null && campoAccanto != null)
+            {
+                campoEscluse.SetValue(FiltriDi(t)[0], new List<string>(new string[] { "Colleghi", "Dirigenza" }));
+                object accanto = Activator.CreateInstance(FiltriDi(t)[0].GetType(), true);
+                accanto.GetType().GetField("Etichetta").SetValue(accanto, "Colleghi");
+                ((Dictionary<string, string>)accanto.GetType().GetField("Criteri").GetValue(accanto))["from"] =
+                    "anna.bianchi@scuola.example OR marco.verdi@scuola.example";
+                ((IList)campoAccanto.GetValue(FiltriDi(t)[0])).Add(accanto);
+                t.Salva();
+                object[] vociE = Json(FileDati(c))["filtriDaTogliere"] as object[];
+                Dictionary<string, object> e0 = (vociE != null && vociE.Length == 2) ? vociE[0] as Dictionary<string, object> : null;
+                Dictionary<string, object> e1 = (vociE != null && vociE.Length == 2) ? vociE[1] as Dictionary<string, object> : null;
+                object[] accantoNelFile = (e0 != null && e0.ContainsKey("accanto")) ? e0["accanto"] as object[] : null;
+                Dictionary<string, object> a0 = (accantoNelFile != null && accantoNelFile.Length == 1) ? accantoNelFile[0] as Dictionary<string, object> : null;
+                Dictionary<string, object> ca0 = (a0 != null && a0.ContainsKey("criteri")) ? a0["criteri"] as Dictionary<string, object> : null;
+                Verifica("si scrivono solo per chi li ha, nel file dei dati e non in campanella.json",
+                    e0 != null && e1 != null && ListaNelFile(e0, "escluse") == "Colleghi|Dirigenza" && a0 != null &&
+                    Convert.ToString(a0["etichetta"]) == "Colleghi" && ca0 != null &&
+                    Convert.ToString(ca0["from"]) == "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
+                    !e1.ContainsKey("escluse") && !e1.ContainsKey("accanto") && !Leggi(Impostazioni()).Contains("marco.verdi"));
+                Stato sx = Carica();
+                IList accantoLetti = (FiltriDi(sx) != null && FiltriDi(sx).Count == 2) ? (IList)campoAccanto.GetValue(FiltriDi(sx)[0]) : null;
+                List<string> esclusiLette = (accantoLetti != null) ? campoEscluse.GetValue(FiltriDi(sx)[0]) as List<string> : null;
+                object g0 = (accantoLetti != null && accantoLetti.Count == 1) ? accantoLetti[0] : null;
+                Verifica("e si rileggono", esclusiLette != null && string.Join("|", esclusiLette.ToArray()) == "Colleghi|Dirigenza" &&
+                    g0 != null && (string)g0.GetType().GetField("Etichetta").GetValue(g0) == "Colleghi" &&
+                    ((Dictionary<string, string>)g0.GetType().GetField("Criteri").GetValue(g0))["from"] ==
+                        "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
+                    campoEscluse.GetValue(FiltriDi(sx)[1]) == null && ((IList)campoAccanto.GetValue(FiltriDi(sx)[1])).Count == 0);
+            }
         }
 
         string errore;
