@@ -180,18 +180,38 @@ namespace Campanella
         static readonly Regex OraNelNome = new Regex(
             @"(?<![0-9.,:/])(?:[01]?[0-9]|2[0-3])[:.][0-5][0-9](?![0-9])|(?<!\p{L})(?:dalle|alle|ore|h)\s*[0-9]{1,2}(?![0-9])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        // una cadenza o un'eccezione del ricevimento: sul calendario va ogni settimana
+        // un ordinale: "1°", "3ª", "primo", "terza", "ultimo"
+        const string Ordinale = @"(?:[1-5]\s*[°ºª^]|prim[oa]|second[oa]|terz[oa]|quart[oa]|quint[oa]|ultim[oa])";
+        // un giorno della settimana, anche al plurale ("ogni due giovedi'", "sabati", "domeniche")
+        const string GiorniDellaSettimana = @"(?:(?:luned|marted|mercoled|gioved|venerd)(?:i['’]|i|ì)|sabat[oi]|domenic(?:a|he))";
+        // il numero di una cadenza: "ogni 15", "ogni 15/20", "ogni quindici", "ogni altra"
+        const string NumeroDellaCadenza = @"(?:[0-9]+(?:\s*[-/]\s*[0-9]+)?|due|tre|quattro|cinque|sei|sette|otto|nove|" +
+                                          @"dieci|quattordici|quindici|venti|trenta|altr[oa])";
+        // prima di un ordinale e della settimana, un inizio o una fine: "dalla terza
+        // settimana", "fino alla quarta settimana" sono un periodo, non una cadenza
+        const string DaOFinoA = @"(?:dall(?:[ao]|['’])?|dal|a\s+partire\s+dall(?:[ao]|['’])?|dopo\s+(?:la|il|l['’])|" +
+                                @"(?:fino|sino)\s+(?:all(?:[ao]|['’])?|al)|entro\s+(?:la|il|l['’]))";
+        // una cadenza o un'eccezione del ricevimento: sul calendario va ogni settimana.
+        // Anche il mese ("una volta al mese", "di ogni mese"), gli ordinali ("il
+        // primo e il terzo", "1° e 3° giovedi'", "primo giovedi'", "1ª e 3ª
+        // settimana"), "ogni due giovedi'", "ogni 15 gg", "bimensile"
         static readonly Regex CadenzaNelNome = new Regex(
-            @"(?<!\p{L})(?:altern[eia]|alternat[eia]|tranne|eccetto|escluso|esclusi|esclusa|escluse|quindicinal[ei]|" +
-            @"mensil[ei]|del\s+mese|a\s+settimane|ogni\s+[0-9]+\s+(?:giorni|settimane)|" +
-            @"ogni\s+(?:due|tre|quattro)\s+settimane|pari|dispari|una\s+(?:settimana\s+)?s[iì]\s+e\s+una\s+no|" +
-            @"sospes[oiae]|sospensione|vacanz\p{L}*|scrutin\p{L}*)(?!\p{L})",
+            @"(?<!\p{L})(?:altern[eia]|alternat[eia]|tranne|eccetto|escluso|esclusi|esclusa|escluse|quindicinal\p{L}*|" +
+            @"mensil\p{L}*|bimensil\p{L}*|bisettimanal\p{L}*|mes[ei]|a\s+settimane|" +
+            @"ogni\s+" + NumeroDellaCadenza + @"\s+(?:giorni|gg|settimane|settimana|" + GiorniDellaSettimana + @")|" +
+            Ordinale + @"\s*(?:,|e|ed)\s*(?:il\s+|la\s+|l['’]\s*)?" + Ordinale + "|" +
+            @"(?<!" + DaOFinoA + @"\s*)" + Ordinale + @"\s+(?:settiman\p{L}*|" + GiorniDellaSettimana + @")|" +
+            @"pari|dispari|una\s+(?:settimana\s+)?s[iì]\s+e\s+una\s+no|settimana\s+s[iì]\W+(?:e\s+)?(?:una|settimana)\s+no|" +
+            @"sospes[oiae]|sospensione|vacanz\p{L}*|scrutin\p{L}*)(?![\p{L}°ºª])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         // un periodo scritto a parole nel nome di un ricevimento senza date: sul
-        // calendario va per tutto il periodo ("fino a maggio", "da ottobre", "primo quadrimestre")
+        // calendario va per tutto il periodo ("fino a maggio", "da ottobre", "primo
+        // quadrimestre", "II periodo", "dopo Natale", "dalla terza settimana")
         static readonly Regex PeriodoNelNome = new Regex(
             @"(?<!\p{L})(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|" +
-            @"dicembre|quadrimestr\p{L}*|trimestr\p{L}*|pentamestr\p{L}*|semestr\p{L}*|(?:fino|sino)\s+a(?:l|lla|lle)?)(?!\p{L})",
+            @"dicembre|quadrimestr\p{L}*|trimestr\p{L}*|pentamestr\p{L}*|semestr\p{L}*|(?:fino|sino)\s+a(?:l|lla|lle)?|" +
+            @"(?:I|II|III|IV|" + Ordinale + @")\s+periodo|natal\p{L}*|pasqu\p{L}*|carneval\p{L}*|" +
+            DaOFinoA + @"\s*" + Ordinale + @"\s+(?:settiman\p{L}*|" + GiorniDellaSettimana + @"))(?!\p{L})",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         /// <summary>L'avviso di un link che non e' di Google Meet: vale lo stesso, ma va guardato.</summary>

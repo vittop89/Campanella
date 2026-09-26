@@ -924,6 +924,29 @@ console.log(JSON.stringify({
             @('ogni giovedi 10:10-11:10 Ricevimento fino a fine maggio', $avvisoPeriodo),
             @('ogni giovedi 10:10-11:10 Ricevimento da ottobre a maggio', $avvisoPeriodo),
             @('Ricevimento da ottobre a maggio ogni giovedi 10:10-11:10', $avvisoPeriodo),
+            # le cadenze scritte in altri modi: con il numero in lettere, gg, il
+            # giorno ("ogni due giovedi'"), il mese, gli ordinali (1 e 3, primo e
+            # terzo), bimensile, quindicinalmente, settimana si' e settimana no
+            @('ogni giovedi 10:10-11:10 Ricevimento ogni quindici giorni', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento ogni 15 gg', $avvisoCadenza),
+            @("ogni gioved$ie 10:10-11:10 Ricevimento, ogni due gioved$ie", $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento ogni 2 settimane', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento una volta al mese', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento il primo e il terzo di ogni mese', $avvisoCadenza),
+            @("ogni gioved$ie 10:10-11:10 Ricevimento (1$([char]0xB0) e 3$([char]0xB0) gioved$ie di ogni mese)", $avvisoCadenza),
+            @("ogni gioved$ie 10:10-11:10 Ricevimento (primo e terzo gioved$ie)", $avvisoCadenza),
+            @("ogni giovedi 10:10-11:10 Ricevimento 1$([char]0xAA) e 3$([char]0xAA) settimana", $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento bimensile', $avvisoCadenza),
+            @('ogni giovedi 10:10-11:10 Ricevimento quindicinalmente', $avvisoCadenza),
+            @("ogni giovedi 10:10-11:10 Ricevimento (settimana s$ie, settimana no)", $avvisoCadenza),
+            # i periodi scritti in altri modi: il periodo con l'ordinale, le feste,
+            # una settimana con l'ordinale
+            @('ogni giovedi 10:10-11:10 Ricevimento (I periodo)', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento nel secondo periodo', $avvisoPeriodo),
+            @("ogni giovedi 10:10-11:10 Ricevimento 2$([char]0xB0) periodo", $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento dopo Natale', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento fino a Pasqua', $avvisoPeriodo),
+            @('ogni giovedi 10:10-11:10 Ricevimento dalla terza settimana di lezione', $avvisoPeriodo),
             # un'ora di notte: "dalle 3 alle 6" per il pomeriggio
             @('15/12/2026 dalle 3 alle 6 Colloqui generali', $avvisoNotte),
             @('ogni martedi 3-4 Ricevimento', $avvisoNotte),
@@ -938,6 +961,15 @@ console.log(JSON.stringify({
         Verifica "ma le ore di scuola scritte senza minuti non sono di notte ('$($k.Detta)')" ($k.Buona -and -not $k.Guarda)
         $k = RigaColloquio 'dal 01/02/2027 al 31/05/2027 ogni venerdi 12:10-13:10 Ricevimento da febbraio a maggio'
         Verifica "e un periodo a parole con le date del ricevimento scritte non ha l'avviso ('$($k.Detta)')" ($k.Buona -and -not $k.Guarda)
+        # ma un nome che non dice una cadenza ne' un periodo resta in verde:
+        # la prenotazione, il piano, "secondo" che non e' un ordinale
+        foreach ($t in @('ogni giovedi 10:10-11:10 Ricevimento su prenotazione dal registro',
+                         "ogni giovedi 10:10-11:10 Ricevimento aula 12, 1$([char]0xB0) piano",
+                         'ogni giovedi 10:10-11:10 Ricevimento secondo il calendario della scuola',
+                         'ogni giovedi 10:10-11:10 Ricevimento per tutto l''anno')) {
+            $k = RigaColloquio $t
+            Verifica "'$t' va sul calendario senza avvisi ('$($k.Detta)')" ($k.Buona -and -not $k.Guarda)
+        }
 
         # le note e le righe vuote non contano; ogni riga ha il suo numero
         $varie = "# i miei colloqui`r`n`r`nogni giovedi 10:10-11:10`r`nquesta no"
