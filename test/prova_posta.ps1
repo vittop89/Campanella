@@ -1662,6 +1662,14 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         return @{ esito = $codice; tolti = $(if ($m.Success) { [int]$m.Groups[1].Value } else { -1 }) }
     }
 
+    function NuovaRegolaPortali($da, $query) {
+        $r = [Activator]::CreateInstance($asm.GetType('Campanella.Regola'))
+        $r.Etichetta = 'Portali'
+        foreach ($d in $da) { $r.Da.Add($d) }
+        $r.QueryLibera = $query
+        return $r
+    }
+
     $sM = StatoRiorganizza
     @((Leggi $sM 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0].Da.Add('@sindacato-uno.example')
     $fIndirizzoM = UnFiltro ([ordered]@{ from = 'comunicati@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
@@ -1680,6 +1688,43 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $motoreM = PromessaNelMotore $sM $filtriM $posteM 'sottodominio'
     Verifica "nel motore vero i tre filtri si tolgono e ogni loro messaggio, anche quelli dei sottodomini, ha Sindacati ed e' archiviato ($($motoreM.tolti) tolti; '$riepM')" (
         $motoreM.esito -eq 0 -and $motoreM.tolti -eq 3)
+
+    # un'esclusione senza chiocciola (-from:mario.rossi) o con il dominio
+    # incompleto (-from:mario.rossi@, -from:mario.rossi@sindacato) puo' stare
+    # in qualunque indirizzo: unita a Sindacati le toglierebbe
+    # mario.rossi@sindacato-uno.example, che un altro filtro "lo fa gia'"
+    $sT = StatoRiorganizza
+    $sindT = @((Leggi $sT 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    $sindT.Da.Add('@sindacato-uno.example')
+    $fUnoT = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })
+    $nonUniti = @()
+    foreach ($y in @('mario.rossi', 'mario.rossi@', 'mario.rossi@sindacato', 'rossi@sindacato-uno.exam')) {
+        $c = ScelteDi (UnFiltro ([ordered]@{ from = '@sindacato-due.example'; hasTheWord = "-from:$y"; label = 'Sindacati'; shouldArchive = 'true' })) $sT
+        if ((Testi $c) -match 'Unisci a Sindacati' -or $c.proposta.Azione -ne 'lascia') { $nonUniti += "-from:${y}: $(Testi $c)" }
+    }
+    $cFuoriT = ScelteDi (UnFiltro ([ordered]@{ from = '@sindacato-due.example'; hasTheWord = '-from:mario.rossi@sindacato-due.example'; label = 'Sindacati'; shouldArchive = 'true' })) $sT
+    Verifica "con -from:mario.rossi, -from:mario.rossi@, -from:mario.rossi@sindacato o -from:rossi@sindacato-uno.exam non si unisce a Sindacati, che ha @sindacato-uno.example; con -from:mario.rossi@sindacato-due.example si' ('$($cFuoriT.proposta.Testo)')$(if ($nonUniti.Count) { ': no ' + ($nonUniti -join '; ') })" (
+        $nonUniti.Count -eq 0 -and $cFuoriT.proposta.Testo -eq 'Unisci a Sindacati')
+    $fDueT = UnFiltro ([ordered]@{ from = '@sindacato-due.example'; hasTheWord = '-from:mario.rossi'; label = 'Sindacati'; shouldArchive = 'true' })
+    $riepT = UsaLaScelta $sT @($fUnoT, $fDueT) $null
+    $posteT = @(@('comunicati@sindacato-uno.example', 'Sindacato Uno'), @('mario.rossi@sindacato-uno.example', 'Mario Rossi'),
+                @('info@sindacato-due.example', 'Sindacato Due'), @('mario.rossi@sindacato-due.example', 'Mario Rossi'))
+    $motoreT = PromessaNelMotore $sT @($fUnoT, $fDueT) $posteT 'esclusione_parte_locale'
+    Verifica "nel motore vero quello che Sindacati 'fa gia'' si toglie e mario.rossi@sindacato-uno.example ha ancora Sindacati, archiviato; quello con -from:mario.rossi resta ($($motoreT.tolti) tolto; '$riepT')" (
+        $motoreT.esito -eq 0 -and $motoreT.tolti -eq 1 -and $sindT.QueryLibera -eq '')
+    # e al contrario: una regola che esclude -from:mario.rossi non "lo fa
+    # gia'" per @sindacato-uno.example; una che esclude un dominio non prende
+    # un mittente scritto come parte locale (mario.rossi puo' essere di
+    # quel dominio)
+    $sindT.QueryLibera = '-from:mario.rossi'
+    $cGiaT = ScelteDi $fUnoT $sT
+    $sT2 = StatoRiorganizza
+    (Leggi $sT2 'Regole').Add((NuovaRegolaPortali @('portale-uno.example') '-from:@portale-due.example'))
+    $cLocaleT = ScelteDi (UnFiltro ([ordered]@{ from = 'mario.rossi'; label = 'Portali' })) $sT2
+    $cDominioT = ScelteDi (UnFiltro ([ordered]@{ from = 'info@portale-tre.example'; label = 'Portali' })) $sT2
+    Verifica "Sindacati con -from:mario.rossi non 'lo fa gia'' per @sindacato-uno.example ($(Testi $cGiaT)); Portali con -from:@portale-due.example non prende mario.rossi ($(Testi $cLocaleT)), info@portale-tre.example si' ('$($cDominioT.proposta.Testo)')" (
+        (Testi $cGiaT) -notmatch "lo fa gia'" -and (Testi $cLocaleT) -notmatch 'Unisci a Portali' -and
+        $cDominioT.proposta.Testo -eq 'Unisci a Portali')
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'

@@ -1335,22 +1335,48 @@ namespace Campanella
 
         /// <summary>
         /// Vero se l'esclusione y (quello che segue -from:, un mittente) puo'
-        /// togliere dei messaggi del mittente d: y prende d o una sua parte, o d
-        /// prende y (Copre, in un senso o nell'altro), uno dei due sta dentro
-        /// l'altro (Gmail cerca anche i pezzi di un indirizzo), oppure uno dei
-        /// due e' una parola senza punto (esami, nuvola), che puo' stare
-        /// nell'indirizzo o nel nome di qualunque mittente. I segnaposto
-        /// (@PERSONALE@...) non contano: si guardano sciolti.
+        /// togliere dei messaggi del mittente d. Gmail cerca anche i pezzi di
+        /// un indirizzo (e il nome), e nel dubbio un'esclusione tocca: y senza
+        /// chiocciola (una parola come esami, una parte locale come
+        /// mario.rossi, anche un dominio) o con il dominio incompleto
+        /// (mario.rossi@, mario.rossi@flc) puo' stare nella parte prima della
+        /// chiocciola di qualunque indirizzo; e un d senza chiocciola che non
+        /// e' un dominio (una parola, una parte locale come mario.rossi) puo'
+        /// essere di qualunque dominio. Altrimenti y tocca d se uno prende
+        /// l'altro (CopreLargo: @dominio anche i sottodomini), uno sta dentro
+        /// l'altro, o possono essere lo stesso indirizzo: la parte prima della
+        /// chiocciola dell'uno finisce con quella dell'altro, e il dominio
+        /// dell'uno comincia con quello dell'altro (mario.rossi@flcgil.i tocca
+        /// @flcgil.it). I segnaposto (@PERSONALE@...) non contano: si
+        /// guardano sciolti.
         /// </summary>
         static bool Tocca(string y, string d)
         {
             if (Segnaposto(d)) return false;
             string a = (y ?? "").Trim().ToLowerInvariant(), b = (d ?? "").Trim().ToLowerInvariant();
             if (a == "" || b == "") return false;
+            if (!ConDominio(a)) return true;
+            if (b.IndexOf('@') < 0 && !DominioDelRegistro.IsMatch(b)) return true;
             string a0 = a.TrimStart('@'), b0 = b.TrimStart('@');
-            if (a0.IndexOf('.') < 0 || b0.IndexOf('.') < 0) return true;
-            return CopreLargo(a, b) || CopreLargo(b, a) || a0.IndexOf(b0, StringComparison.Ordinal) >= 0 ||
-                   b0.IndexOf(a0, StringComparison.Ordinal) >= 0;
+            if (CopreLargo(a, b) || CopreLargo(b, a) || a0.IndexOf(b0, StringComparison.Ordinal) >= 0 ||
+                b0.IndexOf(a0, StringComparison.Ordinal) >= 0) return true;
+            int ka = a.LastIndexOf('@'), kb = b.LastIndexOf('@');
+            string localeA = a.Substring(0, ka), dominioA = a.Substring(ka + 1);
+            // d e' un dominio: il dominio di y ne puo' essere l'inizio
+            if (kb < 0) return b.StartsWith(dominioA, StringComparison.Ordinal);
+            string localeB = b.Substring(0, kb), dominioB = b.Substring(kb + 1);
+            return (localeA.EndsWith(localeB, StringComparison.Ordinal) || localeB.EndsWith(localeA, StringComparison.Ordinal)) &&
+                   (dominioA.StartsWith(dominioB, StringComparison.Ordinal) || dominioB.StartsWith(dominioA, StringComparison.Ordinal));
+        }
+
+        /// <summary>Vero se il mittente ha la chiocciola e dopo un dominio intero, con un punto (x@flcgil.it, @flcgil.it; non x@, x@flc).</summary>
+        static bool ConDominio(string mittente)
+        {
+            string t = (mittente ?? "").Trim();
+            int k = t.LastIndexOf('@');
+            if (k < 0) return false;
+            string dominio = t.Substring(k + 1);
+            return dominio.IndexOf('.') > 0 && !dominio.EndsWith(".", StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -1388,7 +1414,9 @@ namespace Campanella
         // fondo uno dei domini di primo livello dei registri (it, eu) o di
         // quelli generici; .example e' quello dei dati inventati delle prove.
         // Non uno qualsiasi di due lettere: mario.re e giulia.li sono nomi di
-        // persona (.re e .li sono domini di primo livello)
+        // persona (.re e .li sono domini di primo livello). Anche per Tocca: un
+        // mittente senza chiocciola e' un dominio solo cosi', se no puo' essere
+        // la parte locale di un indirizzo di qualunque dominio
         static readonly Regex DominioDelRegistro = new Regex(
             @"^@?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:it|eu|com|net|org|edu|gov|info|biz|cloud|online|school|education|example)$",
             RegexOptions.IgnoreCase);
