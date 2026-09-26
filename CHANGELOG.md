@@ -499,7 +499,11 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   weekly meeting; a cell not understood stays in the line, which the box
   shows in amber. Rows with neither a date nor a weekday are skipped, and
   the status bar says how many. Lines already in the box are not added
-  again (the same file imported twice), and the status bar says how many.
+  again (the same file imported twice), also with another name: an entry
+  with the same type, weekday or date, times, dates and link as a line of
+  the box is already there (before, a line imported and then corrected in
+  its name came back on the next import, and the weekly meeting went on
+  the calendar twice); the status bar says how many.
   A file with columns about people (cognome, nome, genitore, madre, padre,
   email, telefono, prenotato da, richiedente, partecipante, utente..., and
   the class next to them) is not imported: it is a list of bookings, and the
@@ -508,7 +512,17 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   calendar and in DatiOrari.gs). Nor is the school's timetable of the
   meeting hours of all teachers (a column docente, prof., insegnante,
   referente...): it would put the colleagues' meetings and Meet links on the
-  teacher's calendar, without their names. Names written inside the `cosa`
+  teacher's calendar, without their names. Nor one of a class, with a
+  column materia or disciplina. Those headers count also in the row above
+  the header, for a column that is empty there (a header on two rows with
+  merged cells, as schools often make it: before, `DOCENTE` merged over two
+  rows was not seen, and the colleagues' meetings and links came in green).
+  Without such a column the rows tell: two weekly meetings in the same
+  weeks with different links, three or more weekly meetings in the same
+  weeks, or two days at the same time with different links are refused too
+  (the names of the teachers in a column without a header, a table per
+  class); two weekly meetings one after the other, with different links,
+  are imported. Names written inside the `cosa`
   column are not recognised: the guide says to check the file first.
 - Under the box, the same read-only list as the days without lessons: how
   every line was read (`riga 1: ogni giovedi' 10:10-11:10, Ricevimento, per
@@ -519,13 +533,23 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   match the date, outside the period, at night or late in the evening
   (before 7 or after 21: `dalle 3 alle 6` for the afternoon), with a cadence
   or an exception in the name (`a settimane alterne`, `tranne`, `ogni 15
-  giorni`, `settimane dispari`, `una settimana si' e una no`, `sospeso`: it
-  goes on the calendar every week), with a period in words and no dates
-  (`fino a maggio`, `da ottobre a maggio`, `primo quadrimestre`: it goes on
+  giorni`, `settimane dispari`, `una settimana si' e una no`, `sospeso`,
+  also written otherwise: `ogni quindici giorni`, `ogni 15 gg`, `ogni due
+  giovedi'`, `una volta al mese`, `di ogni mese`, `il primo e il terzo`,
+  `1° e 3° giovedi'`, `1ª e 3ª settimana`, `bimensile`, `quindicinalmente`,
+  `settimana si', settimana no`: it goes on the calendar every week), with
+  a period in words and no dates (`fino a maggio`, `da ottobre a maggio`,
+  `primo quadrimestre`, `I periodo`, `nel secondo periodo`, `dopo Natale`,
+  `dopo Pasqua`, `dalla terza settimana`: it goes on
   the calendar for the whole period), or with a link that is not Google
   Meet (a warning, not an error:
-  it goes on the calendar), the lines not understood, and an entry equal to
-  one above, which goes on the calendar and in DatiOrari.gs once. The summary counts the meetings (weekly ones, their series,
+  it goes on the calendar), the lines not understood, an entry equal to
+  one above, which goes on the calendar and in DatiOrari.gs once, and an
+  entry at the same time as one above, also only in part and with another
+  name or link (a weekly meeting on the same weekday in the same weeks, a
+  day on the same date): only the one above goes on the calendar and in
+  DatiOrari.gs, and the line says which to keep (before, both went, two
+  meetings at the same time every week). The summary counts the meetings (weekly ones, their series,
   meetings and days) and the lines to check.
 - ORARI_4_calendario puts them after the lessons: the weekly meeting like
   the lessons, one series per stretch of weeks, skipping the days without
@@ -962,7 +986,16 @@ paste the Classe_*.gs file of each class, copied from "Le mie classi...".
   --solo-calendario) ORARI_7_colloqui between ORARI_5_cambioOrario and a
   date still to come, and a resume of ORARI_6_coloraLezioni finding another
   calendar job halfway, resuming by itself or not; prova_guscio.ps1 the
-  start-up warning naming the mail script.
+  start-up warning naming the mail script. Then: prova_orario.ps1 the
+  cadences and periods written otherwise (and names that are neither), the
+  entries at the same time as one above, a line imported, corrected and
+  imported again, the weekly meeting written by hand and then imported
+  with its link, and the import of an .xlsx with the header on two rows
+  and merged cells, of the `materia` and `disciplina` columns, of the
+  teachers' names in a column without a header, of three weekly meetings
+  and of days at the same time with different links (all refused), and of
+  the teacher's own files (a title, a header on two rows, two meetings one
+  after the other, the same link twice, days with different links).
 - The live acceptance test of the calendar, for developers
   (test/collaudo/Collaudo_calendario.gs): pasted with Calendario.gs (or
   Orari.gs) into a new Apps Script project, also in a personal account,
