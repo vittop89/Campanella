@@ -1052,6 +1052,16 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $testi[7] -notmatch 'Unisci a Studenti' -and $testi[7] -notmatch 'Unisci a Circolari' -and $testi[7] -notmatch 'Unisci a Newsletter')
     Verifica "chi archivia si unisce solo a chi archivia: Sindacati e normativa a Sindacati, non a Genitori; Famiglie non a Sindacati" (
         $testi[10] -match 'Unisci a Sindacati' -and $testi[10] -notmatch 'Genitori' -and $testi[13] -notmatch 'Sindacati')
+    # i mittenti di Registro elettronico stanno nelle impostazioni, non con i
+    # dati personali: ci si uniscono domini e parole, non l'indirizzo di una persona
+    $regConPersona = UnFiltro ([ordered]@{ hasTheWord = 'from:(spaggiari.eu OR mario.rossi@registro-uno.example)'; label = 'Registro elettronico' })
+    $cRegP = ScelteDi $regConPersona $sR
+    $testiRegP = @($cRegP.scelte | ForEach-Object { $_.Testo }) -join ' | '
+    $regSoloDomini = UnFiltro ([ordered]@{ hasTheWord = 'from:(spaggiari.eu OR @registro-uno.example OR nuvola)'; label = 'Registro elettronico' })
+    $testiRegD = @((ScelteDi $regSoloDomini $sR).scelte | ForEach-Object { $_.Testo }) -join ' | '
+    Verifica "a Registro elettronico non si unisce un filtro con l'indirizzo di una persona, che finirebbe nelle impostazioni ('$testiRegP'); con domini e parole si' ('$testiRegD')" (
+        $testiRegP -notmatch 'Unisci a Registro elettronico' -and (Breve $cRegP.proposta) -ne 'unisci|Registro elettronico' -and
+        $testiRegD -match 'Unisci a Registro elettronico \(in "La tua scuola"\)')
     # uno che fa anche altro: si lascia o si toglie, e il testo dice che cosa si perde
     $inoltra = UnFiltro ([ordered]@{ hasTheWord = 'from:(uno.example OR due.example)'; label = 'Inoltrati'; forwardTo = 'vice@scuola.example' })
     $cInoltra = ScelteDi $inoltra $sR

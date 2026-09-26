@@ -1247,11 +1247,17 @@ namespace Campanella
         /// di mittenti, e archivia e segna come letti come il filtro. Le
         /// esclusioni del filtro (-from:y) vanno nella ricerca avanzata: valgono
         /// per tutta la regola. Una regola spenta si accende (Applica).
+        /// Registro elettronico prende solo domini e parole (spaggiari.eu,
+        /// @portaleargo.it, nuvola), nessun indirizzo intero: i suoi mittenti
+        /// stanno nelle impostazioni (Stato.Impostazioni), non con i dati
+        /// personali, e l'indirizzo di una persona non ci deve finire.
         /// </summary>
         public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r)
         {
             if (f == null || m == null || r == null) return false;
             if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
+            if (r.Sorgente == "registro")
+                foreach (string d in m.Da) if (d.IndexOf('@') > 0) return false;
             if (LeMieClassi.ClasseDi(r) != null) return false;
             foreach (string d in r.Da) if (Segnaposto(d)) return false;
             if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
