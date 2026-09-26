@@ -1,0 +1,187 @@
+<?xml version='1.0' encoding='UTF-8'?><feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+	<!--
+		Un'esportazione dei filtri inventata, con la forma di quelle vere e con i
+		casi di un docente che ha gia' organizzato la posta da se' (test\prova_posta.ps1,
+		"I FILTRI DI GMAIL CHE DIVENTANO REGOLE"). Nomi, codici e indirizzi sono
+		inventati (.example); i domini del ministero, del registro, di Classroom e
+		dei fornitori di posta sono quelli pubblici, per la forma dei filtri veri.
+		Nell'ordine:
+		 1 la casella istituzionale della scuola, con il codice della scuola per etichetta
+		 2 la casella di un dipartimento
+		 3 due from: (tutti e due: Classroom e una persona)
+		 4 Classroom tranne una persona
+		 5 il ministero tranne la casella della scuola (Ministero e USR, come la regola)
+		 6 i registri elettronici (Registro elettronico, come la regola)
+		 7 la posta certificata
+		 8 stipendi e previdenza (Amministrazione e stipendio: simile a Segreteria solo nel nome)
+		 9 olimpiadi e gare
+		10 editori
+		11 sindacati e siti di notizie, archiviati (simile a Sindacati)
+		12 le notifiche automatiche, tranne alcune, archiviate
+		13 le altre scuole, tranne la propria
+		14 i fornitori di posta personali (Famiglie: simile a Genitori, spenta)
+	-->
+	<title>Mail Filters</title>
+	<id>tag:mail.google.com,2008:filters:z0000000000000000101*0000000000000000114</id>
+	<updated>2026-09-25T08:15:00Z</updated>
+	<author>
+		<name>Docente Inventato</name>
+		<email>docente@scuola.example</email>
+	</author>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000101*0000000000000000101</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:casella@istruzione.example'/>
+		<apps:property name='label' value='XYIS01200Z'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000102*0000000000000000102</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:dipartimento.materia@scuola.example'/>
+		<apps:property name='label' value='Dipartimento XYZ'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000103*0000000000000000103</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:classroom.google.com from:&quot;ANNA ESEMPIO&quot;'/>
+		<apps:property name='label' value='Ref. Ed. Civica'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000104*0000000000000000104</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:classroom.google.com -from:&quot;ANNA ESEMPIO&quot;'/>
+		<apps:property name='label' value='Classroom'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000105*0000000000000000105</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(istruzione.it OR istruzione.gov.it OR mim.gov.it OR miur.gov.it) -from:casella@istruzione.it'/>
+		<apps:property name='label' value='Ministero e USR'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000106*0000000000000000106</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(spaggiari.eu OR mailspaggiari.eu OR portaleargo.it OR argosoft.it OR madisoft.it OR nuvola)'/>
+		<apps:property name='label' value='Registro elettronico'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000107*0000000000000000107</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(legalmail.example OR postacert OR pec.example)'/>
+		<apps:property name='label' value='PEC'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000108*0000000000000000108</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(stipendi.pa.example OR tesoro.example OR previdenza.example)'/>
+		<apps:property name='label' value='Amministrazione e stipendio'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000109*0000000000000000109</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(gare-scientifiche.example OR olimat)'/>
+		<apps:property name='label' value='Olimpiadi e gare'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000110*0000000000000000110</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(editore-uno.example OR editore-due.example OR libri-scuola.example)'/>
+		<apps:property name='label' value='Editori e materiali'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000111*0000000000000000111</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(sindacato-uno.example OR sindacato-due.example OR notizie-scuola.example)'/>
+		<apps:property name='label' value='Sindacati e normativa'/>
+		<apps:property name='shouldArchive' value='true'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000112*0000000000000000112</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(noreply OR no-reply OR no_reply OR mailer-daemon OR github.com) -from:classroom.google.com -from:spaggiari -from:istruzione.it'/>
+		<apps:property name='label' value='Notifiche Google'/>
+		<apps:property name='shouldArchive' value='true'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000113*0000000000000000113</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(edu.it OR liceo-uno.example OR istituto-due.example) -from:scuola.example'/>
+		<apps:property name='label' value='Altre scuole'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+	<entry>
+		<category term='filter'></category>
+		<title>Mail Filter</title>
+		<id>tag:mail.google.com,2008:filter:z0000000000000000114*0000000000000000114</id>
+		<updated>2026-09-25T08:15:00Z</updated>
+		<content></content>
+		<apps:property name='hasTheWord' value='from:(gmail.com OR libero.it OR yahoo.it OR hotmail.it)'/>
+		<apps:property name='label' value='Famiglie'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_smb'/>
+	</entry>
+</feed>

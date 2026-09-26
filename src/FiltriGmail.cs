@@ -8,19 +8,71 @@
 //  elenco di filtri, con i criteri nei nomi del servizio Gmail API (quelli
 //  che lo script confronta), e ogni filtro si confronta con le regole di
 //  Campanella: uguale, creato da Campanella (EXTRA_creaFiltriGmail), simile
-//  o tuo. Un filtro con un criterio che non si capisce resta com'e'. Senza
-//  finestre: il passo 4 della Posta lo usa nella sua finestra,
-//  test\prova_posta.ps1 su un file inventato.
+//  o tuo. Un filtro con un criterio che non si capisce resta com'e'.
+//  Per ogni filtro c'e' anche che cosa farne (SceltaFiltro): lasciarlo in
+//  Gmail, toglierlo, unire i suoi mittenti a una regola o farne una regola
+//  nuova, con la stessa etichetta e la stessa ricerca; Applica lo fa nello
+//  Stato. Senza finestre: il passo 4 della Posta lo usa nella sua finestra,
+//  test\prova_posta.ps1 su file inventati.
 // ===========================================================================
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 
 namespace Campanella
 {
+    /// <summary>
+    /// Che cosa fare di un filtro di Gmail (Posta, passo 4, "Filtri che hai
+    /// gia' in Gmail...", colonna "Che cosa fare"): FiltriGmail.Scelte dice
+    /// quelle possibili, FiltriGmail.Proposta quella di partenza.
+    /// </summary>
+    class SceltaFiltro
+    {
+        /// <summary>Resta in Gmail.</summary>
+        public const string Lascia = "lascia";
+        /// <summary>Si toglie e basta (o perche' lo fa gia' una regola, in Regola).</summary>
+        public const string Togli = "togli";
+        /// <summary>I suoi mittenti vanno nella regola (Regola), o in "La tua scuola" per le sue; poi si toglie.</summary>
+        public const string Unisci = "unisci";
+        /// <summary>Diventa una regola nuova con la stessa etichetta e la stessa ricerca; poi si toglie.</summary>
+        public const string Nuova = "nuova";
+
+        public string Azione = Lascia;
+        /// <summary>Togli: la regola che lo fa gia' (o null); Unisci: quella che prende i mittenti.</summary>
+        public Regola Regola = null;
+        /// <summary>Come la dice la tendina: diversa dalle altre dello stesso filtro.</summary>
+        public string Testo = "Lascialo in Gmail";
+
+        /// <summary>Vero se con questa scelta il filtro si toglie da Gmail (EXTRA_togliFiltri).</summary>
+        public bool TogliIlFiltro { get { return Azione != Lascia; } }
+    }
+
+    /// <summary>Un filtro della finestra con la sua scelta: quello che FiltriGmail.Applica mette nello Stato.</summary>
+    class FiltroScelto
+    {
+        /// <summary>null: uno scelto prima, che nel file non c'e'.</summary>
+        public FiltroGmail Filtro;
+        /// <summary>null: non si puo' togliere (niente etichetta, criteri, uno non si capisce, di una classe).</summary>
+        public FiltroDaTogliere Voce;
+        public Somiglianza Somiglia;
+        public SceltaFiltro Scelta;
+    }
+
+    /// <summary>
+    /// I mittenti di un filtro fatto solo di mittenti (FiltriGmail.SoloMittenti):
+    /// quelli che prende, come si scrivono fra i mittenti di una regola, e le
+    /// esclusioni, come si scrivono nella ricerca avanzata ("-from:y").
+    /// </summary>
+    class MittentiFiltro
+    {
+        public List<string> Da = new List<string>();
+        public List<string> Esclusi = new List<string>();
+    }
+
     /// <summary>Un filtro letto dall'esportazione di Gmail.</summary>
     class FiltroGmail
     {
@@ -30,6 +82,8 @@ namespace Campanella
         public Dictionary<string, string> Criteri = new Dictionary<string, string>();
         /// <summary>Le azioni oltre all'etichetta, dette a parole: "archivia", "segna come letto"...</summary>
         public List<string> Azioni = new List<string>();
+        /// <summary>Archivia (shouldArchive) e segna come letto (shouldMarkAsRead): le due che anche le regole fanno.</summary>
+        public bool Archivia = false, SegnaLetto = false;
         /// <summary>
         /// Le azioni che le regole di Campanella non fanno mai (tutte tranne
         /// etichetta, archivia e segna come letto), a parole: inoltra, elimina,
@@ -312,7 +366,9 @@ namespace Campanella
                 if (!valori.ContainsKey(nome) || !valori[nome].Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) continue;
                 f.Azioni.Add(AzioniSiNo[i, 1]);
                 // archiviare e segnare come letto le regole lo fanno; il resto no
-                if (nome != "shouldArchive" && nome != "shouldMarkAsRead") f.AltreAzioni.Add(AzioniSiNo[i, 1]);
+                if (nome == "shouldArchive") f.Archivia = true;
+                else if (nome == "shouldMarkAsRead") f.SegnaLetto = true;
+                else f.AltreAzioni.Add(AzioniSiNo[i, 1]);
             }
             note.Add("smartLabelToApply");
             if (valori.ContainsKey("smartLabelToApply") && valori["smartLabelToApply"].Trim() != "")
@@ -801,7 +857,7 @@ namespace Campanella
         }
 
         /// <summary>I mittenti con i segnaposto sciolti e senza doppioni (maiuscole a parte), come _espandi_ nello script.</summary>
-        static List<string> Espandi(List<string> elenco, string dominio, List<string> personale,
+        public static List<string> Espandi(List<string> elenco, string dominio, List<string> personale,
                                     Dictionary<string, List<string>> gruppi)
         {
             List<string> tutti = new List<string>();
@@ -841,7 +897,7 @@ namespace Campanella
         }
 
         /// <summary>Le parole in OR, quelle con uno spazio fra virgolette: _orDiTesti_ nello script.</summary>
-        static string OrDiTesti(List<string> elenco)
+        public static string OrDiTesti(List<string> elenco)
         {
             List<string> fuori = new List<string>();
             foreach (string grezzo in elenco)
@@ -884,6 +940,716 @@ namespace Campanella
                         return true;
                 }
             return false;
+        }
+
+        // ===================================================================
+        //  DAI FILTRI ALLE REGOLE
+        //  Un filtro fatto solo di mittenti (from:a, from:(a OR b), anche con
+        //  -from:y) puo' unire i suoi mittenti a una regola che ha i mittenti
+        //  suoi; un filtro che non fa altro che etichettare (e archiviare, o
+        //  segnare come letto) puo' diventare una regola, con la stessa
+        //  etichetta e la stessa ricerca, scritta nella sintassi della ricerca
+        //  di Gmail. Solo quando la traduzione e' esatta: altrimenti la scelta
+        //  non c'e'. La finestra propone, Applica fa.
+        // ===================================================================
+
+        // un mittente come si scrive in una regola: un indirizzo, @dominio, un
+        // dominio o una parola (nuvola, noreply). Niente spazi, virgolette,
+        // parentesi, due punti
+        static readonly Regex Mittente = new Regex(@"^[A-Za-z0-9@._+'\-]+$");
+
+        static bool UnMittente(string t)
+        {
+            return !string.IsNullOrEmpty(t) && t[0] != '-' && t != "OR" && t != "AND" && Mittente.IsMatch(t);
+        }
+
+        /// <summary>Vero se l'elenco ha gia' quel valore (spazi ai lati e maiuscole a parte).</summary>
+        public static bool Contiene(List<string> elenco, string valore)
+        {
+            if (elenco == null) return false;
+            foreach (string e in elenco)
+                if (string.Equals((e ?? "").Trim(), (valore ?? "").Trim(), StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// I mittenti di un elenco come lo scrive Gmail: "a", "a OR b", "(a OR
+        /// b)" o "{a b}". null se c'e' altro: un nome fra virgolette, due parole
+        /// senza OR (per Gmail ci vogliono tutte e due), un operatore.
+        /// </summary>
+        static List<string> ElencoMittenti(string valore)
+        {
+            string v = (valore ?? "").Trim();
+            string[] pezzi;
+            if (v.Length >= 2 && v[0] == '{' && v[v.Length - 1] == '}')
+                pezzi = Regex.Split(v.Substring(1, v.Length - 2).Trim(), @"\s+");
+            else
+            {
+                if (v.Length >= 2 && v[0] == '(' && v[v.Length - 1] == ')') v = v.Substring(1, v.Length - 2).Trim();
+                pezzi = Regex.Split(v, @"\s+OR\s+");
+            }
+            List<string> fuori = new List<string>();
+            foreach (string p in pezzi)
+            {
+                string t = p.Trim();
+                if (!UnMittente(t)) return null;
+                if (!Contiene(fuori, t)) fuori.Add(t);
+            }
+            return (fuori.Count > 0) ? fuori : null;
+        }
+
+        /// <summary>
+        /// I pezzi di una ricerca di Gmail al primo livello, separati dagli
+        /// spazi fuori da virgolette, parentesi e graffe: "from:(a OR b)",
+        /// "-from:\"Nome Cognome\"", "OR". null se virgolette, parentesi o
+        /// graffe non si chiudono.
+        /// </summary>
+        public static List<string> Termini(string ricerca)
+        {
+            List<string> fuori = new List<string>();
+            StringBuilder b = new StringBuilder();
+            int tonde = 0, graffe = 0;
+            bool virgolette = false;
+            foreach (char c in ricerca ?? "")
+            {
+                if (c == '"') virgolette = !virgolette;
+                else if (!virgolette)
+                {
+                    if (c == '(') tonde++;
+                    else if (c == ')') { if (--tonde < 0) return null; }
+                    else if (c == '{') graffe++;
+                    else if (c == '}') { if (--graffe < 0) return null; }
+                    else if (char.IsWhiteSpace(c) && tonde == 0 && graffe == 0)
+                    {
+                        if (b.Length > 0) { fuori.Add(b.ToString()); b.Length = 0; }
+                        continue;
+                    }
+                }
+                b.Append(c);
+            }
+            if (virgolette || tonde != 0 || graffe != 0) return null;
+            if (b.Length > 0) fuori.Add(b.ToString());
+            return fuori;
+        }
+
+        /// <summary>
+        /// Un termine che esclude dei mittenti, come si scrive nella ricerca:
+        /// "-from:y", "-from:\"Nome Cognome\"", "-from:(a OR b)". null se il
+        /// termine e' un'altra cosa.
+        /// </summary>
+        static string Esclusione(string termine)
+        {
+            if (termine == null || !termine.StartsWith("-from:", StringComparison.OrdinalIgnoreCase)) return null;
+            string op = termine.Substring(6);
+            if (!Regex.IsMatch(op, "^\"[^\"]+\"$") && ElencoMittenti(op) == null) return null;
+            return "-from:" + op;
+        }
+
+        /// <summary>
+        /// Le esclusioni di una ricerca fatta solo di esclusioni di mittenti (la
+        /// ricerca avanzata di una regola che ha preso quelle di un filtro), una
+        /// per termine. Vuota per una ricerca vuota; null se c'e' dell'altro.
+        /// </summary>
+        public static List<string> Esclusioni(string ricerca)
+        {
+            List<string> termini = Termini(ricerca);
+            if (termini == null) return null;
+            List<string> fuori = new List<string>();
+            foreach (string t in termini)
+            {
+                string e = Esclusione(t);
+                if (e == null) return null;
+                if (!Contiene(fuori, e)) fuori.Add(e);
+            }
+            return fuori;
+        }
+
+        /// <summary>I mittenti che una ricerca esclude con -from: (a e b di -from:(a OR b)); i nomi fra virgolette no.</summary>
+        public static List<string> MittentiEsclusi(string ricerca)
+        {
+            List<string> fuori = new List<string>();
+            foreach (string t in Termini(ricerca) ?? new List<string>())
+            {
+                string e = Esclusione(t);
+                List<string> da = (e == null) ? null : ElencoMittenti(e.Substring(6));
+                if (da == null) continue;
+                foreach (string m in da) if (!Contiene(fuori, m)) fuori.Add(m);
+            }
+            return fuori;
+        }
+
+        /// <summary>
+        /// I mittenti di un filtro fatto solo di mittenti: il campo Da (from) o
+        /// "Con le parole" (query) fatto di from:x o from:(a OR b ...), uno dei
+        /// due, piu' le esclusioni (-from:y) e, se c'e', "escluse le chat" (lo
+        /// script le esclude sempre). null per ogni altro filtro: con due from:
+        /// Gmail vuole tutti e due i mittenti, non uno dei due.
+        /// </summary>
+        public static MittentiFiltro SoloMittenti(Dictionary<string, string> criteri)
+        {
+            if (criteri == null || criteri.Count == 0) return null;
+            MittentiFiltro m = new MittentiFiltro();
+            List<List<string>> presi = new List<List<string>>();
+            foreach (KeyValuePair<string, string> kv in criteri)
+            {
+                if (kv.Key == "excludeChats") continue;
+                if (kv.Key == "from")
+                {
+                    List<string> da = ElencoMittenti(kv.Value);
+                    if (da == null) return null;
+                    presi.Add(da);
+                }
+                else if (kv.Key == "query")
+                {
+                    List<string> termini = Termini(kv.Value);
+                    if (termini == null) return null;
+                    foreach (string t in termini)
+                    {
+                        string e = Esclusione(t);
+                        if (e != null)
+                        {
+                            if (!Contiene(m.Esclusi, e)) m.Esclusi.Add(e);
+                            continue;
+                        }
+                        if (!t.StartsWith("from:", StringComparison.OrdinalIgnoreCase)) return null;
+                        List<string> da = ElencoMittenti(t.Substring(5));
+                        if (da == null) return null;
+                        presi.Add(da);
+                    }
+                }
+                else return null;
+            }
+            if (presi.Count != 1) return null;
+            m.Da = presi[0];
+            return m;
+        }
+
+        /// <summary>
+        /// Quello che segue from:, to: o subject: nella ricerca di un filtro:
+        /// il valore tale e quale se e' un mittente solo o e' gia' fra
+        /// parentesi, altrimenti fra parentesi, come fa Gmail. null se e' vuoto
+        /// o virgolette e parentesi non si chiudono.
+        /// </summary>
+        static string Operando(string valore)
+        {
+            string v = (valore ?? "").Trim();
+            List<string> termini = Termini(v);
+            if (v == "" || termini == null) return null;
+            if (UnMittente(v)) return v;
+            if (termini.Count == 1 && v[0] == '(' && v[v.Length - 1] == ')') return v;
+            return "(" + v + ")";
+        }
+
+        /// <summary>
+        /// La ricerca di Gmail che fa un filtro, dai suoi criteri: from:,
+        /// to:, subject:, le parole (fra parentesi se c'e' altro), -parola per
+        /// "senza le parole", has:attachment, larger: e smaller:. Solo quando e'
+        /// esatta: null per "senza le parole" con piu' parole (Gmail non dice se
+        /// ne basta una), una dimensione senza maggiore o minore, un criterio
+        /// che non si conosce, virgolette o parentesi che non si chiudono.
+        /// "Escluse le chat" non si scrive: lo script le esclude sempre.
+        /// </summary>
+        public static string RicercaDelFiltro(Dictionary<string, string> criteri)
+        {
+            if (criteri == null) return null;
+            int quanti = 0;
+            foreach (string k in criteri.Keys)
+            {
+                if (Array.IndexOf(FiltroDaTogliere.NomiCriteri, k) < 0) return null;
+                if (k != "excludeChats" && k != "sizeComparison") quanti++;
+            }
+            if (quanti == 0) return null;
+            List<string> parti = new List<string>();
+            string[] campi = { "from", "to", "subject" };
+            foreach (string campo in campi)
+            {
+                if (!criteri.ContainsKey(campo)) continue;
+                string op = Operando(criteri[campo]);
+                if (op == null) return null;
+                parti.Add(campo + ":" + op);
+            }
+            if (criteri.ContainsKey("query"))
+            {
+                string q = (criteri["query"] ?? "").Trim();
+                if (q == "" || Termini(q) == null) return null;
+                parti.Add(quanti == 1 ? q : "(" + q + ")");
+            }
+            if (criteri.ContainsKey("negatedQuery"))
+            {
+                string n = (criteri["negatedQuery"] ?? "").Trim();
+                if (!Regex.IsMatch(n, "^[^\\s\"(){}:\\-][^\\s\"(){}]*$")) return null;
+                parti.Add("-" + n);
+            }
+            if (criteri.ContainsKey("hasAttachment")) parti.Add("has:attachment");
+            if (criteri.ContainsKey("size"))
+            {
+                string c = criteri.ContainsKey("sizeComparison") ? criteri["sizeComparison"] : "";
+                long n;
+                if ((c != "larger" && c != "smaller") ||
+                    !long.TryParse(criteri["size"], System.Globalization.NumberStyles.None,
+                                   System.Globalization.CultureInfo.InvariantCulture, out n) || n <= 0) return null;
+                parti.Add(c + ":" + ((n % 1048576 == 0) ? (n / 1048576) + "M"
+                                     : n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            return string.Join(" ", parti.ToArray());
+        }
+
+        /// <summary>L'etichetta del filtro senza il gruppo delle etichette (Posta, passo 4); null se non sta dentro il gruppo.</summary>
+        public static string EtichettaNelGruppo(string etichetta, Stato s)
+        {
+            string e = (etichetta ?? "").Trim().Trim('/').Trim();
+            string pre = s.PrefissoPulito();
+            if (e == "") return null;
+            if (pre == "") return e;
+            if (!e.StartsWith(pre + "/", StringComparison.OrdinalIgnoreCase)) return null;
+            string resto = e.Substring(pre.Length + 1).Trim().Trim('/').Trim();
+            return (resto == "") ? null : resto;
+        }
+
+        /// <summary>Il nome intero di una regola, con il gruppo, come al passo 4 e in Gmail.</summary>
+        public static string NomeIntero(Regola r, Stato s)
+        {
+            string pre = s.PrefissoPulito();
+            return (pre == "" ? "" : pre + "/") + r.Etichetta;
+        }
+
+        /// <summary>La regola che mette proprio quell'etichetta (con il gruppo, maiuscole a parte), o null.</summary>
+        public static Regola RegolaConEtichetta(Stato s, string etichetta)
+        {
+            string e = (etichetta ?? "").Trim().Trim('/').Trim();
+            if (e == "") return null;
+            foreach (Regola r in s.Regole)
+                if (string.Equals(NomeIntero(r, s).Trim(), e, StringComparison.OrdinalIgnoreCase)) return r;
+            return null;
+        }
+
+        /// <summary>La regola di cui parla il confronto (uguale, simile, di Campanella); null per le sottoetichette dei ruoli.</summary>
+        public static Regola RegolaDi(Somiglianza x, Stato s)
+        {
+            if (x == null || (x.Tipo != Uguale && x.Tipo != Simile && x.Tipo != DiCampanella)) return null;
+            return RegolaConEtichetta(s, x.Regola);
+        }
+
+        /// <summary>Vero se il mittente e' un segnaposto: @PERSONALE@, @DOMINIO@, @GRUPPO:...@, @CLASSE:...@.</summary>
+        static bool Segnaposto(string mittente)
+        {
+            string v = (mittente ?? "").Trim();
+            return v.Length > 1 && v[0] == '@' && v[v.Length - 1] == '@';
+        }
+
+        /// <summary>
+        /// Vero se i mittenti del filtro si possono aggiungere alla regola senza
+        /// cambiare che cosa fa il filtro: la regola ha i mittenti suoi (nessun
+        /// segnaposto dell'elenco del personale, del dominio o di una classe) o
+        /// quelli di "La tua scuola" (Dirigenza, Segreteria, Registro
+        /// elettronico: vanno li'), nessun altro criterio (oggetto, parole,
+        /// "basta uno dei due"), nella ricerca avanzata al piu' delle esclusioni
+        /// di mittenti, e archivia e segna come letti come il filtro. Le
+        /// esclusioni del filtro (-from:y) vanno nella ricerca avanzata: valgono
+        /// per tutta la regola. Una regola spenta si accende (Applica).
+        /// </summary>
+        public static bool SiPuoUnire(FiltroGmail f, MittentiFiltro m, Regola r)
+        {
+            if (f == null || m == null || r == null) return false;
+            if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
+            if (LeMieClassi.ClasseDi(r) != null) return false;
+            foreach (string d in r.Da) if (Segnaposto(d)) return false;
+            if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
+            if (Esclusioni(r.QueryLibera) == null) return false;
+            return r.Archivia == f.Archivia && r.SegnaComeLette == f.SegnaLetto;
+        }
+
+        /// <summary>Vero se la regola prende gia' tutti i mittenti del filtro, con le sue esclusioni: unirli non aggiungerebbe niente.</summary>
+        public static bool GiaNellaRegola(FiltroGmail f, Regola r, Stato s)
+        {
+            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (!SiPuoUnire(f, m, r)) return false;
+            List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
+            foreach (string d in m.Da) if (!Contiene(da, d)) return false;
+            List<string> esclusi = Esclusioni(r.QueryLibera);
+            foreach (string e in m.Esclusi) if (!Contiene(esclusi, e)) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Vero se ha senso proporre di unire i mittenti alla regola: per
+        /// Dirigenza e Segreteria (persone e uffici della scuola) solo indirizzi
+        /// interi, non domini o parole. "Amministrazione e stipendio", con i
+        /// domini degli stipendi, somiglia a Segreteria solo nel nome.
+        /// </summary>
+        static bool DaProporre(MittentiFiltro m, Regola r)
+        {
+            if (m == null || r == null) return false;
+            if (r.Sorgente != "dirigenza" && r.Sorgente != "segreteria") return true;
+            foreach (string d in m.Da) if (d.IndexOf('@') <= 0) return false;
+            return true;
+        }
+
+        /// <summary>Come comincia la descrizione di una regola nata da un filtro di Gmail.</summary>
+        public const string DaUnFiltro = "Da un filtro di Gmail: ";
+
+        /// <summary>
+        /// La regola che il filtro diventa, senza guardare se la sua etichetta
+        /// c'e' gia': la stessa etichetta (senza il gruppo), i mittenti fra i
+        /// mittenti e le esclusioni nella ricerca avanzata se il filtro e' fatto
+        /// solo di mittenti, altrimenti tutta la ricerca del filtro nella
+        /// ricerca avanzata; archivia e segna come letti se lo fa il filtro; il
+        /// colore lo sceglie Applica. null se il filtro fa anche altro, se e' di
+        /// una classe o creato da Campanella, se l'etichetta non sta nel gruppo
+        /// o se la sua ricerca non si scrive esatta.
+        /// </summary>
+        static Regola Traduci(FiltroGmail f, Somiglianza x, Stato s)
+        {
+            if (f == null || x == null || f.DaTogliere() == null || f.AltreAzioni.Count > 0) return null;
+            if (x.Tipo != Tuo && x.Tipo != Simile && x.Tipo != Uguale) return null;
+            if (x.Classe || EtichettaDiUnaClasse(f.Etichetta, s)) return null;
+            string etichetta = EtichettaNelGruppo(f.Etichetta, s);
+            string ricerca = RicercaDelFiltro(f.Criteri);
+            if (etichetta == null || ricerca == null) return null;
+            Regola r = new Regola();
+            r.Etichetta = etichetta;
+            MittentiFiltro m = SoloMittenti(f.Criteri);
+            if (m != null)
+            {
+                r.Da = new List<string>(m.Da);
+                r.QueryLibera = string.Join(" ", m.Esclusi.ToArray());
+            }
+            else r.QueryLibera = ricerca;
+            r.Archivia = f.Archivia;
+            r.SegnaComeLette = f.SegnaLetto;
+            List<string> fa = new List<string>();
+            if (f.Archivia) fa.Add("archivia");
+            if (f.SegnaLetto) fa.Add("segna come letti");
+            r.Descrizione = DaUnFiltro + ricerca + (fa.Count > 0 ? " (e " + string.Join(", ", fa.ToArray()) + ")" : "");
+            return r;
+        }
+
+        /// <summary>
+        /// La regola che il filtro diventa (Traduci), se nessuna regola ha gia'
+        /// la sua etichetta: e' cosi' che la finestra riaperta sullo stesso
+        /// file non la propone di nuovo. null se non puo'.
+        /// </summary>
+        public static Regola RegolaDalFiltro(FiltroGmail f, Somiglianza x, Stato s)
+        {
+            if (f == null || RegolaConEtichetta(s, f.Etichetta) != null) return null;
+            return Traduci(f, x, s);
+        }
+
+        /// <summary>Perche' il filtro non puo' diventare una regola, a parole; "" se puo'.</summary>
+        public static string PercheNonDiventaRegola(FiltroGmail f, Somiglianza x, Stato s)
+        {
+            if (f == null || x == null) return "";
+            if (RegolaDalFiltro(f, x, s) != null) return "";
+            if (f.DaTogliere() == null || x.Tipo == DiUnaClasse) return "non si puo' togliere";
+            if (f.AltreAzioni.Count > 0) return "fa anche altro (" + string.Join(", ", f.AltreAzioni.ToArray()) + ")";
+            if (x.Tipo == DiCampanella) return "e' uno di quelli creati da Campanella";
+            if (x.Classe || EtichettaDiUnaClasse(f.Etichetta, s)) return "l'etichetta sembra di una classe (per le classi c'e' \"Le mie classi...\")";
+            if (RegolaConEtichetta(s, f.Etichetta) != null) return "c'e' gia' una regola con la sua etichetta";
+            if (EtichettaNelGruppo(f.Etichetta, s) == null)
+                return "l'etichetta non sta dentro \"" + s.PrefissoPulito() + "\", il gruppo delle etichette";
+            return "la sua ricerca non si scrive esatta per Gmail";
+        }
+
+        /// <summary>
+        /// Come diventa la regola se ci si uniscono i mittenti del filtro: una
+        /// copia, con i mittenti (anche quelli di "La tua scuola") e le
+        /// esclusioni in piu', accesa. Per dire la ricerca che fara'; null se
+        /// non si puo' unire.
+        /// </summary>
+        public static Regola DopoLUnione(FiltroGmail f, Regola r, Stato s)
+        {
+            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (!SiPuoUnire(f, m, r)) return null;
+            Regola c = r.Copia();
+            c.Sorgente = "";
+            c.Da = GeneratorePosta.MittentiDellaRegola(s, r);
+            foreach (string d in m.Da) if (!Contiene(c.Da, d)) c.Da.Add(d);
+            List<string> esclusi = Esclusioni(r.QueryLibera);
+            foreach (string e in m.Esclusi) if (!Contiene(esclusi, e)) esclusi.Add(e);
+            c.QueryLibera = string.Join(" ", esclusi.ToArray());
+            c.Attiva = true;
+            return c;
+        }
+
+        /// <summary>
+        /// Che cosa si puo' fare di un filtro, nell'ordine della tendina:
+        /// lasciarlo in Gmail; toglierlo ("lo fa gia' la regola X" se e' uguale
+        /// a una regola o se i suoi mittenti ci sono gia'; con quello che si
+        /// perde, se fa anche altro); unire i mittenti a una regola (prima
+        /// quella simile, poi le altre in ordine, solo dove si puo':
+        /// SiPuoUnire); farne una regola (RegolaDalFiltro). Uno che non si puo'
+        /// togliere (di una classe, senza etichetta o criteri, con un criterio
+        /// che non si capisce) si lascia e basta; uno che fa anche altro, di
+        /// una classe o creato da Campanella si lascia o si toglie.
+        /// </summary>
+        public static List<SceltaFiltro> Scelte(FiltroGmail f, Somiglianza x, Stato s)
+        {
+            List<SceltaFiltro> fuori = new List<SceltaFiltro>();
+            fuori.Add(new SceltaFiltro());
+            if (f == null || x == null || x.Tipo == DiUnaClasse || f.DaTogliere() == null) return fuori;
+            Regola simile = RegolaDi(x, s);
+            bool giaDentro = simile != null && GiaNellaRegola(f, simile, s);
+            SceltaFiltro togli = new SceltaFiltro();
+            togli.Azione = SceltaFiltro.Togli;
+            string perse = (f.AltreAzioni.Count > 0) ? " (si perde: " + string.Join(", ", f.AltreAzioni.ToArray()) + ")" : "";
+            if (simile != null && (x.Tipo == Uguale || x.Tipo == DiCampanella || giaDentro))
+            {
+                togli.Regola = simile;
+                togli.Testo = "Toglilo: lo fa gia' la regola " + x.Regola + perse;
+            }
+            else togli.Testo = "Toglilo" + perse;
+            fuori.Add(togli);
+            if (f.AltreAzioni.Count > 0 || x.Tipo == DiCampanella || x.Classe) return fuori;
+
+            MittentiFiltro m = SoloMittenti(f.Criteri);
+            if (m != null)
+            {
+                List<Regola> ordine = new List<Regola>();
+                if (simile != null) ordine.Add(simile);
+                foreach (Regola r in s.Regole) if (r != simile) ordine.Add(r);
+                foreach (Regola r in ordine)
+                {
+                    if ((r == simile && giaDentro) || !SiPuoUnire(f, m, r)) continue;
+                    SceltaFiltro u = new SceltaFiltro();
+                    u.Azione = SceltaFiltro.Unisci;
+                    u.Regola = r;
+                    u.Testo = Unico(fuori, "Unisci a " + NomeIntero(r, s) +
+                                           (r.MittentiDallaScuola() ? " (in \"La tua scuola\")" : "") +
+                                           (r.Attiva ? "" : " (la accendo)"));
+                    fuori.Add(u);
+                }
+            }
+            if (RegolaDalFiltro(f, x, s) != null)
+            {
+                SceltaFiltro n = new SceltaFiltro();
+                n.Azione = SceltaFiltro.Nuova;
+                n.Testo = "Diventa una regola";
+                fuori.Add(n);
+            }
+            return fuori;
+        }
+
+        /// <summary>Il testo, diverso da quelli gia' nella tendina: due regole con lo stesso nome prendono un numero.</summary>
+        static string Unico(List<SceltaFiltro> gia, string testo)
+        {
+            string t = testo;
+            for (int n = 2; Trova(gia, t) != null; n++) t = testo + " (" + n + ")";
+            return t;
+        }
+
+        /// <summary>La scelta con quel testo, o null.</summary>
+        public static SceltaFiltro Trova(List<SceltaFiltro> scelte, string testo)
+        {
+            if (scelte != null) foreach (SceltaFiltro c in scelte) if (c.Testo == testo) return c;
+            return null;
+        }
+
+        /// <summary>La prima scelta con quell'azione (e quella regola, se non e' null), o null.</summary>
+        public static SceltaFiltro Trova(List<SceltaFiltro> scelte, string azione, Regola regola)
+        {
+            if (scelte != null)
+                foreach (SceltaFiltro c in scelte)
+                    if (c.Azione == azione && (regola == null || c.Regola == regola)) return c;
+            return null;
+        }
+
+        /// <summary>
+        /// La scelta di partenza, fra quelle di Scelte. Uguale a una regola:
+        /// toglilo, se non fa anche altro; ma se ha dei mittenti che la regola
+        /// non ha e si possono unire, unisci, cosi' non si perdono. Simile:
+        /// toglilo se la regola ha gia' i suoi mittenti, unisci alla regola
+        /// simile se si puo' (e ha senso: DaProporre), altrimenti lascialo;
+        /// simile solo nel nome a Dirigenza o Segreteria (domini, non
+        /// indirizzi) e' come tuo. Tuo: diventa una regola se si puo',
+        /// altrimenti lascialo. Di Campanella, di una classe, che fa anche
+        /// altro, con un criterio che non si capisce: lascialo. Uno scelto prima
+        /// (prima): toglilo, come prima.
+        /// </summary>
+        public static SceltaFiltro Proposta(List<SceltaFiltro> scelte, FiltroGmail f, Somiglianza x, Stato s, bool prima)
+        {
+            SceltaFiltro lascia = scelte[0];
+            SceltaFiltro togli = Trova(scelte, SceltaFiltro.Togli, null);
+            if (togli == null) return lascia;
+            if (prima) return togli;
+            if (f == null || x == null) return lascia;
+            Regola simile = RegolaDi(x, s);
+            SceltaFiltro unisci = (simile == null) ? null : Trova(scelte, SceltaFiltro.Unisci, simile);
+            SceltaFiltro nuova = Trova(scelte, SceltaFiltro.Nuova, null);
+            if (x.Tipo == Uguale) return !DiPartenza(f, x) ? lascia : (unisci ?? togli);
+            if (x.Tipo == Tuo) return nuova ?? lascia;
+            if (x.Tipo != Simile || x.Classe || f.AltreAzioni.Count > 0) return lascia;
+            if (togli.Regola != null) return togli;
+            if (unisci != null && DaProporre(SoloMittenti(f.Criteri), simile)) return unisci;
+            if (unisci != null) return nuova ?? lascia;
+            return lascia;
+        }
+
+        /// <summary>
+        /// Fa nello Stato quello che si e' scelto nella finestra: unisce i
+        /// mittenti alle regole (o in "La tua scuola", per Dirigenza, Segreteria
+        /// e Registro elettronico) e le esclusioni alla loro ricerca avanzata,
+        /// accende una regola spenta che li prende, crea le regole nuove (dopo
+        /// quella simile, o in fondo, con il primo colore libero) e mette fra i
+        /// filtri da togliere (FiltriDaTogliere) quelli che non si lasciano. Un
+        /// filtro che non riesce piu' a diventare regola o a unirsi resta in
+        /// Gmail: nessun filtro va via senza la regola che lo sostituisce. Un
+        /// filtro uguale a uno gia' fatto (la stessa voce) non si rifa'. Una
+        /// regola nuova con l'etichetta di una che c'e' gia' non nasce di
+        /// nuovo: se la regola fa gia' quello che faceva il filtro basta lei,
+        /// se si puo' ci si uniscono i mittenti; un altro filtro con la stessa
+        /// etichetta, appena diventato regola, ne fa un'altra con la stessa
+        /// etichetta. Dice che cosa ha fatto, a parole.
+        /// </summary>
+        public static string Applica(Stato s, List<FiltroScelto> scelti)
+        {
+            List<FiltroDaTogliere> togli = new List<FiltroDaTogliere>();
+            List<string> fatte = new List<string>();
+            List<string> nuove = new List<string>(), unite = new List<string>(), scuola = new List<string>();
+            List<string> saltati = new List<string>();
+            List<Regola> createAdesso = new List<Regola>();
+            Dictionary<Regola, int> dopo = new Dictionary<Regola, int>();
+            int lasciati = 0;
+            // due filtri uguali sono la stessa voce: conta la scelta di quello
+            // che unisce o fa una regola, se c'e', altrimenti del primo
+            Dictionary<string, FiltroScelto> perVoce = new Dictionary<string, FiltroScelto>();
+            foreach (FiltroScelto x in scelti ?? new List<FiltroScelto>())
+            {
+                if (x == null || x.Voce == null || x.Scelta == null || !x.Scelta.TogliIlFiltro) continue;
+                string k = x.Voce.Chiave();
+                if (!perVoce.ContainsKey(k) || (perVoce[k].Scelta.Azione == SceltaFiltro.Togli && x.Scelta.Azione != SceltaFiltro.Togli))
+                    perVoce[k] = x;
+            }
+            foreach (FiltroScelto x in scelti ?? new List<FiltroScelto>())
+            {
+                if (x == null) continue;
+                if (x.Voce == null || x.Scelta == null || !x.Scelta.TogliIlFiltro) { lasciati++; continue; }
+                string chiave = x.Voce.Chiave();
+                if (fatte.Contains(chiave) || perVoce[chiave] != x) continue;
+                string perche = "";
+                if (x.Scelta.Azione == SceltaFiltro.Unisci)
+                    perche = UnisciAllaRegola(s, x.Filtro, x.Scelta.Regola, unite, scuola);
+                else if (x.Scelta.Azione == SceltaFiltro.Nuova)
+                    perche = CreaRegola(s, x, dopo, createAdesso, nuove, unite, scuola);
+                if (perche != "")
+                {
+                    saltati.Add(x.Voce.Etichetta + " (" + perche + ")");
+                    lasciati++;
+                    continue;
+                }
+                fatte.Add(chiave);
+                togli.Add(x.Voce.Copia());
+            }
+            s.FiltriDaTogliere = togli;
+
+            StringBuilder sb = new StringBuilder();
+            if (nuove.Count > 0)
+                sb.Append(nuove.Count == 1 ? "Una regola nuova" : nuove.Count + " regole nuove")
+                  .Append(", con l'etichetta e la ricerca del filtro (in fondo alle regole, o sotto quella simile): ")
+                  .Append(string.Join(", ", nuove.ToArray())).Append(".\r\n\r\n");
+            if (unite.Count > 0)
+                sb.Append("Mittenti aggiunti alle regole: ").Append(string.Join("; ", unite.ToArray())).Append(".\r\n\r\n");
+            if (scuola.Count > 0)
+                sb.Append("Mittenti aggiunti nella pagina \"La tua scuola\", dove si scrivono quelli di Dirigenza, " +
+                          "Segreteria e Registro elettronico: ").Append(string.Join("; ", scuola.ToArray())).Append(".\r\n\r\n");
+            if (saltati.Count > 0)
+                sb.Append("Restano in Gmail, perche' la scelta non si puo' piu' fare: ")
+                  .Append(string.Join("; ", saltati.ToArray())).Append(".\r\n\r\n");
+            int n = togli.Count;
+            sb.Append(n == 0 ? "Nessun filtro da togliere." :
+                (n == 1 ? "1 filtro da togliere" : n + " filtri da togliere") + ": li toglie EXTRA_togliFiltri.");
+            if (n > 0 && nuove.Count + unite.Count + scuola.Count > 0)
+                sb.Append(" Le regole e i filtri da togliere arrivano insieme, nella stessa configurazione: copiala di " +
+                          "nuovo (passo 5) e incollala al posto di quella di prima prima di eseguire EXTRA_togliFiltri, " +
+                          "cosi' nessun filtro va via prima della regola che lo sostituisce.");
+            else if (n > 0) sb.Append(" Copia di nuovo la configurazione (passo 5).");
+            if (lasciati > 0)
+                sb.Append("\r\n\r\n").Append(lasciati == 1 ? "1 filtro resta in Gmail." : lasciati + " filtri restano in Gmail.");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Aggiunge i mittenti del filtro alla regola (a "La tua scuola" per
+        /// Dirigenza, Segreteria e Registro elettronico) e le sue esclusioni
+        /// alla ricerca avanzata, e la accende. "" se l'ha fatto, altrimenti il perche'.
+        /// </summary>
+        static string UnisciAllaRegola(Stato s, FiltroGmail f, Regola r, List<string> unite, List<string> scuola)
+        {
+            MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
+            if (r == null || !s.Regole.Contains(r) || !SiPuoUnire(f, m, r)) return "non si unisce piu' a quella regola";
+            List<string> aggiunti = new List<string>();
+            List<string> gia = GeneratorePosta.MittentiDellaRegola(s, r);
+            foreach (string d in m.Da) if (!Contiene(gia, d) && !Contiene(aggiunti, d)) aggiunti.Add(d);
+            if (r.MittentiDallaScuola())
+            {
+                if (aggiunti.Count > 0)
+                {
+                    string campo = (r.Sorgente == "dirigenza") ? s.Dirigenza : (r.Sorgente == "segreteria") ? s.Segreteria : s.Registro;
+                    campo = (campo ?? "").TrimEnd();
+                    campo = (campo == "" ? "" : campo + "\r\n") + string.Join("\r\n", aggiunti.ToArray());
+                    if (r.Sorgente == "dirigenza") s.Dirigenza = campo;
+                    else if (r.Sorgente == "segreteria") s.Segreteria = campo;
+                    else s.Registro = campo;
+                }
+            }
+            else r.Da.AddRange(aggiunti);
+            List<string> esclusi = Esclusioni(r.QueryLibera);
+            int nuoveEsclusioni = 0;
+            foreach (string e in m.Esclusi)
+                if (!Contiene(esclusi, e)) { esclusi.Add(e); nuoveEsclusioni++; }
+            if (nuoveEsclusioni > 0) r.QueryLibera = string.Join(" ", esclusi.ToArray());
+            bool accesa = !r.Attiva;
+            r.Attiva = true;
+            string detto = r.Etichetta + ": " + (aggiunti.Count == 1 ? "1 mittente" : aggiunti.Count + " mittenti") +
+                (nuoveEsclusioni == 0 ? "" : nuoveEsclusioni == 1 ? " e 1 esclusione" : " e " + nuoveEsclusioni + " esclusioni") +
+                " dal filtro \"" + f.Etichetta + "\"" +
+                (nuoveEsclusioni > 0 ? " (le esclusioni valgono per tutta la regola)" : "") +
+                (accesa ? "; era spenta, adesso e' accesa" : "");
+            (r.MittentiDallaScuola() ? scuola : unite).Add(detto);
+            return "";
+        }
+
+        /// <summary>
+        /// Crea la regola che il filtro diventa; con l'etichetta di una regola
+        /// che c'e' gia' vedi Applica. "" se l'ha fatto, altrimenti il perche'.
+        /// </summary>
+        static string CreaRegola(Stato s, FiltroScelto x, Dictionary<Regola, int> dopo, List<Regola> createAdesso,
+                                 List<string> nuove, List<string> unite, List<string> scuola)
+        {
+            FiltroGmail f = x.Filtro;
+            Regola r = Traduci(f, x.Somiglia, s);
+            if (r == null) return "non si scrive come regola";
+            Regola esistente = RegolaConEtichetta(s, f.Etichetta);
+            if (esistente != null)
+            {
+                // la finestra riaperta sullo stesso file, o due filtri con la stessa etichetta
+                if (GiaNellaRegola(f, esistente, s) || StessaRegola(r, esistente)) return "";
+                MittentiFiltro m = SoloMittenti(f.Criteri);
+                if (m != null && SiPuoUnire(f, m, esistente)) return UnisciAllaRegola(s, f, esistente, unite, scuola);
+                if (!createAdesso.Contains(esistente)) return "c'e' gia' la regola " + NomeIntero(esistente, s);
+            }
+            r.Colore = ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
+            Regola simile = (x.Somiglia != null && x.Somiglia.Tipo == Simile) ? RegolaDi(x.Somiglia, s) : null;
+            int dove = s.Regole.Count;
+            if (simile != null && s.Regole.Contains(simile))
+            {
+                int gia = dopo.ContainsKey(simile) ? dopo[simile] : 0;
+                dove = Math.Min(s.Regole.Count, s.Regole.IndexOf(simile) + 1 + gia);
+                dopo[simile] = gia + 1;
+            }
+            s.Regole.Insert(dove, r);
+            createAdesso.Add(r);
+            nuove.Add(NomeIntero(r, s));
+            return "";
+        }
+
+        /// <summary>Vero se le due regole cercano la stessa cosa e fanno lo stesso (etichetta, mittenti, ricerca, archivia, letti).</summary>
+        static bool StessaRegola(Regola a, Regola b)
+        {
+            if (!string.Equals(a.Etichetta.Trim(), b.Etichetta.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
+            if (a.Da.Count != b.Da.Count || b.Oggetto.Count > 0 || b.Contiene.Count > 0 || b.UnoQualsiasi) return false;
+            foreach (string d in a.Da) if (!Contiene(b.Da, d)) return false;
+            return string.Equals((a.QueryLibera ?? "").Trim(), (b.QueryLibera ?? "").Trim(), StringComparison.OrdinalIgnoreCase) &&
+                   a.Archivia == b.Archivia && a.SegnaComeLette == b.SegnaComeLette;
         }
     }
 }

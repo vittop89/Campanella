@@ -489,8 +489,7 @@ namespace Campanella
         /// </summary>
         static bool Prende(Regola r, string indirizzo)
         {
-            if (Regex.IsMatch(r.QueryLibera ?? "", "(^|\\s)-from:" + Regex.Escape(indirizzo) + "(\\s|$)",
-                              RegexOptions.IgnoreCase)) return false;
+            if (FiltriGmail.Contiene(FiltriGmail.MittentiEsclusi(r.QueryLibera), indirizzo)) return false;
             foreach (string grezzo in r.Da)
             {
                 string t = (grezzo ?? "").Trim().ToLowerInvariant();
@@ -500,6 +499,58 @@ namespace Campanella
                 if (t.IndexOf('@') < 0 && (indirizzo.EndsWith("@" + t) || indirizzo.EndsWith("." + t))) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Le ricerche di Gmail di una regola, come le costruisce lo script
+        /// (_queryDellaRegola_): l'oggetto, le parole, la ricerca avanzata, le
+        /// etichette escluse e i mittenti, a gruppi di
+        /// FiltriGmail.IndirizziPerFiltro. Senza le parti che lo script aggiunge
+        /// sempre (la sua etichetta, le chat, la posta inviata, il periodo) e
+        /// senza gli studenti delle classi, che Campanella non ha. Nessuna se la
+        /// regola ha dei mittenti ma nessuno resta. Per la finestra dei filtri
+        /// di Gmail: test\prova_posta.ps1 le confronta con quelle del motore vero.
+        /// </summary>
+        public static List<string> Ricerche(Stato s, Regola r)
+        {
+            List<string> fuori = new List<string>();
+            if (r == null) return fuori;
+            List<string> testo = new List<string>(), comune = new List<string>();
+            if (r.Oggetto.Count > 0) testo.Add("subject:(" + FiltriGmail.OrDiTesti(r.Oggetto) + ")");
+            if (r.Contiene.Count > 0) testo.Add("(" + FiltriGmail.OrDiTesti(r.Contiene) + ")");
+            if ((r.QueryLibera ?? "") != "") comune.Add("(" + r.QueryLibera + ")");
+            string pre = s.PrefissoPulito();
+            foreach (string e in r.EscludiEtichette)
+                comune.Add("-label:\"" + ((pre == "" ? "" : pre + "/") + e).Replace("\"", "") + "\"");
+            List<string> da = MittentiDellaRegola(s, r);
+            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            List<string> mittenti = FiltriGmail.Espandi(da, s.DominioPulito(), s.IndirizziPersonale(), gruppi);
+            List<string> basi = new List<string>(testo);
+            basi.AddRange(comune);
+            string base0 = string.Join(" ", basi.ToArray());
+            bool bastaUno = r.UnoQualsiasi && da.Count > 0 && (r.Oggetto.Count > 0 || r.Contiene.Count > 0);
+            if (bastaUno)
+            {
+                fuori.Add(base0);
+                base0 = string.Join(" ", comune.ToArray());
+            }
+            else if (mittenti.Count == 0)
+            {
+                if (da.Count == 0 && base0 != "") fuori.Add(base0);
+                return fuori;
+            }
+            for (int i = 0; i < mittenti.Count; i += FiltriGmail.IndirizziPerFiltro)
+            {
+                List<string> pezzo = mittenti.GetRange(i, Math.Min(FiltriGmail.IndirizziPerFiltro, mittenti.Count - i));
+                fuori.Add(("from:(" + string.Join(" OR ", pezzo.ToArray()) + ") " + base0).TrimEnd());
+            }
+            return fuori;
+        }
+
+        /// <summary>Le ricerche della regola (Ricerche) in una riga, separate da " oppure "; "" se non ne fa.</summary>
+        public static string Ricerca(Stato s, Regola r)
+        {
+            return string.Join("  oppure  ", Ricerche(s, r).ToArray());
         }
 
         /// <summary>

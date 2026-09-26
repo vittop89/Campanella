@@ -651,21 +651,29 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $ff.Carica($filtriEs)
     [System.Windows.Forms.Application]::DoEvents()
     ControllaPannello $ff "Filtri che hai gia' in Gmail, con il file"
+    $gr.CurrentCell = $gr.Rows[14].Cells[1]
+    [System.Windows.Forms.Application]::DoEvents()
     Verifica "con il file: i suoi 14 filtri, e in fondo quello scelto prima che non c'e'" (
-        $gr.Rows.Count -eq 15 -and $ff.Spuntata(14) -and [string]$gr.Rows[14].Cells[4].Value -match "^scelto prima: nel file non c'e'")
-    # partono spuntati quelli uguali a una regola che non fanno altro
-    # (FiltriGmail.DiPartenza): non quelli che inoltrano, eliminano..., ne'
+        $gr.Rows.Count -eq 15 -and $ff.Spuntata(14) -and
+        $tFF.GetField('txtDettaglio', $FIf).GetValue($ff).Text -match "Suggerimento: scelto prima: nel file non c'e'")
+    # ogni filtro parte con la sua proposta (FiltriGmail.Proposta): si tolgono
+    # quelli uguali a una regola che non fanno altro, diventano regole i tuoi,
+    # si uniscono i simili; restano quelli che inoltrano, eliminano..., e
     # quelli creati da Campanella
     $mConfronta = $tFG.GetMethod('Confronta', $FS, $null, [Type[]]@($asm.GetType('Campanella.FiltroGmail'), $tStato), $null)
-    $mDiPartenza = $tFG.GetMethod('DiPartenza', $FS)
+    $mScelteF = $tFG.GetMethod('Scelte', $FS)
+    $mPropostaF = $tFG.GetMethod('Proposta', $FS)
     $storte = @(); $spuntati = 0
     for ($i = 0; $i -lt 14; $i++) {
         $x = $mConfronta.Invoke($null, @($filtriEs[$i], $stato.PSObject.BaseObject))
-        $diPartenza = [bool]$mDiPartenza.Invoke($null, @($filtriEs[$i], $x))
-        if ($diPartenza) { $spuntati++ }
-        if ($ff.Spuntata($i) -ne $diPartenza) { $storte += $filtriEs[$i].Etichetta }
+        $sc = $mScelteF.Invoke($null, @($filtriEs[$i], $x, $stato.PSObject.BaseObject))
+        $proposta = $mPropostaF.Invoke($null, @($sc, $filtriEs[$i], $x, $stato.PSObject.BaseObject, $false))
+        if ($proposta.TogliIlFiltro) { $spuntati++ }
+        if ($ff.Spuntata($i) -ne $proposta.TogliIlFiltro -or [string]$gr.Rows[$i].Cells[0].Value -ne $proposta.Testo) {
+            $storte += $filtriEs[$i].Etichetta
+        }
     }
-    Verifica "partono spuntati proprio i filtri uguali a una regola che non fanno altro ($spuntati)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
+    Verifica "ogni filtro parte con la sua proposta, e si tolgono proprio quelli ($spuntati)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
         $storte.Count -eq 0 -and $spuntati -ge 2 -and $spuntati -lt 14)
     Verifica "un filtro senza etichetta non si puo' spuntare" (
         [string]$gr.Rows[6].Cells[1].Value -eq '(nessuna)' -and $gr.Rows[6].Cells[0].ReadOnly -and -not $ff.Spuntata(6))
@@ -694,6 +702,28 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     ControllaPannello $ff "Filtri che hai gia' in Gmail, con il file aperto due volte"
     $ff.Close()
     $ff.Dispose()
+
+    # i casi veri (resi anonimi) di test\filtri_gmail_riorganizza.xml: regole
+    # nuove e mittenti da unire, con le tendine e le ricerche lunghe; la
+    # finestra sta in piedi e il dettaglio di Famiglie (Genitori spenta) ci sta
+    $filtriR = $tFG.GetMethod('LeggiFile', $FS).Invoke($null, @([string](Join-Path $radice 'test\filtri_gmail_riorganizza.xml')))
+    $ffR = [Activator]::CreateInstance($tFF, @($stato.PSObject.BaseObject))
+    $ffR.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $ffR.Location = New-Object System.Drawing.Point(-4000, -4000)
+    $ffR.Show()
+    $ffR.Carica($filtriR)
+    [System.Windows.Forms.Application]::DoEvents()
+    $grR = $tFF.GetField('griglia', $FIf).GetValue($ffR)
+    $grR.CurrentCell = $grR.Rows[13].Cells[1]
+    [System.Windows.Forms.Application]::DoEvents()
+    $detR = $tFF.GetField('txtDettaglio', $FIf).GetValue($ffR)
+    $fondoR = $detR.GetPositionFromCharIndex($detR.Text.Length - 1).Y + $detR.Font.Height
+    Verifica "con i casi veri: le proposte nella colonna 'Che cosa fare', e il dettaglio di Famiglie si legge (con la barra se serve)" (
+        [string]$grR.Rows[13].Cells[0].Value -eq 'Unisci a Genitori (la accendo)' -and [string]$grR.Rows[4].Cells[0].Value -eq 'Unisci a Ministero e USR' -and
+        ($fondoR -le $detR.ClientSize.Height -or $detR.ScrollBars -ne [System.Windows.Forms.ScrollBars]::None))
+    ControllaPannello $ffR "Filtri che hai gia' in Gmail, i casi veri"
+    $ffR.Close()
+    $ffR.Dispose()
 
     # il passo 4 dice quanti ce ne sono da togliere
     $lblF = $posta.GetType().GetField('lblFiltri', $FIp).GetValue($posta)

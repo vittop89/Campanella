@@ -14,6 +14,14 @@
     sottoetichette dei ruoli, e che l'anteprima dello script veda le stesse;
     i colori delle etichette (la tavolozza di Gmail, i colori di partenza,
     le sfumature dei ruoli) e che arrivino giusti nella configurazione.
+    I filtri che il docente ha gia' in Gmail: il file esportato, il
+    confronto con le regole, quelli da togliere; e quelli che diventano
+    regole o uniscono i loro mittenti a una regola, con i casi veri resi
+    anonimi di test\filtri_gmail_riorganizza.xml: le proposte, "Usa questa
+    scelta", la finestra riaperta, e la configurazione che ne esce nel
+    motore vero (test\filtri_diventano_regole.js: le ricerche, il riordino
+    su una casella finta, EXTRA_togliFiltri). La Ministero e USR che non
+    prende la casella della scuola.
 
     Nessun dato vero: lo Stato non passa dal costruttore (che cercherebbe il
     Drive del PC), Drive e cartella dei dati sono una cartella temporanea, e
@@ -858,26 +866,30 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
             $ffC.Dispose()
         }
 
-        # riordinata con un clic sull'intestazione, ogni spunta resta al suo filtro
+        # riordinata con un clic sull'intestazione, ogni scelta resta al suo filtro
         $ffO = NuovaFinestra $c4
         $ffO.Carica((Esempio))
         $gr = $tFF.GetField('griglia', $FIn).GetValue($ffO)
         $primaO = Scelte $ffO
         $gr.Sort($gr.Columns[1], [System.ComponentModel.ListSortDirection]::Descending)
         $dopoO = Scelte $ffO
-        $aVista = (@($gr.Rows | Where-Object { $_.Cells[0].Value -eq $true } | ForEach-Object { [string]$_.Cells[1].Value }) | Sort-Object) -join ','
+        $lascia = 'Lascialo in Gmail'
+        $aVista = (@($gr.Rows | Where-Object { [string]$_.Cells[0].Value -ne $lascia } | ForEach-Object { [string]$_.Cells[1].Value }) | Sort-Object) -join ','
         Verifica "riordinata per etichetta, la scelta resta la stessa ($primaO), e si vede sulle righe giuste" (
             $primaO -ne '' -and $dopoO -eq $primaO -and $aVista -eq ((@($primaO -split ',') | Sort-Object) -join ','))
-        $ffO.Spunta(4, $true)
+        $ffO.Spunta(4, $false)
         $rigaViaggi = @($gr.Rows | Where-Object { [string]$_.Cells[1].Value -eq 'Viaggi' })[0]
-        Verifica "spuntare un filtro dall'elenco spunta la sua riga, dovunque sia finita" (
-            $rigaViaggi.Cells[0].Value -eq $true -and (Scelte $ffO) -match 'Viaggi')
-        # un clic sulla spunta di una riga della griglia (la quarta, che nel file
-        # e' un'altra): e' il filtro di quella riga
-        $quarta = [string]$gr.Rows[3].Cells[1].Value
+        $lasciato = [string]$rigaViaggi.Cells[0].Value
+        $ffO.Spunta(4, $true)
+        Verifica "lasciare e togliere un filtro dall'elenco cambia la sua riga, dovunque sia finita ('$lasciato', poi '$([string]$rigaViaggi.Cells[0].Value)')" (
+            $lasciato -eq $lascia -and [string]$rigaViaggi.Cells[0].Value -eq 'Diventa una regola' -and (Scelte $ffO) -match 'Viaggi')
+        # una scelta fatta nella tendina di una riga della griglia (la prima
+        # lasciata che si puo' togliere, che nel file e' un'altra): e' il filtro di quella riga
+        $rigaT = @($gr.Rows | Where-Object { [string]$_.Cells[0].Value -eq $lascia -and $_.Cells[0].Items.Count -gt 1 })[0]
+        $quarta = [string]$rigaT.Cells[1].Value
         $primaDelClic = @($ffO.SceltiAdesso() | Where-Object { $_.Etichetta -eq $quarta }).Count
-        $gr.Rows[3].Cells[0].Value = $true
-        Verifica "la spunta messa sulla quarta riga della griglia ($quarta) sceglie proprio quel filtro" (
+        $rigaT.Cells[0].Value = [string]@($rigaT.Cells[0].Items | Where-Object { ([string]$_).StartsWith('Toglilo') })[0]
+        Verifica "'Toglilo' scelto nella tendina della riga $($rigaT.Index) della griglia ($quarta) sceglie proprio quel filtro" (
             $primaDelClic -eq 0 -and @($ffO.SceltiAdesso() | Where-Object { $_.Etichetta -eq $quarta }).Count -eq 1)
         $gr.CurrentCell = $gr.Rows[1].Cells[1]
         $dettaglio = $tFF.GetField('txtDettaglio', $FIn).GetValue($ffO).Text
@@ -901,11 +913,309 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
             "xmlns:apps='http://schemas.google.com/apps/2006'><entry><apps:property name='from' value='gite@scuola.example'/>" +
             "<apps:property name='label' value='Gite'/></entry></feed>"))))
         $esito6 = $tFF.GetField('lblEsito', $FIn).GetValue($ff6).Text
+        # Gite, tuo, parte come "Diventa una regola": si toglie anche lui
         Verifica "aprendo un altro file che non ha Viaggi, scelto prima, Viaggi resta scelto ('$esito6')" (
-            $conViaggi -match 'Viaggi' -and (Scelte $ff6) -eq 'Viaggi' -and
+            $conViaggi -match 'Viaggi' -and (Scelte $ff6) -eq 'Gite,Viaggi' -and $ff6.Scelta(0).Testo -eq 'Diventa una regola' -and
+            $ff6.Scelta(1).Testo -eq 'Toglilo' -and
             $esito6 -match "^Nel file c'e' 1 filtro: 1 tuo\." -and $esito6 -match "In fondo, 1 scelto prima che nel file non c'e'\.")
         $ff6.Dispose()
     }
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: LA RICERCA DI UN FILTRO'
+    # Un filtro fatto solo di mittenti si puo' unire a una regola; uno che fa
+    # solo quello che fanno le regole ne diventa una, con la stessa ricerca,
+    # scritta come la scrive Gmail. Solo quando la traduzione e' esatta
+    $tFiltri = $asm.GetType('Campanella.FiltriGmail')
+    $mSolo = $tFiltri.GetMethod('SoloMittenti', $FS)
+    $mRicerca = $tFiltri.GetMethod('RicercaDelFiltro', $FS)
+    Verifica "ci sono i mittenti di un filtro e la sua ricerca (FiltriGmail.SoloMittenti, RicercaDelFiltro)" ($null -ne $mSolo -and $null -ne $mRicerca)
+    function Criteri($coppie) {
+        $d = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        foreach ($k in $coppie.Keys) { $d[$k] = [string]$coppie[$k] }
+        return ,$d
+    }
+    function Mittenti($coppie) {
+        $d = Criteri $coppie
+        $m = $mSolo.Invoke($null, [object[]]@(,$d.PSObject.BaseObject))
+        if ($null -eq $m) { return 'no' }
+        return (@($m.Da) -join ',') + '|' + (@($m.Esclusi) -join ' ')
+    }
+    function Ricerca($coppie) {
+        $d = Criteri $coppie
+        $r = $mRicerca.Invoke($null, [object[]]@(,$d.PSObject.BaseObject))
+        if ($null -eq $r) { return 'no' }
+        return [string]$r
+    }
+    $casiMittenti = @(
+        @([ordered]@{ from = 'a@uno.example OR b@due.example' }, 'a@uno.example,b@due.example|'),
+        @([ordered]@{ query = 'from:(uno.example OR nuvola) -from:c@uno.example -from:"NOME ESEMPIO"' },
+          'uno.example,nuvola|-from:c@uno.example -from:"NOME ESEMPIO"'),
+        @([ordered]@{ query = 'from:{uno.example due.example}' }, 'uno.example,due.example|'),
+        @([ordered]@{ from = 'a@uno.example'; query = '-from:(b@uno.example OR c@uno.example)'; excludeChats = 'true' },
+          'a@uno.example|-from:(b@uno.example OR c@uno.example)'),
+        @([ordered]@{ query = 'from:classroom.google.com from:"NOME ESEMPIO"' }, 'no'),
+        @([ordered]@{ query = 'from:"NOME ESEMPIO"' }, 'no'),
+        @([ordered]@{ query = 'from:(a b)' }, 'no'),
+        @([ordered]@{ query = 'from:a OR from:b' }, 'no'),
+        @([ordered]@{ from = 'a@uno.example'; subject = 'verbale' }, 'no'),
+        @([ordered]@{ query = 'from:(uno.example' }, 'no'))
+    $storti = @()
+    foreach ($c in $casiMittenti) {
+        $e = Mittenti $c[0]
+        if ($e -ne $c[1]) { $storti += "$(($c[0].Values) -join ' / '): $e invece di $($c[1])" }
+    }
+    Verifica "un elenco di mittenti, anche con le esclusioni; non due from: (ci vogliono tutti e due), un nome, un oggetto$(if ($storti.Count) { ': no ' + ($storti -join '; ') })" (
+        $storti.Count -eq 0)
+    $casiRicerca = @(
+        @([ordered]@{ from = 'a@uno.example OR b@due.example'; subject = 'verbale' }, 'from:(a@uno.example OR b@due.example) subject:verbale'),
+        @([ordered]@{ from = 'x@uno.example'; query = 'a OR b' }, 'from:x@uno.example (a OR b)'),
+        @([ordered]@{ query = 'from:classroom.google.com from:"NOME ESEMPIO"' }, 'from:classroom.google.com from:"NOME ESEMPIO"'),
+        @([ordered]@{ to = 'erasmus@scuola.example'; negatedQuery = 'bozza'; hasAttachment = 'true'; excludeChats = 'true' },
+          'to:erasmus@scuola.example -bozza has:attachment'),
+        @([ordered]@{ subject = 'consiglio di classe' }, 'subject:(consiglio di classe)'),
+        @([ordered]@{ size = '5242880'; sizeComparison = 'larger' }, 'larger:5M'),
+        @([ordered]@{ size = '1000'; sizeComparison = 'smaller'; from = 'a@uno.example' }, 'from:a@uno.example smaller:1000'),
+        @([ordered]@{ size = '5242880' }, 'no'),
+        @([ordered]@{ negatedQuery = 'bozza lettera' }, 'no'),
+        @([ordered]@{ query = 'a) OR (b' }, 'no'),
+        @([ordered]@{ query = 'verbale'; nuovoCriterio = 'x' }, 'no'))
+    $storti = @()
+    foreach ($c in $casiRicerca) {
+        $e = Ricerca $c[0]
+        if ($e -ne $c[1]) { $storti += "$(($c[0].Values) -join ' / '): '$e' invece di '$($c[1])'" }
+    }
+    Verifica "la ricerca di Gmail di un filtro, esatta, o nessuna (senza le parole con piu' parole, dimensione senza maggiore o minore)$(if ($storti.Count) { ': no ' + ($storti -join '; ') })" (
+        $storti.Count -eq 0)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: CHE COSA SI PROPONE'
+    # I casi veri di un docente, resi anonimi (test\filtri_gmail_riorganizza.xml),
+    # con le regole di partenza, senza gruppo, la casella della scuola in Segreteria
+    $riorganizzaXml = Join-Path $qui 'filtri_gmail_riorganizza.xml'
+    $tFF = $asm.GetType('Campanella.FormFiltriGmail')
+    $FIn = [System.Reflection.BindingFlags]'NonPublic,Instance'
+    $tFiltroGmail = $asm.GetType('Campanella.FiltroGmail')
+    $mConfrontaF = $tFiltri.GetMethod('Confronta', $FS, $null, [Type[]]@($tFiltroGmail, $tStato), $null)
+    $mScelte = $tFiltri.GetMethod('Scelte', $FS)
+    $mProposta = $tFiltri.GetMethod('Proposta', $FS)
+    $mApplica = $tFiltri.GetMethod('Applica', $FS)
+    $mRicerche = $tGen.GetMethod('Ricerche', $FS)
+    function StatoRiorganizza {
+        $s = NuovoStato
+        Imposta $s 'Dominio' 'scuola.example'
+        Imposta $s 'Prefisso' ''
+        Imposta $s 'EtichettaPerRuolo' $false
+        Imposta $s 'Dirigenza' 'preside@scuola.example'
+        Imposta $s 'Segreteria' "segreteria@scuola.example`r`ncasella@istruzione.it"
+        Imposta $s 'Registro' '@spaggiari.eu'
+        Imposta $s 'ColoriRuoli' (New-Object 'System.Collections.Generic.Dictionary[string,string]')
+        Imposta $s 'MadriClassi' (New-Object 'System.Collections.Generic.List[string]')
+        AggiungiPersona $s 'BIANCHI ANNA' 'DOCENTE' 'anna.bianchi@scuola.example' $true
+        return $s
+    }
+    function LeggiRiorganizza { return ,($tFiltri.GetMethod('LeggiFile', $FS).Invoke($null, @([string]$riorganizzaXml))) }
+    function ScelteDi($f, $stato) {
+        $x = $mConfrontaF.Invoke($null, @($f.PSObject.BaseObject, $stato.PSObject.BaseObject))
+        $sc = $mScelte.Invoke($null, @($f.PSObject.BaseObject, $x, $stato.PSObject.BaseObject))
+        $p = $mProposta.Invoke($null, @($sc, $f.PSObject.BaseObject, $x, $stato.PSObject.BaseObject, $false))
+        return @{ x = $x; scelte = $sc; proposta = $p }
+    }
+    function Breve($c) { return $c.Azione + '|' + $(if ($null -ne $c.Regola) { $c.Regola.Etichetta } else { '' }) }
+
+    $sR = StatoRiorganizza
+    $filtriR = LeggiRiorganizza
+    Verifica "l'esportazione con i casi veri ha i suoi 14 filtri" ($filtriR.Count -eq 14 -and $filtriR[0].Etichetta -eq 'XYIS01200Z' -and $filtriR[13].Etichetta -eq 'Famiglie')
+    $attese = @(
+        'nuova|', 'nuova|', 'nuova|', 'nuova|', 'unisci|Ministero e USR', 'unisci|Registro elettronico', 'nuova|',
+        'nuova|', 'nuova|', 'nuova|', 'unisci|Sindacati', 'nuova|', 'nuova|', 'unisci|Genitori')
+    $proposte = @(); $diverse = @()
+    for ($i = 0; $i -lt $filtriR.Count; $i++) {
+        $c = ScelteDi $filtriR[$i] $sR
+        $proposte += ,$c
+        if ((Breve $c.proposta) -ne $attese[$i]) { $diverse += "$($filtriR[$i].Etichetta): $(Breve $c.proposta) ('$($c.proposta.Testo)') invece di $($attese[$i])" }
+    }
+    foreach ($i in 0..13) { Write-Host ("          {0,-28} {1,-8} -> {2}" -f $filtriR[$i].Etichetta, $proposte[$i].x.Tipo, $proposte[$i].proposta.Testo) }
+    Verifica "le proposte di partenza: diventano regole i tuoi, e Amministrazione e stipendio (simile a Segreteria solo nel nome); Ministero e USR, Registro elettronico, Sindacati e normativa e Famiglie si uniscono alla regola$(if ($diverse.Count) { ': no ' + ($diverse -join '; ') })" (
+        $diverse.Count -eq 0)
+    $testi = @($proposte | ForEach-Object { @($_.scelte | ForEach-Object { $_.Testo }) -join ' | ' })
+    Verifica "il registro dice che i mittenti vanno in 'La tua scuola', Genitori che la accende ('$($proposte[5].proposta.Testo)', '$($proposte[13].proposta.Testo)')" (
+        $proposte[5].proposta.Testo -eq 'Unisci a Registro elettronico (in "La tua scuola")' -and
+        $proposte[13].proposta.Testo -eq 'Unisci a Genitori (la accendo)' -and $proposte[10].proposta.Testo -eq 'Unisci a Sindacati')
+    Verifica "uguali a una regola (Ministero e USR, Registro elettronico): si possono togliere, ma non diventare un'altra regola" (
+        $testi[4] -match "Toglilo: lo fa gia' la regola Ministero e USR" -and $testi[4] -notmatch 'Diventa una regola' -and
+        $testi[5] -notmatch 'Diventa una regola')
+    Verifica "due from: insieme (Ref. Ed. Civica) non si uniscono a nessuna regola, ma diventano una regola ($($testi[2]))" (
+        $testi[2] -eq 'Lascialo in Gmail | Toglilo | Diventa una regola')
+    Verifica "Amministrazione e stipendio si puo' unire anche a Segreteria, a mano; la tendina ha le regole dove si puo' (non Colleghi, Studenti, Circolari, Newsletter)" (
+        $testi[7] -match 'Unisci a Segreteria \(in "La tua scuola"\)' -and $testi[7] -notmatch 'Unisci a Colleghi' -and
+        $testi[7] -notmatch 'Unisci a Studenti' -and $testi[7] -notmatch 'Unisci a Circolari' -and $testi[7] -notmatch 'Unisci a Newsletter')
+    Verifica "chi archivia si unisce solo a chi archivia: Sindacati e normativa a Sindacati, non a Genitori; Famiglie non a Sindacati" (
+        $testi[10] -match 'Unisci a Sindacati' -and $testi[10] -notmatch 'Genitori' -and $testi[13] -notmatch 'Sindacati')
+    # uno che fa anche altro: si lascia o si toglie, e il testo dice che cosa si perde
+    $inoltra = UnFiltro ([ordered]@{ hasTheWord = 'from:(uno.example OR due.example)'; label = 'Inoltrati'; forwardTo = 'vice@scuola.example' })
+    $cInoltra = ScelteDi $inoltra $sR
+    Verifica "uno che inoltra: solo 'Lascialo' e 'Toglilo (si perde: ...)', e parte lasciato" (
+        (@($cInoltra.scelte | ForEach-Object { $_.Testo }) -join ' | ') -eq 'Lascialo in Gmail | Toglilo (si perde: inoltra a vice@scuola.example)' -and
+        (Breve $cInoltra.proposta) -eq 'lascia|')
+    $perche = [string]$tFiltri.GetMethod('PercheNonDiventaRegola', $FS).Invoke($null, @($inoltra, $cInoltra.x, $sR))
+    Verifica "e dice perche' non diventa una regola ('$perche')" ($perche -match '^fa anche altro \(inoltra a vice@scuola\.example\)')
+    # con il gruppo delle etichette: diventa una regola solo un'etichetta che ci sta dentro
+    $sG = StatoRiorganizza
+    Imposta $sG 'Prefisso' 'Scuola'
+    $cPec = ScelteDi $filtriR[6] $sG
+    $perchePec = [string]$tFiltri.GetMethod('PercheNonDiventaRegola', $FS).Invoke($null, @($filtriR[6], $cPec.x, $sG))
+    $pecDentro = UnFiltro ([ordered]@{ hasTheWord = 'from:(legalmail.example OR postacert)'; label = 'Scuola/PEC' })
+    $regolaPec = $tFiltri.GetMethod('RegolaDalFiltro', $FS).Invoke($null, @($pecDentro, (ScelteDi $pecDentro $sG).x, $sG))
+    Verifica "con il gruppo Scuola, PEC resta ('$perchePec'), Scuola/PEC diventa la regola PEC" (
+        (Breve $cPec.proposta) -eq 'lascia|' -and $perchePec -match 'Scuola' -and $null -ne $regolaPec -and $regolaPec.Etichetta -eq 'PEC')
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: USA QUESTA SCELTA'
+    # La finestra, costruita e mai mostrata, con le proposte di partenza; poi
+    # FiltriGmail.Applica, come fa il passo 4 dopo "Usa questa scelta"
+    $ffR = [Activator]::CreateInstance($tFF, @($sR.PSObject.BaseObject))
+    $ffR.Carica($filtriR)
+    $contoR = $tFF.GetField('lblConto', $FIn).GetValue($ffR).Text
+    Verifica "la finestra parte con le proposte: da togliere tutti e 14, 10 regole nuove, 4 da unire ('$contoR')" (
+        $contoR -eq 'Da togliere: 14 filtri  -  regole nuove: 10  -  da unire a una regola: 4')
+    $grR = $tFF.GetField('griglia', $FIn).GetValue($ffR)
+    $ricercaMinistero = [string]$grR.Rows[4].Cells[4].Value
+    $ricercaCivica = [string]$grR.Rows[2].Cells[4].Value
+    Verifica "per ogni filtro la ricerca che fara' la regola: Ref. Ed. Civica la sua, Ministero e USR con i mittenti in piu' e l'esclusione" (
+        $ricercaCivica -eq '(from:classroom.google.com from:"ANNA ESEMPIO")' -and
+        $ricercaMinistero -match '^from:\(@istruzione\.it OR @posta\.istruzione\.it OR @miur\.it OR @mim\.gov\.it OR istruzione\.it OR istruzione\.gov\.it OR mim\.gov\.it OR miur\.gov\.it\) \(-from:casella@istruzione\.it\) -label:"Dirigenza" -label:"Segreteria"$')
+    $grR.CurrentCell = $grR.Rows[13].Cells[1]
+    $dettaglioR = $tFF.GetField('txtDettaglio', $FIn).GetValue($ffR).Text
+    Verifica "il dettaglio dice che Genitori si accende, e la ricerca che fara'" (
+        $dettaglioR -match "Genitori e' spenta: la accendo" -and $dettaglioR -match "La regola cerchera': from:\(gmail\.com OR libero\.it OR yahoo\.it OR hotmail\.it\)")
+    $fatte = $ffR.FatteAdesso()
+    $regolePrima = (Leggi $sR 'Regole').Count
+    $riepilogoR = [string]$mApplica.Invoke($null, @($sR.PSObject.BaseObject, $fatte))
+    $ffR.Dispose()
+    Write-Host ($riepilogoR -replace '(?m)^', '          ')
+    $regoleR = Leggi $sR 'Regole'
+    function RegolaR($etichetta) { return @($regoleR | Where-Object { $_.Etichetta -eq $etichetta })[0] }
+    $nuoveR = @($regoleR | Where-Object { $_.Descrizione.StartsWith('Da un filtro di Gmail: ') })
+    Verifica "10 regole nuove ($($nuoveR.Count)), con l'etichetta del filtro e 'Da un filtro di Gmail: ...'" (
+        $regoleR.Count -eq $regolePrima + 10 -and $nuoveR.Count -eq 10 -and
+        (@($nuoveR | ForEach-Object { $_.Etichetta }) -join ',') -eq
+        'Amministrazione e stipendio,XYIS01200Z,Dipartimento XYZ,Ref. Ed. Civica,Classroom,PEC,Olimpiadi e gare,Editori e materiali,Notifiche Google,Altre scuole')
+    $iSeg = [array]::IndexOf(@($regoleR | ForEach-Object { $_.Etichetta }), 'Segreteria')
+    Verifica "Amministrazione e stipendio sta subito sotto Segreteria, la regola simile; le altre in fondo" (
+        $regoleR[$iSeg + 1].Etichetta -eq 'Amministrazione e stipendio' -and $regoleR[$regoleR.Count - 1].Etichetta -eq 'Altre scuole')
+    $sfondi = @($regoleR | ForEach-Object { ($_.Colore -split '/')[0] } | Where-Object { $_ -ne '' })
+    Verifica "ognuna con un colore libero: tutti diversi ($(@($sfondi | Sort-Object -Unique).Count) su $($regoleR.Count))" (
+        $sfondi.Count -eq $regoleR.Count -and @($sfondi | Sort-Object -Unique).Count -eq $sfondi.Count)
+    $notifiche = RegolaR 'Notifiche Google'
+    $civicaR = RegolaR 'Ref. Ed. Civica'
+    $classroomR = RegolaR 'Classroom'
+    Verifica "Notifiche Google: i mittenti fra i mittenti, le esclusioni nella ricerca avanzata, e archivia" (
+        (@($notifiche.Da) -join ',') -eq 'noreply,no-reply,no_reply,mailer-daemon,github.com' -and
+        $notifiche.QueryLibera -eq '-from:classroom.google.com -from:spaggiari -from:istruzione.it' -and $notifiche.Archivia -and
+        -not $notifiche.SegnaComeLette -and $notifiche.Attiva)
+    Verifica "Ref. Ed. Civica (due from:): tutta la ricerca del filtro nella ricerca avanzata; Classroom: il mittente e -from:""nome""" (
+        $civicaR.Da.Count -eq 0 -and $civicaR.QueryLibera -eq 'from:classroom.google.com from:"ANNA ESEMPIO"' -and
+        (@($classroomR.Da) -join ',') -eq 'classroom.google.com' -and $classroomR.QueryLibera -eq '-from:"ANNA ESEMPIO"')
+    $ministeroR = RegolaR 'Ministero e USR'
+    Verifica "Ministero e USR prende i mittenti in piu' e l'esclusione della casella della scuola" (
+        (@($ministeroR.Da) -join ',') -eq '@istruzione.it,@posta.istruzione.it,@miur.it,@mim.gov.it,istruzione.it,istruzione.gov.it,mim.gov.it,miur.gov.it' -and
+        $ministeroR.QueryLibera -eq '-from:casella@istruzione.it' -and (@($ministeroR.EscludiEtichette) -join ',') -eq 'Dirigenza,Segreteria')
+    Verifica "i mittenti di Registro elettronico vanno in 'La tua scuola', uno per riga, senza doppioni" (
+        ((Leggi $sR 'Registro') -replace "`r", '') -eq "@spaggiari.eu`nspaggiari.eu`nmailspaggiari.eu`nportaleargo.it`nargosoft.it`nmadisoft.it`nnuvola" -and
+        (RegolaR 'Registro elettronico').Da.Count -eq 0)
+    $sindacatiR = RegolaR 'Sindacati'
+    $genitoriR = RegolaR 'Genitori'
+    Verifica "Sindacati prende i tre mittenti e archivia ancora; Genitori prende i suoi e si accende" (
+        $sindacatiR.Da.Count -eq 9 -and $sindacatiR.Archivia -and $genitoriR.Attiva -and
+        (@($genitoriR.Da) -join ',') -eq 'gmail.com,libero.it,yahoo.it,hotmail.it')
+    $daTogliereR = Leggi $sR 'FiltriDaTogliere'
+    Verifica "i 14 filtri sono fra quelli da togliere" ($daTogliereR.Count -eq 14)
+    Verifica "il riepilogo dice che cosa ha fatto: le regole nuove, i mittenti uniti, 'La tua scuola', Genitori accesa, e che regole e filtri arrivano insieme" (
+        $riepilogoR -match '^10 regole nuove' -and $riepilogoR -match 'Genitori: 4 mittenti dal filtro "Famiglie"; era spenta, adesso e'' accesa' -and
+        $riepilogoR -match 'La tua scuola' -and $riepilogoR -match 'Registro elettronico: 6 mittenti dal filtro "Registro elettronico"' -and
+        $riepilogoR -match '14 filtri da togliere: li toglie EXTRA_togliFiltri' -and $riepilogoR -match 'nella stessa configurazione')
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: NEL MOTORE VERO'
+    # La configurazione generata dopo la scelta, nel motore vero
+    # (test\filtri_diventano_regole.js): le ricerche della finestra sono
+    # quelle del motore, il riordino mette ogni messaggio del filtro nella sua
+    # regola (e archivia), EXTRA_togliFiltri toglie i filtri che hanno la loro
+    # regola nella stessa configurazione
+    $fileR = Join-Path $temporanea 'Configurazione_riorganizza.gs'
+    Scrivi $fileR (Genera $sR $false)
+    $lettaR = LeggiConfigurazione $fileR
+    Verifica "la configurazione si carica, con le regole nuove e i 14 filtri da togliere" (
+        $null -ne $lettaR.CONFIG -and @($lettaR.CONFIG.regole | Where-Object { $_.nota -like 'Da un filtro di Gmail:*' }).Count -eq 10 -and
+        @($lettaR.CONFIG.filtriDaTogliere).Count -eq 14)
+    $filtriJ = @()
+    for ($i = 0; $i -lt $filtriR.Count; $i++) {
+        $f = $filtriR[$i]; $c = $fatte[$i].Scelta
+        $criteriJ = [ordered]@{}
+        foreach ($k in $f.Criteri.Keys) { $criteriJ[$k] = $f.Criteri[$k] }
+        $regolaJ = if ($c.Azione -eq 'nuova') { [string]$tFiltri.GetMethod('EtichettaNelGruppo', $FS).Invoke($null, @($f.Etichetta, $sR)) }
+                   elseif ($null -ne $c.Regola) { $c.Regola.Etichetta } else { '' }
+        $filtriJ += [ordered]@{ etichetta = $f.Etichetta; criteri = $criteriJ; archivia = $f.Archivia; letti = $f.SegnaLetto
+                                azione = $c.Azione; regola = $regolaJ }
+    }
+    $ricercheJ = @()
+    $personaleR = $sR.IndirizziPersonale()
+    foreach ($r in $regoleR) {
+        if (-not [bool]$tGen.GetMethod('AttivaNellaConfigurazione', $FS).Invoke($null, @($sR, $r, $personaleR))) { continue }
+        $ricercheJ += [ordered]@{ etichetta = $r.Etichetta; ricerche = @($mRicerche.Invoke($null, @($sR, $r))) }
+    }
+    $jsonR = Join-Path $temporanea 'scelte_riorganizza.json'
+    Scrivi $jsonR (ConvertTo-Json -InputObject ([ordered]@{ filtri = $filtriJ; ricerche = $ricercheJ }) -Depth 6)
+    $motoreR = & node (Join-Path $qui 'filtri_diventano_regole.js') $fileR $motore $jsonR 2>&1
+    $esitoMotoreR = $LASTEXITCODE
+    $motoreR | ForEach-Object { Write-Host "        $_" }
+    Verifica "nel motore vero: le stesse ricerche, ogni messaggio dei filtri nella sua regola, e i filtri tolti con le regole ($(@($motoreR -match '^\s+OK ').Count) controlli)" (
+        $esitoMotoreR -eq 0 -and @($motoreR -match '^\s+OK ').Count -ge 20)
+
+    # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: LA FINESTRA RIAPERTA'
+    # Riaperta con lo stesso file: niente regole doppie. I filtri scelti
+    # prima si tolgono; e anche senza la scelta di prima, quelli diventati
+    # regola o uniti si riconoscono: "Toglilo: lo fa gia' la regola ..."
+    $registroPrima = Leggi $sR 'Registro'
+    $ffR2 = [Activator]::CreateInstance($tFF, @($sR.PSObject.BaseObject))
+    $ffR2.Carica($filtriR)
+    $nonTogli = @(0..13 | Where-Object { $ffR2.Scelta($_).Azione -ne 'togli' } | ForEach-Object { $filtriR[$_].Etichetta + ': ' + $ffR2.Scelta($_).Testo })
+    # quelli diventati regola non lo possono diventare di nuovo; quelli uniti a una regola si' (la loro etichetta non c'e')
+    $conNuova = @(0..13 | Where-Object { $fatte[$_].Scelta.Azione -eq 'nuova' -and @($ffR2.Scelte($_) | Where-Object { $_.Azione -eq 'nuova' }).Count -gt 0 } | ForEach-Object { $filtriR[$_].Etichetta })
+    Verifica "riaperta, i 14 filtri scelti prima si tolgono, e i 10 diventati regola non possono diventarlo di nuovo$(if ($nonTogli.Count + $conNuova.Count) { ': no ' + (($nonTogli + $conNuova) -join '; ') })" (
+        $nonTogli.Count -eq 0 -and $conNuova.Count -eq 0)
+    [void]$mApplica.Invoke($null, @($sR.PSObject.BaseObject, $ffR2.FatteAdesso()))
+    $ffR2.Dispose()
+    Verifica "e 'Usa questa scelta' non rifa' niente: le stesse regole, gli stessi mittenti, gli stessi 14 filtri" (
+        (Leggi $sR 'Regole').Count -eq $regolePrima + 10 -and (Leggi $sR 'Registro') -eq $registroPrima -and
+        $ministeroR.Da.Count -eq 8 -and $genitoriR.Da.Count -eq 4 -and (Leggi $sR 'FiltriDaTogliere').Count -eq 14)
+    Imposta $sR 'FiltriDaTogliere' $null
+    $ffR3 = [Activator]::CreateInstance($tFF, @($sR.PSObject.BaseObject))
+    $ffR3.Carica($filtriR)
+    $nonGia = @(0..13 | Where-Object { $ffR3.Scelta($_).Azione -ne 'togli' -or $null -eq $ffR3.Scelta($_).Regola } |
+                ForEach-Object { $filtriR[$_].Etichetta + ': ' + $ffR3.Scelta($_).Testo })
+    Verifica "anche senza la scelta di prima, tutti e 14 'Toglilo: lo fa gia' la regola ...'$(if ($nonGia.Count) { ': no ' + ($nonGia -join '; ') })" (
+        $nonGia.Count -eq 0 -and $ffR3.Scelta(13).Testo -eq "Toglilo: lo fa gia' la regola Genitori")
+    [void]$mApplica.Invoke($null, @($sR.PSObject.BaseObject, $ffR3.FatteAdesso()))
+    $ffR3.Dispose()
+    Verifica "e le regole restano quelle" ((Leggi $sR 'Regole').Count -eq $regolePrima + 10 -and (Leggi $sR 'FiltriDaTogliere').Count -eq 14)
+    # e se proprio arriva una regola nuova con un'etichetta che c'e' gia' (PEC): niente doppione
+    $tScelto = $asm.GetType('Campanella.FiltroScelto')
+    $tSceltaF = $asm.GetType('Campanella.SceltaFiltro')
+    $forzata = [Activator]::CreateInstance($tScelto)
+    $forzata.Filtro = $filtriR[6]
+    $forzata.Voce = $filtriR[6].DaTogliere()
+    $forzata.Somiglia = $mConfrontaF.Invoke($null, @($filtriR[6], $sR.PSObject.BaseObject))
+    $forzata.Scelta = [Activator]::CreateInstance($tSceltaF)
+    $forzata.Scelta.Azione = 'nuova'
+    $listaScelti = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tScelto))
+    $listaScelti.Add($forzata)
+    $riepForzata = [string]$mApplica.Invoke($null, @($sR.PSObject.BaseObject, $listaScelti))
+    Verifica "una regola nuova con l'etichetta di una che c'e' gia', uguale: niente doppione, e il filtro si toglie" (
+        @((Leggi $sR 'Regole') | Where-Object { $_.Etichetta -eq 'PEC' }).Count -eq 1 -and (Leggi $sR 'FiltriDaTogliere').Count -eq 1 -and
+        $riepForzata -notmatch 'regole nuove')
 
     # -----------------------------------------------------------------------
     Intestazione 'MINISTERO E USR NON PRENDE LA CASELLA DELLA SCUOLA'

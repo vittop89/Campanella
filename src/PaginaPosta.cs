@@ -670,10 +670,19 @@ namespace Campanella
                 "quando le etichette le mette lo script: un messaggio puo' finire sia in Genitori sia nella tua " +
                 "Famiglie.\r\n\r\n" +
                 "Qui apri l'elenco dei tuoi filtri, esportato da Gmail (Impostazioni -> Vedi tutte le impostazioni " +
-                "-> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta), e spunti quelli da togliere. Li " +
-                "toglie lo script, con EXTRA_togliFiltri: serve il servizio Gmail API (passo 8 dell'installazione " +
-                "guidata), e dopo la scelta va copiata di nuovo la configurazione (passo 5).\r\n\r\n" +
-                "Lo script toglie solo i filtri spuntati, e prima di toglierne uno ne scrive una copia nel " +
+                "-> Filtri e indirizzi bloccati -> seleziona tutti -> Esporta), e per ognuno scegli che cosa farne: " +
+                "lasciarlo in Gmail; toglierlo (per esempio se lo fa gia' una regola); unire i suoi mittenti a una " +
+                "regola (quelli di Dirigenza, Segreteria e Registro elettronico vanno in \"La tua scuola\"; una " +
+                "regola spenta si accende); farne una regola, con la stessa etichetta, cosi' i messaggi che ce l'hanno " +
+                "gia' restano insieme, e la stessa ricerca. Ogni filtro parte con una proposta, e la finestra dice la " +
+                "ricerca che fara' la regola. Un filtro che fa anche altro (inoltra, mette la stella...) non diventa " +
+                "una regola: si lascia o si toglie.\r\n\r\n" +
+                "\"Usa questa scelta\" crea e cambia le regole e sceglie i filtri da togliere, e dice che cosa ha " +
+                "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
+                "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
+                "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
+                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'.\r\n\r\n" +
+                "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));
 
@@ -2199,25 +2208,36 @@ namespace Campanella
         }
 
         /// <summary>
-        /// La finestra dei filtri che l'utente ha gia' in Gmail: quelli che
-        /// spunta vanno nello Stato, e da li' in Configurazione.gs.
+        /// La finestra dei filtri che l'utente ha gia' in Gmail. Quello che si
+        /// sceglie lo fa FiltriGmail.Applica: le regole nuove, i mittenti uniti
+        /// alle regole (o in "La tua scuola") e i filtri da togliere vanno nello
+        /// Stato, e da li' tutti insieme in Configurazione.gs. Poi dice che cosa
+        /// ha fatto.
         /// </summary>
         void FiltriGiaInGmail()
         {
             Raccogli();    // gruppo, indirizzi e spunte delle regole: servono al confronto
+            string riepilogo;
             using (FormFiltriGmail f = new FormFiltriGmail(S))
             {
                 DialogResult esito = f.ShowDialog(this);
                 // quelli tolti all'avvio la finestra li ha detti: il passo 4 non li ripete
                 S.FiltriClassiToltiAllAvvio = 0;
                 if (esito != DialogResult.OK) { AggiornaFiltriDaTogliere(); return; }
-                S.FiltriDaTogliere = f.Scelti;
+                riepilogo = FiltriGmail.Applica(S, f.Fatte);
             }
+            // i mittenti aggiunti in "La tua scuola", le regole nuove o cambiate
+            txtDirigenza.Text = S.Dirigenza;
+            txtSegreteria.Text = S.Segreteria;
+            txtRegistro.Text = S.Registro;
+            AggiornaElencoRegole(clbRegole.SelectedIndex);
             AggiornaFiltriDaTogliere();
             int n = GeneratorePosta.FiltriDaTogliere(S);
             Guscio.Stato1(n == 0 ? "Nessun filtro di Gmail da togliere." :
                 n + (n == 1 ? " filtro" : " filtri") + " di Gmail da togliere: copia di nuovo la configurazione " +
                 "(passo 5) ed esegui EXTRA_togliFiltri.");
+            using (FormTesto t = new FormTesto("I filtri di Gmail: che cosa ho fatto", riepilogo, null, null))
+                t.ShowDialog(this);
         }
 
         /// <summary>
