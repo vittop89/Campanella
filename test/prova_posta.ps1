@@ -1995,11 +1995,11 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: QUELLI SCELTI CON LA 1.6.0'
     # La 1.6.0 sceglieva i filtri uguali a una regola per l'etichetta sola, e
     # non ricordava la regola ne' se archiviavano o segnavano come letto (e
-    # potevano farlo: la 1.6.0 non lo guardava). Senza il file uno cosi' va via
-    # solo se una regola accesa con la sua etichetta prende tutti i suoi
-    # messaggi e archivia e segna come letti, e allora la ricorda; se no resta
-    # in Gmail, e il passo 4 lo dice in ambra e chiede di riaprire il file dei
-    # filtri. Con il file parte dalla proposta di adesso, che le azioni le vede
+    # potevano farlo: la 1.6.0 non lo guardava). Senza il file uno cosi' non va
+    # mai via: non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la
+    # stessa etichetta che non archivia; resta in Gmail, e il passo 4 lo dice
+    # in ambra e chiede di riaprire il file dei filtri. Con il file parte dalla
+    # proposta di adesso, che le azioni e gli altri filtri li vede
     $tListaVoci16 = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tDaTogliere)
     function Voci160($stato) {
         $l = [Activator]::CreateInstance($tListaVoci16)
@@ -2022,27 +2022,61 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "l'ambra del passo 4 dice che li sceglieva la 1.6.0, non che la loro regola non c'e' piu' ('$avviso16')" (
         $avviso16 -match "^ 3 filtri scelti con la 1\.6\.0 restano in Gmail: la 1\.6\.0 li sceglieva per l'etichetta" -and
         $avviso16 -notmatch "la regola che li sostituiva")
-    # con Sindacati che archivia e segna come letti, quello di @flcgil.it va via
+    # anche con Sindacati che archivia e segna come letti quello di @flcgil.it
+    # resta: senza il file non si vede se in Gmail c'e' un altro Sindacati che
+    # non archivia, e che toglierebbe i suoi messaggi alla regola
     $sind16 = @((Leggi $s16 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
     $sind16.SegnaComeLette = $true
-    Verifica "con Sindacati che archivia e segna come letti, quello di @flcgil.it va via ('$(Senza $s16)')" (
-        [bool]$mAncora.Invoke($null, @($voci16[1], $s16)) -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 1 -and
-        (Senza $s16) -eq 'Ministero e USR,Ministero e USR')
+    Verifica "anche con Sindacati che archivia e segna come letti, senza il file quello di @flcgil.it resta ('$(Senza $s16)')" (
+        -not [bool]$mAncora.Invoke($null, @($voci16[1], $s16)) -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 0 -and
+        (Senza $s16) -eq 'Ministero e USR,Sindacati,Ministero e USR')
     $ff16 = [Activator]::CreateInstance($tFF, @($s16.PSObject.BaseObject))
     $gr16 = $tFF.GetField('griglia', $FIn).GetValue($ff16)
-    $gr16.CurrentCell = $gr16.Rows[0].Cells[1]
+    $gr16.CurrentCell = $gr16.Rows[1].Cells[1]
     $dettaglio16 = $tFF.GetField('txtDettaglio', $FIn).GetValue($ff16).Text
     $partenza16 = @(0..2 | ForEach-Object { $ff16.Scelta($_).Testo })
-    $riquadro16 = Riquadro $ff16 1
     $riep16 = ([string]$mApplica.Invoke($null, @($s16.PSObject.BaseObject, $ff16.FatteAdesso()))) -replace '\r?\n', ' '
     $ff16.Dispose()
+    Verifica "la finestra senza file li fa partire tutti lasciati, dice perche' e di aprire il file, e 'Usa questa scelta' non ne toglie nessuno ($($partenza16 -join '; '); '$riep16')" (
+        ($partenza16 -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail,Lascialo in Gmail' -and
+        $dettaglio16 -match "scelto con una versione di prima \(la 1\.6\.0\)\. La 1\.6\.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come letto: senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la stessa etichetta che non lo fa" -and
+        $dettaglio16 -match "apri il file dei filtri" -and $dettaglio16 -notmatch '\(\)' -and (Leggi $s16 'FiltriDaTogliere').Count -eq 0)
+    # "Toglilo" scelto a mano: va via e basta, e quello che faceva non conta piu'
+    [void](Voci160 $s16)
+    $ff16t = [Activator]::CreateInstance($tFF, @($s16.PSObject.BaseObject))
+    $ff16t.Scegli(1, @($ff16t.Scelte(1) | Where-Object { $_.Azione -eq 'togli' })[0])
+    [void]$mApplica.Invoke($null, @($s16.PSObject.BaseObject, $ff16t.FatteAdesso()))
+    $ff16t.Dispose()
     $dopo16 = Leggi $s16 'FiltriDaTogliere'
-    Verifica "la finestra senza file fa partire lasciati gli altri e dice perche'; quello di Sindacati 'lo fa gia'' la regola, e 'Usa questa scelta' la ricorda ($($partenza16 -join '; '); '$riep16')" (
-        ($partenza16 -join ',') -eq "Lascialo in Gmail,Toglilo: lo fa gia' la regola Sindacati,Lascialo in Gmail" -and
-        $dettaglio16 -match "scelto con una versione di prima \(la 1\.6\.0\)\. La 1\.6\.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e segnandoli come letti" -and
-        $dettaglio16 -match "apri il file dei filtri" -and $riquadro16 -eq "Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola Sindacati." -and
-        $dettaglio16 -notmatch '\(\)' -and $dopo16.Count -eq 1 -and $dopo16[0].Criteri['from'] -eq '@flcgil.it' -and
-        $dopo16[0].Regola -eq 'Sindacati')
+    Verifica "'Toglilo' scelto a mano lo toglie e basta, senza regola ($($dopo16.Count) da togliere)" (
+        $dopo16.Count -eq 1 -and $dopo16[0].Criteri['from'] -eq '@flcgil.it' -and $dopo16[0].Regola -eq '' -and
+        $dopo16[0].Archivia -eq $false -and [int]$mDaTogliere.Invoke($null, @($s16)) -eq 1)
+    # il caso che senza il file non si vede: in Gmail resta un altro filtro
+    # Sindacati che non archivia e non segna come letto, e mette l'etichetta
+    # all'arrivo ai messaggi che prende anche lui. Senza il file la voce della
+    # 1.6.0 resta (la configurazione non la scrive, la finestra la fa partire
+    # lasciata); con il file la finestra vede l'altro filtro e la lascia
+    $s16h = StatoRiorganizza
+    $sind16h = @((Leggi $s16h 'Regole') | Where-Object { $_.Etichetta -eq 'Sindacati' })[0]
+    $sind16h.Da.Add('@sindacato-quattro.example')
+    $sind16h.SegnaComeLette = $true
+    $tutti16h = UnFiltro ([ordered]@{ from = '@sindacato-quattro.example'; label = 'Sindacati'; shouldArchive = 'true'; shouldMarkAsRead = 'true' })
+    $uno16h = UnFiltro ([ordered]@{ from = 'mario.bianchi@sindacato-quattro.example'; label = 'Sindacati' })
+    $voce16h = $tutti16h.DaTogliere(); $voce16h.Archivia = $null; $voce16h.SegnaLetto = $null
+    $lista16h = [Activator]::CreateInstance($tListaVoci16); $lista16h.Add($voce16h)
+    Imposta $s16h 'FiltriDaTogliere' $lista16h
+    $poste16h = @(@('segreteria@sindacato-quattro.example', 'Sindacato Quattro'), @('mario.bianchi@sindacato-quattro.example', 'Mario Bianchi'))
+    $conf16h = [int]$mDaTogliere.Invoke($null, @($s16h))
+    $motore16h = PromessaNelMotore $s16h @($tutti16h, $uno16h) $poste16h 'con160_altro_filtro'
+    $ff16h = [Activator]::CreateInstance($tFF, @($s16h.PSObject.BaseObject))
+    $senza16h = $ff16h.Scelta(0).Testo
+    $ff16h.Dispose()
+    $h16 = FinestraEScelta $s16h @($tutti16h, $uno16h) $null
+    $motore16h2 = PromessaNelMotore $s16h @($tutti16h, $uno16h) $poste16h 'con160_altro_filtro_file'
+    Verifica "una voce della 1.6.0 con un altro Sindacati in Gmail che non archivia: senza il file la configurazione non la scrive ($conf16h) e la finestra la lascia ('$senza16h'); con il file resta anche lei ($($h16.scelte -join '; ')), e nel motore vero nessun messaggio perde niente" (
+        $conf16h -eq 0 -and $motore16h.esito -eq 0 -and $motore16h.tolti -eq 0 -and $senza16h -eq 'Lascialo in Gmail' -and
+        $h16.scelte[0] -eq 'Lascialo in Gmail' -and (Leggi $s16h 'FiltriDaTogliere').Count -eq 0 -and
+        $motore16h2.esito -eq 0 -and $motore16h2.tolti -eq 0)
     # con il file: la proposta di adesso (quello di @mim.gov.it archivia, e
     # Ministero e USR no: resta), e nel motore vero ogni messaggio dei filtri
     # tolti ha l'etichetta della sua regola

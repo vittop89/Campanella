@@ -2174,15 +2174,17 @@ namespace Campanella
         /// il filtro resta in Gmail (GeneratorePosta.FiltriJs non lo scrive) e
         /// il passo 4 lo dice: nessun filtro va via senza la regola che lo
         /// sostituisce. Uno scelto con la 1.6.0 (SceltoConLaVersioneDiPrima),
-        /// che non ricorda la regola ne' se archiviava o segnava come letto, va
-        /// via solo se lo sostituisce una regola accesa con la sua etichetta che
-        /// archivia e segna come letti (RegolaCheLoSostituisce): la 1.6.0 lo
-        /// sceglieva per l'etichetta sola, e il filtro poteva farlo.
+        /// che non ricorda la regola ne' se archiviava o segnava come letto,
+        /// senza il file non va mai via: la 1.6.0 lo sceglieva per l'etichetta
+        /// sola, e senza il file non si vede che cosa fa, ne' se in Gmail ce
+        /// n'e' un altro con la stessa etichetta che non archivia (mettendola
+        /// all'arrivo, toglierebbe quei messaggi alla regola). Con il file la
+        /// finestra lo vede e lo propone di nuovo.
         /// </summary>
         public static bool AncoraSostituito(FiltroDaTogliere v, Stato s)
         {
             if (v == null || s == null) return true;
-            if ((v.Regola ?? "").Trim() == "") return !SceltoConLaVersioneDiPrima(v) || RegolaCheLoSostituisce(v, s) != null;
+            if ((v.Regola ?? "").Trim() == "") return !SceltoConLaVersioneDiPrima(v);
             if (RegolaCheLoSostituisceAncora(v, s) != null) return true;
             // uno creato per la sottoetichetta di un ruolo, che non archivia e non segna come letti
             Regola chi;
@@ -2223,33 +2225,6 @@ namespace Campanella
         public static bool SceltoConLaVersioneDiPrima(FiltroDaTogliere v)
         {
             return v != null && (v.Regola ?? "").Trim() == "" && v.Archivia == null && v.SegnaLetto == null;
-        }
-
-        /// <summary>
-        /// La regola accesa con l'etichetta del filtro che lo sostituisce: quella
-        /// che crea proprio quel filtro (RegolaCheLoCrea), o una che prende tutti
-        /// i suoi messaggi (PrendeIMittenti) o fa proprio la sua ricerca
-        /// (FaLaRicerca), e archivia e segna come letti come lui (StesseAzioni:
-        /// quello che non si sa, lo deve fare). null se nessuna. Per i filtri
-        /// scelti con la 1.6.0, che non ricordano la regola ne' che cosa
-        /// facevano: la regola deve archiviare e segnare come letti; trovata,
-        /// Applica la ricorda.
-        /// </summary>
-        public static Regola RegolaCheLoSostituisce(FiltroDaTogliere v, Stato s)
-        {
-            if (v == null || s == null) return null;
-            MittentiFiltro m = SoloMittenti(v.Criteri);
-            string ricerca = (m == null) ? RicercaDelFiltro(v.Criteri) : null;
-            List<string> personale = s.IndirizziPersonale();
-            Regola crea = RegolaCheLoCrea(v.Etichetta, v.Criteri, v.Archivia, v.SegnaLetto, s);
-            if (crea != null && ConEtichetta(crea, v.Etichetta, s)) return crea;
-            foreach (Regola r in s.Regole)
-            {
-                if (r == null || !ConEtichetta(r, v.Etichetta, s)) continue;
-                if (m != null ? PrendeIMittenti(s, r, m, v.Archivia, v.SegnaLetto, personale)
-                              : FaLaRicerca(s, r, ricerca, v.Archivia, v.SegnaLetto, personale)) return r;
-            }
-            return null;
         }
 
         /// <summary>I filtri scelti da togliere che non hanno piu' la regola che li sostituisce (AncoraSostituito): restano in Gmail.</summary>
@@ -2346,7 +2321,8 @@ namespace Campanella
         ///  - "Toglilo" e basta non scelto a mano (FiltroScelto.AMano) per uno
         ///    scelto prima la cui regola non lo sostituisce piu' (e' cambiata, o
         ///    in Gmail adesso archivia o segna come letto), o scelto con la 1.6.0
-        ///    che nessuna regola sostituisce: la finestra lo propone lasciato;
+        ///    senza il file (non si vede che cosa fa, ne' gli altri filtri con la
+        ///    sua etichetta): la finestra lo propone lasciato;
         ///  - lo stesso filtro piu' volte, con azioni diverse, e la regola non fa
         ///    quello che fa la copia che archivia o segna come letto;
         ///  - dopo tutte le scelte, la sua regola non prende piu' tutti i suoi
@@ -2415,20 +2391,17 @@ namespace Campanella
                 if (sostituta != null) voce.Regola = sostituta.Etichetta;
                 else if (SceltoConLaVersioneDiPrima(voce))
                 {
-                    // scelto con la 1.6.0, e senza il file: ricorda la regola che lo
-                    // sostituisce adesso, che archivia e segna come letti (non si sa
-                    // se lui lo faceva). Senza, va via solo con "Toglilo" scelto a
-                    // mano, e allora quello che faceva non conta piu'
-                    Regola ora = RegolaCheLoSostituisce(voce, s);
-                    if (ora != null) voce.Regola = ora.Etichetta;
-                    else if (aMano) { voce.Regola = ""; voce.Archivia = false; voce.SegnaLetto = false; }
-                    else
+                    // scelto con la 1.6.0, e senza il file (con il file la voce ha le
+                    // azioni del filtro): non si vede che cosa fa, ne' se in Gmail ce
+                    // n'e' un altro con la sua etichetta che non archivia. Va via
+                    // solo con "Toglilo" scelto a mano, e allora quello che faceva
+                    // non conta piu'
+                    if (!aMano)
                     {
-                        Rifiuta(e, rifiutati, x.Voce, "scelto con la 1.6.0, che non ricordava se archiviava o segnava come letto: " +
-                                "nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e segnandoli " +
-                                "come letti (con il file dei filtri si vede che cosa fa)");
+                        Rifiuta(e, rifiutati, x.Voce, TestoCon160);
                         continue;
                     }
+                    voce.Regola = ""; voce.Archivia = false; voce.SegnaLetto = false;
                 }
                 else if ((voce.Regola ?? "").Trim() != "" && !AncoraSostituito(voce, s))
                 {
@@ -2488,6 +2461,11 @@ namespace Campanella
         }
 
         /// <summary>Vero se la scelta toglie il filtro, e non e' fra quelli che restano gia' (lasciate: le chiavi).</summary>
+        /// <summary>Perche' uno scelto con la 1.6.0, senza il file, resta in Gmail.</summary>
+        public const string TestoCon160 = "scelto con la 1.6.0, che non ricordava se archiviava o segnava come letto: " +
+            "senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la stessa etichetta " +
+            "che non lo fa (apri il file dei filtri)";
+
         static bool Toglie(FiltroScelto x, List<string> lasciate)
         {
             return x != null && x.Voce != null && x.Scelta != null && x.Scelta.TogliIlFiltro && !lasciate.Contains(x.Voce.Chiave());

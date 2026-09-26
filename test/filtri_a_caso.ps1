@@ -289,7 +289,7 @@ $scenariJson = New-Object System.Collections.Generic.List[string]
 $Solo = @($Solo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ })
 $quali = if ($Solo.Count) { $Solo } else { 0..($Scenari - 1) }
 $inizio = Get-Date
-$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0
+$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0
 foreach ($n in $quali) {
     # ogni scenario ha il suo seme, dal seme e dal suo numero: lo stesso scenario
     # si rifa' da solo (-Solo), e due semi vicini non danno gli stessi scenari
@@ -340,10 +340,37 @@ foreach ($n in $quali) {
     [void]$racconto.Append((Descrivi $s))
     if ($prima.Count) { [void]$racconto.AppendLine('scelti prima: ' + ($prima -join '; ')) }
 
+    # senza il file: con le voci scelte prima con la 1.6.0 (o "Toglilo" e
+    # basta), a volte la configurazione copiata cosi' com'e', a volte la
+    # finestra senza il file, con qualche scelta a mano, e "Usa questa scelta".
+    # Non con le voci inventate con una regola: la finestra le fa con il file,
+    # e le ricontrolla con gli altri filtri
+    $modo = 'file'
+    if ($prima.Count -and @($prima | Where-Object { $_ -like 'regola *' }).Count -eq 0) {
+        $x = $altro.NextDouble()
+        if ($x -lt 0.3) { $modo = 'configurazione' } elseif ($x -lt 0.6) { $modo = 'senza file' }
+    }
+    if ($modo -ne 'file') { $senzaFile++; [void]$racconto.AppendLine('modo: ' + $modo) }
+
     # la finestra vera, costruita e mai mostrata
     $ff = [Activator]::CreateInstance($tFF, @($s.PSObject.BaseObject))
-    $ff.Carica($lista)
-    for ($i = 0; $i -lt $lista.Count; $i++) {
+    if ($modo -eq 'senza file') {
+        $vociPrima = Leggi $s 'FiltriDaTogliere'
+        for ($i = 0; $i -lt $vociPrima.Count; $i++) {
+            $proposta = $ff.Scelta($i).Testo
+            $scelte = $ff.Scelte($i)
+            if ($scelte.Count -ge 2 -and (ACaso $altro 0.3)) {
+                $c = $scelte[$altro.Next($scelte.Count)]
+                $ff.Scegli($i, $c)
+                $sceltiACaso++
+                if ($c.Azione -eq 'togli' -and $null -eq $c.Regola) { $esplicite.Add($vociPrima[$i].Chiave()) }
+            }
+            [void]$racconto.AppendLine('  riga ' + $i + ' (scelta prima): ' + $vociPrima[$i].Etichetta + '   proposta: ' + $proposta +
+                $(if ($ff.Scelta($i).Testo -ne $proposta) { '   scelta: ' + $ff.Scelta($i).Testo } else { '' }))
+        }
+    }
+    if ($modo -eq 'file') { $ff.Carica($lista) }
+    for ($i = 0; $modo -eq 'file' -and $i -lt $lista.Count; $i++) {
         $proposta = $ff.Scelta($i).Testo
         $scelte = $ff.Scelte($i)
         if ($scelte.Count -ge 2 -and (ACaso $caso 0.2)) {
@@ -362,8 +389,10 @@ foreach ($n in $quali) {
     }
     $fatte = $ff.FatteAdesso()
     $ff.Dispose()
-    $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $fatte))
-    [void]$racconto.AppendLine('Applica: ' + ($esito -replace '\r?\n', ' '))
+    if ($modo -ne 'configurazione') {
+        $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $fatte))
+        [void]$racconto.AppendLine('Applica: ' + ($esito -replace '\r?\n', ' '))
+    }
     $voci = @{}
     foreach ($v in (Leggi $s 'FiltriDaTogliere')) {
         if ($null -eq $v) { continue }
@@ -392,8 +421,8 @@ $mj = ($messaggi | ForEach-Object { '{"da":' + (J $_[0]) + ',"nome":' + (J $_[1]
 $file = Join-Path $temporanea 'scenari.json'
 [System.IO.File]::WriteAllText($file, '{"messaggi":[' + $mj + '],"scenari":[' + ($scenariJson -join ',') + ']}', (New-Object System.Text.UTF8Encoding($false)))
 $preparati = [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1)
-Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} scelte a caso nella tendina) preparati in {5} s" -f
-    $Seme, $quali.Count, $totaleFiltri, $conPrima, $sceltiACaso, $preparati)
+Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file; {5} scelte a caso nella tendina) preparati in {6} s" -f
+    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $sceltiACaso, $preparati)
 try {
     & node (Join-Path $qui 'filtri_a_caso.js') $file $motore
     $codice = $LASTEXITCODE

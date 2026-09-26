@@ -668,11 +668,11 @@ namespace Campanella
         /// <summary>
         /// La riga di un filtro scelto prima, senza il file: si lascia o si
         /// toglie, e parte da togliere, con la regola che lo sostituisce ancora
-        /// ("Toglilo: lo fa gia' la regola X": quella che ricorda, o per uno
-        /// scelto con la 1.6.0 quella con la sua etichetta che lo sostituisce
-        /// adesso, e che "Usa questa scelta" ricordera'). Se nessuna lo
-        /// sostituisce piu' (orfana: la regola e' stata tolta, spenta, non ha
-        /// piu' i suoi mittenti, o non archivia come lui) parte lasciato.
+        /// ("Toglilo: lo fa gia' la regola X": quella che ricorda). Se nessuna
+        /// lo sostituisce piu' (orfana: la regola e' stata tolta, spenta, non ha
+        /// piu' i suoi mittenti, o non archivia come lui) parte lasciato; cosi'
+        /// anche uno scelto con la 1.6.0, che senza il file non va via
+        /// (FiltriGmail.AncoraSostituito).
         /// </summary>
         Riga ScelteDiPrima(FiltroDaTogliere voce, Somiglianza x)
         {
@@ -686,8 +686,7 @@ namespace Campanella
             togli.Testo = "Toglilo";
             if (!r.Orfana)
             {
-                Regola chi = FiltriGmail.SceltoConLaVersioneDiPrima(voce) ? FiltriGmail.RegolaCheLoSostituisce(voce, stato)
-                                                                           : FiltriGmail.RegolaCheLoSostituisceAncora(voce, stato);
+                Regola chi = FiltriGmail.RegolaCheLoSostituisceAncora(voce, stato);
                 if (chi != null)
                 {
                     togli.Regola = chi;
@@ -1027,8 +1026,8 @@ namespace Campanella
                 if (!r.Orfana) return chi;
                 if (di160)
                     return chi + ". La 1.6.0 lo sceglieva per l'etichetta, senza ricordare se archiviava o segnava come " +
-                           "letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e " +
-                           "segnandoli come letti. Resta in Gmail, se non scegli di toglierlo lo stesso" +
+                           "letto: senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la " +
+                           "stessa etichetta che non lo fa. Resta in Gmail, se non scegli di toglierlo lo stesso" +
                            (fileAperto ? "" : "; apri il file dei filtri: la finestra vede che cosa fa e propone che cosa farne");
                 return chi + "; la regola che lo sostituiva (" + r.Voce.Regola + ") non c'e' piu', e' spenta o non " +
                        "prende piu' tutti i suoi messaggi: resta in Gmail, se non scegli di toglierlo lo stesso";

@@ -686,9 +686,9 @@ namespace Campanella
                 "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
                 "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra; " +
-                "cosi' anche uno scelto con la 1.6.0 (che non ricordava se archiviava o segnava come letto), se " +
-                "nessuna regola accesa con la sua etichetta prende tutti i suoi messaggi archiviandoli e segnandoli " +
-                "come letti: riapri il file dei filtri, e la finestra lo vede. Resta anche un filtro che archivia (o " +
+                "cosi' anche uno scelto con la 1.6.0 (che non ricordava se archiviava o segnava come letto), che " +
+                "senza il file dei filtri non va mai via: senza il file non si vede che cosa fa, ne' se in Gmail ce " +
+                "n'e' un altro con la stessa etichetta. Riapri il file, e la finestra lo vede. Resta anche un filtro che archivia (o " +
                 "segna come letto) quando in Gmail ne resta un altro con la stessa etichetta che non lo fa: ai " +
                 "messaggi che prende anche quello mette l'etichetta prima dello script, e la regola non li " +
                 "archivierebbe; e uno la cui regola esclude un'etichetta (Studenti esclude Colleghi, Ministero e USR " +
@@ -2463,12 +2463,12 @@ namespace Campanella
             if (con160 > 0)
                 fuori += (con160 == 1)
                     ? " 1 filtro scelto con la 1.6.0 resta in Gmail: la 1.6.0 lo sceglieva per l'etichetta, senza ricordare se " +
-                      "archiviava o segnava come letto, e nessuna regola accesa con la sua etichetta prende tutti i suoi " +
-                      "messaggi archiviandoli e segnandoli come letti. Apri di nuovo il file dei filtri in \"Filtri che hai " +
+                      "archiviava o segnava come letto, e senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce " +
+                      "n'e' un altro con la stessa etichetta. Apri di nuovo il file dei filtri in \"Filtri che hai " +
                       "gia' in Gmail...\": li' si vede che cosa fa, e la finestra propone che cosa farne."
                     : " " + con160 + " filtri scelti con la 1.6.0 restano in Gmail: la 1.6.0 li sceglieva per l'etichetta, senza " +
-                      "ricordare se archiviavano o segnavano come letto, e nessuna regola accesa con la loro etichetta prende " +
-                      "tutti i loro messaggi archiviandoli e segnandoli come letti. Apri di nuovo il file dei filtri in \"Filtri " +
+                      "ricordare se archiviavano o segnavano come letto, e senza il file dei filtri non si vede che cosa fanno, " +
+                      "ne' se in Gmail ce ne sono altri con la stessa etichetta. Apri di nuovo il file dei filtri in \"Filtri " +
                       "che hai gia' in Gmail...\": li' si vede che cosa fanno, e la finestra propone che cosa farne.";
             return fuori;
         }

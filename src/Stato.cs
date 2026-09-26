@@ -168,10 +168,9 @@ namespace Campanella
         /// "" se si toglie e basta. Senza piu' quella regola, accesa e che
         /// prende ancora tutti i suoi messaggi, non si toglie
         /// (FiltriGmail.AncoraSostituito). "" anche per quelli scelti con la
-        /// 1.6.0, che non hanno nemmeno Archivia e SegnaLetto: si tolgono solo
-        /// se li sostituisce una regola accesa con la loro etichetta
-        /// (FiltriGmail.RegolaCheLoSostituisce), e allora la ricordano. Non fa
-        /// parte della chiave.
+        /// 1.6.0, che non hanno nemmeno Archivia e SegnaLetto: senza il file dei
+        /// filtri non si tolgono (non si vede che cosa fanno), con il file la
+        /// finestra li propone di nuovo. Non fa parte della chiave.
         /// </summary>
         public string Regola = "";
         /// <summary>
