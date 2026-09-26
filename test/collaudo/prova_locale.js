@@ -51,6 +51,8 @@ const testaCalendario = fs.readFileSync(path.join(radice, 'src', 'risorse', 'Cal
 // Calendario.gs come lo prepara l'applicazione (test/prova_orario.ps1 controlla che sia lo stesso)
 const calendario = soloCalendario(orari, testaCalendario);
 const collaudo = fs.readFileSync(path.join(qui, 'Collaudo_calendario.gs'), 'utf8');
+// la versione dello script, come la scrivono il collaudo e il riepilogo
+const VERSIONE = (/\bvar\s+_ORARI_VERSIONE\s*=\s*'([^']+)'/.exec(orari) || [])[1];
 
 let fallimenti = 0;
 function verifica(descrizione, condizione, dettaglio) {
@@ -289,9 +291,9 @@ for (const script of ['Calendario.gs', 'Orari.gs']) {
   verifica('nessun controllo NO (' + e.no.length + ')', e.no.length === 0, e.no.join('\n'));
   verifica('tutti i controlli OK: ' + e.ok.length + ' (devono essere ' + CONTROLLI + ')', e.ok.length === CONTROLLI);
   verifica('il riepilogo dice NO: 0, "Tutti i controlli sono OK", le due parti fatte e niente da fare, con lo script (' +
-    script + ' 1.6.0)', /NO: 0\n/.test(e.riepilogo) && e.riepilogo.indexOf('Tutti i controlli sono OK.') >= 0 &&
+    script + ' ' + VERSIONE + ')', /NO: 0\n/.test(e.riepilogo) && e.riepilogo.indexOf('Tutti i controlli sono OK.') >= 0 &&
     /Parti fatte: 1 in \d+\.\d s, 2 in \d+\.\d s\./.test(e.riepilogo) && e.riepilogo.indexOf('Da fare') < 0 &&
-    e.riepilogo.indexOf('== RIEPILOGO di COLLAUDO (' + script + ' ') === 0, e.riepilogo);
+    e.riepilogo.indexOf('== RIEPILOGO di COLLAUDO (' + script + ' ' + VERSIONE + ')\n') === 0, e.riepilogo);
   ATTESI_PARTE_1.concat(ATTESI_PARTE_2, ['nessun trigger rimasto nel progetto'])
     .forEach(atteso => verifica('OK: ' + atteso, contiene(e.ok, atteso)));
   // le NOTE sui punti mai provati dal vivo, con quello che il finto calendario suppone
@@ -319,7 +321,7 @@ for (const script of ['Calendario.gs', 'Orari.gs']) {
   verifica('nel registro ci sono i messaggi veri di ' + script + ' (anteprima, cambio, colori, annulla)',
     e.testo.indexOf(script === 'Orari.gs' ? 'ANTEPRIMA - non viene mandato niente.' :
                                             'ANTEPRIMA - sul calendario non viene messo niente.') >= 0 &&
-    e.testo.indexOf(script + ' versione 1.6.0; fuso orario dello script: Europe/Rome.') >= 0 &&
+    e.testo.indexOf(script + ' versione ' + VERSIONE + '; fuso orario dello script: Europe/Rome.') >= 0 &&
     e.testo.indexOf('Cambio d\'orario dal 2026-11-02') >= 0 &&
     e.testo.indexOf('Colori delle classi nel calendario "Collaudo Campanella"') >= 0 &&
     e.testo.indexOf('eventi messi da Campanella dal calendario "Collaudo Campanella"') >= 0);
