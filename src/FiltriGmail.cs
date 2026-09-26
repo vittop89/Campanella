@@ -1462,8 +1462,10 @@ namespace Campanella
         /// personale, il dominio e i gruppi sciolti: Colleghi con i colleghi
         /// dell'elenco), ogni esclusione che il filtro non ha non tocca i suoi
         /// mittenti (Innocua: un'esclusione in piu' lascerebbe fuori dei
-        /// messaggi del filtro), e nessuna delle regole di cui esclude
-        /// l'etichetta prende tutto un suo mittente. I messaggi che hanno l'etichetta di
+        /// messaggi del filtro), nessuna delle regole di cui esclude
+        /// l'etichetta prende tutto un suo mittente, e sopra di lei non c'e'
+        /// una regola con la stessa etichetta che archivia o segna come letti
+        /// diversamente (PrimaUnaDiversa). I messaggi che hanno l'etichetta di
         /// una regola che esclude (i colleghi per Studenti, la casella della
         /// scuola per Ministero e USR) non li prende: e' quello che fa, e
         /// non conta.
@@ -1476,7 +1478,7 @@ namespace Campanella
             if (!StesseAzioni(r, archivia, letti)) return false;
             List<string> esclusi = Esclusioni(r.QueryLibera);
             if (esclusi == null) return false;
-            if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) return false;
+            if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) || PrimaUnaDiversa(s, r, personale)) return false;
             List<string> sue = MittentiSciolti(s, r, personale);
             foreach (string d in m.Da)
                 if (!PresoDa(sue, d) || PresoDaUnaEsclusa(s, r, d)) return false;
@@ -1489,7 +1491,8 @@ namespace Campanella
         /// Vero se la regola, accesa, fa proprio la ricerca di un filtro che non
         /// e' fatto solo di mittenti, tutta nella ricerca avanzata, e
         /// nient'altro: nessun mittente, oggetto, parole o etichette escluse;
-        /// archivia e segna come letti come lui (StesseAzioni).
+        /// archivia e segna come letti come lui (StesseAzioni), e sopra di lei
+        /// nessuna regola con la stessa etichetta fa diversamente.
         /// </summary>
         static bool FaLaRicerca(Stato s, Regola r, string ricerca, bool? archivia, bool? letti, List<string> personale)
         {
@@ -1497,13 +1500,33 @@ namespace Campanella
             if (r.Sorgente != "" || r.Da.Count > 0 || r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi ||
                 r.EscludiEtichette.Count > 0) return false;
             if (!string.Equals((r.QueryLibera ?? "").Trim(), ricerca.Trim(), StringComparison.OrdinalIgnoreCase)) return false;
-            return StesseAzioni(r, archivia, letti) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale);
+            return StesseAzioni(r, archivia, letti) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) &&
+                   !PrimaUnaDiversa(s, r, personale);
         }
 
         /// <summary>Vero se la regola archivia e segna come letti come il filtro (quello che non si sa, null, va bene).</summary>
         static bool StesseAzioni(Regola r, bool? archivia, bool? letti)
         {
             return (!archivia.HasValue || r.Archivia == archivia.Value) && (!letti.HasValue || r.SegnaComeLette == letti.Value);
+        }
+
+        /// <summary>
+        /// Vero se sopra la regola c'e' un'altra regola accesa con la stessa
+        /// etichetta che archivia o segna come letti in modo diverso. Nel
+        /// riordino e nello smistamento ogni regola cerca solo i messaggi che
+        /// non hanno ancora la sua etichetta (-label:): quella di sopra prende
+        /// anche i messaggi comuni, e fa solo quello che fa lei.
+        /// </summary>
+        static bool PrimaUnaDiversa(Stato s, Regola r, List<string> personale)
+        {
+            foreach (Regola a in s.Regole)
+            {
+                if (a == r) return false;
+                if (string.Equals((a.Etichetta ?? "").Trim(), (r.Etichetta ?? "").Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    (a.Archivia != r.Archivia || a.SegnaComeLette != r.SegnaComeLette) &&
+                    GeneratorePosta.AttivaNellaConfigurazione(s, a, personale)) return true;
+            }
+            return false;
         }
 
         /// <summary>I mittenti della regola come li scrive, e con i segnaposto sciolti (l'elenco del personale, il dominio, i gruppi).</summary>
@@ -1574,7 +1597,8 @@ namespace Campanella
             foreach (Regola r in candidate)
             {
                 if (GiaNellaRegola(f, r, s)) return r;
-                if (tradotta != null && StessaRegola(tradotta, r) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) return r;
+                if (tradotta != null && StessaRegola(tradotta, r) && GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) &&
+                    !PrimaUnaDiversa(s, r, personale)) return r;
             }
             return null;
         }
@@ -2010,8 +2034,11 @@ namespace Campanella
         /// uniscono; altrimenti, se sono regole appena nate da altri filtri, ne
         /// nasce un'altra con la stessa etichetta e lo stesso colore, subito
         /// sotto: unite, le esclusioni dell'uno varrebbero anche per i mittenti
-        /// dell'altro. Con una regola che c'era gia', il filtro resta. "" se
-        /// l'ha fatto, altrimenti il perche'.
+        /// dell'altro. Solo se archiviano e segnano come letti allo stesso
+        /// modo: dove prendono gli stessi messaggi li prende la prima, e fa solo
+        /// quello che fa lei; con azioni diverse il filtro resta. Con una
+        /// regola che c'era gia', il filtro resta. "" se l'ha fatto,
+        /// altrimenti il perche'.
         /// </summary>
         static string CreaRegola(Stato s, FiltroScelto x, Dictionary<Regola, int> dopo, List<Regola> createAdesso,
                                  List<string> nuove, List<string> unite, List<string> scuola, out Regola sostituta)
@@ -2026,7 +2053,8 @@ namespace Campanella
             foreach (Regola e in s.Regole)
             {
                 if (!ConEtichetta(e, f.Etichetta, s)) continue;
-                if (GiaNellaRegola(f, e, s) || (StessaRegola(r, e) && GeneratorePosta.AttivaNellaConfigurazione(s, e, personale)))
+                if (GiaNellaRegola(f, e, s) ||
+                    (StessaRegola(r, e) && GeneratorePosta.AttivaNellaConfigurazione(s, e, personale) && !PrimaUnaDiversa(s, e, personale)))
                 {
                     sostituta = e;
                     return "";
@@ -2042,6 +2070,14 @@ namespace Campanella
                     return UnisciAllaRegola(s, f, e, unite, scuola);
                 }
             if (cera != null) return "c'e' gia' la regola " + NomeIntero(cera, s);
+            // due regole con la stessa etichetta cercano tutte e due -label:
+            // quella etichetta: dove si sovrappongono prende la prima, e fa solo
+            // quello che fa lei. Con azioni diverse, una delle due non le farebbe
+            foreach (Regola e in createAdesso)
+                if (ConEtichetta(e, f.Etichetta, s) && (e.Archivia != r.Archivia || e.SegnaComeLette != r.SegnaComeLette))
+                    return "c'e' gia' una regola " + NomeIntero(e, s) + ", nata adesso da un altro filtro, che " +
+                           (e.Archivia != r.Archivia ? "archivia" : "segna come letti") + " diversamente: dove prendono " +
+                           "gli stessi messaggi farebbe solo quello che fa lei";
             r.Colore = (gemella != null) ? gemella.Colore : ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
             Regola simile = (x.Somiglia != null && x.Somiglia.Tipo == Simile) ? RegolaDi(x.Somiglia, s) : null;
             int dove = s.Regole.Count;

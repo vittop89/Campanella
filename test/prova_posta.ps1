@@ -1430,6 +1430,37 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         @($riaperteD | Where-Object { $_.Azione -eq 'togli' -and $null -ne $_.Regola }).Count -eq 4 -and
         [object]::ReferenceEquals($riaperteD[0].Regola, $portaliD[0]) -and [object]::ReferenceEquals($riaperteD[1].Regola, $portaliD[1]) -and
         [object]::ReferenceEquals($riaperteD[2].Regola, $gareD[0]) -and [object]::ReferenceEquals($riaperteD[3].Regola, $gareD[0]))
+    # due filtri con la stessa etichetta che archiviano in modo diverso: niente
+    # gemella. Ogni regola cerca -label: la sua etichetta, quindi dove si
+    # sovrappongono prende la prima e fa solo quello che fa lei: la seconda
+    # non archivierebbe avvisi@portale-uno.example. Quello che archivia resta
+    $sA = StatoRiorganizza
+    $portaleNo = UnFiltro ([ordered]@{ hasTheWord = 'from:(portale-uno.example OR portale-due.example)'; label = 'Portali' })
+    $portaleSi = UnFiltro ([ordered]@{ hasTheWord = 'from:avvisi@portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
+    $listaA = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tFiltroGmail))
+    $listaA.Add($portaleNo); $listaA.Add($portaleSi)
+    $ffA = [Activator]::CreateInstance($tFF, @($sA.PSObject.BaseObject))
+    $ffA.Carica($listaA)
+    $propA = @(0..1 | ForEach-Object { $ffA.Scelta($_).Azione })
+    $riepA = [string]$mApplica.Invoke($null, @($sA.PSObject.BaseObject, $ffA.FatteAdesso()))
+    $ffA.Dispose()
+    $portaliA = @((Leggi $sA 'Regole') | Where-Object { $_.Etichetta -eq 'Portali' })
+    Verifica "Portali che non archivia e Portali che archivia: partono tutti e due 'Diventa una regola' ($($propA -join ', ')), ma nasce una regola sola e quello che archivia resta in Gmail ('$($riepA -replace '\r?\n', ' ')')" (
+        ($propA -join ',') -eq 'nuova,nuova' -and $portaliA.Count -eq 1 -and -not $portaliA[0].Archivia -and
+        (Leggi $sA 'FiltriDaTogliere').Count -eq 1 -and (Leggi $sA 'FiltriDaTogliere')[0].Criteri['query'] -eq $portaleNo.Criteri['query'] -and
+        $riepA -match "Portali \(c'e' gia' una regola Portali, nata adesso da un altro filtro, che archivia diversamente")
+    # e una Portali che archivia messa a mano sotto quella che non archivia non
+    # "lo fa gia'": i messaggi comuni li prende quella di sopra, senza archiviarli
+    $gemellaA = $portaliA[0].Copia()
+    $gemellaA.Da.Clear(); $gemellaA.Da.Add('avvisi@portale-uno.example'); $gemellaA.Archivia = $true
+    $regoleA = Leggi $sA 'Regole'
+    $regoleA.Insert($regoleA.IndexOf($portaliA[0]) + 1, $gemellaA)
+    $cSotto = ScelteDi $portaleSi $sA
+    [void]$regoleA.Remove($gemellaA)
+    $regoleA.Insert($regoleA.IndexOf($portaliA[0]), $gemellaA)
+    $cSopra = ScelteDi $portaleSi $sA
+    Verifica "una Portali che archivia sotto una Portali che no non 'lo fa gia'' ($(Testi $cSotto)); sopra di lei si' ('$($cSopra.proposta.Testo)')" (
+        (Testi $cSotto) -notmatch "lo fa gia'" -and $cSopra.proposta.Testo -eq "Toglilo: lo fa gia' la regola Portali")
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UNISCI CON LE ESCLUSIONI'
