@@ -66,18 +66,21 @@ namespace Campanella
         public string Motivo = "";
         public List<string> Avvisi = new List<string>();
         public int UgualeA;                   // uguale alla voce di quella riga (0: a nessuna)
+        public int StessaOraDi;               // lo stesso giorno, a un'ora che si accavalla, della voce di quella riga (0: di nessuna)
 
         /// <summary>
         /// Va sul calendario (e in DatiOrari.gs): un periodo senza colloqui,
         /// o un colloquio con l'ora di inizio e quella di fine, dopo. Senza ora,
         /// o con la fine prima dell'inizio, resta solo nella casella; e anche
-        /// una voce uguale a una di sopra, che sul calendario c'e' gia'.
+        /// una voce uguale a una di sopra, che sul calendario c'e' gia', o alla
+        /// stessa ora di una di sopra (con un altro nome o un altro link: sul
+        /// calendario sarebbero due colloqui insieme).
         /// </summary>
         public bool Buona
         {
             get
             {
-                if (Voce == null || UgualeA > 0) return false;
+                if (Voce == null || UgualeA > 0 || StessaOraDi > 0) return false;
                 if (Voce.Tipo == TipoColloquio.Sospensione) return true;
                 return Voce.Dalle != "" && Voce.Alle != "" && string.CompareOrdinal(Voce.Alle, Voce.Dalle) > 0;
             }
@@ -236,7 +239,11 @@ namespace Campanella
         /// un colloquio in un altro giorno ha un avviso. Senza orario (null o
         /// vuoto), nessun avviso sui giorni. Un colloquio uguale a uno di una
         /// riga di sopra (lo stesso file importato due volte) ha un avviso, e
-        /// sul calendario non va: c'e' gia'.
+        /// sul calendario non va: c'e' gia'. Nemmeno uno alla stessa ora di uno
+        /// di sopra, anche solo in parte, con un altro nome o un altro link (una
+        /// riga importata e corretta, e il file importato di nuovo; il
+        /// ricevimento scritto a mano e poi importato con il link): lo stesso
+        /// giorno della settimana nelle stesse settimane, o la stessa data.
         /// </summary>
         public static List<RigaColloquio> LeggiRighe(string testo, DateTime inizioPeriodo, List<int> giorniOrario)
         {
@@ -261,10 +268,43 @@ namespace Campanella
                         break;
                     }
                 }
+                // alla stessa ora di una di sopra: sul calendario sarebbero due colloqui insieme
+                if (r.Buona && r.Voce.Tipo != TipoColloquio.Sospensione)
+                {
+                    foreach (RigaColloquio prima in fuori)
+                    {
+                        if (!prima.Buona || !AllaStessaOra(prima.Voce, r.Voce)) continue;
+                        r.StessaOraDi = prima.Numero;
+                        r.Avvisi.Add((r.Voce.Tipo == TipoColloquio.Settimanale ? "stesso giorno" : "stessa data") +
+                                     " e stessa ora della riga " + prima.Numero + " (anche solo in parte): sul calendario " +
+                                     "va solo quella; tieni la riga giusta e togli l'altra");
+                        break;
+                    }
+                }
                 fuori.Add(r);
             }
             return fuori;
         }
+
+        /// <summary>
+        /// Due colloqui dello stesso tipo alla stessa ora, anche solo in parte:
+        /// due ricevimenti lo stesso giorno della settimana, con le date che si
+        /// toccano (senza date valgono per tutto il periodo), o due giornate la
+        /// stessa data. Uno che comincia quando l'altro finisce no.
+        /// </summary>
+        static bool AllaStessaOra(Colloquio a, Colloquio b)
+        {
+            if (a.Tipo != b.Tipo || a.Tipo == TipoColloquio.Sospensione) return false;
+            if (a.Dalle == "" || a.Alle == "" || b.Dalle == "" || b.Alle == "") return false;
+            if (string.CompareOrdinal(a.Dalle, b.Alle) >= 0 || string.CompareOrdinal(b.Dalle, a.Alle) >= 0) return false;
+            if (a.Tipo == TipoColloquio.Giornata) return a.Dal.Date == b.Dal.Date;
+            if (a.Giorno != b.Giorno) return false;
+            return DalDi(a) <= AlDi(b) && DalDi(b) <= AlDi(a);
+        }
+
+        /// <summary>Le date di un ricevimento: le sue, o senza date tutte.</summary>
+        static DateTime DalDi(Colloquio x) { return x.ConDate ? x.Dal.Date : DateTime.MinValue; }
+        static DateTime AlDi(Colloquio x) { return x.ConDate ? x.Al.Date : DateTime.MaxValue; }
 
         /// <summary>Due colloqui uguali: lo stesso giorno o le stesse date, le stesse ore, lo stesso nome e lo stesso link.</summary>
         static bool Uguali(Colloquio a, Colloquio b)
@@ -1172,19 +1212,35 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Le righe importate che nella casella non ci sono gia' (come testo, senza
-        /// badare a maiuscole e spazi), senza doppioni fra loro: il file importato
-        /// di nuovo non raddoppia i colloqui. gia: quante sono rimaste fuori.
+        /// Le righe importate che nella casella non ci sono gia', senza doppioni
+        /// fra loro: il file importato di nuovo non raddoppia i colloqui. Gia'
+        /// scritta e' una riga con lo stesso testo (senza badare a maiuscole e
+        /// spazi), o con la stessa voce di una riga della casella anche con un
+        /// altro nome: lo stesso tipo, lo stesso giorno o la stessa data, le
+        /// stesse ore, le stesse date e lo stesso link (una riga importata e poi
+        /// corretta nel nome non torna). inizioPeriodo da' l'anno alle date
+        /// scritte senza. gia: quante sono rimaste fuori.
         /// </summary>
-        public static List<string> SenzaQuelleGiaScritte(string testo, List<string> righe, out int gia)
+        public static List<string> SenzaQuelleGiaScritte(string testo, List<string> righe, DateTime inizioPeriodo, out int gia)
         {
             gia = 0;
             HashSet<string> scritte = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string r in Calendario.Righe(testo)) scritte.Add(Normale(r));
+            HashSet<string> voci = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string r in Calendario.Righe(testo))
+            {
+                if (r.Trim() == "") continue;
+                scritte.Add(Normale(r));
+                string k = ChiaveDellaVoce(r, inizioPeriodo);
+                if (k != "") voci.Add(k);
+            }
             List<string> fuori = new List<string>();
             foreach (string r in righe)
             {
-                if (!scritte.Add(Normale(r))) { gia++; continue; }
+                string k = ChiaveDellaVoce(r, inizioPeriodo);
+                if (scritte.Contains(Normale(r)) || (k != "" && voci.Contains(k))) { gia++; continue; }
+                // fra le righe del file conta il testo: due voci alla stessa ora
+                // con nomi diversi arrivano tutte e due, e la casella le mostra
+                scritte.Add(Normale(r));
                 fuori.Add(r);
             }
             return fuori;
@@ -1193,6 +1249,28 @@ namespace Campanella
         static string Normale(string riga)
         {
             return Regex.Replace(riga ?? "", @"\s+", " ").Trim().ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// La voce di una riga senza il nome, per riconoscerla anche con un
+        /// altro nome: "" se la riga non si capisce.
+        /// </summary>
+        static string ChiaveDellaVoce(string riga, DateTime inizioPeriodo)
+        {
+            string t = (riga ?? "").Trim();
+            if (t == "" || t.StartsWith("#")) return "";
+            RigaColloquio r = new RigaColloquio();
+            LeggiUna(t, inizioPeriodo, null, r);
+            return (r.Voce == null) ? "" : Chiave(r.Voce);
+        }
+
+        /// <summary>La voce senza il nome: il tipo, il giorno o la data, le date, le ore e il link.</summary>
+        static string Chiave(Colloquio x)
+        {
+            if (x.Tipo == TipoColloquio.Sospensione) return "sospensione|" + Iso(x.Dal) + "|" + Iso(x.Al);
+            string quando = (x.Tipo == TipoColloquio.Giornata) ? "giornata|" + Iso(x.Dal)
+                          : "settimanale|" + x.Giorno + "|" + (x.ConDate ? Iso(x.Dal) + "|" + Iso(x.Al) : "|");
+            return quando + "|" + x.Dalle + "|" + x.Alle + "|" + x.Link;
         }
 
         /// <summary>

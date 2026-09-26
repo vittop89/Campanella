@@ -1246,9 +1246,11 @@ namespace Campanella
                 return;
             }
             int gia;
-            List<string> nuoveRighe = Colloqui.SenzaQuelleGiaScritte(txtColloqui.Text, righe, out gia);
-            string giaDette = (gia == 1 ? "Una riga era gia' nella casella, e non l'ho aggiunta di nuovo."
-                                        : gia + " righe erano gia' nella casella, e non le ho aggiunte di nuovo.");
+            List<string> nuoveRighe = Colloqui.SenzaQuelleGiaScritte(txtColloqui.Text, righe, dtInizio.Value.Date, out gia);
+            string giaDette = (gia == 1 ? "Una riga era gia' nella casella (anche con un altro nome), e non l'ho " +
+                                          "aggiunta di nuovo."
+                                        : gia + " righe erano gia' nella casella (anche con un altro nome), e non le ho " +
+                                          "aggiunte di nuovo.");
             if (nuoveRighe.Count == 0)
             {
                 Guscio.Stato1("Le righe di " + daDove + " sono gia' tutte nella casella: non ho aggiunto niente.");

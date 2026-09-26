@@ -982,7 +982,9 @@ console.log(JSON.stringify({
 
         # la stessa voce due volte (lo stesso file importato due volte): la
         # seconda e' in ambra, dice quale, e non va sul calendario ne' in
-        # DatiOrari.gs; un link "Https://" ci va con lo schema in minuscolo
+        # DatiOrari.gs; un link "Https://" ci va con lo schema in minuscolo.
+        # Anche con un altro nome, alla stessa ora: sul calendario sarebbero
+        # due colloqui insieme
         $doppie = @(
             'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
             '15/12/2026 15:00-18:00 Colloqui generali',
@@ -994,17 +996,51 @@ console.log(JSON.stringify({
         $detteD = @($letteD | ForEach-Object { [string]$tCol.GetMethod('Descrivi', $FS).Invoke($null, @($_.PSObject.BaseObject, $inizioK, $fineK)) })
         Verifica "una voce uguale a una di sopra e' in ambra, dice quale e non va sul calendario ($($detteD[2]) | $($detteD[3]))" (
             $letteD.Count -eq 5 -and $letteD[0].Buona -and $letteD[1].Buona -and -not $letteD[2].Buona -and -not $letteD[3].Buona -and
-            $letteD[4].Buona -and $letteD[2].UgualeA -eq 1 -and $letteD[3].UgualeA -eq 2 -and
+            $letteD[2].UgualeA -eq 1 -and $letteD[3].UgualeA -eq 2 -and
             $detteD[2].EndsWith('<- uguale alla riga 1: sul calendario va una volta sola') -and
             $detteD[3].EndsWith('<- uguale alla riga 2: sul calendario va una volta sola') -and
             [bool]$tCol.GetMethod('DaGuardare', $FS).Invoke($null, @($letteD[2], $inizioK, $fineK)))
+        Verifica "  ...e una alla stessa ora con un altro nome anche ($($detteD[4]))" (
+            -not $letteD[4].Buona -and $letteD[4].StessaOraDi -eq 2 -and $letteD[4].UgualeA -eq 0 -and
+            $detteD[4] -match '<- stessa data e stessa ora della riga 2 ' -and
+            [bool]$tCol.GetMethod('DaGuardare', $FS).Invoke($null, @($letteD[4], $inizioK, $fineK)))
         $sbD = New-Object System.Text.StringBuilder
         $tCol.GetMethod('ScriviDatiGs', $FS).Invoke($null, @($sbD.PSObject.BaseObject, $doppie, $inizioK)) | Out-Null
         $gsD = $sbD.ToString()
         $pD = $tCol.GetMethod('Piano', $FS).Invoke($null, @($listaD, $inizioK, $fineK, $null))
-        Verifica "  ...in DatiOrari.gs e nel piano va una volta sola (1 ricevimento, 2 giornate: $($pD.Settimanali), $($pD.Singoli))" (
-            ([regex]::Matches($gsD, 'giorno: "giovedi"')).Count -eq 1 -and ([regex]::Matches($gsD, 'data: "2026-12-15"')).Count -eq 2 -and
-            $pD.Settimanali -eq 1 -and $pD.Singoli -eq 2)
+        Verifica "  ...in DatiOrari.gs e nel piano va una volta sola (1 ricevimento, 1 giornata: $($pD.Settimanali), $($pD.Singoli))" (
+            ([regex]::Matches($gsD, 'giorno: "giovedi"')).Count -eq 1 -and ([regex]::Matches($gsD, 'data: "2026-12-15"')).Count -eq 1 -and
+            $pD.Settimanali -eq 1 -and $pD.Singoli -eq 1)
+
+        # due ricevimenti lo stesso giorno a ore che si accavallano, nelle
+        # stesse settimane (qualunque siano il nome e il link), o due giornate
+        # la stessa data a ore che si accavallano: il secondo e' in ambra, dice
+        # quale e sul calendario non va. Uno dopo l'altro, o in settimane
+        # diverse, vanno tutti e due
+        $accavallate = @(
+            'ogni giovedi 10:10-11:10 Ricevimento aula 12 https://meet.google.com/abc-defg-hij',
+            '15/12/2026 15:00-18:00 Colloqui generali',
+            'ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/abc-defg-hij',
+            'ogni giovedi 10:40-11:40 Ricevimento',
+            'ogni giovedi 11:10-12:10 Ricevimento aula 3',
+            'ogni venerdi 10:10-11:10 Ricevimento',
+            '15/12/2026 17:00-19:00 Colloqui, secondo turno',
+            '16/12/2026 15:00-18:00 Colloqui generali',
+            'dal 01/02/2027 al 10/06/2027 ogni giovedi 11:30-12:30 Ricevimento',
+            'dal 14/09/2026 al 31/01/2027 ogni lunedi 15-16 Ricevimento',
+            'dal 01/02/2027 al 10/06/2027 ogni lunedi 15-16 Ricevimento') -join "`r`n"
+        $listaA = $tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($accavallate, $inizioK, $cinqueGiorni.PSObject.BaseObject))
+        $letteA = @($listaA)
+        $detteA = @($letteA | ForEach-Object { [string]$tCol.GetMethod('Descrivi', $FS).Invoke($null, @($_.PSObject.BaseObject, $inizioK, $fineK)) })
+        $attese = @(0, 0, 1, 1, 0, 0, 2, 0, 5, 0, 0)
+        $vanno = @($letteA | ForEach-Object { if ($_.Buona) { 'si' } else { 'no:' + $_.StessaOraDi } })
+        Verifica "le voci alla stessa ora di una di sopra sono in ambra, dicono quale e non vanno sul calendario ($($vanno -join ' '))" (
+            $letteA.Count -eq 11 -and
+            @(for ($i = 0; $i -lt 11; $i++) { if ([int]$letteA[$i].StessaOraDi -ne $attese[$i] -or [bool]$letteA[$i].Buona -ne ($attese[$i] -eq 0)) { $i } }).Count -eq 0 -and
+            $detteA[2] -match '<- stesso giorno e stessa ora della riga 1 ' -and $detteA[3] -match '<- stesso giorno e stessa ora della riga 1 ' -and
+            $detteA[6] -match '<- stessa data e stessa ora della riga 2 ' -and $detteA[8] -match '<- stesso giorno e stessa ora della riga 5 ')
+        $pA = $tCol.GetMethod('Piano', $FS).Invoke($null, @($listaA, $inizioK, $fineK, $null))
+        Verifica "  ...e nel piano non contano (5 ricevimenti, 2 giornate: $($pA.Settimanali), $($pA.Singoli))" ($pA.Settimanali -eq 5 -and $pA.Singoli -eq 2)
         $sbH = New-Object System.Text.StringBuilder
         $tCol.GetMethod('ScriviDatiGs', $FS).Invoke($null, @($sbH.PSObject.BaseObject, 'ogni giovedi 10:10-11:10 Ricevimento Https://meet.google.com/abc-defg-hij', $inizioK)) | Out-Null
         Verifica "un link scritto Https:// va in DatiOrari.gs con lo schema in minuscolo, come lo vuole lo script" (
@@ -1167,21 +1203,52 @@ console.log(JSON.stringify({
         $scritte = "ogni  giovedi 10:10-11:10 RICEVIMENTO https://meet.google.com/abc-defg-hij`r`nuna riga mia"
         $mSenza = $tCol.GetMethod('SenzaQuelleGiaScritte', $FS)
         Verifica "c'e' Colloqui.SenzaQuelleGiaScritte, per l'import" ($null -ne $mSenza)
-        if ($null -ne $mSenza) {
-            $aArg = New-Object 'object[]' 3
-            $aArg[0] = (($dalCsv.Righe) -join "`r`n")
-            $aArg[1] = [System.Collections.Generic.List[string]]$dalCsv.Righe
-            $aArg[2] = 0
-            $dinuovo = @($mSenza.Invoke($null, $aArg))
-            $aArg2 = New-Object 'object[]' 3
-            $aArg2[0] = $scritte
-            $aArg2[1] = [System.Collections.Generic.List[string]]$dalCsv.Righe
-            $aArg2[2] = 0
-            $nuove = @($mSenza.Invoke($null, $aArg2))
-            Verifica "lo stesso file importato di nuovo non aggiunge niente ($($dinuovo.Count) righe, $($aArg[2]) gia' scritte); una riga gia' scritta a mano (con altri spazi e maiuscole) nemmeno ($($nuove.Count), $($aArg2[2]))" (
-                $dinuovo.Count -eq 0 -and [int]$aArg[2] -eq $dalCsv.Righe.Count -and $nuove.Count -eq ($dalCsv.Righe.Count - 1) -and
-                [int]$aArg2[2] -eq 1)
+        # (testo della casella, righe del file, inizio del periodo, quante c'erano gia')
+        function SenzaQuelleGiaScritte([string]$casella, $righe) {
+            $a = New-Object 'object[]' 4
+            $a[0] = $casella
+            $a[1] = [System.Collections.Generic.List[string]]@($righe)
+            $a[2] = $inizioK
+            $a[3] = 0
+            $n = @($mSenza.Invoke($null, $a))
+            @{ Nuove = $n; Gia = [int]$a[3] }
         }
+        if ($null -ne $mSenza -and $mSenza.GetParameters().Count -eq 4) {
+            $dinuovo = SenzaQuelleGiaScritte (($dalCsv.Righe) -join "`r`n") $dalCsv.Righe
+            $nuove = SenzaQuelleGiaScritte $scritte $dalCsv.Righe
+            Verifica "lo stesso file importato di nuovo non aggiunge niente ($($dinuovo.Nuove.Count) righe, $($dinuovo.Gia) gia' scritte); una riga gia' scritta a mano (con altri spazi e maiuscole) nemmeno ($($nuove.Nuove.Count), $($nuove.Gia))" (
+                $dinuovo.Nuove.Count -eq 0 -and $dinuovo.Gia -eq $dalCsv.Righe.Count -and $nuove.Nuove.Count -eq ($dalCsv.Righe.Count - 1) -and
+                $nuove.Gia -eq 1)
+            # una riga importata e poi corretta nel nome (qui "aula 12"), e il file
+            # importato di nuovo con una giornata in piu': la riga corretta c'e' gia'
+            # (lo stesso giorno, le stesse ore e lo stesso link), e il ricevimento
+            # non raddoppia
+            $mio = ScriviCsv 'mio_ricevimento.csv' @('Giorno;Ora;Cosa;Link',
+                'giovedi;10:10-11:10;Ricevimento;https://meet.google.com/abc-defg-hij', '15/12/2026;15:00-18:00;Colloqui generali;')
+            $primoImport = Importa $mio
+            $corretta = (($primoImport.Righe) -join "`r`n").Replace('Ricevimento', 'Ricevimento aula 12')
+            $mio = ScriviCsv 'mio_ricevimento.csv' @('Giorno;Ora;Cosa;Link',
+                'giovedi;10:10-11:10;Ricevimento;https://meet.google.com/abc-defg-hij', '15/12/2026;15:00-18:00;Colloqui generali;',
+                '13/04/2027;15:00-18:00;Colloqui generali;')
+            $secondo = SenzaQuelleGiaScritte $corretta (Importa $mio).Righe
+            $dopo = $corretta + "`r`n" + ($secondo.Nuove -join "`r`n")
+            $letteDopo = $tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @($dopo, $inizioK, $cinqueGiorni.PSObject.BaseObject))
+            $pDopo = $tCol.GetMethod('Piano', $FS).Invoke($null, @($letteDopo, $inizioK, $fineK, $null))
+            Verifica "una riga importata, corretta nel nome e importata di nuovo non torna (nuove: $($secondo.Nuove -join ' | '); gia': $($secondo.Gia); $($pDopo.Settimanali) ricevimento, $($pDopo.Singoli) giornate)" (
+                $primoImport.Errore -eq '' -and $secondo.Nuove.Count -eq 1 -and $secondo.Nuove[0] -eq '13/04/2027 15:00-18:00 Colloqui generali' -and
+                $secondo.Gia -eq 2 -and $pDopo.Settimanali -eq 1 -and $pDopo.Singoli -eq 2 -and
+                @($letteDopo | Where-Object { -not $_.Buona }).Count -eq 0)
+            # il ricevimento scritto a mano senza link, come nell'esempio della
+            # guida, e poi il file con il link: la riga del file si aggiunge (ha il
+            # link), ma e' in ambra alla stessa ora e sul calendario non va
+            $aMano = "ogni gioved$ie 10:10-11:10 Ricevimento"
+            $conLink = SenzaQuelleGiaScritte $aMano $primoImport.Righe
+            $letteLink = @($tCol.GetMethod('LeggiRighe', $FS).Invoke($null, @(($aMano + "`r`n" + ($conLink.Nuove -join "`r`n")), $inizioK, $cinqueGiorni.PSObject.BaseObject)))
+            Verifica "il ricevimento scritto a mano e poi importato con il link non va due volte sul calendario ($($conLink.Nuove.Count) nuove; $(@($letteLink | ForEach-Object { $_.Buona }) -join ' '))" (
+                $conLink.Nuove.Count -eq 2 -and $letteLink.Count -eq 3 -and $letteLink[0].Buona -and -not $letteLink[1].Buona -and
+                $letteLink[1].StessaOraDi -eq 1 -and $letteLink[2].Buona)
+        }
+        else { Verifica "Colloqui.SenzaQuelleGiaScritte vuole anche l'inizio del periodo, per leggere le righe" $false }
     }
 
     # --- DatiOrari.gs porta i giorni senza lezione e la data del cambio -----
