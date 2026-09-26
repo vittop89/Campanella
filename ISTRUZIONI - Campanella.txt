@@ -201,7 +201,7 @@ POSTA - riordinare la casella
    etichetta; il bottone, "Sposta Ministero e USR sotto Dirigenza e
    Segreteria", la rimette sotto. L'avviso ricorda anche il filtro vero
    di prima (qui sotto), e cosi' la riga di stato dopo il bottone, se al
-   passo 4 hai chiesto i filtri veri di Gmail. Con
+   passo 4 hai chiesto i filtri veri di Gmail (anche spuntandolo adesso). Con
    EXTRA_creaFiltriGmail una regola che esclude altre etichette non ha un
    filtro vero di Gmail: resta allo smistamento dello script, come
    Studenti. Se i filtri veri li avevi creati prima, quello di Ministero e
@@ -265,15 +265,23 @@ POSTA - riordinare la casella
    - "Toglilo": lo togliera' EXTRA_togliFiltri. "Toglilo: lo fa gia' la
      regola ..." solo quando quella regola, accesa, prende davvero i suoi
      messaggi: prende gia' tutti i suoi mittenti (gli stessi, o con il
-     loro dominio, o con l'elenco del personale), nessuna esclusione che il
-     filtro non ha tocca i suoi mittenti (una parola come -from:esami, o un
-     nome, puo' toccarli tutti), archivia e segna come letti come lui, e
-     sopra di lei non c'e' una regola con la stessa etichetta che archivia
-     o segna come letti diversamente; oppure fa proprio la sua ricerca.
-     Una regola che esclude le etichette di altre regole (Studenti,
-     Ministero e USR) lo fa gia' anche se non prende i messaggi che hanno
-     quelle etichette (i colleghi, la casella della scuola): e' quello che
-     fa di partenza. Mettere la stessa etichetta non basta: una
+     loro dominio, o con l'elenco del personale; @dominio prende gli
+     indirizzi di quel dominio, non quelli di un sottodominio come
+     news@posta.dominio ne' il dominio scritto senza chiocciola, che
+     prende anche quelli), nessuna esclusione che il filtro non ha tocca i
+     suoi mittenti (una parola come -from:esami, un pezzo di indirizzo
+     come -from:mario.rossi o -from:mario.rossi@, o un nome, puo' toccarli
+     tutti), archivia e segna come letti come lui, e sopra di lei non c'e'
+     una regola con la stessa etichetta che archivia o segna come letti
+     diversamente; oppure fa proprio la sua ricerca (per uno creato da
+     Campanella, se archivia e segna come letti come la regola). Una regola
+     che esclude le etichette di altre regole (Studenti, Ministero e USR)
+     lo fa gia' anche se non prende i messaggi che hanno quelle etichette
+     (i colleghi, la casella della scuola): e' quello che fa di partenza;
+     purche' nessuna di quelle regole, accesa e sopra di lei, prenda tutti
+     i messaggi di un suo mittente (il filtro di un collega dell'elenco non
+     lo fa gia' Studenti: i suoi messaggi andrebbero tutti in Colleghi).
+     Mettere la stessa etichetta non basta: una
      regola con lo stesso nome ma altri mittenti non sostituisce il
      filtro. Per un filtro che fa anche
      altro (inoltra, elimina, mette la stella...) la tendina dice che cosa
@@ -289,8 +297,14 @@ POSTA - riordinare la casella
      esclusione toglie dei messaggi: quelle del filtro non toccano i
      mittenti che la regola ha gia' (-from:newsletter@flcgil.it toglierebbe
      a Sindacati una parte di @flcgil.it, -from:esami qualunque indirizzo
-     con "esami"), e quelle della regola non toccano i mittenti del
-     filtro. Se no il riquadro sotto dice perche', e il filtro resta. I
+     con "esami", e cosi' -from:mario.rossi o -from:mario.rossi@, che
+     possono stare in un indirizzo di qualunque dominio), e quelle della
+     regola non toccano i mittenti del filtro (un mittente scritto come
+     mario.rossi puo' essere di un dominio che la regola esclude). Non ci
+     sono nemmeno le regole con sopra un'altra regola accesa con la stessa
+     etichetta che archivia o segna come letti diversamente: dove prendono
+     gli stessi messaggi li prende quella di sopra. Se no il riquadro sotto
+     dice perche', e il filtro resta. I
      mittenti di
      Dirigenza, Segreteria e Registro elettronico si scrivono nella pagina
      "La tua scuola": vanno li'. A Registro elettronico si uniscono solo
@@ -304,8 +318,10 @@ POSTA - riordinare la casella
      accende e basta); se ha dei mittenti suoi, o una ricerca, accesa
      prende anche quelli, e il riquadro sotto lo dice. A una regola che
      esclude Dirigenza e Segreteria, come Ministero e USR, non si unisce un
-     indirizzo che una di loro prende gia', come la casella della scuola:
-     i suoi messaggi resterebbero senza l'etichetta del filtro.
+     indirizzo che una di loro, accesa e sopra di lei, prende gia', come la
+     casella della scuola: i suoi messaggi resterebbero senza l'etichetta
+     del filtro. Con Segreteria spenta, o sotto Ministero e USR, la casella
+     la prende Ministero e USR, e un filtro che la esclude non si unisce.
    - "Diventa una regola": nasce una regola con la stessa etichetta del
      filtro, cosi' i messaggi che ce l'hanno gia' restano insieme, e la
      stessa ricerca, scritta come la scrive Gmail (i mittenti fra i
@@ -328,7 +344,9 @@ POSTA - riordinare la casella
    simili vanno nella regola simile, se si puo' (in una regola spenta solo
    se da sola non cerca niente, come Genitori: una spenta con dei mittenti
    suoi, accesa, prenderebbe anche quelli), e quelli tuoi diventano regole;
-   quelli scelti prima si tolgono. Restano quelli creati da Campanella,
+   quelli scelti prima si tolgono (quelli scelti con la 1.6.0, che li
+   sceglieva per l'etichetta sola, partono dalla proposta di adesso).
+   Restano quelli creati da Campanella,
    quelli che fanno anche altro, quelli uguali o simili che nessuna regola
    prende e quelli che non si possono unire. Un filtro simile a
    Dirigenza o Segreteria solo nel nome, con dei domini e non degli
@@ -343,7 +361,14 @@ POSTA - riordinare la casella
    Gmail"), unisce i mittenti, sceglie i filtri da togliere e dice che cosa
    ha fatto. Alla fine controlla ogni filtro da togliere: se dopo le altre
    scelte la sua regola non prende piu' tutti i suoi messaggi, resta in
-   Gmail, e lo dice. Riaperta con lo stesso file, la finestra riconosce
+   Gmail, e lo dice. Resta, e lo dice, anche un filtro che archivia o
+   segna come letto quando in Gmail resta un altro filtro con la stessa
+   etichetta (o quella della sua regola) che non lo fa: quello mette
+   l'etichetta appena arriva il messaggio, e la regola, che cerca solo i
+   messaggi senza la sua etichetta, non li archivierebbe. Lo stesso filtro
+   due volte in Gmail va via con tutte e due le copie, e la regola deve
+   fare quello che fa la copia che archivia o segna come letto. Riaperta
+   con lo stesso file, la finestra riconosce
    le regole
    nate dai filtri e i mittenti gia' uniti ("Toglilo: lo fa gia' la regola
    ...") e non li rifa'. Il
@@ -366,7 +391,11 @@ POSTA - riordinare la casella
    la sua gemella e l'altra esclude i suoi mittenti), il filtro
    resta in Gmail, la configurazione non lo scrive piu' e il passo 4 lo
    dice in ambra; riaprendo la finestra parte "Lascialo in Gmail", e per
-   toglierlo lo stesso basta sceglierlo di nuovo. Toglie solo un
+   toglierlo lo stesso basta sceglierlo di nuovo. Uno scelto con la 1.6.0,
+   che non ricorda la regola ne' se archiviava, va via solo se una regola
+   accesa con la sua etichetta prende tutti i suoi messaggi (e da allora la
+   ricorda); se no resta in Gmail, e il passo 4 lo dice in ambra.
+   EXTRA_togliFiltri toglie solo un
    filtro che ha proprio quei criteri, nessuno in piu', e mette proprio
    quell'etichetta; prima di
    toglierlo ne scrive una copia completa nel registro, con cui lo rifai a

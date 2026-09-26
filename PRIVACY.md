@@ -146,7 +146,9 @@ salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
 quelli da togliere, con l'etichetta, i criteri, il nome della regola che
-li sostituisce e se archiviavano o segnavano come letti. Una regola nata da un
+li sostituisce e se archiviavano o segnavano come letti (quelli scelti con
+la 1.6.0 non li hanno: prendono il nome della regola quando una regola con
+la loro etichetta prende tutti i loro messaggi). Una regola nata da un
 filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
 possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
 filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra
@@ -188,7 +190,11 @@ finisce soltanto se quell'email non parte. `EXTRA_togliFiltri` invece, prima
 di togliere ognuno dei filtri che hai scelto, ne scrive nel registro una
 copia completa, criteri compresi (anche indirizzi): serve a rifarlo a mano.
 Con il riepilogo acceso la stessa copia ti arriva per email. Toglie solo
-quei filtri; gli altri, le etichette e i messaggi restano.
+quei filtri; gli altri, le etichette e i messaggi restano. Un filtro scelto
+va nella configurazione solo finché la regola che lo sostituisce prende
+tutti i suoi messaggi e fa quello che faceva lui (e in Gmail non resta un
+altro filtro con la stessa etichetta che non lo fa): altrimenti resta in
+Gmail, e Campanella lo dice.
 
 **Gli indirizzi degli studenti delle tue classi.** Le etichette delle classi
 (Posta, passo 4, «Le mie classi…», facoltative) prendono anche i messaggi

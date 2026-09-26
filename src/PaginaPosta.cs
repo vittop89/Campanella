@@ -684,7 +684,11 @@ namespace Campanella
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
                 "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
-                "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra.\r\n\r\n" +
+                "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra; " +
+                "cosi' anche uno scelto con la 1.6.0, se nessuna regola accesa con la sua etichetta prende tutti i " +
+                "suoi messaggi. Resta anche un filtro che archivia quando in Gmail ne resta un altro con la stessa " +
+                "etichetta che non archivia: ai messaggi che prende anche quello mette l'etichetta prima dello " +
+                "script, e la regola non li archivierebbe.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));
