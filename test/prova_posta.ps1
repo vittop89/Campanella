@@ -1278,6 +1278,20 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $testoC = Genera $sC $true
     Verifica "nella configurazione Ministero e USR ha escludiEtichette" (
         $testoC -match 'etichetta: "Ministero e USR",\s+da:\s+\[[^\]]*\],\s+escludiEtichette: \["Dirigenza", "Segreteria"\],')
+    # il filtro vero che EXTRA_creaFiltriGmail aveva creato per la Ministero e
+    # USR di prima prende ancora la casella della scuola: con la regola che
+    # esclude Dirigenza e Segreteria lo script non lo crea piu' (resta allo
+    # smistamento), e nella finestra dei filtri quello vecchio parte da
+    # togliere, perche' lo fa gia' la regola
+    $vecchioMin = UnFiltro ([ordered]@{ from = '@istruzione.it OR @posta.istruzione.it OR @miur.it OR @mim.gov.it'; label = 'Ministero e USR' })
+    $sV = StatoRiorganizza
+    $cDopo = ScelteDi $vecchioMin $sV
+    $minV = @((Leggi $sV 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    $minV.EscludiEtichette.Clear()
+    $cPrima = ScelteDi $vecchioMin $sV
+    Verifica "il filtro vero della Ministero e USR di prima: con la regola di prima e' 'creato da Campanella' e resta ('$($cPrima.proposta.Testo)'), con quella che esclude parte da togliere ('$($cDopo.proposta.Testo)')" (
+        $cPrima.x.Tipo -eq 'campanella' -and (Breve $cPrima.proposta) -eq 'lascia|' -and
+        $cDopo.x.Tipo -eq 'uguale' -and $cDopo.proposta.Testo -eq "Toglilo: lo fa gia' la regola Ministero e USR")
 
     # -----------------------------------------------------------------------
     Intestazione 'LE MIE CLASSI: I NOMI E LE PAROLE DELL''OGGETTO'
