@@ -91,7 +91,7 @@
  * ============================================================================
  */
 
-var _ORARI_VERSIONE      = '1.5.0';
+var _ORARI_VERSIONE      = '1.6.0';
 var _ORARI_MAX_SECONDI   = 260;
 // [SOLO EMAIL] -----------------------------------------------------------------
 // l'invio degli orari: dove si ricorda il punto, chi riprende, l'etichetta

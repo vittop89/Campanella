@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 — (data da definire)
+## 1.6.0 — 26 September 2026
 
 **If you put your timetable on Google Calendar with Campanella 1.5 or
 earlier, from 26 October its lessons appear one hour early**: that calendar
