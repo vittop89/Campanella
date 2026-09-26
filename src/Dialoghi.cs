@@ -153,7 +153,14 @@ namespace Campanella
         }
     }
 
-    /// <summary>Aggiunge o modifica una regola di smistamento.</summary>
+    /// <summary>
+    /// Aggiunge o modifica una regola di smistamento. Per Dirigenza, Segreteria
+    /// e Registro elettronico i mittenti non si scrivono qui ma nella pagina
+    /// "La tua scuola": al posto della casella c'e' l'avviso, e accanto il
+    /// bottone "Apri La tua scuola", che chiude la finestra (chiedendo prima
+    /// che cosa fare delle modifiche non salvate) e dice al passo 4 dove
+    /// portare (ApriLaTuaScuola).
+    /// </summary>
     class FormRegola : Form
     {
         TextBox txtEtichetta, txtDa, txtOggetto, txtQuery, txtDescrizione;
@@ -161,6 +168,28 @@ namespace Campanella
         public Regola Risultato;
         public bool Elimina = false;
         Regola originale;
+
+        /// <summary>
+        /// La Sorgente della regola ("dirigenza", "segreteria", "registro") se
+        /// la finestra si e' chiusa con "Apri La tua scuola": il passo 4 porta
+        /// alla pagina "La tua scuola", nella casella di quei mittenti. null
+        /// altrimenti. Con le modifiche tenute la finestra si chiude con OK e
+        /// Risultato, altrimenti con Cancel.
+        /// </summary>
+        public string ApriLaTuaScuola = null;
+
+        /// <summary>Il bottone "Apri La tua scuola", solo per le regole di "La tua scuola"; null per le altre.</summary>
+        Button btnScuola;
+
+        /// <summary>
+        /// Chiede che cosa fare delle modifiche non salvate (testo, titolo): Yes
+        /// le tiene, No le lascia, Cancel resta nella finestra. Di partenza una
+        /// finestra di Windows; le prove la sostituiscono, per rispondere senza.
+        /// </summary>
+        public Func<string, string, DialogResult> Chiedi;
+
+        // i campi come erano all'apertura: per sapere se c'e' qualcosa da salvare
+        string comeAllApertura;
 
         /// <summary>
         /// Vero se i mittenti della regola non si scrivono qui: quelli della
@@ -283,12 +312,62 @@ namespace Campanella
                 else if (daModificare.MittentiDallaScuola())
                 {
                     txtDa.ReadOnly = true;
-                    txtDa.Text = "(i mittenti di questa regola si scrivono nella pagina \"La tua scuola\")";
+                    txtDa.Text = AvvisoMittenti;
                     txtEtichetta.ReadOnly = true;
+                    // chi prova a scriverci non sa dove andare: il bottone ce lo porta,
+                    // accanto alla casella, che si stringe per fargli posto
+                    btnScuola = Tema.Bottone("Apri La tua scuola", 0, txtDa.Top, 0, delegate { VaiALaTuaScuola(); });
+                    btnScuola.Width = 26 + TextRenderer.MeasureText(btnScuola.Text, btnScuola.Font).Width;
+                    btnScuola.Left = txtDa.Right - btnScuola.Width;
+                    txtDa.Width = btnScuola.Left - 8 - txtDa.Left;
+                    Controls.Add(btnScuola);
                 }
             }
 
+            Chiedi = delegate(string testo, string titolo)
+            {
+                return MessageBox.Show(this, testo, titolo, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            };
+            comeAllApertura = Campi();
             Tema.Applica(this);
+        }
+
+        /// <summary>I campi che si possono cambiare, in una stringa sola: diversa se qualcosa e' cambiato.</summary>
+        string Campi()
+        {
+            return string.Join("\u0001", new string[] {
+                txtEtichetta.Text, txtDa.Text, txtOggetto.Text, txtQuery.Text, txtDescrizione.Text,
+                chkArchivia.Checked ? "1" : "0", chkLette.Checked ? "1" : "0", chkUno.Checked ? "1" : "0" });
+        }
+
+        /// <summary>
+        /// "Apri La tua scuola": chiude la finestra come Annulla, e il passo 4
+        /// porta alla pagina "La tua scuola" (ApriLaTuaScuola). Se nella regola
+        /// qualcosa e' cambiato e non e' salvato chiede se tenerlo: si' salva e
+        /// chiude con OK, come "Salva"; no lo lascia perdere; Annulla resta qui.
+        /// </summary>
+        void VaiALaTuaScuola()
+        {
+            if (originale == null || !originale.MittentiDallaScuola()) return;
+            if (Campi() != comeAllApertura)
+            {
+                DialogResult r = Chiedi(
+                    "In questa regola hai cambiato qualcosa che non hai ancora salvato. Lo tengo?\r\n\r\n" +
+                    "Si': salvo le modifiche e apro \"La tua scuola\".\r\n" +
+                    "No: le lascio perdere e apro \"La tua scuola\".\r\n" +
+                    "Annulla: resto qui.",
+                    "Modifiche non salvate");
+                if (r == DialogResult.Yes)
+                {
+                    Risultato = Componi();
+                    ApriLaTuaScuola = originale.Sorgente;
+                    DialogResult = DialogResult.OK;
+                    return;
+                }
+                if (r != DialogResult.No) return;
+            }
+            ApriLaTuaScuola = originale.Sorgente;
+            DialogResult = DialogResult.Cancel;
         }
 
         Regola Componi()

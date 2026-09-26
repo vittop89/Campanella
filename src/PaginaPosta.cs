@@ -2204,7 +2204,25 @@ namespace Campanella
             if (i < 0 || i >= S.Regole.Count) return;
             using (FormRegola f = new FormRegola(S.Regole[i]))
             {
-                if (f.ShowDialog(this) != DialogResult.OK) return;
+                DialogResult esito = f.ShowDialog(this);
+                DopoLaRegola(i, f, esito);
+            }
+        }
+
+        /// <summary>
+        /// Quello che la finestra della regola numero i ha deciso: eliminarla,
+        /// salvarla o niente (Annulla); e, con "Apri La tua scuola", portare
+        /// alla pagina "La tua scuola", nella casella dei mittenti di quella
+        /// regola. Separato da ModificaRegola per le prove, che la finestra non
+        /// la mostrano.
+        /// </summary>
+        void DopoLaRegola(int i, FormRegola f, DialogResult esito)
+        {
+            if (i < 0 || i >= S.Regole.Count) return;
+            string etichetta = S.Regole[i].Etichetta;
+            bool salvata = false;
+            if (esito == DialogResult.OK)
+            {
                 if (f.Elimina)
                 {
                     S.Regole.RemoveAt(i);
@@ -2215,7 +2233,40 @@ namespace Campanella
                 S.Regole[i] = f.Risultato;
                 AggiornaElencoRegole(i);
                 Guscio.Stato1("Regola aggiornata.");
+                salvata = true;
             }
+            if (f.ApriLaTuaScuola != null) ApriLaTuaScuola(f.ApriLaTuaScuola, etichetta, salvata);
+        }
+
+        /// <summary>La casella di "La tua scuola" con i mittenti di quella Sorgente (dirigenza, segreteria, registro); null per le altre.</summary>
+        TextBox CasellaDellaScuola(string sorgente)
+        {
+            if (sorgente == "dirigenza") return txtDirigenza;
+            if (sorgente == "segreteria") return txtSegreteria;
+            if (sorgente == "registro") return txtRegistro;
+            return null;
+        }
+
+        /// <summary>
+        /// Porta alla pagina "La tua scuola" (passo 2), con il cursore in fondo
+        /// alla casella dei mittenti della regola, e dice che cosa scriverci.
+        /// ActiveControl e non solo Focus: con la finestra appena chiusa, o non
+        /// ancora mostrata, il fuoco arriva quando la finestra principale torna attiva.
+        /// </summary>
+        void ApriLaTuaScuola(string sorgente, string etichetta, bool salvata)
+        {
+            TextBox t = CasellaDellaScuola(sorgente);
+            if (t == null) return;
+            Guscio.VaiAPagina(this, 1);
+            t.SelectionStart = t.TextLength;
+            t.SelectionLength = 0;
+            Form finestra = FindForm();
+            if (finestra != null) finestra.ActiveControl = t;
+            t.Focus();
+            // dopo VaiAPagina, che svuota la riga di stato
+            Guscio.Stato1((salvata ? "Regola aggiornata. " : "") + "I mittenti di " + etichetta +
+                " si scrivono qui, uno per riga (un indirizzo intero oppure @dominio); poi copia di nuovo la " +
+                "configurazione (passo 5).");
         }
 
         /// <summary>

@@ -973,6 +973,92 @@ if ($null -ne $tElenco) {
     }
 }
 
+# ---------------------------------------------------------------------------
+Intestazione "DALLA REGOLA DI SEGRETERIA ALLA PAGINA LA TUA SCUOLA"
+# Nella finestra della regola di Dirigenza, Segreteria o Registro elettronico
+# i mittenti non si scrivono: "Apri La tua scuola" chiude la finestra e il
+# passo 4 porta alla pagina "La tua scuola" della Posta, con il cursore in
+# fondo alla casella giusta. La finestra della regola si costruisce e non si
+# mostra: il bottone si preme con OnClick, e quello che ha deciso va a
+# PaginaPosta.DopoLaRegola, come dopo ShowDialog. Nemmeno la finestra
+# principale si mostra: conta il controllo attivo che la pagina le ha dato.
+$tFR = $asm.GetType('Campanella.FormRegola')
+$cartellaScuola = Join-Path ([System.IO.Path]::GetTempPath()) ('campanella-prova-guscio-scuola-' + (Get-Random))
+New-Item -ItemType Directory -Force $cartellaScuola | Out-Null
+$campoProva.SetValue($null, $cartellaScuola)
+$g = $null
+try {
+    $s = Rileggi
+    $g = NuovoGuscio $s
+    $pagineG = $tGuscio.GetField('pagine', $FI).GetValue($g)
+    $iPostaG = -1
+    for ($k = 0; $k -lt $pagineG.Count; $k++) { if ($pagineG[$k].GetType().Name -eq 'PaginaPosta') { $iPostaG = $k } }
+    $posta = $pagineG[$iPostaG]
+    $tPosta = $posta.GetType()
+    $regole = $tStato.GetField('Regole').GetValue($s)
+    $mDopo = $tPosta.GetMethod('DopoLaRegola', $FI)
+    $lblStatoG = $tGuscio.GetField('lblStato', $FI).GetValue($g)
+    $caselle = @{}
+    foreach ($c in @('txtDirigenza', 'txtSegreteria', 'txtRegistro')) { $caselle[$c] = $tPosta.GetField($c, $FI).GetValue($posta) }
+    $caselle['txtSegreteria'].Text = "segreteria@scuola.example`r`nprotocollo@scuola.example"
+    $script:rispostaG = [System.Windows.Forms.DialogResult]::Yes
+    $chiediG = [Func[string, string, System.Windows.Forms.DialogResult]]{ param($testo, $titolo) return $script:rispostaG }
+    function IndiceRegola($etichetta) {
+        for ($k = 0; $k -lt $regole.Count; $k++) { if ($regole[$k].Etichetta -eq $etichetta) { return $k } }
+        return -1
+    }
+    # dal passo 4: apre la finestra della regola, cambia la ricerca avanzata se
+    # $query non e' $null, preme il bottone e passa l'esito al passo 4
+    function DallaRegola($etichetta, $query, $risposta) {
+        $script:rispostaG = $risposta
+        $g.VaiA($iPostaG, 3)
+        $i = IndiceRegola $etichetta
+        $f = [Activator]::CreateInstance($tFR, @($regole[$i].PSObject.BaseObject))
+        $f.Chiedi = $chiediG
+        if ($null -ne $query) { $tFR.GetField('txtQuery', $FI).GetValue($f).Text = $query }
+        $b = @($f.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq 'Apri La tua scuola' })[0]
+        $onClick.Invoke($b, @([System.EventArgs]::Empty)) | Out-Null
+        $mDopo.Invoke($posta, @([int]$i, $f, $f.DialogResult)) | Out-Null
+        $f.Dispose()
+    }
+    function Attiva { return $g.ActiveControl }
+
+    $segreteria = $regole[(IndiceRegola 'Segreteria')]
+    DallaRegola 'Segreteria' $null ([System.Windows.Forms.DialogResult]::Yes)
+    $txtS = $caselle['txtSegreteria']
+    Verifica "senza modifiche: la Posta e' al passo 2, La tua scuola, con il cursore in fondo alla casella della Segreteria" (
+        $posta.Passo -eq 1 -and [object]::ReferenceEquals((Attiva), $txtS) -and $txtS.SelectionStart -eq $txtS.TextLength -and
+        $txtS.SelectionLength -eq 0)
+    Verifica "la riga di stato dice che cosa scriverci ('$($lblStatoG.Text)'), e la regola e' quella di prima" (
+        $lblStatoG.Text -match '^I mittenti di Segreteria si scrivono qui, uno per riga' -and
+        [object]::ReferenceEquals($regole[(IndiceRegola 'Segreteria')], $segreteria))
+
+    DallaRegola 'Dirigenza' '-from:ufficio@scuola.example' ([System.Windows.Forms.DialogResult]::Yes)
+    $dirigenza = $regole[(IndiceRegola 'Dirigenza')]
+    Verifica "con una modifica tenuta ('Si''): la regola e' salvata, e il cursore e' nella casella della Dirigenza ('$($lblStatoG.Text)')" (
+        $posta.Passo -eq 1 -and [object]::ReferenceEquals((Attiva), $caselle['txtDirigenza']) -and
+        $dirigenza.QueryLibera -eq '-from:ufficio@scuola.example' -and $dirigenza.Sorgente -eq 'dirigenza' -and
+        $lblStatoG.Text -match '^Regola aggiornata\. I mittenti di Dirigenza si scrivono qui')
+
+    $registroPrima = $regole[(IndiceRegola 'Registro elettronico')]
+    DallaRegola 'Registro elettronico' '-from:x@spaggiari.eu' ([System.Windows.Forms.DialogResult]::No)
+    Verifica "con la modifica lasciata ('No'): la regola resta com'era, e il cursore e' nella casella del Registro" (
+        $posta.Passo -eq 1 -and [object]::ReferenceEquals((Attiva), $caselle['txtRegistro']) -and
+        [object]::ReferenceEquals($regole[(IndiceRegola 'Registro elettronico')], $registroPrima) -and $registroPrima.QueryLibera -eq '')
+
+    DallaRegola 'Segreteria' '-from:x@scuola.example' ([System.Windows.Forms.DialogResult]::Cancel)
+    Verifica "con 'Annulla' la finestra resta aperta: la Posta resta al passo 4" (
+        $posta.Passo -eq 3 -and $segreteria.QueryLibera -eq '')
+}
+catch {
+    Verifica "dalla regola alla pagina La tua scuola senza errori ($($_.Exception.GetBaseException().Message))" $false
+}
+finally {
+    if ($g -ne $null) { $g.Dispose() }
+    $campoProva.SetValue($null, '')
+    Remove-Item -Recurse -Force -LiteralPath $cartellaScuola -ErrorAction SilentlyContinue
+}
+
 Write-Host ""
 if ($script:fallimenti -eq 0) { Write-Host "Tutte le prove superate." -ForegroundColor Green }
 else { Write-Host "PROVE FALLITE: $script:fallimenti" -ForegroundColor Red; exit 1 }

@@ -899,6 +899,47 @@ if ($null -ne $tFC) {
     $tStato.GetField('Classi', $FI).SetValue($stato, $classiPrima)
 }
 
+# --- la finestra della regola di Segreteria: "Apri La tua scuola" ---------------
+# Per Dirigenza, Segreteria e Registro elettronico la casella dei mittenti ha
+# solo l'avviso che si scrivono nella pagina "La tua scuola", e accanto c'e'
+# il bottone che ci porta. La finestra sta in piedi, con l'avviso che si legge
+# tutto nella casella piu' stretta; premuto il bottone, la Posta e' a "La tua
+# scuola" con il cursore nella casella della Segreteria. La finestra della
+# regola si apre fuori dallo schermo, come quella principale.
+Write-Host "`nLA FINESTRA DELLA REGOLA DI SEGRETERIA" -ForegroundColor Cyan
+$tFRd = $asm.GetType('Campanella.FormRegola')
+$regoleS = $tStato.GetField('Regole', $FI).GetValue($stato)
+$iSeg = -1
+for ($k = 0; $k -lt $regoleS.Count; $k++) { if ($regoleS[$k].Etichetta -eq 'Segreteria') { $iSeg = $k } }
+$metodoVaiA.Invoke($guscio, @([int]$iPosta, [int]3)) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$frS = [Activator]::CreateInstance($tFRd, @($regoleS[$iSeg].PSObject.BaseObject))
+$frS.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+$frS.Location = New-Object System.Drawing.Point(-4000, -4000)
+$frS.ShowInTaskbar = $false
+$frS.Show()
+[System.Windows.Forms.Application]::DoEvents()
+$btnS = @($frS.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq 'Apri La tua scuola' })
+$txtDaS = $tFRd.GetField('txtDa', $FIp).GetValue($frS)
+$fondoDa = $txtDaS.GetPositionFromCharIndex($txtDaS.Text.Length - 1).Y + $txtDaS.Font.Height
+$serveB = [System.Windows.Forms.TextRenderer]::MeasureText($btnS[0].Text, $btnS[0].Font).Width
+Verifica "la regola di Segreteria ha 'Apri La tua scuola' accanto ai mittenti, dentro la finestra, e l'avviso si legge tutto" (
+    $btnS.Count -eq 1 -and $btnS[0].Top -eq $txtDaS.Top -and $btnS[0].Left -ge $txtDaS.Right -and
+    $btnS[0].Right -le $frS.ClientSize.Width - 8 -and $btnS[0].Width -ge $serveB + 12 -and $fondoDa -le $txtDaS.ClientSize.Height)
+ControllaPannello $frS 'La regola di Segreteria'
+$onClick.Invoke($btnS[0], @([System.EventArgs]::Empty)) | Out-Null
+$esitoS = $frS.DialogResult
+$doveS = $frS.ApriLaTuaScuola
+$frS.Close()
+[System.Windows.Forms.Application]::DoEvents()
+$posta.GetType().GetMethod('DopoLaRegola', $FIp).Invoke($posta, @([int]$iSeg, $frS, $esitoS)) | Out-Null
+[System.Windows.Forms.Application]::DoEvents()
+$txtSegS = $posta.GetType().GetField('txtSegreteria', $FIp).GetValue($posta)
+Verifica "premuto: la Posta e' a 'La tua scuola', con il cursore nella casella della Segreteria ($esitoS, $doveS)" (
+    $esitoS -eq [System.Windows.Forms.DialogResult]::Cancel -and $doveS -eq 'segreteria' -and $posta.Passo -eq 1 -and
+    $txtSegS.Visible -and [object]::ReferenceEquals($guscio.ActiveControl, $txtSegS))
+$frS.Dispose()
+
 # tutto come prima
 $personale.GetType().GetMethod('Clear').Invoke($personale, @()) | Out-Null
 $tStato.GetField('EtichettaPerRuolo', $FI).SetValue($stato, $false)

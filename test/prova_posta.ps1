@@ -2246,6 +2246,74 @@ process.stdout.write(JSON.stringify({ filtri: filtri }));
     Verifica "l'avviso al posto dei mittenti non diventa un mittente" ($avviso.Count -eq 0)
 
     # -----------------------------------------------------------------------
+    Intestazione 'LE REGOLE DI "LA TUA SCUOLA": IL BOTTONE "APRI LA TUA SCUOLA"'
+    # Nella finestra della regola di Dirigenza, Segreteria e Registro
+    # elettronico i mittenti non si scrivono: accanto all'avviso c'e' il
+    # bottone che chiude la finestra e dice al passo 4 di portare alla pagina
+    # "La tua scuola" (ApriLaTuaScuola). Le modifiche non salvate agli altri
+    # campi: chiede se tenerle, e qui risponde la prova. La finestra si
+    # costruisce e non si mostra; il bottone si preme con OnClick
+    $tFR2 = $asm.GetType('Campanella.FormRegola')
+    $clicR = [System.Windows.Forms.Control].GetMethod('OnClick', $FI)
+    function BottoneScuola($f) { return @($f.Controls | Where-Object { $_ -is [System.Windows.Forms.Button] -and $_.Text -eq 'Apri La tua scuola' }) }
+    $sS = NuovoStato
+    $regoleS = Leggi $sS 'Regole'
+    function RegolaS($e) { return @($regoleS | Where-Object { $_.Etichetta -eq $e })[0] }
+    $senzaB = @()
+    foreach ($e in @('Dirigenza', 'Segreteria', 'Registro elettronico')) {
+        $f = [Activator]::CreateInstance($tFR2, @((RegolaS $e).PSObject.BaseObject))
+        $b = BottoneScuola $f
+        $txtDaS = $tFR2.GetField('txtDa', $FI).GetValue($f)
+        if ($b.Count -ne 1 -or -not $txtDaS.ReadOnly -or $b[0].Left -lt $txtDaS.Right -or $b[0].Top -ne $txtDaS.Top -or
+            $txtDaS.Text -ne '(i mittenti di questa regola si scrivono nella pagina "La tua scuola")') { $senzaB += $e }
+        $f.Dispose()
+    }
+    Verifica "Dirigenza, Segreteria e Registro elettronico: l'avviso al posto dei mittenti, e accanto il bottone$(if ($senzaB.Count) { ': no ' + ($senzaB -join ', ') })" (
+        $senzaB.Count -eq 0)
+    $conB = @()
+    foreach ($e in @('Circolari', 'Colleghi', 'Studenti', 'Ministero e USR', 'Genitori')) {
+        $f = [Activator]::CreateInstance($tFR2, @((RegolaS $e).PSObject.BaseObject))
+        if ((BottoneScuola $f).Count -ne 0) { $conB += $e }
+        $f.Dispose()
+    }
+    $fNuovaS = [Activator]::CreateInstance($tFR2, @($null))
+    if ((BottoneScuola $fNuovaS).Count -ne 0) { $conB += 'una regola nuova' }
+    $fNuovaS.Dispose()
+    Verifica "le altre regole, e una nuova, non ce l'hanno$(if ($conB.Count) { ': no ' + ($conB -join ', ') })" ($conB.Count -eq 0)
+
+    $script:domandeR = @()
+    $script:rispostaR = [System.Windows.Forms.DialogResult]::Yes
+    $chiediR = [Func[string, string, System.Windows.Forms.DialogResult]]{ param($testo, $titolo) $script:domandeR += $titolo; return $script:rispostaR }
+    # la finestra della regola, con la ricerca avanzata cambiata se $query non
+    # e' $null; preme il bottone con quella risposta alla domanda
+    function PremiScuola($e, $query, $risposta) {
+        $script:rispostaR = $risposta
+        $script:domandeR = @()
+        $f = [Activator]::CreateInstance($tFR2, @((RegolaS $e).PSObject.BaseObject))
+        $f.Chiedi = $chiediR
+        if ($null -ne $query) { $tFR2.GetField('txtQuery', $FI).GetValue($f).Text = $query }
+        $clicR.Invoke((BottoneScuola $f)[0], @([System.EventArgs]::Empty)) | Out-Null
+        $esito = @{ risultato = [string]$f.DialogResult; dove = $f.ApriLaTuaScuola; regola = $f.Risultato
+                    domande = ($script:domandeR -join '|') }
+        $f.Dispose()
+        return $esito
+    }
+    $e1 = PremiScuola 'Segreteria' $null ([System.Windows.Forms.DialogResult]::Yes)
+    Verifica "senza modifiche non chiede niente: si chiude come Annulla e dice di andare alla Segreteria ($($e1.risultato), $($e1.dove))" (
+        $e1.domande -eq '' -and $e1.risultato -eq 'Cancel' -and $e1.dove -eq 'segreteria' -and $null -eq $e1.regola)
+    $e2 = PremiScuola 'Dirigenza' '-from:ufficio@scuola-esempio.edu.it' ([System.Windows.Forms.DialogResult]::Yes)
+    Verifica "con la ricerca avanzata cambiata chiede; 'Si'' salva la regola, come Salva, e va alla Dirigenza ($($e2.risultato), $($e2.dove))" (
+        $e2.domande -eq 'Modifiche non salvate' -and $e2.risultato -eq 'OK' -and $e2.dove -eq 'dirigenza' -and $null -ne $e2.regola -and
+        $e2.regola.QueryLibera -eq '-from:ufficio@scuola-esempio.edu.it' -and $e2.regola.Sorgente -eq 'dirigenza' -and
+        $e2.regola.Etichetta -eq 'Dirigenza' -and $e2.regola.Da.Count -eq 0 -and (RegolaS 'Dirigenza').QueryLibera -eq '')
+    $e3 = PremiScuola 'Registro elettronico' '-from:x@spaggiari.eu' ([System.Windows.Forms.DialogResult]::No)
+    Verifica "'No' lascia perdere le modifiche, si chiude come Annulla e va al Registro ($($e3.risultato), $($e3.dove))" (
+        $e3.domande -eq 'Modifiche non salvate' -and $e3.risultato -eq 'Cancel' -and $e3.dove -eq 'registro' -and $null -eq $e3.regola)
+    $e4 = PremiScuola 'Segreteria' '-from:x@scuola-esempio.edu.it' ([System.Windows.Forms.DialogResult]::Cancel)
+    Verifica "'Annulla' resta nella finestra: niente chiusura, e non va da nessuna parte ($($e4.risultato))" (
+        $e4.domande -eq 'Modifiche non salvate' -and $e4.risultato -eq 'None' -and $null -eq $e4.dove -and $null -eq $e4.regola)
+
+    # -----------------------------------------------------------------------
     Intestazione 'GLI INDIRIZZI DEI COLLEGHI: NIENTE CRONOLOGIE'
     # gli appunti veri non si toccano: si guarda l'oggetto che Campanella ci metterebbe
     $dati = $asm.GetType('Campanella.Guscio').GetMethod('PerGliAppunti', $FS).Invoke($null, @([string]'a@scuola-esempio.edu.it, b@scuola-esempio.edu.it'))
