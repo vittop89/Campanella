@@ -1101,6 +1101,15 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "con i mittenti che Sindacati ha gia', e archivia come lei: 'lo fa gia''; con altri mittenti: si uniscono ('$($cSindUguale.proposta.Testo)', '$($cSindPiu.proposta.Testo)')" (
         $cSindUguale.proposta.Testo -eq "Toglilo: lo fa gia' la regola Sindacati" -and
         (Breve $cSindPiu.proposta) -eq 'unisci|Sindacati' -and (Testi $cSindPiu) -notmatch "lo fa gia'")
+    # un mittente che la regola prende con il suo dominio, o con l'elenco del personale, conta
+    $cRegDominio = ScelteDi (UnFiltro ([ordered]@{ hasTheWord = 'from:noreply@spaggiari.eu'; label = 'Registro elettronico' })) $sR
+    # (con un collega in piu' nell'elenco: con uno solo sarebbe proprio il filtro che crea Campanella)
+    $sDue = StatoRiorganizza
+    AggiungiPersona $sDue 'VERDI MARCO' 'DOCENTE' 'marco.verdi@scuola.example' $true
+    $cColleghiElenco = ScelteDi (UnFiltro ([ordered]@{ from = 'anna.bianchi@scuola.example'; label = 'Colleghi' })) $sDue
+    Verifica "lo fa gia' anche la regola che prende i mittenti con il dominio (@spaggiari.eu) o con l'elenco del personale (Colleghi): '$($cRegDominio.proposta.Testo)', '$($cColleghiElenco.proposta.Testo)'" (
+        $cRegDominio.proposta.Testo -eq "Toglilo: lo fa gia' la regola Registro elettronico" -and
+        $cColleghiElenco.proposta.Testo -eq "Toglilo: lo fa gia' la regola Colleghi")
     # una regola spenta non fa niente: con i mittenti che ha gia', la scelta e'
     # accenderla (Unisci, "la accendo"); di partenza pero' si accende solo una
     # che da sola non cerca niente (Genitori), non una con i mittenti suoi

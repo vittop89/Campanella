@@ -1341,21 +1341,49 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Vero se la regola prende gia' tutti i messaggi del filtro: si
-        /// potrebbe unire (SiPuoUnire: archivia e segna come letti come lui), e'
-        /// accesa nella configurazione, ha gia' tutti i suoi mittenti, ed esclude
-        /// solo quello che esclude anche lui (un'esclusione in piu' nella regola
-        /// lascerebbe fuori dei messaggi del filtro). Toglierlo non fa perdere niente.
+        /// Vero se la regola prende gia' tutti i messaggi del filtro, fatto solo
+        /// di mittenti: e' accesa nella configurazione, cerca solo dei mittenti
+        /// (niente oggetto o parole, nella ricerca avanzata al piu' delle
+        /// esclusioni), archivia e segna come letti come lui, ogni suo mittente
+        /// lo prende uno della regola (lo stesso, o il suo dominio; con
+        /// l'elenco del personale, il dominio e i gruppi sciolti: Colleghi con
+        /// i colleghi dell'elenco), esclude solo quello che esclude anche lui
+        /// (un'esclusione in piu' lascerebbe fuori dei messaggi del filtro), e
+        /// nessuna delle regole di cui esclude l'etichetta prende tutto un suo
+        /// mittente. Toglierlo non fa perdere niente.
         /// </summary>
         public static bool GiaNellaRegola(FiltroGmail f, Regola r, Stato s)
         {
             MittentiFiltro m = (f == null) ? null : SoloMittenti(f.Criteri);
-            if (!SiPuoUnire(f, m, r, s)) return false;
-            if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, s.IndirizziPersonale())) return false;
-            List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
-            foreach (string d in m.Da) if (!Contiene(da, d)) return false;
-            foreach (string e in Esclusioni(r.QueryLibera)) if (!Contiene(m.Esclusi, e)) return false;
+            if (m == null || r == null || s == null) return false;
+            if (r.Sorgente != "" && !r.MittentiDallaScuola()) return false;
+            if (r.Oggetto.Count > 0 || r.Contiene.Count > 0 || r.UnoQualsiasi) return false;
+            if (r.Archivia != f.Archivia || r.SegnaComeLette != f.SegnaLetto) return false;
+            List<string> esclusi = Esclusioni(r.QueryLibera);
+            if (esclusi == null) return false;
+            List<string> personale = s.IndirizziPersonale();
+            if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) return false;
+            List<string> sue = MittentiSciolti(s, r, personale);
+            foreach (string d in m.Da)
+                if (!PresoDa(sue, d) || PresoDaUnaEsclusa(s, r, d)) return false;
+            foreach (string e in esclusi) if (!Contiene(m.Esclusi, e)) return false;
             return true;
+        }
+
+        /// <summary>I mittenti della regola come li scrive, e con i segnaposto sciolti (l'elenco del personale, il dominio, i gruppi).</summary>
+        static List<string> MittentiSciolti(Stato s, Regola r, List<string> personale)
+        {
+            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
+            List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
+            da.AddRange(Espandi(da, s.DominioPulito(), personale, gruppi));
+            return da;
+        }
+
+        /// <summary>Vero se uno dei mittenti prende tutti i messaggi del mittente d (Copre).</summary>
+        static bool PresoDa(List<string> mittenti, string d)
+        {
+            foreach (string e in mittenti) if (Copre(e, d)) return true;
+            return false;
         }
 
         /// <summary>Quanti mittenti del filtro la regola non ha ancora (quelli che l'unione aggiunge); 0 se non si puo' unire.</summary>
@@ -1605,15 +1633,16 @@ namespace Campanella
         /// non fa anche altro: toglilo se la regola prende gia' i suoi messaggi
         /// (RegolaCheLoFa); se ha dei mittenti che la regola non ha e si possono
         /// unire, unisci, cosi' non si perdono; altrimenti (archivia o segna come
-        /// letti diversamente, cerca altro che i mittenti, la regola ha i
-        /// segnaposto) lascialo: con l'etichetta uguale la regola non lo
-        /// sostituisce. Simile: toglilo se una regola accesa lo fa gia', unisci
-        /// alla regola simile se si puo' e ha senso (DaProporre; se e' spenta,
-        /// solo se da sola non cerca niente, come Genitori: accesa prenderebbe
-        /// anche quello che cercava gia'); se si puo' ma non ha senso, diventa
-        /// una regola se si puo'; altrimenti lascialo. Simile solo nel nome a
-        /// Dirigenza o Segreteria (domini, non indirizzi) e' come tuo. Tuo: diventa una regola se si
-        /// puo', altrimenti lascialo. Di Campanella, di una classe, che fa anche
+        /// letti diversamente, cerca altro che i mittenti, mittenti che la
+        /// regola non prende e non puo' prendere) lascialo: con l'etichetta
+        /// uguale la regola non lo sostituisce. Simile: toglilo se una regola
+        /// accesa lo fa gia', unisci alla regola simile se si puo' e ha senso
+        /// (DaProporre; se e' spenta, solo se da sola non cerca niente, come
+        /// Genitori: accesa prenderebbe anche quello che cercava gia'); se si
+        /// puo' ma non ha senso, diventa una regola se si puo'; altrimenti
+        /// lascialo. Simile solo nel nome a Dirigenza o Segreteria (domini, non
+        /// indirizzi) e' come tuo. Tuo: diventa una regola se si puo',
+        /// altrimenti lascialo. Di Campanella, di una classe, che fa anche
         /// altro, con un criterio che non si capisce: lascialo. Uno scelto prima
         /// (prima): toglilo, come prima.
         /// </summary>
@@ -1656,17 +1685,15 @@ namespace Campanella
             MittentiFiltro m = SoloMittenti(v.Criteri);
             string ricerca = RicercaDelFiltro(v.Criteri);
             List<string> personale = s.IndirizziPersonale();
-            Dictionary<string, List<string>> gruppi = s.EtichettaPerRuolo ? s.GruppiPerRuolo() : new Dictionary<string, List<string>>();
             foreach (Regola r in s.Regole)
             {
                 if (!string.Equals((r.Etichetta ?? "").Trim(), v.Regola.Trim(), StringComparison.OrdinalIgnoreCase) ||
                     !GeneratorePosta.AttivaNellaConfigurazione(s, r, personale)) continue;
                 if (m != null)
                 {
-                    List<string> da = GeneratorePosta.MittentiDellaRegola(s, r);
-                    da.AddRange(Espandi(da, s.DominioPulito(), personale, gruppi));
+                    List<string> da = MittentiSciolti(s, r, personale);
                     bool tutti = true;
-                    foreach (string d in m.Da) if (!Contiene(da, d)) { tutti = false; break; }
+                    foreach (string d in m.Da) if (!PresoDa(da, d)) { tutti = false; break; }
                     if (tutti) return true;
                 }
                 else if (ricerca != null && string.Equals((r.QueryLibera ?? "").Trim(), ricerca.Trim(), StringComparison.OrdinalIgnoreCase))
