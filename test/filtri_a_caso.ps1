@@ -289,7 +289,11 @@ $scenariJson = New-Object System.Collections.Generic.List[string]
 $Solo = @($Solo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ })
 $quali = if ($Solo.Count) { $Solo } else { 0..($Scenari - 1) }
 $inizio = Get-Date
-$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0
+$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0
+$fRighe = $tFF.GetField('righe', $FI)
+# quello che la finestra sbaglia da sola, senza il motore: una scelta fatta a
+# mano che cambia aprendo di nuovo lo stesso file
+$finestraStorta = New-Object System.Collections.Generic.List[string]
 foreach ($n in $quali) {
     # ogni scenario ha il suo seme, dal seme e dal suo numero: lo stesso scenario
     # si rifa' da solo (-Solo), e due semi vicini non danno gli stessi scenari
@@ -387,6 +391,30 @@ foreach ($n in $quali) {
             $(if ($f.AltreAzioni.Count) { ' +' + ($f.AltreAzioni -join ',') } else { '' }))
         [void]$racconto.AppendLine('      proposta: ' + $proposta + $(if ($ff.Scelta($i).Testo -ne $proposta) { '   scelta: ' + $ff.Scelta($i).Testo } else { '' }))
     }
+    # a volte lo stesso file aperto di nuovo nella stessa finestra ("Apri il
+    # file..." una seconda volta, con i filtri letti di nuovo): le scelte fatte
+    # a mano restano, e ogni tanto se ne fa un'altra
+    if ($modo -eq 'file' -and (ACaso $altro 0.2)) {
+        $riaperti++
+        $comeErano = @($fRighe.GetValue($ff) | ForEach-Object { @{ aMano = [bool]$_.AMano; testo = [string]$_.Scelta.Testo } })
+        $lista = $mLeggi.Invoke($null, @([string]$xml))
+        $ff.Carica($lista)
+        $comeSono = @($fRighe.GetValue($ff))
+        for ($i = 0; $i -lt $lista.Count; $i++) {
+            if ($comeErano[$i].aMano -and $comeSono[$i].Scelta.Testo -ne $comeErano[$i].testo) {
+                $finestraStorta.Add("scenario ${n}, filtro ${i}: scelto a mano '" + $comeErano[$i].testo + "', aperto di nuovo '" + $comeSono[$i].Scelta.Testo + "'")
+            }
+            $scelte = $ff.Scelte($i)
+            if ($scelte.Count -ge 2 -and (ACaso $altro 0.1)) {
+                $c = $scelte[$altro.Next($scelte.Count)]
+                $ff.Scegli($i, $c)
+                $sceltiACaso++
+                $v = $lista[$i].DaTogliere()
+                if ($null -ne $v -and $c.Azione -eq 'togli' -and $null -eq $c.Regola) { $esplicite.Add($v.Chiave()) }
+            }
+        }
+        [void]$racconto.AppendLine('aperto di nuovo lo stesso file: ' + ((0..($lista.Count - 1) | ForEach-Object { $ff.Scelta($_).Testo }) -join '; '))
+    }
     $fatte = $ff.FatteAdesso()
     $ff.Dispose()
     if ($modo -ne 'configurazione') {
@@ -421,8 +449,9 @@ $mj = ($messaggi | ForEach-Object { '{"da":' + (J $_[0]) + ',"nome":' + (J $_[1]
 $file = Join-Path $temporanea 'scenari.json'
 [System.IO.File]::WriteAllText($file, '{"messaggi":[' + $mj + '],"scenari":[' + ($scenariJson -join ',') + ']}', (New-Object System.Text.UTF8Encoding($false)))
 $preparati = [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1)
-Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file; {5} scelte a caso nella tendina) preparati in {6} s" -f
-    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $sceltiACaso, $preparati)
+Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file, {5} con il file aperto di nuovo; {6} scelte a caso nella tendina) preparati in {7} s" -f
+    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $riaperti, $sceltiACaso, $preparati)
+foreach ($x in $finestraStorta) { Write-Host "FINESTRA: $x" }
 try {
     & node (Join-Path $qui 'filtri_a_caso.js') $file $motore
     $codice = $LASTEXITCODE
@@ -430,4 +459,8 @@ try {
     Remove-Item $temporanea -Recurse -Force -ErrorAction SilentlyContinue
 }
 Write-Host ("In tutto {0} s" -f [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1))
+if ($finestraStorta.Count -gt 0) {
+    Write-Host ("Scelte a mano cambiate aprendo di nuovo il file: {0}" -f $finestraStorta.Count)
+    exit 1
+}
 exit $codice

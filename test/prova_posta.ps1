@@ -2163,6 +2163,94 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $riquadro16f -eq 'Lo toglie EXTRA_togliFiltri; i suoi messaggi li prende la regola Sindacati.')
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: IL FILE APERTO DI NUOVO NELLA STESSA FINESTRA'
+    # "Apri il file..." una seconda volta, con lo stesso file o con un altro:
+    # le scelte fatte a mano passano ai filtri uguali, e "scelto prima" vale
+    # solo per quelli salvati davvero fra i filtri da togliere. Prima una
+    # scelta non ancora applicata ("Diventa una regola", "Unisci") diventava
+    # "Toglilo" e basta: il filtro andava via senza la sua regola
+    function FiltriRiaperti {
+        return @((UnFiltro ([ordered]@{ from = '@portale-uno.example'; label = 'Gare'; shouldArchive = 'true' })),
+                 (UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati'; shouldArchive = 'true' })))
+    }
+    $posteA = @(@('avvisi@portale-uno.example', 'Portale Uno'), @('comunicati@sindacato-uno.example', 'Sindacato Uno'))
+    $sA1 = StatoRiorganizza
+    $filtriA1 = FiltriRiaperti
+    $ffA1 = [Activator]::CreateInstance($tFF, @($sA1.PSObject.BaseObject))
+    $ffA1.Carica((ListaFiltri $filtriA1))
+    $primaA1 = @(0..1 | ForEach-Object { $ffA1.Scelta($_).Testo })
+    $filtriA1b = FiltriRiaperti
+    $ffA1.Carica((ListaFiltri $filtriA1b))
+    $dopoA1 = @(0..1 | ForEach-Object { $ffA1.Scelta($_).Testo })
+    $riepA1 = ([string]$mApplica.Invoke($null, @($sA1.PSObject.BaseObject, $ffA1.FatteAdesso()))) -replace '\r?\n', ' '
+    $ffA1.Dispose()
+    $motoreA1 = PromessaNelMotore $sA1 $filtriA1b $posteA 'riaperto_due_volte'
+    $vociA1 = @((Leggi $sA1 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola })
+    Verifica "lo stesso file aperto due volte, senza toccare niente: le stesse proposte ($($primaA1 -join '; ') / $($dopoA1 -join '; ')), nasce la regola Gare, Sindacati prende i mittenti, e nel motore vero nessun messaggio perde niente ($($vociA1 -join ', '))" (
+        ($primaA1 -join ',') -eq 'Diventa una regola,Unisci a Sindacati' -and ($dopoA1 -join ',') -eq ($primaA1 -join ',') -and
+        ($vociA1 -join ',') -eq 'Gare>Gare,Sindacati>Sindacati' -and @((Leggi $sA1 'Regole') | Where-Object { $_.Etichetta -eq 'Gare' }).Count -eq 1 -and
+        $motoreA1.esito -eq 0 -and $motoreA1.tolti -eq 2)
+    $sA2 = StatoRiorganizza
+    $ffA2 = [Activator]::CreateInstance($tFF, @($sA2.PSObject.BaseObject))
+    $ffA2.Carica((ListaFiltri (FiltriRiaperti)))
+    $ffA2.Scegli(0, $ffA2.Scelte(0)[0])
+    $ffA2.Scegli(1, @($ffA2.Scelte(1) | Where-Object { $_.Testo -eq 'Unisci a Sindacati' })[0])
+    $filtriA2 = FiltriRiaperti
+    $ffA2.Carica((ListaFiltri $filtriA2))
+    $dopoA2 = @(0..1 | ForEach-Object { $ffA2.Scelta($_).Testo })
+    $riepA2 = ([string]$mApplica.Invoke($null, @($sA2.PSObject.BaseObject, $ffA2.FatteAdesso()))) -replace '\r?\n', ' '
+    $ffA2.Dispose()
+    $motoreA2 = PromessaNelMotore $sA2 $filtriA2 $posteA 'riaperto_scelte_a_mano'
+    $vociA2 = @((Leggi $sA2 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola })
+    Verifica "scelti a mano 'Lascialo' per Gare e 'Unisci' per Sindacati, poi lo stesso file di nuovo: le scelte restano ($($dopoA2 -join '; ')), e 'Usa questa scelta' le fa ($($vociA2 -join ', '); '$riepA2')" (
+        ($dopoA2 -join ',') -eq 'Lascialo in Gmail,Unisci a Sindacati' -and ($vociA2 -join ',') -eq 'Sindacati>Sindacati' -and
+        @((Leggi $sA2 'Regole') | Where-Object { $_.Etichetta -eq 'Gare' }).Count -eq 0 -and
+        $motoreA2.esito -eq 0 -and $motoreA2.tolti -eq 1)
+    # e "Toglilo" e basta, senza una regola, arrivato a "Usa questa scelta"
+    # senza averlo scelto a mano per un filtro che non era scelto prima: resta
+    $sA3 = StatoRiorganizza
+    $gareA3 = (FiltriRiaperti)[0]
+    $forzataA3 = [Activator]::CreateInstance($tScelto)
+    $forzataA3.Filtro = $gareA3
+    $forzataA3.Voce = $gareA3.DaTogliere()
+    $forzataA3.Somiglia = (ScelteDi $gareA3 $sA3).x
+    $forzataA3.Scelta = [Activator]::CreateInstance($tSceltaF)
+    $forzataA3.Scelta.Azione = 'togli'
+    $listaA3 = [Activator]::CreateInstance([type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tScelto))
+    $listaA3.Add($forzataA3)
+    $riepA3 = ([string]$mApplica.Invoke($null, @($sA3.PSObject.BaseObject, $listaA3))) -replace '\r?\n', ' '
+    $vociA3 = (Leggi $sA3 'FiltriDaTogliere').Count
+    $forzataA3.AMano = $true
+    $riepA3b = ([string]$mApplica.Invoke($null, @($sA3.PSObject.BaseObject, $listaA3))) -replace '\r?\n', ' '
+    Verifica "'Toglilo' e basta non scelto a mano, per un filtro che non era scelto prima, resta ('$riepA3'); scelto a mano va via ('$riepA3b')" (
+        $vociA3 -eq 0 -and $riepA3 -match "Gare \(""Toglilo"" e basta, senza una regola che lo sostituisca" -and
+        (Leggi $sA3 'FiltriDaTogliere').Count -eq 1 -and (Leggi $sA3 'FiltriDaTogliere')[0].Regola -eq '')
+
+    # lo stesso filtro due volte in Gmail, una copia segna come letto e l'altra
+    # archivia e segna come letto: "Usa questa scelta" fa la regola Gare della
+    # copia che fa di piu'. Riaperta la finestra con lo stesso file, in
+    # qualunque ordine, conta quello che fanno tutte e due le copie, come in
+    # "Usa questa scelta": la regola le sostituisce ancora
+    $copieRiaperte = @()
+    foreach ($ordine in @(@('letti', 'tutti'), @('tutti', 'letti'))) {
+        $sF = StatoRiorganizza
+        $copieF = @($ordine | ForEach-Object {
+            if ($_ -eq 'letti') { UnFiltro ([ordered]@{ from = '@gare-due.example'; label = 'Gare'; shouldMarkAsRead = 'true' }) }
+            else { UnFiltro ([ordered]@{ from = '@gare-due.example'; label = 'Gare'; shouldArchive = 'true'; shouldMarkAsRead = 'true' }) } })
+        [void](UsaLaScelta $sF $copieF $null)
+        $nPrimaF = (Leggi $sF 'FiltriDaTogliere').Count
+        $f2 = FinestraEScelta $sF $copieF $null
+        $vociF = Leggi $sF 'FiltriDaTogliere'
+        if ($nPrimaF -ne 1 -or $vociF.Count -ne 1 -or $vociF[0].Regola -ne 'Gare' -or
+            @($f2.scelte | Where-Object { $_ -like 'Toglilo*' }).Count -ne 2 -or $f2.conto -ne 'Da togliere: 1 filtro' -or
+            @($f2.riquadri | Where-Object { $_ -match "non lo sostituisce piu'" }).Count -gt 0) {
+            $copieRiaperte += "$($ordine -join ' e poi '): $($f2.scelte -join '; ') / $($f2.conto) / $($vociF.Count) voci"
+        }
+    }
+    Verifica "lo stesso filtro due volte con azioni diverse, riaperto con lo stesso file in tutti e due gli ordini: si toglie ancora, con la regola Gare$(if ($copieRiaperte.Count) { ': no ' + ($copieRiaperte -join '; ') })" (
+        $copieRiaperte.Count -eq 0)
+
+    # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'
     # Studenti esclude Colleghi, Dirigenza e Segreteria; Ministero e USR le
     # ultime due. Un filtro che resta in Gmail con una di quelle etichette la

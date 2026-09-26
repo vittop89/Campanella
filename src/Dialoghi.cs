@@ -792,35 +792,64 @@ namespace Campanella
         /// adesso possono archiviare o segnare come letto), che partono
         /// lasciati. Quelli scelti prima che nel file non ci sono restano, in
         /// fondo: forse sono gia' stati tolti. Due filtri uguali partono con la
-        /// stessa scelta: il secondo si toglie se si toglie il primo. Poi le
-        /// proposte si rivedono con quelle delle altre righe (Rivedi).
+        /// stessa scelta: il secondo si toglie se si toglie il primo. Aperto un
+        /// altro file (o lo stesso, di nuovo) nella stessa finestra, le scelte
+        /// fatte a mano passano ai filtri uguali del file nuovo, e "scelto prima"
+        /// vale solo per quelli salvati davvero fra i filtri da togliere: una
+        /// scelta non ancora applicata ("Diventa una regola", "Unisci") non
+        /// diventa "Toglilo" e basta. Poi le proposte si rivedono con quelle
+        /// delle altre righe (Rivedi).
         /// </summary>
         public void Carica(List<FiltroGmail> filtri)
         {
-            // le scelte di adesso (i filtri scelti prima, o quelli di un altro
-            // file aperto poco fa) passano ai filtri uguali del file nuovo; quelli
-            // scelti prima che il file nuovo non ha restano in fondo
+            // i filtri scelti prima, salvati davvero (dallo Stato: non quelli
+            // scelti poco fa in un altro file, che non sono ancora applicati)
+            Dictionary<string, FiltroDaTogliere> salvati = new Dictionary<string, FiltroDaTogliere>();
+            if (stato != null && stato.FiltriDaTogliere != null)
+                foreach (FiltroDaTogliere v in stato.FiltriDaTogliere)
+                    if (v != null && !salvati.ContainsKey(v.Chiave())) salvati[v.Chiave()] = v;
+            // quelli scelti prima che sono ancora da togliere passano ai filtri
+            // uguali del file nuovo; quelli che il file nuovo non ha restano in
+            // fondo. Le scelte fatte a mano passano ai filtri uguali, come sono
             List<string> prima = new List<string>();
             Dictionary<string, string> regolaDiPrima = new Dictionary<string, string>();
+            Dictionary<string, SceltaFiltro> aMano = new Dictionary<string, SceltaFiltro>();
             // quelli scelti con la 1.6.0, che li sceglieva per l'etichetta sola
             List<string> con160 = new List<string>();
             List<Riga> vecchie = new List<Riga>();
             for (int i = 0; i < righe.Count; i++)
             {
                 Riga r = righe[i];
-                if (r.Voce == null || prima.Contains(r.Voce.Chiave())) continue;
-                if (!Spuntata(i))
+                if (r.Voce == null) continue;
+                string k = r.Voce.Chiave();
+                if (r.AMano && r.Scelta != null && !aMano.ContainsKey(k)) aMano[k] = r.Scelta;
+                if (prima.Contains(k)) continue;
+                if (!Spuntata(i) || !salvati.ContainsKey(k))
                 {
                     // scelto prima, lasciato perche' senza la sua regola (o per
                     // le altre scelte): resta in fondo, se il file non lo ha
                     if (r.Filtro == null && (r.Orfana || r.PercheResta != "")) vecchie.Add(r);
                     continue;
                 }
-                prima.Add(r.Voce.Chiave());
-                regolaDiPrima[r.Voce.Chiave()] = r.Voce.Regola;
-                if (FiltriGmail.SceltoConLaVersioneDiPrima(r.Voce)) con160.Add(r.Voce.Chiave());
+                prima.Add(k);
+                regolaDiPrima[k] = salvati[k].Regola;
+                if (FiltriGmail.SceltoConLaVersioneDiPrima(salvati[k])) con160.Add(k);
                 if (r.Filtro == null) vecchie.Add(r);
-                else if (r.Prima) vecchie.Add(ScelteDiPrima(r.Voce.Copia(), r.Somiglia));
+                else if (r.Prima) vecchie.Add(ScelteDiPrima(salvati[k].Copia(), r.Somiglia));
+            }
+
+            // quello che fanno in Gmail tutte le copie dello stesso filtro, che
+            // vanno via insieme: se una archivia (o segna come letto), la regola
+            // lo deve fare, come in FiltriGmail.Applica
+            Dictionary<string, bool[]> azioni = new Dictionary<string, bool[]>();
+            foreach (FiltroGmail f in filtri ?? new List<FiltroGmail>())
+            {
+                FiltroDaTogliere v = f.DaTogliere();
+                if (v == null) continue;
+                string k = v.Chiave();
+                if (!azioni.ContainsKey(k)) azioni[k] = new bool[2];
+                if (f.Archivia) azioni[k][0] = true;
+                if (f.SegnaLetto) azioni[k][1] = true;
             }
 
             righe.Clear();
@@ -834,21 +863,27 @@ namespace Campanella
                 // quello degli studenti di una classe non si sceglie: la voce da
                 // togliere porterebbe i loro indirizzi nello Stato e nella configurazione
                 r.Voce = (r.Somiglia.Tipo == FiltriGmail.DiUnaClasse) ? null : f.DaTogliere();
-                r.Prima = r.Voce != null && prima.Contains(r.Voce.Chiave());
+                string k = (r.Voce == null) ? "" : r.Voce.Chiave();
+                if (r.Voce != null && azioni.ContainsKey(k))
+                {
+                    r.Voce.Archivia = azioni[k][0];
+                    r.Voce.SegnaLetto = azioni[k][1];
+                }
+                r.Prima = r.Voce != null && prima.Contains(k);
                 // la regola che lo sostituiva, per Applica: resta se lo sostituisce ancora
-                if (r.Prima) r.Voce.Regola = regolaDiPrima[r.Voce.Chiave()];
+                if (r.Prima) r.Voce.Regola = regolaDiPrima[k];
                 r.Scelte = (r.Voce == null) ? new List<SceltaFiltro>(new SceltaFiltro[] { new SceltaFiltro() })
                                             : FiltriGmail.Scelte(f, r.Somiglia, stato);
                 // uno scelto con la 1.6.0 parte dalla proposta di adesso, come uno
                 // nuovo: la 1.6.0 lo sceglieva per l'etichetta sola. Uno scelto con
                 // la sua regola che adesso non lo sostituisce piu' (con quello che
-                // il filtro fa in Gmail adesso) parte lasciato, come senza il file
-                bool di160 = r.Prima && con160.Contains(r.Voce.Chiave());
+                // fanno in Gmail adesso tutte le sue copie) parte lasciato, come
+                // senza il file
+                bool di160 = r.Prima && con160.Contains(k);
                 r.Orfana = r.Prima && !di160 && (r.Voce.Regola ?? "").Trim() != "" && !FiltriGmail.AncoraSostituito(r.Voce, stato);
                 r.PropostaPiena = r.Orfana ? r.Scelte[0] : FiltriGmail.Proposta(r.Scelte, f, r.Somiglia, stato, r.Prima && !di160);
                 if (r.Voce != null)
                 {
-                    string k = r.Voce.Chiave();
                     // lo stesso filtro due volte: per lo script e' una voce sola, e
                     // parte con la stessa scelta (o "Toglilo", se la sua tendina non l'ha)
                     if (primaDellaVoce.ContainsKey(k))
@@ -862,12 +897,14 @@ namespace Campanella
                 }
                 r.Proposta = r.PropostaPiena;
                 r.Scelta = r.Proposta;
+                RiprendiLaSceltaAMano(r, aMano);
                 righe.Add(r);
             }
             int mancano = 0;
             foreach (Riga v in vecchie)
             {
                 if (nelFile.Contains(v.Voce.Chiave())) continue;
+                if (!v.AMano) RiprendiLaSceltaAMano(v, aMano);
                 righe.Add(v);
                 mancano++;
             }
@@ -932,6 +969,21 @@ namespace Campanella
                 (mancano > 0 ? " In fondo, " + Quanti(mancano, "scelto", "scelti") + " prima che nel file " +
                                (mancano == 1 ? "non c'e'." : "non ci sono.") : "") + DelleClassiTolti();
             Riempi();
+        }
+
+        /// <summary>
+        /// La scelta fatta a mano per lo stesso filtro prima di aprire il file
+        /// (aMano, per la chiave della voce), se la tendina della riga ce l'ha
+        /// (la stessa azione, con la stessa regola): la riga la prende, fatta a
+        /// mano. Altrimenti resta la proposta.
+        /// </summary>
+        static void RiprendiLaSceltaAMano(Riga r, Dictionary<string, SceltaFiltro> aMano)
+        {
+            if (r == null || r.Voce == null || !aMano.ContainsKey(r.Voce.Chiave())) return;
+            SceltaFiltro c = SceltaUguale(r.Scelte, aMano[r.Voce.Chiave()]);
+            if (c == null) return;
+            r.Scelta = c;
+            r.AMano = true;
         }
 
         static string Quanti(int n, string uno, string tanti) { return n + " " + (n == 1 ? uno : tanti); }

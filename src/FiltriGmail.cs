@@ -77,6 +77,13 @@ namespace Campanella
     class FiltroCheResta
     {
         public string Chiave = "", Etichetta = "", Perche = "";
+        /// <summary>
+        /// Resta per una ragione che non dipende dalle altre scelte (un filtro
+        /// lasciato in Gmail per scelta, una scelta che non si puo' fare in
+        /// nessun caso): anche lasciate altre scelte resterebbe. Esito lo lascia
+        /// subito, senza un giro per lui.
+        /// </summary>
+        public bool Certo = false;
     }
 
     /// <summary>Che cosa fanno le scelte della finestra dei filtri (FiltriGmail.Applica e FiltriGmail.Prova).</summary>
@@ -2323,6 +2330,9 @@ namespace Campanella
         ///    in Gmail adesso archivia o segna come letto), o scelto con la 1.6.0
         ///    senza il file (non si vede che cosa fa, ne' gli altri filtri con la
         ///    sua etichetta): la finestra lo propone lasciato;
+        ///  - "Toglilo" e basta, senza una regola, non scelto a mano per uno che
+        ///    non era fra quelli scelti prima (s.FiltriDaTogliere): la finestra
+        ///    non lo propone mai, e nel dubbio non va via;
         ///  - lo stesso filtro piu' volte, con azioni diverse, e la regola non fa
         ///    quello che fa la copia che archivia o segna come letto;
         ///  - dopo tutte le scelte, la sua regola non prende piu' tutti i suoi
@@ -2345,6 +2355,10 @@ namespace Campanella
             List<FiltroDaTogliere> togli = new List<FiltroDaTogliere>();
             List<string> fatte = new List<string>(), lasciate = new List<string>();
             foreach (FiltroCheResta r in restano) lasciate.Add(r.Chiave);
+            // quelli scelti prima, com'erano prima di queste scelte
+            List<string> salvati = new List<string>();
+            if (s.FiltriDaTogliere != null)
+                foreach (FiltroDaTogliere v in s.FiltriDaTogliere) if (v != null) salvati.Add(v.Chiave());
             List<Regola> createAdesso = new List<Regola>();
             Dictionary<Regola, int> dopo = new Dictionary<Regola, int>();
             Dictionary<string, FiltroScelto> perVoce = new Dictionary<string, FiltroScelto>();
@@ -2398,7 +2412,7 @@ namespace Campanella
                     // non conta piu'
                     if (!aMano)
                     {
-                        Rifiuta(e, rifiutati, x.Voce, TestoCon160);
+                        Rifiuta(e, rifiutati, x.Voce, TestoCon160, true);
                         continue;
                     }
                     voce.Regola = ""; voce.Archivia = false; voce.SegnaLetto = false;
@@ -2415,6 +2429,14 @@ namespace Campanella
                         continue;
                     }
                     voce.Regola = "";
+                }
+                else if ((voce.Regola ?? "").Trim() == "" && !aMano && !salvati.Contains(chiave))
+                {
+                    // "Toglilo" e basta, senza una regola, per uno che non era
+                    // scelto: la finestra non lo propone, e lo toglie solo chi lo sceglie
+                    Rifiuta(e, rifiutati, x.Voce, "\"Toglilo\" e basta, senza una regola che lo sostituisca, toglie un filtro " +
+                            "che non era fra quelli scelti prima solo se lo scegli tu", true);
+                    continue;
                 }
                 if (diverse && voce.Regola != "" && !AncoraSostituito(voce, s))
                 {
@@ -2488,10 +2510,17 @@ namespace Campanella
 
         static void Rifiuta(EsitoScelte e, List<FiltroCheResta> rifiutati, FiltroDaTogliere voce, string perche)
         {
+            Rifiuta(e, rifiutati, voce, perche, false);
+        }
+
+        /// <summary>Lo stesso; certo: resterebbe anche ai giri dopo di Esito, con qualunque altra scelta lasciata (FiltroCheResta.Certo).</summary>
+        static void Rifiuta(EsitoScelte e, List<FiltroCheResta> rifiutati, FiltroDaTogliere voce, string perche, bool certo)
+        {
             FiltroCheResta r = new FiltroCheResta();
             r.Chiave = voce.Chiave();
             r.Etichetta = voce.Etichetta;
             r.Perche = perche;
+            r.Certo = certo;
             rifiutati.Add(r);
             e.Lasciati++;
         }
