@@ -2443,7 +2443,8 @@ namespace Campanella
             // (due Portali, uno che archivia e uno no: resta quello che archivia,
             // l'altro diventa la regola). Con lei tutte quelle che resterebbero
             // anche ai giri dopo (FiltroCheResta.Certo: una regola che non si
-            // scrive, un filtro con la stessa etichetta lasciato in Gmail): cosi'
+            // scrive, un filtro con la stessa etichetta, o con un'etichetta
+            // esclusa che nessuna scelta tocca, lasciato in Gmail): cosi'
             // con 200 filtri non serve un giro per ognuna. Ogni giro rifa' tutte
             // le prove: quello che va via alla fine regge con tutto quello che resta
             for (int giro = 0; ; giro++)
@@ -2535,6 +2536,9 @@ namespace Campanella
             // segna come letti diversamente, con la chiave di chi l'ha fatta nascere
             Dictionary<Regola, string> natiDa = new Dictionary<Regola, string>();
             List<KeyValuePair<FiltroCheResta, string>> perUnaNata = new List<KeyValuePair<FiltroCheResta, string>>();
+            // le etichette (Pulita) delle regole che le scelte di questo giro
+            // hanno cambiato (mittenti, esclusioni, accese) o fatto nascere
+            HashSet<string> toccate = new HashSet<string>();
             foreach (FiltroScelto x in scelti)
             {
                 if (!Toglie(x, lasciate, chiavi)) continue;
@@ -2571,6 +2575,7 @@ namespace Campanella
                     continue;
                 }
                 if (sostituta != null && createAdesso.Contains(sostituta) && !natiDa.ContainsKey(sostituta)) natiDa[sostituta] = chiave;
+                if (sostituta != null && x.Scelta.Azione != SceltaFiltro.Togli) toccate.Add(Pulita(sostituta.Etichetta));
                 FiltroDaTogliere voce = x.Voce.Copia();
                 chiaveDi[voce] = chiave;
                 if (x.Filtro != null)
@@ -2659,9 +2664,11 @@ namespace Campanella
             // quelli che restano in Gmail a ogni giro di Esito, comunque vadano le
             // altre scelte: lasciati, che non si possono togliere, o gia' fra
             // quelli che restano. Uno che resta per loro con la stessa etichetta
-            // o nel cestino (che non dipende dalle regole di questo giro)
-            // resterebbe anche ai giri dopo (FiltroCheResta.Certo), e Esito lo
-            // lascia subito
+            // o nel cestino (che non dipende dalle regole di questo giro), o con
+            // un'etichetta che la sua regola esclude quando nessuna scelta di
+            // questo giro ha toccato le regole escluse (ai giri dopo sono le
+            // stesse: le scelte che si fanno sono solo di meno), resterebbe anche
+            // ai giri dopo (FiltroCheResta.Certo), e Esito lo lascia subito
             HashSet<string> provati = new HashSet<string>(), certi = new HashSet<string>();
             foreach (FiltroCheResta r in rifiutati) if (r.Certo) certi.Add(r.Chiave);
             foreach (FiltroScelto x in scelti) if (Toglie(x, lasciate, chiavi) && !certi.Contains(chiavi[x])) provati.Add(chiavi[x]);
@@ -2676,7 +2683,8 @@ namespace Campanella
                     if (perche == "") continue;
                     togli.Remove(v);
                     Rifiuta(e, rifiutati, v, perche,
-                            ConLaStessaEtichetta(v, fissi, s) != "" || ConUnoNelCestino(v, nelCestinoFissi) != "");
+                            ConLaStessaEtichetta(v, fissi, s) != "" || ConUnoNelCestino(v, nelCestinoFissi) != "" ||
+                            (ConUnaEtichettaEsclusa(v, fissi, s) != "" && !EscludeUnaToccata(v, s, toccate)));
                     // resta lui, e con lui i filtri uguali
                     inGmail = QuelliCheRestano(scelti, Via(togli, chiaveDi), nelCestino, chiavi);
                     ancora = true;
@@ -2993,6 +3001,24 @@ namespace Campanella
                 }
             }
             return "";
+        }
+
+        /// <summary>
+        /// Vero se la regola del filtro v esclude un'etichetta fra toccate (le
+        /// regole che le scelte di un giro di Fai hanno cambiato o fatto
+        /// nascere): allora un altro giro, con meno scelte, puo' dire
+        /// diversamente se le regole escluse prendono i mittenti di un filtro
+        /// che resta (PresiDalleEscluse).
+        /// </summary>
+        static bool EscludeUnaToccata(FiltroDaTogliere v, Stato s, HashSet<string> toccate)
+        {
+            if (v == null || toccate.Count == 0) return false;
+            foreach (Regola r in s.Regole)
+            {
+                if (r == null || !string.Equals((r.Etichetta ?? "").Trim(), (v.Regola ?? "").Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (string x in r.EscludiEtichette) if (toccate.Contains(Pulita(x))) return true;
+            }
+            return false;
         }
 
         /// <summary>

@@ -2897,6 +2897,14 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
             $p = [ordered]@{ from = "mittente$_@progetti-$($_ % 7).example"; label = "Progetto $($_ % 20)" }
             if ((([math]::Floor($_ / 20)) + ($_ % 20)) % 2 -eq 0) { $p.shouldArchive = 'true' }
             $p }) }
+        # 199 filtri di Ministero e USR, ognuno con un ufficio di @istruzione.it,
+        # e uno di Segreteria con tutto @istruzione.it e la stella: resta in
+        # Gmail, e Ministero e USR esclude Segreteria. Restano tutti, e con
+        # nessuna scelta che tocca le regole escluse restano in un giro solo
+        # (prima uno per giro: un clic costava piu' di un secondo)
+        'un''etichetta esclusa che resta' = @{ voci = 0; conto = 'Da togliere: nessuno'; limite = 0.5; filtri = @(0..199 | ForEach-Object {
+            if ($_ -lt 199) { [ordered]@{ from = "ufficio$_@istruzione.it"; label = 'Ministero e USR' } }
+            else { [ordered]@{ from = '@istruzione.it'; label = 'Segreteria'; shouldStar = 'true' } } }) }
     }
     foreach ($nome200 in $casi200.Keys) {
         $s200 = StatoRiorganizza
@@ -2912,10 +2920,11 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $ff200.Dispose()
         $voci200 = (Leggi $s200 'FiltriDaTogliere').Count
         # i secondi con margine: sul computer di prova meno di mezzo secondo
+        $limite200 = $(if ($casi200[$nome200].limite) { $casi200[$nome200].limite } else { 3 })
         Verifica ("200 filtri, $nome200 ('$conto200', $voci200 da togliere): la finestra si apre in {0:N2} s e un clic nella tendina costa {1:N2} s" -f $apri200, $clic200) (
             $lista200.Count -eq 200 -and $conto200 -eq $casi200[$nome200].conto -and
             $voci200 -eq $casi200[$nome200].voci -and
-            $apri200 -lt 3 -and $clic200 -lt 3)
+            $apri200 -lt $limite200 -and $clic200 -lt $limite200)
     }
 
     # -----------------------------------------------------------------------
