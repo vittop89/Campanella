@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1 — (data da definire)
+## 1.6.1 — 27 September 2026
 
 No script changed: Organizzazione_Gmail.gs stays the 1.6.0 one. Copy
 Configurazione.gs again (Posta, step 5) when you use the new rules: the rules
