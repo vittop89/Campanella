@@ -21,7 +21,8 @@
     scelte prima (anche come le salvava la 1.6.0, senza la regola e senza
     le azioni). Poi la finestra vera, costruita e mai mostrata, con le
     proposte di partenza (e ogni tanto un'altra scelta della tendina),
-    FiltriGmail.Applica come dopo "Usa questa scelta", la configurazione
+    FiltriGmail.Applica come dopo "Usa questa scelta" (a volte poi cambiano
+    le regole escluse o il gruppo delle etichette), la configurazione
     (GeneratorePosta.Configurazione), e test\filtri_a_caso.js la prova nel
     motore vero: quali filtri toglie EXTRA_togliFiltri e, su una casella
     finta, se i messaggi di ognuno hanno ancora quello che il filtro dava
@@ -361,7 +362,7 @@ $scenariJson = New-Object System.Collections.Generic.List[string]
 $Solo = @($Solo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ })
 $quali = if ($Solo.Count) { $Solo } else { 0..($Scenari - 1) }
 $inizio = Get-Date
-$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0; $cambiate = 0
+$conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0; $cambiate = 0; $gruppiCambiati = 0
 $mCampanella = $tFiltri.GetMethod('FiltriDiCampanella', $FS)
 $fRighe = $tFF.GetField('righe', $FI)
 $fEsito = $tFF.GetField('esito', $FI)
@@ -434,6 +435,8 @@ foreach ($n in $quali) {
             elseif ($tipo -le 7) {
                 $regoleS = Leggi $s 'Regole'
                 $v.Regola = $(if (ACaso $caso 0.5) { $regoleS[$caso.Next($regoleS.Count)].Etichetta } else { ($f.Etichetta -split '/')[-1] })
+                # con il gruppo delle etichette di quando si e' scelto (quello di adesso)
+                $v.Gruppo = $prefisso
                 $prima += 'regola ' + $v.Regola
             } else { $v.Regola = ''; $esplicite.Add($v.Chiave()); $prima += 'toglilo' }
             (Leggi $s 'FiltriDaTogliere').Add($v)
@@ -537,6 +540,25 @@ foreach ($n in $quali) {
             [void]$racconto.AppendLine('finestra senza il file, Applica: ' + ($esito -replace '\r?\n', ' '))
         }
     }
+    # a volte, dopo "Usa questa scelta" con il file, cambia il gruppo delle
+    # etichette ("Raggruppa sotto"): da Scuola a nessuno (i filtri senza gruppo
+    # hanno allora le etichette del gruppo nuovo) o a Istituto, da nessuno a
+    # Scuola; poi la configurazione, o la finestra senza il file e "Usa questa
+    # scelta". Ha il suo generatore: gli scenari di prima restano quelli
+    $caso3 = New-Object System.Random ([int](([long]$semeScenario * 37 + 29) % 2147483647))
+    if ($modo -eq 'file' -and (ACaso $caso3 0.12)) {
+        $gruppiCambiati++
+        $nuovo = $(if ($prefisso -eq '') { 'Scuola' } elseif (ACaso $caso3 0.8) { '' } else { 'Istituto' })
+        Imposta $s 'Prefisso' $nuovo
+        [void]$racconto.AppendLine("poi: il gruppo delle etichette da '$prefisso' a '$nuovo'")
+        if (ACaso $caso3 0.5) {
+            $ff = [Activator]::CreateInstance($tFF, @($s.PSObject.BaseObject))
+            ControllaLaFinestra $ff $n
+            $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $ff.FatteAdesso()))
+            $ff.Dispose()
+            [void]$racconto.AppendLine('finestra senza il file, Applica: ' + ($esito -replace '\r?\n', ' '))
+        }
+    }
     $voci = @{}
     foreach ($v in (Leggi $s 'FiltriDaTogliere')) {
         if ($null -eq $v) { continue }
@@ -566,8 +588,8 @@ $mj = ($messaggi | ForEach-Object { '{"da":' + (J $_[0]) + ',"nome":' + (J $_[1]
 $file = Join-Path $temporanea 'scenari.json'
 [System.IO.File]::WriteAllText($file, '{"messaggi":[' + $mj + '],"scenari":[' + ($scenariJson -join ',') + ']}', (New-Object System.Text.UTF8Encoding($false)))
 $preparati = [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1)
-Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file, {5} con il file aperto di nuovo, {6} con le regole escluse cambiate dopo; {7} scelte a caso nella tendina) preparati in {8} s" -f
-    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $riaperti, $cambiate, $sceltiACaso, $preparati)
+Write-Host ("Seme {0}: {1} scenari ({2} filtri, {3} con delle voci scelte prima, {4} senza il file, {5} con il file aperto di nuovo, {6} con le regole escluse cambiate dopo, {7} con il gruppo delle etichette cambiato dopo; {8} scelte a caso nella tendina) preparati in {9} s" -f
+    $Seme, $quali.Count, $totaleFiltri, $conPrima, $senzaFile, $riaperti, $cambiate, $gruppiCambiati, $sceltiACaso, $preparati)
 foreach ($x in $finestraStorta) { Write-Host "FINESTRA: $x" }
 try {
     & node (Join-Path $qui 'filtri_a_caso.js') $file $motore

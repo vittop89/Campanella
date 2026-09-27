@@ -882,6 +882,9 @@ namespace Campanella
                     r.Voce.Archivia = azioni[k][0];
                     r.Voce.SegnaLetto = azioni[k][1];
                 }
+                // con il file la finestra vede gli altri filtri con il gruppo
+                // delle etichette di adesso: la voce e' di adesso
+                if (r.Voce != null && stato != null) r.Voce.Gruppo = stato.PrefissoPulito();
                 r.Prima = r.Voce != null && prima.Contains(k);
                 // la regola che lo sostituiva, per Applica: resta se lo sostituisce ancora
                 if (r.Prima) r.Voce.Regola = regolaDiPrima[k];

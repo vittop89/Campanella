@@ -1020,6 +1020,11 @@ static class ProvaStato
                 FieldInfo campoCestino = FiltriDi(t)[0].GetType().GetField("Cestino");
                 Verifica("un filtro da togliere ricorda se mandava nel cestino (FiltroDaTogliere.Cestino)", campoCestino != null);
                 if (campoCestino != null) campoCestino.SetValue(FiltriDi(t)[0], true);
+                // e il gruppo delle etichette di quando si e' scelto: se poi cambia,
+                // senza il file il filtro resta in Gmail. Solo per chi lo ha
+                FieldInfo campoGruppo = FiltriDi(t)[0].GetType().GetField("Gruppo");
+                Verifica("un filtro da togliere ricorda il gruppo delle etichette (FiltroDaTogliere.Gruppo)", campoGruppo != null);
+                if (campoGruppo != null) campoGruppo.SetValue(FiltriDi(t)[0], "Scuola");
                 object accanto = Activator.CreateInstance(FiltriDi(t)[0].GetType(), true);
                 accanto.GetType().GetField("Etichetta").SetValue(accanto, "Colleghi");
                 ((Dictionary<string, string>)accanto.GetType().GetField("Criteri").GetValue(accanto))["from"] =
@@ -1037,7 +1042,8 @@ static class ProvaStato
                     Convert.ToString(a0["etichetta"]) == "Colleghi" && ca0 != null &&
                     Convert.ToString(ca0["from"]) == "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
                     !e1.ContainsKey("escluse") && !e1.ContainsKey("accanto") && !Leggi(Impostazioni()).Contains("marco.verdi") &&
-                    e0.ContainsKey("cestino") && e0["cestino"] is bool && (bool)e0["cestino"] && !e1.ContainsKey("cestino"));
+                    e0.ContainsKey("cestino") && e0["cestino"] is bool && (bool)e0["cestino"] && !e1.ContainsKey("cestino") &&
+                    e0.ContainsKey("gruppo") && Convert.ToString(e0["gruppo"]) == "Scuola" && !e1.ContainsKey("gruppo"));
                 Stato sx = Carica();
                 IList accantoLetti = (FiltriDi(sx) != null && FiltriDi(sx).Count == 2) ? (IList)campoAccanto.GetValue(FiltriDi(sx)[0]) : null;
                 List<string> esclusiLette = (accantoLetti != null) ? campoEscluse.GetValue(FiltriDi(sx)[0]) as List<string> : null;
@@ -1048,7 +1054,8 @@ static class ProvaStato
                         "anna.bianchi@scuola.example OR marco.verdi@scuola.example" &&
                     campoEscluse.GetValue(FiltriDi(sx)[1]) == null && ((IList)campoAccanto.GetValue(FiltriDi(sx)[1])).Count == 0 &&
                     campoCestino != null && object.Equals(campoCestino.GetValue(FiltriDi(sx)[0]), true) &&
-                    object.Equals(campoCestino.GetValue(FiltriDi(sx)[1]), false));
+                    object.Equals(campoCestino.GetValue(FiltriDi(sx)[1]), false) && campoGruppo != null &&
+                    (string)campoGruppo.GetValue(FiltriDi(sx)[0]) == "Scuola" && campoGruppo.GetValue(FiltriDi(sx)[1]) == null);
             }
         }
 

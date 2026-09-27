@@ -1989,7 +1989,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $creatoR = UnFiltro ([ordered]@{ from = 'portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })
     $cCreatoR = ScelteDi $creatoR $sR7
     $voceR7 = $creatoR.DaTogliere()
-    $voceR7.Regola = 'Portali'
+    $voceR7.Regola = 'Portali'; $voceR7.Gruppo = ''
     $comeLaRegolaR = UnFiltro ([ordered]@{ from = 'portale-uno.example'; label = 'Portali' })
     Verifica "uno creato da Campanella per Portali, ma che archivia: niente 'lo fa gia'' ($(Testi $cCreatoR)), e scelto prima resta (sostituito: $($mAncora.Invoke($null, @($voceR7, $sR7)))); come la regola si' ('$((ScelteDi $comeLaRegolaR $sR7).scelte[1].Testo)')" (
         $cCreatoR.x.Tipo -eq 'campanella' -and (Testi $cCreatoR) -notmatch "lo fa gia'" -and
@@ -2125,7 +2125,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $s16d = StatoRiorganizza
     $mimPrima = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR' })
     $mimAdesso = UnFiltro ([ordered]@{ from = '@mim.gov.it'; label = 'Ministero e USR'; shouldMarkAsRead = 'true' })
-    $voce16d = $mimPrima.DaTogliere(); $voce16d.Regola = 'Ministero e USR'
+    $voce16d = $mimPrima.DaTogliere(); $voce16d.Regola = 'Ministero e USR'; $voce16d.Gruppo = ''
     $lista16d = [Activator]::CreateInstance($tListaVoci16); $lista16d.Add($voce16d)
     Imposta $s16d 'FiltriDaTogliere' $lista16d
     $ff16d = [Activator]::CreateInstance($tFF, @($s16d.PSObject.BaseObject))
@@ -2147,7 +2147,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $s16g = StatoRiorganizza
     $sind16g = UnFiltro ([ordered]@{ from = '@sindacato-uno.example'; label = 'Sindacati' })
     $voceSolo = $sind16g.DaTogliere()
-    $voceConRegola = $sind16g.DaTogliere(); $voceConRegola.Regola = 'Sindacati'
+    $voceConRegola = $sind16g.DaTogliere(); $voceConRegola.Regola = 'Sindacati'; $voceConRegola.Gruppo = ''
     $lista16g = [Activator]::CreateInstance($tListaVoci16); $lista16g.Add($voceSolo); $lista16g.Add($voceConRegola)
     Imposta $s16g 'FiltriDaTogliere' $lista16g
     Verifica "lo stesso filtro scelto due volte, una voce senza la sua regola: la configurazione non lo scrive ($([int]$mDaTogliere.Invoke($null, @($s16g))))" (
@@ -2156,7 +2156,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     # che lo fa gia', come il riquadro e come ricorda "Usa questa scelta"
     $s16f = StatoRiorganizza
     $voce16f = (UnFiltro ([ordered]@{ from = '@snals.it'; label = 'Sindacati'; shouldArchive = 'true' })).DaTogliere()
-    $voce16f.Regola = 'Sindacati'
+    $voce16f.Regola = 'Sindacati'; $voce16f.Gruppo = ''
     $lista16f = [Activator]::CreateInstance($tListaVoci16); $lista16f.Add($voce16f)
     Imposta $s16f 'FiltriDaTogliere' $lista16f
     $ff16f = [Activator]::CreateInstance($tFF, @($s16f.PSObject.BaseObject))
@@ -2266,7 +2266,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $st = StatoRiorganizza
         (Leggi $st 'Regole').Add((NuovaRegolaPortali @('@portale-uno.example') ''))
         $v = (UnFiltro ([ordered]@{ from = '@portale-uno.example'; label = 'Portali' })).DaTogliere()
-        $v.Regola = 'Portali'; $v.Archivia = $false; $v.SegnaLetto = $false
+        $v.Regola = 'Portali'; $v.Gruppo = ''; $v.Archivia = $false; $v.SegnaLetto = $false
         $l = [Activator]::CreateInstance($tListaVoci16); $l.Add($v)
         Imposta $st 'FiltriDaTogliere' $l
         return $st
@@ -2327,6 +2327,80 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $minB3.Da -notcontains '@usr-regione.example' -and (Leggi $sB3 'FiltriDaTogliere').Count -eq 0)
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: IL GRUPPO DELLE ETICHETTE CAMBIATO DOPO LA SCELTA'
+    # "Raggruppa sotto" cambiato dopo "Usa questa scelta": la regola mette
+    # un'etichetta di un altro gruppo, e un filtro rimasto in Gmail con
+    # un'etichetta del gruppo nuovo le toglie dei messaggi (la stessa, o una
+    # che lei esclude). Senza il file non si vede: la voce ricorda il gruppo
+    # di quando si e' scelto, e il filtro resta in Gmail; con il file la
+    # finestra rivede tutto. Prima la configurazione lo scriveva ancora, e nel
+    # motore vero i messaggi perdevano il segna come letto o l'etichetta
+    $posteGr = @(@('avvisi@portale-tre.example', 'Portale Tre'), @('info@portale-tre.example', 'Portale Tre'),
+                 @('eventi@portale-tre.example', 'Portale Tre'), @('studente.uno@scuola.example', 'Studente Uno'),
+                 @('studente.due@scuola.example', 'Studente Due'), @('anna.bianchi@scuola.example', 'Anna Bianchi'))
+    $mDaTogliereGr = $tGen.GetMethod('FiltriDaTogliere', $FS)
+    function GruppoCambiato($prefisso, $nuovo, $filtri, $nome) {
+        $st = StatoRiorganizza
+        Imposta $st 'Prefisso' $prefisso
+        $x = FinestraEScelta $st $filtri $null
+        $voci = Leggi $st 'FiltriDaTogliere'
+        $prima = PromessaNelMotore $st $filtri $posteGr ($nome + '_prima')
+        Imposta $st 'Prefisso' $nuovo
+        $fuori = @{ scelte = $x.scelte; voci = $voci.Count; gruppo = $(if ($voci.Count) { $voci[0].Gruppo } else { $null })
+                    prima = $prima; senza = (Senza $st); conf = [int]$mDaTogliereGr.Invoke($null, @($st)) }
+        $fuori.dopo = PromessaNelMotore $st $filtri $posteGr ($nome + '_dopo')
+        $ff = [Activator]::CreateInstance($tFF, @($st.PSObject.BaseObject))
+        $fuori.senzaFile = $ff.Scelta(0).Testo
+        $fuori.riquadro = SuggerimentoDi $ff 0
+        $fuori.senzaFileRiep = ([string]$mApplica.Invoke($null, @($st.PSObject.BaseObject, $ff.FatteAdesso()))) -replace '\r?\n', ' '
+        $ff.Dispose()
+        $fuori.vociSenzaFile = (Leggi $st 'FiltriDaTogliere').Count
+        $fuori.conFile = FinestraEScelta $st $filtri $null
+        $fuori.motoreConFile = PromessaNelMotore $st $filtri $posteGr ($nome + '_con_il_file')
+        return $fuori
+    }
+    # Istituto/Portali lasciato; Scuola/Portali, che segna come letto, diventa
+    # la regola Portali. Poi il gruppo diventa Istituto
+    $g1 = GruppoCambiato 'Scuola' 'Istituto' @(
+        (UnFiltro ([ordered]@{ from = 'avvisi@portale-tre.example OR info@portale-tre.example'; label = 'Istituto/Portali' })),
+        (UnFiltro ([ordered]@{ from = '@portale-tre.example'; label = 'Scuola/Portali'; shouldMarkAsRead = 'true' }))) 'gruppo_portali'
+    Verifica "Scuola/Portali diventa la regola Portali ($($g1.scelte -join '; ')); cambiato il gruppo in Istituto, dove in Gmail c'e' Istituto/Portali che non segna come letto, resta in Gmail: la configurazione non lo scrive ($($g1.conf)), il passo 4 lo dice ('$($g1.senza)') e nel motore vero nessun messaggio perde niente" (
+        ($g1.scelte -join ',') -eq 'Lascialo in Gmail,Diventa una regola' -and $g1.voci -eq 1 -and $g1.gruppo -eq 'Scuola' -and
+        $g1.prima.esito -eq 0 -and $g1.prima.tolti -eq 1 -and $g1.conf -eq 0 -and $g1.senza -eq 'Scuola/Portali' -and
+        $g1.dopo.esito -eq 0 -and $g1.dopo.tolti -eq 0)
+    Verifica "la finestra senza il file lo lascia e dice perche' ('$($g1.riquadro)'); con il file li lascia tutti e due ($($g1.conFile.scelte -join '; '))" (
+        $g1.senzaFile -eq 'Lascialo in Gmail' -and $g1.vociSenzaFile -eq 0 -and
+        $g1.riquadro -match "^scelto prima; dopo la scelta hai cambiato il gruppo delle etichette \(""Raggruppa sotto"", era Scuola\): la regola Portali mette un'etichetta di un altro gruppo" -and
+        ($g1.conFile.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and $g1.motoreConFile.esito -eq 0)
+    # Colleghi (senza gruppo) lasciato, di tutto il dominio; il filtro di uno
+    # studente con Scuola/Studenti va via. Poi i nomi diretti, senza gruppo:
+    # Colleghi e' l'etichetta che Studenti esclude
+    $g2 = GruppoCambiato 'Scuola' '' @(
+        (UnFiltro ([ordered]@{ from = '@scuola.example'; label = 'Colleghi' })),
+        (UnFiltro ([ordered]@{ from = 'studente.uno@scuola.example'; label = 'Scuola/Studenti' }))) 'gruppo_studenti'
+    Verifica "Scuola/Studenti va via con Studenti ($($g2.scelte -join '; ')); poi senza gruppo, con Colleghi di tutto il dominio in Gmail, resta: la configurazione non lo scrive ($($g2.conf)), il passo 4 lo dice ('$($g2.senza)'), la finestra senza il file lo lascia, con il file li lascia tutti e due, e nel motore vero nessun messaggio perde niente" (
+        ($g2.scelte -join ',') -eq "Lascialo in Gmail,Toglilo: lo fa gia' la regola Scuola/Studenti" -and $g2.voci -eq 1 -and
+        $g2.prima.esito -eq 0 -and $g2.prima.tolti -eq 1 -and $g2.conf -eq 0 -and $g2.senza -eq 'Scuola/Studenti' -and
+        $g2.dopo.esito -eq 0 -and $g2.dopo.tolti -eq 0 -and $g2.senzaFile -eq 'Lascialo in Gmail' -and $g2.vociSenzaFile -eq 0 -and
+        ($g2.conFile.scelte -join ',') -eq 'Lascialo in Gmail,Lascialo in Gmail' -and $g2.motoreConFile.esito -eq 0)
+    $avvisoGr = [string]$mAvviso.Invoke($null, @([int]1, [int]0, [int]1))
+    Verifica "l'ambra del passo 4 dice anche del gruppo delle etichette cambiato ('$avvisoGr')" (
+        $avvisoGr -match "hai cambiato il gruppo delle etichette \(""Raggruppa sotto""\)" -and $avvisoGr -match 'Apri di nuovo il file dei filtri')
+    # tornato il gruppo di prima va via di nuovo; una voce con la regola che
+    # non ricorda il gruppo (scelta con una versione di prova) nel dubbio resta
+    $sGr3 = StatoRiorganizza
+    Imposta $sGr3 'Prefisso' 'Scuola'
+    [void](UsaLaScelta $sGr3 @((UnFiltro ([ordered]@{ from = 'studente.uno@scuola.example'; label = 'Scuola/Studenti' }))) $null)
+    Imposta $sGr3 'Prefisso' 'Istituto'
+    $viaGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
+    Imposta $sGr3 'Prefisso' 'Scuola/'
+    $tornatoGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
+    (Leggi $sGr3 'FiltriDaTogliere')[0].Gruppo = $null
+    $senzaGruppoGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
+    Verifica "tornato il gruppo di prima (anche scritto 'Scuola/') va via di nuovo ($viaGr3 con Istituto, $tornatoGr3 con Scuola/); una voce con la regola che non ricorda il gruppo resta ($senzaGruppoGr3)" (
+        $viaGr3 -eq 0 -and $tornatoGr3 -eq 1 -and $senzaGruppoGr3 -eq 0)
+
+    # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'
     # Studenti esclude Colleghi, Dirigenza e Segreteria; Ministero e USR le
     # ultime due. Un filtro che resta in Gmail con una di quelle etichette la
@@ -2376,7 +2450,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $casellaIst = UnFiltro ([ordered]@{ from = 'casella@istruzione.it'; label = 'Istituto' })
     $cCasellaMin = ScelteDi $casellaMin $sX4
     $cCasellaIst = ScelteDi $casellaIst $sX4
-    $voceX4 = $casellaMin.DaTogliere(); $voceX4.Regola = 'Ministero e USR'
+    $voceX4 = $casellaMin.DaTogliere(); $voceX4.Regola = 'Ministero e USR'; $voceX4.Gruppo = ''
     Imposta $sX4 'Filtri' $false
     $senzaFiltriVeri = ScelteDi $casellaMin $sX4
     $sostituitoX4 = [bool]$mAncora.Invoke($null, @($voceX4, $sX4))
@@ -2557,7 +2631,7 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $regoleY2.Add($portaleA); $regoleY2.Add($portaleC); $regoleY2.Add($portaleB)
     $creatoB = UnFiltro ([ordered]@{ from = 'info@portale-due.example'; label = 'Portali'; shouldArchive = 'true' })
     $cCreatoB = ScelteDi $creatoB $sY2
-    $voceB = $creatoB.DaTogliere(); $voceB.Regola = 'Portali'
+    $voceB = $creatoB.DaTogliere(); $voceB.Regola = 'Portali'; $voceB.Gruppo = ''
     Verifica "il filtro che Campanella crea per la terza Portali (che archivia) sotto una che non archivia: niente 'lo fa gia'' ($(Testi $cCreatoB)), e scelto prima non va via" (
         $cCreatoB.x.Tipo -eq 'campanella' -and (Testi $cCreatoB) -notmatch "lo fa gia'" -and -not [bool]$mAncora.Invoke($null, @($voceB, $sY2)))
     # "or" minuscolo e' una parola, non l'operatore: due filtri che si

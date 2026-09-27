@@ -2217,7 +2217,8 @@ namespace Campanella
         /// all'arrivo, toglierebbe quei messaggi alla regola). Con il file la
         /// finestra lo vede e lo propone di nuovo. Non va via nemmeno uno che
         /// la voce ricorda andato via grazie alle regole escluse, se adesso
-        /// non reggono piu' (PerGliAltriFiltri).
+        /// non reggono piu', ne' uno scelto con un altro gruppo delle etichette
+        /// (PerGliAltriFiltri).
         /// </summary>
         public static bool AncoraSostituito(FiltroDaTogliere v, Stato s)
         {
@@ -2233,19 +2234,32 @@ namespace Campanella
 
         /// <summary>
         /// Perche' il filtro scelto prima non si toglie piu' per quello che la
-        /// voce ricorda dei filtri che restano in Gmail (FiltroDaTogliere.Escluse
-        /// e Accanto), che senza il file non si vedono: la sua regola adesso
-        /// esclude un'etichetta che quando si e' scelto non escludeva (un filtro
-        /// rimasto con quell'etichetta le toglierebbe dei messaggi), oppure resta
-        /// in Gmail un filtro con un'etichetta che lei esclude i cui mittenti non
-        /// li prende piu' tutti una regola esclusa, accesa e sopra di lei (spenta,
-        /// spostata sotto, con altri mittenti o con un altro elenco del
-        /// personale: ConUnaEtichettaEsclusa). "" se niente di questo. Con il
-        /// file la finestra rivede tutto da capo.
+        /// voce ricorda dei filtri che restano in Gmail (FiltroDaTogliere.Gruppo,
+        /// Escluse e Accanto), che senza il file non si vedono: dopo la scelta e'
+        /// cambiato il gruppo delle etichette ("Raggruppa sotto": la regola mette
+        /// un'etichetta di un altro gruppo, e un filtro rimasto con
+        /// un'etichetta del gruppo nuovo, la stessa o una che la regola esclude,
+        /// le toglierebbe dei messaggi), o la voce non lo ricorda (nel dubbio);
+        /// la sua regola adesso esclude un'etichetta che quando si e' scelto non
+        /// escludeva (un filtro rimasto con quell'etichetta le toglierebbe dei
+        /// messaggi), oppure resta in Gmail un filtro con un'etichetta che lei
+        /// esclude i cui mittenti non li prende piu' tutti una regola esclusa,
+        /// accesa e sopra di lei (spenta, spostata sotto, con altri mittenti o
+        /// con un altro elenco del personale: ConUnaEtichettaEsclusa). "" se
+        /// niente di questo. Con il file la finestra rivede tutto da capo.
         /// </summary>
         public static string PerGliAltriFiltri(FiltroDaTogliere v, Stato s)
         {
             if (v == null || s == null || (v.Regola ?? "").Trim() == "") return "";
+            if (v.Gruppo == null)
+                return "non ricorda il gruppo delle etichette (\"Raggruppa sotto\") di quando l'hai scelto: se e' cambiato, " +
+                       "la regola " + v.Regola.Trim() + " mette un'etichetta di un altro gruppo, e un filtro rimasto in Gmail " +
+                       "con un'etichetta del gruppo nuovo potrebbe toglierle dei messaggi, e senza il file dei filtri non si vede";
+            if (Pulita(v.Gruppo) != Pulita(s.PrefissoPulito()))
+                return "dopo la scelta hai cambiato il gruppo delle etichette (\"Raggruppa sotto\"" +
+                       (Pulita(v.Gruppo) == "" ? ", prima nessuno" : ", era " + v.Gruppo.Trim().Trim('/')) + "): la regola " + v.Regola.Trim() +
+                       " mette un'etichetta di un altro gruppo, e un filtro rimasto in Gmail con un'etichetta del gruppo nuovo " +
+                       "potrebbe toglierle dei messaggi, e senza il file dei filtri non si vede";
             if (v.Escluse != null)
                 foreach (Regola r in s.Regole)
                 {
@@ -2561,9 +2575,11 @@ namespace Campanella
                 chiaveDi[voce] = chiave;
                 if (x.Filtro != null)
                 {
+                    // con il file: quello che fa adesso, con il gruppo delle etichette di adesso
                     voce.Archivia = x.Filtro.Archivia;
                     voce.SegnaLetto = x.Filtro.SegnaLetto;
                     voce.Cestino = x.Filtro.Cestino;
+                    voce.Gruppo = s.PrefissoPulito();
                 }
                 // lo stesso filtro piu' volte in Gmail: EXTRA_togliFiltri le toglie
                 // tutte, e ai loro messaggi, che sono gli stessi, facevano quello
@@ -2671,15 +2687,20 @@ namespace Campanella
             HashSet<string> vannoVia = Via(togli, chiaveDi);
             foreach (KeyValuePair<FiltroCheResta, string> kv in perUnaNata)
                 if (vannoVia.Contains(kv.Value)) kv.Key.Certo = true;
-            // quello che ogni voce ricorda per ricontrollarsi senza il file: le
-            // etichette che la sua regola esclude adesso, e i filtri che restano
-            // in Gmail con una di quelle e possono prendere i suoi messaggi (i
-            // loro mittenti li prende gia' una regola esclusa: se no la voce
-            // sarebbe rimasta qui sopra). Senza il file, quelli che ricordava
-            // restano: la finestra non vede gli altri filtri
+            // quello che ogni voce ricorda per ricontrollarsi senza il file: il
+            // gruppo delle etichette, le etichette che la sua regola esclude
+            // adesso, e i filtri che restano in Gmail con una di quelle e possono
+            // prendere i suoi messaggi (i loro mittenti li prende gia' una regola
+            // esclusa: se no la voce sarebbe rimasta qui sopra). Senza il file,
+            // quelli che ricordava restano: la finestra non vede gli altri filtri
             foreach (FiltroDaTogliere v in togli)
             {
-                if ((v.Regola ?? "").Trim() == "") { v.Escluse = null; v.Accanto = new List<FiltroDaTogliere>(); continue; }
+                if ((v.Regola ?? "").Trim() == "")
+                {
+                    v.Escluse = null; v.Accanto = new List<FiltroDaTogliere>(); v.Gruppo = null;
+                    continue;
+                }
+                v.Gruppo = s.PrefissoPulito();
                 v.Escluse = EtichetteEscluse(v.Regola, s);
                 if (v.Accanto == null) v.Accanto = new List<FiltroDaTogliere>();
                 foreach (FiltroDaTogliere g in FiltriAccanto(v, inGmail, s))

@@ -216,6 +216,17 @@ namespace Campanella
         /// personale, come i suoi. Non fa parte della chiave.
         /// </summary>
         public List<FiltroDaTogliere> Accanto = new List<FiltroDaTogliere>();
+        /// <summary>
+        /// Il gruppo delle etichette ("Raggruppa sotto", Stato.PrefissoPulito)
+        /// quando si e' scelto, per uno con una regola: se poi cambia, la regola
+        /// mette un'etichetta di un altro gruppo, e un filtro rimasto in Gmail
+        /// con un'etichetta del gruppo nuovo potrebbe toglierle dei messaggi.
+        /// Senza il file non si vede: il filtro non si toglie piu'
+        /// (FiltriGmail.PerGliAltriFiltri). null se non si sa (scelto prima, o
+        /// senza una regola): con una regola, nel dubbio non si toglie. Con il
+        /// file e' quello di adesso. Non fa parte della chiave.
+        /// </summary>
+        public string Gruppo = null;
 
         /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
         public static readonly string[] NomiCriteri =
@@ -304,6 +315,7 @@ namespace Campanella
             f.Escluse = (Escluse == null) ? null : new List<string>(Escluse);
             f.Accanto = new List<FiltroDaTogliere>();
             if (Accanto != null) foreach (FiltroDaTogliere g in Accanto) if (g != null) f.Accanto.Add(g.Copia());
+            f.Gruppo = Gruppo;
             return f;
         }
     }
@@ -709,8 +721,9 @@ namespace Campanella
         /// ("filtriDaTogliere") la regola che lo sostituisce ("regola"), se il
         /// filtro archiviava, segnava come letto o mandava nel cestino
         /// ("archivia", "letti", "cestino"), le
-        /// etichette che la regola escludeva ("escluse") e i filtri rimasti in
-        /// Gmail con una di quelle ("accanto"); la 1.6.0
+        /// etichette che la regola escludeva ("escluse"), i filtri rimasti in
+        /// Gmail con una di quelle ("accanto") e il gruppo delle etichette
+        /// quando si e' scelto ("gruppo"); la 1.6.0
         /// riscrivendo il file li perderebbe: il filtro sembrerebbe scelto con
         /// lei, e non si saprebbe piu' quale regola lo sostituisce ne' se deve
         /// archiviare o segnare come letti come lui.
@@ -1188,6 +1201,8 @@ namespace Campanella
                     // le etichette che la sua regola escludeva, e i filtri rimasti
                     // in Gmail con una di quelle (solo se ce ne sono)
                     if (f.Escluse != null) d["escluse"] = new List<string>(f.Escluse);
+                    // e il gruppo delle etichette di allora, se si sa ("" e' nessun gruppo)
+                    if (f.Gruppo != null) d["gruppo"] = f.Gruppo;
                     if (f.Accanto != null && f.Accanto.Count > 0)
                     {
                         List<object> accanto = new List<object>();
@@ -1554,6 +1569,7 @@ namespace Campanella
                     if (d.ContainsKey("letti") && d["letti"] is bool) f.SegnaLetto = (bool)d["letti"];
                     if (d.ContainsKey("cestino") && d["cestino"] is bool) f.Cestino = (bool)d["cestino"];
                     if (d.ContainsKey("escluse")) f.Escluse = Lista(d, "escluse");
+                    if (d.ContainsKey("gruppo") && d["gruppo"] is string) f.Gruppo = (string)d["gruppo"];
                     object[] accanto = d.ContainsKey("accanto") ? d["accanto"] as object[] : null;
                     if (accanto != null)
                         foreach (object o2 in accanto)
