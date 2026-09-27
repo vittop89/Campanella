@@ -683,7 +683,8 @@ namespace Campanella
                 "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
-                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa'. Se poi togli o spegni " +
+                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa', e aprendo di nuovo un " +
+                "file le scelte fatte a mano restano. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
                 "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra; " +
                 "cosi' anche uno scelto con la 1.6.0 (che non ricordava se archiviava o segnava come letto), che " +
@@ -691,9 +692,12 @@ namespace Campanella
                 "n'e' un altro con la stessa etichetta. Riapri il file, e la finestra lo vede. Resta anche un filtro che archivia (o " +
                 "segna come letto) quando in Gmail ne resta un altro con la stessa etichetta che non lo fa: ai " +
                 "messaggi che prende anche quello mette l'etichetta prima dello script, e la regola non li " +
-                "archivierebbe; e uno la cui regola esclude un'etichetta (Studenti esclude Colleghi, Ministero e USR " +
+                "archivierebbe; uno la cui regola esclude un'etichetta (Studenti esclude Colleghi, Ministero e USR " +
                 "Dirigenza e Segreteria) quando in Gmail resta un filtro con quell'etichetta che prende anche i suoi " +
-                "messaggi: la regola non li prenderebbe.\r\n\r\n" +
+                "messaggi: la regola non li prenderebbe (se i mittenti di quel filtro li prende gia' la regola " +
+                "esclusa, va via; ma se poi quella regola si spegne, va sotto o cambia mittenti, resta in Gmail, e qui " +
+                "sotto lo dice in ambra); e uno che puo' prendere gli stessi messaggi di un filtro che resta in Gmail e " +
+                "manda nel cestino: nel cestino la regola non cerca.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
                 "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
                 "cancellale da Gmail (i messaggi non si cancellano)."));

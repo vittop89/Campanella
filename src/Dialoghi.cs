@@ -614,10 +614,12 @@ namespace Campanella
 
             Label nota = Tema.Testo1(
                 "Di partenza: si tolgono quelli che una regola accesa fa gia' (e che non fanno altro: non inoltrano, " +
-                "non eliminano...) e quelli scelti prima; i mittenti di uno uguale o simile a una regola vanno in " +
-                "quella regola, se si puo'; uno tuo diventa una regola; gli altri restano, e anche uno che con gli " +
-                "altri filtri che restano non si puo' togliere (il riquadro dice perche'). Le regole nuove o cambiate " +
-                "e i filtri da togliere vanno insieme nella " +
+                "non eliminano...) e quelli scelti prima che la loro regola sostituisce ancora (quelli scelti con la " +
+                "1.6.0 ripartono dalla proposta, e senza il file restano); i mittenti di uno uguale o simile a una " +
+                "regola vanno in quella regola, se si puo'; uno tuo diventa una regola; gli altri restano, e anche uno " +
+                "che con gli altri filtri che restano non si puo' togliere (il riquadro dice perche', come il riepilogo " +
+                "di \"Usa questa scelta\"). Aprendo di nuovo un file, le scelte fatte a mano restano. Le regole nuove " +
+                "o cambiate e i filtri da togliere vanno insieme nella " +
                 "configurazione: copiala di nuovo (passo 5) prima di eseguire EXTRA_togliFiltri. Prima di togliere un " +
                 "filtro lo script ne scrive una copia nel registro, per rifarlo a mano. Le etichette gia' messe ai " +
                 "messaggi restano.",

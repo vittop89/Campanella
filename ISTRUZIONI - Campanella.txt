@@ -180,7 +180,11 @@ POSTA - riordinare la casella
 3) Passo 4: scegli le etichette. Ogni riga e' un'etichetta: la spunta si
    toglie con un clic sul quadratino (o con la barra spaziatrice), un clic
    sul nome sceglie la regola e ne mostra la descrizione, un doppio clic la
-   apre in "Modifica". Le etichette si sommano (una circolare del dirigente
+   apre in "Modifica". Li' i mittenti vanno uno per riga: una riga con piu'
+   indirizzi, separati da spazi, virgole o punti e virgola, diventa una voce
+   per indirizzo (anche nelle regole salvate prima), perche' nella ricerca
+   di Gmail "a b" vorrebbe tutti e due; un nome fra virgolette, un operatore
+   o un segnaposto restano come sono. Le etichette si sommano (una circolare del dirigente
    prende Dirigenza e Circolari), e l'ordine conta solo per Studenti, che
    prende la posta del dominio non
    gia' finita in Colleghi, Dirigenza o Segreteria, e per Ministero e USR,
@@ -268,7 +272,9 @@ POSTA - riordinare la casella
      loro dominio, o con l'elenco del personale; @dominio prende gli
      indirizzi di quel dominio, non quelli di un sottodominio come
      news@posta.dominio ne' il dominio scritto senza chiocciola, che
-     prende anche quelli), nessuna esclusione che il filtro non ha tocca i
+     prende anche quelli; una regola con fra i mittenti un nome fra
+     virgolette o un operatore, di cui non si sa che cosa prende, nel dubbio
+     no, e non ci si unisce), nessuna esclusione che il filtro non ha tocca i
      suoi mittenti (una parola come -from:esami, un pezzo di indirizzo
      come -from:mario.rossi o -from:mario.rossi@, o un nome, puo' toccarli
      tutti), archivia e segna come letti come lui, e sopra di lei non c'e'
@@ -365,12 +371,20 @@ POSTA - riordinare la casella
    sceglieva per l'etichetta sola, partono dalla proposta di adesso, e
    quelli che la loro regola non sostituisce piu', anche perche' in Gmail
    adesso archiviano o segnano come letto e lei no, partono lasciati).
+   "Scelti prima" sono quelli salvati con "Usa questa scelta": aprendo di
+   nuovo un file nella stessa finestra (lo stesso o un altro), le scelte
+   fatte a mano restano ai filtri uguali, e una scelta non ancora usata
+   ("Diventa una regola", "Unisci") non diventa "Toglilo" e basta.
+   "Toglilo" e basta, senza una regola, toglie un filtro che non era scelto
+   prima solo se lo scegli tu.
    La proposta tiene conto degli altri filtri: una che "Usa questa scelta"
    non potrebbe fare, per quelli che restano in Gmail (qui sotto), parte
    "Lascialo in Gmail" e il riquadro dice perche'; se la scegli lo
    stesso, il riquadro dice che non si puo' fare, il conto sotto la
    griglia quanti restano in Gmail lo stesso, e per quel filtro non si
-   cambia nessuna regola.
+   cambia nessuna regola. Il riquadro e il conto dicono proprio quello che
+   dira' il riepilogo di "Usa questa scelta", compreso il perche'; anche
+   con centinaia di filtri una scelta nella tendina si vede subito.
    Restano quelli creati da Campanella,
    quelli che fanno anche altro, quelli uguali o simili che nessuna regola
    prende e quelli che non si possono unire. Un filtro simile a
@@ -398,12 +412,17 @@ POSTA - riordinare la casella
    regola non lo prende. Non se tutti i mittenti di quel filtro li prende
    gia' la regola esclusa, accesa e sopra (un collega dell'elenco, il
    filtro vero di Segreteria): quei messaggi l'etichetta l'avrebbero
-   comunque. Un filtro scelto prima che nel file aperto non c'e' non
-   conta fra quelli che restano. Lo stesso filtro
+   comunque. E resta uno che puo' prendere gli stessi messaggi di un
+   filtro che resta in Gmail e manda nel cestino (nel dubbio si'): quello
+   li mette nel cestino appena arrivano, e la regola nel cestino non
+   cerca, e non darebbe loro l'etichetta. Un filtro scelto prima che nel
+   file aperto non c'e' non conta fra quelli che restano. Lo stesso filtro
    due volte in Gmail va via con tutte e due le copie, e la regola deve
    fare quello che fa la copia che archivia o segna come letto: conta la
    scelta con una regola ("Unisci", "Diventa una regola", poi "lo fa
-   gia'"), e "Diventa una regola" nasce dalla copia che fa di piu'. Riaperta
+   gia'"), e "Diventa una regola" nasce dalla copia che fa di piu'
+   (riaprendo la finestra con lo stesso file, conta quello che fanno tutte
+   e due le copie, come in "Usa questa scelta"). Riaperta
    con lo stesso file, la finestra riconosce
    le regole
    nate dai filtri e i mittenti gia' uniti ("Toglilo: lo fa gia' la regola
@@ -420,23 +439,39 @@ POSTA - riordinare la casella
    nell'editor dello script, con il servizio Gmail API (l'ottavo passo
    dell'installazione guidata), esegui EXTRA_togliFiltri. Cosi' nessun
    filtro va via prima della regola che lo sostituisce. E ogni filtro
-   scelto ricorda la regola che lo sostituisce, e se archiviava o segnava
-   come letto: se dopo la togli, la spegni o non prende piu' tutti i suoi
-   messaggi (le togli i mittenti del filtro, anche in "La tua scuola", le
-   aggiungi un'esclusione che li tocca, non archivia piu' come lui, togli
-   la sua gemella e l'altra esclude i suoi mittenti), il filtro
+   scelto ricorda la regola che lo sostituisce, e se archiviava, segnava
+   come letto o mandava nel cestino: se dopo la togli, la spegni o non
+   prende piu' tutti i suoi messaggi (le togli i mittenti del filtro,
+   anche in "La tua scuola", le aggiungi un'esclusione che li tocca, non
+   archivia piu' come lui, togli la sua gemella e l'altra esclude i suoi
+   mittenti), il filtro
    resta in Gmail, la configurazione non lo scrive piu' e il passo 4 lo
    dice in ambra; riaprendo la finestra parte "Lascialo in Gmail" (anche
    con il file, se in Gmail adesso archivia o segna come letto e la regola
    no), e per toglierlo lo stesso basta scegliere "Toglilo" a mano. Senza
    il file, uno che la sua regola sostituisce ancora parte "Toglilo: lo
-   fa gia' la regola ...". Uno scelto con la 1.6.0, che non ricorda la
-   regola ne' se archiviava o segnava come letto (la 1.6.0 non lo
-   guardava), va via solo se una regola accesa con la sua etichetta prende
-   tutti i suoi messaggi e archivia e segna come letti, cosi' fa di sicuro
-   quello che faceva il filtro (e da allora la ricorda); se no resta in
-   Gmail, e il passo 4 lo dice in ambra: riapri il file dei filtri nella
-   finestra, che vede che cosa fa e propone che cosa farne.
+   fa gia' la regola ...". Uno andato via perche' i mittenti di un filtro
+   rimasto in Gmail con un'etichetta che la sua regola esclude li prendeva
+   gia' la regola esclusa, accesa e sopra (il filtro vero di Colleghi per
+   Studenti, quello di Segreteria con la casella della scuola per
+   Ministero e USR), ricorda quel filtro e le etichette escluse: se poi la
+   regola esclusa si spegne, va sotto o cambia mittenti, cambia l'elenco
+   del personale, o la sua regola ne esclude un'altra, senza il file non va
+   piu' via, e il passo 4 lo dice in ambra (un collega in piu' nell'elenco
+   no: regge ancora). E anche senza il file, come in "Usa questa scelta",
+   un filtro scelto che resta in Gmail ne fa restare un altro (con la
+   stessa etichetta, con un'etichetta esclusa, o che prende gli stessi
+   messaggi di uno che manda nel cestino). Uno scelto con la 1.6.0, che non
+   ricorda la regola ne' se archiviava o segnava come letto (la 1.6.0 non
+   lo guardava), senza il file dei filtri non va mai via, nemmeno con una
+   regola accesa con la sua etichetta che archivia e segna come letti:
+   senza il file non si vede che cosa fa, ne' se in Gmail ne resta un altro
+   con la stessa etichetta che non lo fa (mettendola appena arriva il
+   messaggio, toglierebbe quei messaggi alla regola). La configurazione non
+   lo scrive, il passo 4 e il riepilogo del passo 5 lo dicono in ambra, e
+   la finestra senza il file lo fa partire lasciato e lo toglie solo con
+   "Toglilo" scelto a mano: riapri il file dei filtri nella finestra, che
+   vede che cosa fa e gli altri filtri, e propone che cosa farne.
    EXTRA_togliFiltri toglie solo un
    filtro che ha proprio quei criteri, nessuno in piu', e mette proprio
    quell'etichetta; prima di
