@@ -254,10 +254,12 @@ Ministero e USR fixed in step 4 reach the script only with it.
   seconds (from 3-13 s to well under one): the choices are checked again
   leaving in Gmail, in one round, all those that would be refused in every
   round (also those kept by a filter left in Gmail with a label their rule
-  excludes, when no choice of that round changes the excluded rules: with
-  200 Ministero e USR filters and a starred Segreteria one, from over a
-  second to a few hundredths), and without recomputing for every filter all
-  the native filters Campanella creates. Same result as before.
+  excludes, when no choice of that round creates one of the excluded rules
+  or adds exclusions to it; merged senders are fine: with 200 Ministero e
+  USR filters and a starred Segreteria one, also with a filter merged into
+  Segreteria, from over a second to a few hundredths), and without
+  recomputing for every filter all the native filters Campanella creates.
+  Same result as before.
 - Step 4: the description of the selected rule gets a scroll bar only when
   it does not fit (a rule that took many senders or a long search from a
   filter).
@@ -437,16 +439,18 @@ Ministero e USR fixed in step 4 reach the script only with it.
   deleted and a merged sender removed, reopened with the file; the label
   group changed after "Usa questa scelta" (Scuola to Istituto, Scuola to
   plain names) and back; the amber text for a filter that stays because of
-  one that deletes; a fourth case with 200 filters (199 of Ministero e USR
-  and a starred Segreteria one) under half a second. filtri_a_caso.ps1 also
+  one that deletes; two more cases with 200 filters (Ministero e USR ones
+  and a starred Segreteria one, also with a filter merged into Segreteria)
+  under half a second. filtri_a_caso.ps1 also
   changes the label group after "Usa questa scelta" (with the code before,
   scenario 117 of the fixed seed broke the promise), and its fake mailbox
   has a second address of the portal and of the union domain, as it has a
   second student, so a filter for a whole domain is not counted as broken
   when an excluded rule takes the only address there (seed 5, scenario
   1899 of 2000); with 2000 scenarios and eight seeds none breaks the
-  promise, and on 4510 random scenarios the faster check gives exactly the
-  same filters, rules, summaries and window choices as before.
+  promise, and on 6860 random scenarios (also with 8 to 60 filters) the
+  faster check gives exactly the same filters, rules, summaries and window
+  choices as before.
   prova_stato.ps1:
   the rule that replaces a filter to remove, and whether the filter
   archived, marked as read or deleted, the labels its rule excluded and

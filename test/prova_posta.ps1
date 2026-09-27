@@ -2905,6 +2905,13 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         'un''etichetta esclusa che resta' = @{ voci = 0; conto = 'Da togliere: nessuno'; limite = 0.5; filtri = @(0..199 | ForEach-Object {
             if ($_ -lt 199) { [ordered]@{ from = "ufficio$_@istruzione.it"; label = 'Ministero e USR' } }
             else { [ordered]@{ from = '@istruzione.it'; label = 'Segreteria'; shouldStar = 'true' } } }) }
+        # lo stesso, con un filtro di Segreteria (dsga@) che si unisce a
+        # Segreteria: dei mittenti in piu' a una regola esclusa non cambiano
+        # niente per gli altri, che restano ancora in un giro solo
+        'un''etichetta esclusa che resta e un''unione a lei' = @{ voci = 1; conto = 'Da togliere: 1 filtro  -  da unire a una regola: 1'; limite = 0.5; filtri = @(0..199 | ForEach-Object {
+            if ($_ -lt 198) { [ordered]@{ from = "ufficio$_@istruzione.it"; label = 'Ministero e USR' } }
+            elseif ($_ -eq 198) { [ordered]@{ from = '@istruzione.it'; label = 'Segreteria'; shouldStar = 'true' } }
+            else { [ordered]@{ from = 'dsga@scuola.example'; label = 'Segreteria' } } }) }
     }
     foreach ($nome200 in $casi200.Keys) {
         $s200 = StatoRiorganizza
