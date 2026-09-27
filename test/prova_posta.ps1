@@ -2600,6 +2600,16 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "tolti tutti e due ($($vociC3 -join ', ')), poi spenta la regola Da buttare: senza il file restano tutti e due ('$(Senza $sC3)'), e nel motore vero nessun messaggio perde niente" (
         ($vociC3 -join ',') -eq 'Sindacati>Sindacati,Da buttare>Da buttare (cestino)' -and (Senza $sC3) -eq 'Da buttare,Sindacati' -and
         [int]$mDaTogliere.Invoke($null, @($sC3)) -eq 0 -and $motoreC3.esito -eq 0 -and $motoreC3.tolti -eq 0)
+    # e l'ambra del passo 4 dice il perche' vero: resta per un altro filtro
+    # che resta in Gmail e manda nel cestino
+    $tPaginaC3 = $asm.GetType('Campanella.PaginaPosta')
+    $senzaC3 = $mSenza.Invoke($null, @($sC3.PSObject.BaseObject))
+    $ambraC3 = [string]$mAvviso.Invoke($null, @([int]$senzaC3.Count,
+        [int]$tPaginaC3.GetMethod('Con160', $FS).Invoke($null, @(, $senzaC3)),
+        [int]$tPaginaC3.GetMethod('PerGliAltri', $FS).Invoke($null, @($senzaC3, $sC3.PSObject.BaseObject))))
+    Verifica "e il passo 4 dice che quello di Sindacati resta per un altro filtro che manda nel cestino ('$ambraC3')" (
+        $ambraC3 -match "^ 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu'" -and
+        $ambraC3 -match " 1 filtro scelto resta in Gmail per un altro filtro che resta in Gmail e puo' prendere i suoi messaggi \(con un'etichetta che la sua regola esclude, o con la stessa etichetta senza archiviare o segnare come letto, o che manda nel cestino\)")
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: RUOLI, GEMELLE E OR MINUSCOLO'

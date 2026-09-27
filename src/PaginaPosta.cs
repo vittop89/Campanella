@@ -2481,17 +2481,18 @@ namespace Campanella
                 fuori += (perGliAltri == 1)
                     ? " 1 filtro scelto resta in Gmail per un altro filtro che resta in Gmail e puo' prendere i suoi messaggi " +
                       "(con un'etichetta che la sua regola esclude, o con la stessa etichetta senza archiviare o segnare come " +
-                      "letto): dopo la scelta sono cambiate le regole escluse (spente, spostate sotto, con altri mittenti o un " +
-                      "altro elenco del personale), la regola ne esclude un'altra, hai cambiato il gruppo delle etichette " +
-                      "(\"Raggruppa sotto\") o un altro filtro scelto resta in Gmail. Apri di nuovo il file dei filtri in " +
-                      "\"Filtri che hai gia' in Gmail...\": li' si vedono gli altri filtri, e la finestra propone che cosa farne."
+                      "letto, o che manda nel cestino): dopo la scelta sono cambiate le regole escluse (spente, spostate " +
+                      "sotto, con altri mittenti o un altro elenco del personale), la regola ne esclude un'altra, hai cambiato " +
+                      "il gruppo delle etichette (\"Raggruppa sotto\") o un altro filtro scelto resta in Gmail. Apri di nuovo " +
+                      "il file dei filtri in \"Filtri che hai gia' in Gmail...\": li' si vedono gli altri filtri, e la finestra " +
+                      "propone che cosa farne."
                     : " " + perGliAltri + " filtri scelti restano in Gmail per altri filtri che restano in Gmail e possono " +
                       "prendere i loro messaggi (con un'etichetta che la loro regola esclude, o con la stessa etichetta senza " +
-                      "archiviare o segnare come letto): dopo la scelta sono cambiate le regole escluse (spente, spostate sotto, " +
-                      "con altri mittenti o un altro elenco del personale), la regola ne esclude un'altra, hai cambiato il gruppo " +
-                      "delle etichette (\"Raggruppa sotto\") o un altro filtro scelto resta in Gmail. Apri di nuovo il file dei " +
-                      "filtri in \"Filtri che hai gia' in Gmail...\": li' si vedono gli altri filtri, e la finestra propone che " +
-                      "cosa farne.";
+                      "archiviare o segnare come letto, o che mandano nel cestino): dopo la scelta sono cambiate le regole " +
+                      "escluse (spente, spostate sotto, con altri mittenti o un altro elenco del personale), la regola ne " +
+                      "esclude un'altra, hai cambiato il gruppo delle etichette (\"Raggruppa sotto\") o un altro filtro scelto " +
+                      "resta in Gmail. Apri di nuovo il file dei filtri in \"Filtri che hai gia' in Gmail...\": li' si vedono " +
+                      "gli altri filtri, e la finestra propone che cosa farne.";
             return fuori;
         }
 
