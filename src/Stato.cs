@@ -94,6 +94,8 @@ namespace Campanella
         }
 
         static readonly char[] FraIMittenti = { ' ', '\t', '\r', '\n', ',', ';' };
+        // un indirizzo o un dominio ha la chiocciola o il punto; una parola sola no
+        static readonly char[] IndirizzoODominio = { '@', '.' };
 
         /// <summary>
         /// I mittenti di una regola, uno per voce, senza voci vuote ne'
@@ -101,10 +103,13 @@ namespace Campanella
         /// punti e virgola (come nelle caselle di "La tua scuola") diventa una
         /// voce per indirizzo: nella ricerca della regola, from:(a OR b c OR d),
         /// "b c" vorrebbe tutti e due, e la regola non prenderebbe piu' niente.
-        /// Solo se ogni pezzo e' un mittente (UnMittente): un segnaposto
-        /// (@CLASSE:3B LSA@), un nome fra virgolette o un operatore restano come
-        /// sono. Per l'editor delle regole, per le regole lette dal file e per
-        /// la configurazione (GeneratorePosta.MittentiDellaRegola).
+        /// Solo se ogni pezzo e' un mittente (UnMittente) con la chiocciola o il
+        /// punto, cioe' un indirizzo o un dominio: un nome senza virgolette
+        /// (Mario Rossi, segreteria didattica), che nella ricerca vuole proprio
+        /// tutte e due le parole, un segnaposto (@CLASSE:3B LSA@), un nome fra
+        /// virgolette o un operatore restano come sono. Per l'editor delle
+        /// regole, per le regole lette dal file e per la configurazione
+        /// (GeneratorePosta.MittentiDellaRegola).
         /// </summary>
         public static List<string> DividiMittenti(IEnumerable<string> elenco)
         {
@@ -116,7 +121,9 @@ namespace Campanella
                 if (v == "") continue;
                 string[] pezzi = v.Split(FraIMittenti, StringSplitOptions.RemoveEmptyEntries);
                 bool dividi = pezzi.Length > 0 && !(v.Length > 1 && v[0] == '@' && v[v.Length - 1] == '@');
-                if (dividi) foreach (string p in pezzi) if (!UnMittente(p)) { dividi = false; break; }
+                if (dividi)
+                    foreach (string p in pezzi)
+                        if (!UnMittente(p) || p.IndexOfAny(IndirizzoODominio) < 0) { dividi = false; break; }
                 foreach (string p in dividi ? pezzi : new string[] { v })
                     if (!fuori.Contains(p)) fuori.Add(p);
             }

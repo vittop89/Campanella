@@ -1152,13 +1152,17 @@ static class ProvaStato
     // punti e virgola (l'editor delle regole prima della 1.6.1 la teneva
     // cosi'): nella ricerca della regola "a b" vorrebbe tutti e due, e la
     // regola non prenderebbe niente. Letta dal file diventa una voce per
-    // indirizzo; un nome fra virgolette e un segnaposto restano come sono
+    // indirizzo; un nome fra virgolette, un nome senza virgolette (Mario
+    // Rossi: nella ricerca vuole proprio tutte e due le parole, come nella
+    // 1.6.0), una riga con una parola sola fra gli indirizzi e un segnaposto
+    // restano come sono
     static void MittentiInUnaRiga()
     {
         Dictionary<string, object> sindacati = RegolaJson("Sindacati", "", null);
         sindacati["da"] = new object[] { "rsu@sindacato-tre.example info@sindacato-tre.example",
                                          " @sindacato-quattro.example, @sindacato-cinque.example;@sindacato-sei.example ",
-                                         "\"Sindacato Tre\"", "a OR b", "info@sindacato-tre.example" };
+                                         "\"Sindacato Tre\"", "a OR b", "info@sindacato-tre.example", "Mario Rossi",
+                                         "segreteria didattica", "noreply info@sindacato-tre.example" };
         Dictionary<string, object> classe = RegolaJson("Classi/3B LSA", "classe", null);
         classe["da"] = new object[] { "@CLASSE:3B LSA@" };
         Dictionary<string, object> altro = new Dictionary<string, object>();
@@ -1167,10 +1171,11 @@ static class ProvaStato
         Stato s = Carica();
         Regola r = RegolaDi(s, "Sindacati");
         string da = (r == null) ? "" : string.Join("|", r.Da.ToArray());
-        Verifica("una riga con piu' indirizzi diventa una voce per indirizzo, senza doppioni; un nome fra virgolette e un " +
-                 "operatore restano com'erano (" + da + ")",
+        Verifica("una riga con piu' indirizzi diventa una voce per indirizzo, senza doppioni; un nome fra virgolette, un " +
+                 "operatore, un nome senza virgolette e una parola sola fra gli indirizzi restano com'erano (" + da + ")",
             da == "rsu@sindacato-tre.example|info@sindacato-tre.example|@sindacato-quattro.example|@sindacato-cinque.example|" +
-                  "@sindacato-sei.example|\"Sindacato Tre\"|a OR b");
+                  "@sindacato-sei.example|\"Sindacato Tre\"|a OR b|Mario Rossi|segreteria didattica|" +
+                  "noreply info@sindacato-tre.example");
         Regola k = RegolaDi(s, "Classi/3B LSA");
         Verifica("il segnaposto di una classe con lo spazio resta intero", k != null && k.Da.Count == 1 && k.Da[0] == "@CLASSE:3B LSA@");
         s.Salva();
