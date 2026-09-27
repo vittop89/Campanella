@@ -64,6 +64,7 @@ $tFF       = $asm.GetType('Campanella.FormFiltriGmail')
 $tVoce     = $asm.GetType('Campanella.FiltroDaTogliere')
 $mLeggi    = $tFiltri.GetMethod('Leggi', $FS, $null, [Type[]]@([string]), $null)
 $mApplica  = $tFiltri.GetMethod('Applica', $FS)
+$mProva    = $tFiltri.GetMethod('Prova', $FS)
 $mAncora   = $tFiltri.GetMethod('AncoraSostituito', $FS)
 $mConf     = $tGen.GetMethod('Configurazione', $FS)
 $tListaPersone = [type]::GetType('System.Collections.Generic.List`1').MakeGenericType($tPersona)
@@ -358,9 +359,33 @@ $inizio = Get-Date
 $conPrima = 0; $sceltiACaso = 0; $totaleFiltri = 0; $senzaFile = 0; $riaperti = 0; $cambiate = 0
 $mCampanella = $tFiltri.GetMethod('FiltriDiCampanella', $FS)
 $fRighe = $tFF.GetField('righe', $FI)
+$fEsito = $tFF.GetField('esito', $FI)
 # quello che la finestra sbaglia da sola, senza il motore: una scelta fatta a
-# mano che cambia aprendo di nuovo lo stesso file
+# mano che cambia aprendo di nuovo lo stesso file; il conto e il riquadro che
+# non dicono quello che dira' "Usa questa scelta" (l'esito che la finestra
+# tiene non e' quello di FiltriGmail.Prova sulle scelte di adesso), o una
+# proposta che "Usa questa scelta" rifiuterebbe
 $finestraStorta = New-Object System.Collections.Generic.List[string]
+function EsitoATesto($e) {
+    $togli = @($e.Togli | ForEach-Object { $_.Chiave() + '>' + $_.Regola } | Sort-Object) -join ' ## '
+    $restano = @($e.Restano | ForEach-Object { $_.Chiave + '>' + $_.Perche }) -join ' ## '
+    return "togli: $togli / restano: $restano / riepilogo: " + ($e.Riepilogo -replace '\r?\n', ' ')
+}
+function ControllaLaFinestra($ff, $n) {
+    $tenuto = $fEsito.GetValue($ff)
+    $adesso = $mProva.Invoke($null, @($s.PSObject.BaseObject, $ff.FatteAdesso()))
+    if ($null -eq $tenuto -or (EsitoATesto $tenuto) -ne (EsitoATesto $adesso)) {
+        $finestraStorta.Add("scenario ${n}: l'esito che tiene la finestra non e' quello di ""Usa questa scelta"": " +
+            $(if ($null -eq $tenuto) { 'nessuno' } else { EsitoATesto $tenuto }) + ' <> ' + (EsitoATesto $adesso))
+    }
+    $aMano = @($fRighe.GetValue($ff) | Where-Object { $_.AMano -and $null -ne $_.Voce } | ForEach-Object { $_.Voce.Chiave() })
+    foreach ($r in $fRighe.GetValue($ff)) {
+        if ($r.AMano -or $null -eq $r.Voce -or $aMano -contains $r.Voce.Chiave() -or -not $r.Scelta.TogliIlFiltro) { continue }
+        if ($null -ne $adesso.PercheResta($r.Voce.Chiave())) {
+            $finestraStorta.Add("scenario ${n}: la proposta '" + $r.Scelta.Testo + "' per " + $r.Voce.Etichetta + " non si puo' fare: " + $adesso.PercheResta($r.Voce.Chiave()))
+        }
+    }
+}
 foreach ($n in $quali) {
     # ogni scenario ha il suo seme, dal seme e dal suo numero: lo stesso scenario
     # si rifa' da solo (-Solo), e due semi vicini non danno gli stessi scenari
@@ -486,6 +511,7 @@ foreach ($n in $quali) {
         }
         [void]$racconto.AppendLine('aperto di nuovo lo stesso file: ' + ((0..($lista.Count - 1) | ForEach-Object { $ff.Scelta($_).Testo }) -join '; '))
     }
+    ControllaLaFinestra $ff $n
     $fatte = $ff.FatteAdesso()
     $ff.Dispose()
     if ($modo -ne 'configurazione') {
@@ -500,6 +526,7 @@ foreach ($n in $quali) {
         [void]$racconto.AppendLine('poi: ' + (CambiaLeEscluse $s $altro))
         if (ACaso $altro 0.5) {
             $ff = [Activator]::CreateInstance($tFF, @($s.PSObject.BaseObject))
+            ControllaLaFinestra $ff $n
             $esito = [string]$mApplica.Invoke($null, @($s.PSObject.BaseObject, $ff.FatteAdesso()))
             $ff.Dispose()
             [void]$racconto.AppendLine('finestra senza il file, Applica: ' + ($esito -replace '\r?\n', ' '))
@@ -545,7 +572,7 @@ try {
 }
 Write-Host ("In tutto {0} s" -f [math]::Round(((Get-Date) - $inizio).TotalSeconds, 1))
 if ($finestraStorta.Count -gt 0) {
-    Write-Host ("Scelte a mano cambiate aprendo di nuovo il file: {0}" -f $finestraStorta.Count)
+    Write-Host ("La finestra sbaglia da sola (scelte a mano cambiate aprendo di nuovo il file, esito che non e' quello di ""Usa questa scelta"", proposte che non si possono fare): {0}" -f $finestraStorta.Count)
     exit 1
 }
 exit $codice

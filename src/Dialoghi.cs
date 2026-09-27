@@ -708,8 +708,8 @@ namespace Campanella
         /// una copia che archivia diversamente...), diventa "Lascialo in Gmail",
         /// e il riquadro dice perche'. Le righe scelte a mano (e le loro copie,
         /// che vanno con loro) restano come sono, le altre ripartono dalla
-        /// proposta per il filtro da solo. Poi tiene l'esito, per il conto e il
-        /// riquadro.
+        /// proposta per il filtro da solo. Poi tiene l'esito delle scelte cosi'
+        /// come sono (lo stesso di "Usa questa scelta"), per il conto e il riquadro.
         /// </summary>
         void Rivedi()
         {
@@ -727,15 +727,26 @@ namespace Campanella
                     if (r.Scelta != r.Proposta) Metti(r, r.Proposta);
                 }
                 esito = FiltriGmail.Prova(stato, FatteAdesso());
-                foreach (Riga r in righe)
+                // lasciate le proposte che non si possono fare, l'esito si rifa':
+                // il perche' di una scelta fatta a mano che resta puo' essere un
+                // altro (di rado anche un'altra proposta non si puo' piu' fare,
+                // e si lascia anche lei). Cosi' il conto e il riquadro dicono
+                // proprio quello che dira' "Usa questa scelta". Finisce: ogni
+                // volta almeno una riga in piu' e' lasciata
+                for (bool lasciate = true; lasciate; )
                 {
-                    if (r.AMano || r.Voce == null || aMano.Contains(r.Voce.Chiave()) || !r.Scelta.TogliIlFiltro) continue;
-                    string perche = esito.PercheResta(r.Voce.Chiave());
-                    if (perche == null) continue;
-                    // la stessa scelta con le righe lasciate: l'esito non cambia
-                    r.PercheResta = perche;
-                    r.Proposta = r.Scelte[0];
-                    Metti(r, r.Proposta);
+                    lasciate = false;
+                    foreach (Riga r in righe)
+                    {
+                        if (r.AMano || r.Voce == null || aMano.Contains(r.Voce.Chiave()) || !r.Scelta.TogliIlFiltro) continue;
+                        string perche = esito.PercheResta(r.Voce.Chiave());
+                        if (perche == null) continue;
+                        r.PercheResta = perche;
+                        r.Proposta = r.Scelte[0];
+                        Metti(r, r.Proposta);
+                        lasciate = true;
+                    }
+                    if (lasciate) esito = FiltriGmail.Prova(stato, FatteAdesso());
                 }
             }
             finally { riempiendo = prima; }

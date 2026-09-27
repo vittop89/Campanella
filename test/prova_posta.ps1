@@ -2677,6 +2677,27 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $sorgentePosta -match 'Studenti\\" e \\"Ministero e USR\\" restano allo' -and $sorgentePosta -notmatch '\\"Studenti\\" resta allo script')
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: IL RIQUADRO DICE QUELLO CHE DIRA'' "USA QUESTA SCELTA"'
+    # Tre filtri Portali: il primo segna come letto, il secondo no, il terzo
+    # segna come letto e diventa una regola, scelto a mano. Con le proposte il
+    # primo e il terzo resterebbero per il secondo, che resta in Gmail e non
+    # segna come letto; la finestra lascia il primo, e allora il secondo
+    # diventa la regola e il terzo resta perche' quella regola, nata adesso,
+    # non segna come letti. Prima il riquadro del terzo diceva il perche' di
+    # prima di lasciare il primo, e il riepilogo di "Usa questa scelta" l'altro
+    $sH = StatoRiorganizza
+    $filtriH = @((UnFiltro ([ordered]@{ from = '@portale-uno.example'; hasTheWord = '-from:esami'; label = 'Portali'; shouldMarkAsRead = 'true' })),
+                 (UnFiltro ([ordered]@{ from = '@portale-due.example'; hasTheWord = '-from:rossi'; label = 'Portali' })),
+                 (UnFiltro ([ordered]@{ from = '@portale-tre.example'; hasTheWord = '-from:rossi'; label = 'Portali'; shouldMarkAsRead = 'true' })))
+    $fH = FinestraEScelta $sH $filtriH @{ 2 = 'Diventa una regola' }
+    $percheH = [regex]::Match($fH.riquadri[2], "Perche': (.*)\.$").Groups[1].Value
+    Verifica "il riquadro del filtro scelto a mano che resta dice lo stesso perche' del riepilogo di 'Usa questa scelta' ('$percheH'; $($fH.scelte -join ', '); $($fH.conto))" (
+        ($fH.scelte -join ',') -eq 'Lascialo in Gmail,Diventa una regola,Diventa una regola' -and
+        $percheH -match "^c'e' gia' una regola Portali, nata adesso da un altro filtro, che segna come letti diversamente" -and
+        $fH.riepilogo.Contains('Portali (' + $percheH + ')') -and
+        $fH.conto -eq 'Da togliere: 1 filtro  -  regole nuove: 1  -  restano in Gmail lo stesso: 1')
+
+    # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL A CASO, FINO AL MOTORE VERO'
     # La promessa a classi, non a casi (test\filtri_a_caso.ps1): centinaia di
     # scenari inventati con un seme fisso (regole spente e riordinate, filtri
