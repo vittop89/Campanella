@@ -105,6 +105,11 @@ $messaggi = @(
     @('segreteria@scuola.example', 'Segreteria'),
     @('anna.bianchi@scuola.example', 'Anna Bianchi', 'Assemblea di classe'),
     @('alunno.uno@scuola.example', 'Alunno Uno'),
+    # un altro studente, che nessun filtro nomina: nella casella vera il
+    # dominio della scuola ha tanti studenti, e le regole escluse che ne
+    # prendono alcuni indirizzi (anche quello di uno studente unito a
+    # Dirigenza da un filtro) non prendono tutto il dominio
+    @('alunno.due@scuola.example', 'Alunno Due'),
     @('avvisi@portale-uno.example', 'Portale Uno'),
     @('esiti@esami.portale-uno.example', 'Portale Uno'),
     @('info@portale-due.example', 'Portale Due', 'Assemblea dei genitori'),
