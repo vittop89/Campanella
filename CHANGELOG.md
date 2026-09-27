@@ -115,8 +115,10 @@ Ministero e USR fixed in step 4 reach the script only with it.
   the salary domains, becomes a rule); your own filters become rules when
   they can; filters chosen earlier are removed (those chosen with 1.6.0,
   which chose them by label alone, start from today's proposal, and those
-  whose rule no longer replaces them, also because in Gmail they now
-  archive or mark as read and the rule does not, start as left). The
+  whose rule no longer replaces them, because it was deleted or switched
+  off, lost their senders, or in Gmail they now archive or mark as read and
+  the rule does not, start as left: the window does not remake by itself a
+  rule or a merge you removed). The
   proposals take the other rows into account: one that "Usa questa scelta"
   could not make, because of the filters staying in Gmail (see below),
   starts as "Lascialo in Gmail" and the box under the grid says why;
@@ -126,11 +128,14 @@ Ministero e USR fixed in step 4 reach the script only with it.
   say, reason included: once the proposals that cannot be made are left,
   the window checks the choices again (with three Portali filters, the box
   of one chosen by hand gave a different reason from the summary). "Chosen
-  earlier" means saved with "Usa questa scelta": opening a file again in
-  the same window (the same one or another) keeps the choices made by hand
-  for equal filters, and a choice not yet applied ("Diventa una regola",
-  "Unisci") no longer becomes a bare "Toglilo" that removed the filter
-  without its rule; a bare "Toglilo", without a rule, removes a filter that
+  earlier" means saved with "Usa questa scelta", also when it started as
+  left, except those left by hand: opening a file again in the same window
+  (the same one or another) keeps the choices made by hand for equal
+  filters, a filter chosen earlier stays "chosen earlier" (and the box
+  still says why it stays), one the new file does not have stays at the
+  bottom as it was saved, and a choice not yet applied ("Diventa una
+  regola", "Unisci") no longer becomes a bare "Toglilo" that removed the
+  filter without its rule; a bare "Toglilo", without a rule, removes a filter that
   was not chosen earlier only when chosen by hand. Those
   created by Campanella,
   those of a class, those that do something else, the equal or similar ones
@@ -189,10 +194,11 @@ Ministero e USR fixed in step 4 reach the script only with it.
   filter's senders), the filter stays in Gmail: Configurazione.gs no longer
   lists
   it, step 4 and the step 5 summary say so in amber, and the window starts
-  it as "Lascialo in Gmail" (with the file it is proposed again from
-  scratch, and it starts as left also when in Gmail it now archives or
-  marks as read and the rule does not). Chosen "Toglilo" again by hand, it
-  is removed without a rule. Without the file, one its rule still replaces
+  it as "Lascialo in Gmail", also with the file (and also when in Gmail it
+  now archives or marks as read and the rule does not): it does not start
+  again as "Diventa una regola" or "Unisci" for a rule born from the window
+  that was deleted or a merged sender that was removed. Chosen "Toglilo"
+  again by hand, it is removed without a rule. Without the file, one its rule still replaces
   starts as "Toglilo: lo fa gia' la regola ...". One that went because the
   senders of a filter staying in Gmail with a label its rule excludes are
   already taken by the excluded rule, switched on and above (the native
@@ -202,10 +208,23 @@ Ministero e USR fixed in step 4 reach the script only with it.
   changes senders, the staff list changes, or the rule excludes another
   label, without the file it no longer goes, Configurazione.gs does not
   list it and the amber text of step 4 asks to open the filters file again
-  (one more colleague on the staff list is fine: it still holds). Without
+  (one more colleague on the staff list is fine: it still holds). Each one
+  that went with a rule also remembers the label group ("Raggruppa sotto")
+  of when it was chosen: if the group changes later, the rule puts a label
+  of another group, and a filter left in Gmail with a label of the new
+  group (the same one, or one the rule excludes) could take messages away
+  from it (going for instance from Scuola to plain names with an old
+  Colleghi or Portali filter left in Gmail, messages would lose the
+  Studenti label or the mark as read); without the file it no longer goes,
+  Configurazione.gs does not list it, and the amber text of step 4 says so
+  and asks to open the filters file again (with the file the window checks
+  everything again, and back to the old group it goes again). An entry
+  with a rule that does not remember the group (chosen with a test build)
+  stays, in doubt. Without
   the file too, as in "Usa questa scelta", a chosen filter that stays in
   Gmail keeps another one there (with the same label, with an excluded
-  label, or taking the same messages as one that deletes them): the one of
+  label, or taking the same messages as one that deletes them, and the
+  amber text of step 4 names all three): the one of
   Ministero e USR stays if the one of Segreteria with the mailbox stays. A
   filter chosen with 1.6.0, which remembers neither the rule nor whether it
   archived or marked as read (1.6.0 did not look at it), never goes without
@@ -219,22 +238,26 @@ Ministero e USR fixed in step 4 reach the script only with it.
   chosen by hand; with the file it proposes it again, seeing the other
   filters. The
   settings files move to format 4, so Campanella 1.6.0 does not overwrite
-  them (it would drop the rule, what each filter to remove did and what it
-  remembers of the filters left in Gmail, and the filter would look chosen
-  by 1.6.0) and says it needs updating.
-- A line of a rule's senders with more than one address, separated by
-  spaces, commas or semicolons, becomes one entry per address in the rule
-  window, in the rules saved earlier (when they are read) and in
+  them (it would drop the rule, what each filter to remove did, the label
+  group and what it remembers of the filters left in Gmail, and the filter
+  would look chosen by 1.6.0) and says it needs updating.
+- A line of a rule's senders with more than one address or domain,
+  separated by spaces, commas or semicolons, becomes one entry per address
+  in the rule window, in the rules saved earlier (when they are read) and in
   Configurazione.gs, so the rule really takes those messages: in the search
   `from:(... OR a b OR ...)` "a b" wanted both, the rule took nothing, and
-  the filters window still said "lo fa gia'" or "Unisci". A name in quotes,
+  the filters window still said "lo fa gia'" or "Unisci". A name, in quotes
+  or not (Mario Rossi, which in the search wants both words, as in 1.6.0),
   an operator or a placeholder stays as it is, and in doubt a rule with such
   an entry replaces no filter (no "lo fa gia'", no merging).
 - With 200 filters a click in a drop-down no longer freezes the window for
   seconds (from 3-13 s to well under one): the choices are checked again
   leaving in Gmail, in one round, all those that would be refused in every
-  round, and without recomputing for every filter all the native filters
-  Campanella creates. Same result as before.
+  round (also those kept by a filter left in Gmail with a label their rule
+  excludes, when no choice of that round changes the excluded rules: with
+  200 Ministero e USR filters and a starred Segreteria one, from over a
+  second to a few hundredths), and without recomputing for every filter all
+  the native filters Campanella creates. Same result as before.
 - Step 4: the description of the selected rule gets a scroll bar only when
   it does not fit (a rule that took many senders or a long search from a
   filter).
@@ -409,13 +432,29 @@ Ministero e USR fixed in step 4 reach the script only with it.
   before in under 3 s (before 4 to 13 s per click); on 3900 random
   scenarios, also with 8 to 60 filters, the faster FiltriGmail.Esito
   removes the same filters and makes the same rules as before.
+  Also: a filter chosen earlier that starts as left, reopened with the same
+  file and then with a file without it; a rule born from the window
+  deleted and a merged sender removed, reopened with the file; the label
+  group changed after "Usa questa scelta" (Scuola to Istituto, Scuola to
+  plain names) and back; the amber text for a filter that stays because of
+  one that deletes; a fourth case with 200 filters (199 of Ministero e USR
+  and a starred Segreteria one) under half a second. filtri_a_caso.ps1 also
+  changes the label group after "Usa questa scelta" (with the code before,
+  scenario 117 of the fixed seed broke the promise), and its fake mailbox
+  has a second address of the portal and of the union domain, as it has a
+  second student, so a filter for a whole domain is not counted as broken
+  when an excluded rule takes the only address there (seed 5, scenario
+  1899 of 2000); with 2000 scenarios and eight seeds none breaks the
+  promise, and on 4510 random scenarios the faster check gives exactly the
+  same filters, rules, summaries and window choices as before.
   prova_stato.ps1:
   the rule that replaces a filter to remove, and whether the filter
   archived, marked as read or deleted, the labels its rule excluded and
-  the filters left in Gmail with one of them are saved (with the personal
-  data) and read back, and 1.6.0 (format
+  the filters left in Gmail with one of them, and the label group, are
+  saved (with the personal data) and read back, and 1.6.0 (format
   3) does not overwrite them; a rule sender line with more than one address
-  becomes one entry per address when read, and is written back that way.
+  becomes one entry per address when read, and is written back that way,
+  while a name without quotes (Mario Rossi) stays one entry.
   prova_guscio.ps1: the status line after the
   button of the school's mailbox, with native filters ticked in the same
   visit.

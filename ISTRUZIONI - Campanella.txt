@@ -181,10 +181,11 @@ POSTA - riordinare la casella
    toglie con un clic sul quadratino (o con la barra spaziatrice), un clic
    sul nome sceglie la regola e ne mostra la descrizione, un doppio clic la
    apre in "Modifica". Li' i mittenti vanno uno per riga: una riga con piu'
-   indirizzi, separati da spazi, virgole o punti e virgola, diventa una voce
-   per indirizzo (anche nelle regole salvate prima), perche' nella ricerca
-   di Gmail "a b" vorrebbe tutti e due; un nome fra virgolette, un operatore
-   o un segnaposto restano come sono. Le etichette si sommano (una circolare del dirigente
+   indirizzi o domini, separati da spazi, virgole o punti e virgola, diventa
+   una voce per indirizzo (anche nelle regole salvate prima), perche' nella
+   ricerca di Gmail "a b" vorrebbe tutti e due; un nome, fra virgolette o
+   no (Mario Rossi, che nella ricerca vuole proprio tutte e due le parole),
+   un operatore o un segnaposto restano come sono. Le etichette si sommano (una circolare del dirigente
    prende Dirigenza e Circolari), e l'ordine conta solo per Studenti, che
    prende la posta del dominio non
    gia' finita in Colleghi, Dirigenza o Segreteria, e per Ministero e USR,
@@ -272,9 +273,9 @@ POSTA - riordinare la casella
      loro dominio, o con l'elenco del personale; @dominio prende gli
      indirizzi di quel dominio, non quelli di un sottodominio come
      news@posta.dominio ne' il dominio scritto senza chiocciola, che
-     prende anche quelli; una regola con fra i mittenti un nome fra
-     virgolette o un operatore, di cui non si sa che cosa prende, nel dubbio
-     no, e non ci si unisce), nessuna esclusione che il filtro non ha tocca i
+     prende anche quelli; una regola con fra i mittenti un nome, fra
+     virgolette o no, o un operatore, di cui non si sa che cosa prende, nel
+     dubbio no, e non ci si unisce), nessuna esclusione che il filtro non ha tocca i
      suoi mittenti (una parola come -from:esami, un pezzo di indirizzo
      come -from:mario.rossi o -from:mario.rossi@, o un nome, puo' toccarli
      tutti), archivia e segna come letti come lui, e sopra di lei non c'e'
@@ -369,12 +370,17 @@ POSTA - riordinare la casella
    suoi, accesa, prenderebbe anche quelli), e quelli tuoi diventano regole;
    quelli scelti prima si tolgono (quelli scelti con la 1.6.0, che li
    sceglieva per l'etichetta sola, partono dalla proposta di adesso, e
-   quelli che la loro regola non sostituisce piu', anche perche' in Gmail
-   adesso archiviano o segnano come letto e lei no, partono lasciati).
-   "Scelti prima" sono quelli salvati con "Usa questa scelta": aprendo di
-   nuovo un file nella stessa finestra (lo stesso o un altro), le scelte
-   fatte a mano restano ai filtri uguali, e una scelta non ancora usata
-   ("Diventa una regola", "Unisci") non diventa "Toglilo" e basta.
+   quelli che la loro regola non sostituisce piu', perche' l'hai tolta o
+   spenta, le hai tolto i loro mittenti o in Gmail adesso archiviano o
+   segnano come letto e lei no, partono lasciati: la finestra non rifa' da
+   sola una regola o un'unione che hai tolto). "Scelti prima" sono quelli
+   salvati con "Usa questa scelta", anche quelli che partivano lasciati,
+   tranne quelli che hai lasciato a mano: aprendo di nuovo un file nella
+   stessa finestra (lo stesso o un altro), le scelte fatte a mano restano
+   ai filtri uguali, uno scelto prima resta "scelto prima" (e il riquadro
+   dice ancora perche' resta), uno che il file nuovo non ha resta in fondo
+   com'era salvato, e una scelta non ancora usata ("Diventa una regola",
+   "Unisci") non diventa "Toglilo" e basta.
    "Toglilo" e basta, senza una regola, toglie un filtro che non era scelto
    prima solo se lo scegli tu.
    La proposta tiene conto degli altri filtri: una che "Usa questa scelta"
@@ -446,9 +452,10 @@ POSTA - riordinare la casella
    archivia piu' come lui, togli la sua gemella e l'altra esclude i suoi
    mittenti), il filtro
    resta in Gmail, la configurazione non lo scrive piu' e il passo 4 lo
-   dice in ambra; riaprendo la finestra parte "Lascialo in Gmail" (anche
-   con il file, se in Gmail adesso archivia o segna come letto e la regola
-   no), e per toglierlo lo stesso basta scegliere "Toglilo" a mano. Senza
+   dice in ambra; riaprendo la finestra parte "Lascialo in Gmail", anche
+   con il file (anche se in Gmail adesso archivia o segna come letto e la
+   regola no), e per toglierlo lo stesso basta sceglierlo a mano
+   ("Toglilo", o di nuovo "Diventa una regola" o "Unisci"). Senza
    il file, uno che la sua regola sostituisce ancora parte "Toglilo: lo
    fa gia' la regola ...". Uno andato via perche' i mittenti di un filtro
    rimasto in Gmail con un'etichetta che la sua regola esclude li prendeva
@@ -458,7 +465,14 @@ POSTA - riordinare la casella
    regola esclusa si spegne, va sotto o cambia mittenti, cambia l'elenco
    del personale, o la sua regola ne esclude un'altra, senza il file non va
    piu' via, e il passo 4 lo dice in ambra (un collega in piu' nell'elenco
-   no: regge ancora). E anche senza il file, come in "Usa questa scelta",
+   no: regge ancora). E ognuno andato via con una regola ricorda il gruppo
+   delle etichette ("Raggruppa sotto") di quando l'hai scelto: se poi lo
+   cambi, la regola mette un'etichetta di un altro gruppo, e un filtro
+   rimasto in Gmail con un'etichetta del gruppo nuovo (la stessa, o una che
+   la regola esclude) potrebbe toglierle dei messaggi; senza il file non va
+   piu' via, e il passo 4 lo dice in ambra e chiede di riaprire il file (con
+   il file la finestra rivede tutto, e tornato il gruppo di prima va via di
+   nuovo). E anche senza il file, come in "Usa questa scelta",
    un filtro scelto che resta in Gmail ne fa restare un altro (con la
    stessa etichetta, con un'etichetta esclusa, o che prende gli stessi
    messaggi di uno che manda nel cestino). Uno scelto con la 1.6.0, che non

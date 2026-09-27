@@ -146,8 +146,9 @@ salvate: toglile con «Togli le righe senza spunta». I filtri di Gmail che
 scegli di togliere (Posta, passo 4) stanno con l'elenco del personale,
 perché i loro criteri possono contenere indirizzi: Campanella tiene solo
 quelli da togliere, con l'etichetta, i criteri, il nome della regola che
-li sostituisce e se archiviavano, segnavano come letti o mandavano nel
-cestino (quelli scelti con la 1.6.0 non li hanno, e senza il file dei
+li sostituisce, il gruppo delle etichette di quando li hai scelti e se
+archiviavano, segnavano come letti o mandavano nel cestino (quelli scelti
+con la 1.6.0 non li hanno, e senza il file dei
 filtri non vanno via: li prendono quando riapri il file). Di quelli la cui
 regola esclude altre etichette (Studenti, Ministero e USR) tiene anche le
 etichette escluse e, se in Gmail ne resta uno con una di quelle che può

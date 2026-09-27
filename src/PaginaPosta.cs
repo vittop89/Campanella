@@ -631,7 +631,11 @@ namespace Campanella
                 "non puo' distinguere i messaggi etichettati da te da quelli etichettati dallo " +
                 "script. Per non toccare i tuoi le lascia come sono e te lo dice: svuota solo le " +
                 "etichette che ha creato lo script. ANNULLA_etichettaturaCompleta invece le svuota " +
-                "tutte, comprese le tue."));
+                "tutte, comprese le tue.\r\n\r\n" +
+                "Se cambi il gruppo dopo aver scelto dei filtri di Gmail da togliere (\"Filtri che hai gia' " +
+                "in Gmail...\"), quelli che una regola sostituisce restano in Gmail finche' non riapri il file " +
+                "dei filtri: la regola mette un'etichetta di un altro gruppo, e un filtro rimasto in Gmail con " +
+                "un'etichetta del gruppo nuovo potrebbe toglierle dei messaggi."));
             lblPrefisso = Tema.Testo1("", 346, y + 4, 480, Tema.Piccolo, Ruolo.Tenue);
             lblPrefisso.Height = 20;
             p.Controls.Add(lblPrefisso);
@@ -683,10 +687,12 @@ namespace Campanella
                 "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
-                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa', e aprendo di nuovo un " +
-                "file le scelte fatte a mano restano. Se poi togli o spegni " +
+                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa' (ne' rifa' una regola o " +
+                "un'unione che hai tolto: il filtro parte lasciato), e aprendo di nuovo un file le scelte fatte a mano " +
+                "restano. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
-                "mittenti, le aggiungi un'esclusione...), il filtro resta in Gmail, e qui sotto lo dice in ambra; " +
+                "mittenti, le aggiungi un'esclusione...), o cambi il gruppo delle etichette (\"Raggruppa sotto\"), il " +
+                "filtro resta in Gmail, e qui sotto lo dice in ambra; " +
                 "cosi' anche uno scelto con la 1.6.0 (che non ricordava se archiviava o segnava come letto), che " +
                 "senza il file dei filtri non va mai via: senza il file non si vede che cosa fa, ne' se in Gmail ce " +
                 "n'e' un altro con la stessa etichetta. Riapri il file, e la finestra lo vede. Resta anche un filtro che archivia (o " +
