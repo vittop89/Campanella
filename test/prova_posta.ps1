@@ -2698,6 +2698,67 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $fH.conto -eq 'Da togliere: 1 filtro  -  regole nuove: 1  -  restano in Gmail lo stesso: 1')
 
     # -----------------------------------------------------------------------
+    Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: CON 200 FILTRI'
+    # Ogni scelta nella tendina rifa' le prove di tutte le scelte
+    # (FiltriGmail.Prova). Prima si lasciava in Gmail una scelta rifiutata per
+    # giro, e ogni giro rifaceva tutti i filtri che crea Campanella per ogni
+    # filtro della finestra: con 200 filtri un clic costava da 4 a 13 secondi.
+    # Adesso in un giro restano anche quelle che resterebbero comunque
+    # (FiltroCheResta.Certo), e i conti non si rifanno: lo stesso risultato,
+    # in meno di un secondo
+    function XmlDiFiltri($filtri) {
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.Append("<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>")
+        foreach ($p in $filtri) {
+            [void]$sb.Append('<entry>')
+            foreach ($k in $p.Keys) { [void]$sb.Append("<apps:property name='$k' value='$([System.Security.SecurityElement]::Escape([string]$p[$k]))'/>") }
+            [void]$sb.Append('</entry>')
+        }
+        return $sb.Append('</feed>').ToString()
+    }
+    $casi200 = [ordered]@{
+        # dieci etichette, in ognuna un filtro con la stella (resta in Gmail: fa
+        # anche altro) e 19 che archiviano: restano tutti, per quello con la stella
+        'dieci etichette con un filtro con la stella' = @{ voci = 0; conto = 'Da togliere: nessuno'; filtri = @(0..199 | ForEach-Object {
+            $p = [ordered]@{ from = "mittente$_@progetti-$($_ % 7).example"; label = "Progetto $($_ % 10)" }
+            if ($_ -lt 10) { $p.shouldStar = 'true' } else { $p.shouldArchive = 'true' }
+            $p }) }
+        # un'etichetta sola: uno su otto con la stella, gli altri archiviano o
+        # no, segnano come letto o no
+        'un''etichetta sola' = @{ voci = 60; conto = 'Da togliere: 60 filtri  -  regole nuove: 1  -  da unire a una regola: 59'; filtri = @(0..199 | ForEach-Object {
+            $p = [ordered]@{ from = "mittente$_@ente-$($_ % 13).example"; label = 'Temi' }
+            if ($_ % 8 -eq 0) { $p.shouldStar = 'true' } elseif (@(1, 3, 4, 6) -contains ($_ % 8)) { $p.shouldArchive = 'true' }
+            if ($_ % 5 -eq 0) { $p.shouldMarkAsRead = 'true' }
+            $p }) }
+        # venti etichette, in ognuna filtri che archiviano e filtri che no, a
+        # righe alterne: nasce una regola per etichetta, restano quelli che
+        # archiviano diversamente
+        'venti etichette con azioni alterne' = @{ voci = 99; conto = 'Da togliere: 99 filtri  -  regole nuove: 20  -  da unire a una regola: 79'; filtri = @(0..199 | ForEach-Object {
+            $p = [ordered]@{ from = "mittente$_@progetti-$($_ % 7).example"; label = "Progetto $($_ % 20)" }
+            if ((([math]::Floor($_ / 20)) + ($_ % 20)) % 2 -eq 0) { $p.shouldArchive = 'true' }
+            $p }) }
+    }
+    foreach ($nome200 in $casi200.Keys) {
+        $s200 = StatoRiorganizza
+        $lista200 = ListaFiltri (LeggiFiltri (XmlDiFiltri $casi200[$nome200].filtri))
+        $sw200 = [Diagnostics.Stopwatch]::StartNew()
+        $ff200 = [Activator]::CreateInstance($tFF, @($s200.PSObject.BaseObject))
+        $ff200.Carica($lista200)
+        $apri200 = $sw200.Elapsed.TotalSeconds
+        $ff200.Scegli(1, $ff200.Scelte(1)[0])
+        $clic200 = $sw200.Elapsed.TotalSeconds - $apri200
+        $conto200 = Conto $ff200
+        [void]$mApplica.Invoke($null, @($s200.PSObject.BaseObject, $ff200.FatteAdesso()))
+        $ff200.Dispose()
+        $voci200 = (Leggi $s200 'FiltriDaTogliere').Count
+        # i secondi con margine: sul computer di prova meno di mezzo secondo
+        Verifica ("200 filtri, $nome200 ('$conto200', $voci200 da togliere): la finestra si apre in {0:N2} s e un clic nella tendina costa {1:N2} s" -f $apri200, $clic200) (
+            $lista200.Count -eq 200 -and $conto200 -eq $casi200[$nome200].conto -and
+            $voci200 -eq $casi200[$nome200].voci -and
+            $apri200 -lt 3 -and $clic200 -lt 3)
+    }
+
+    # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL A CASO, FINO AL MOTORE VERO'
     # La promessa a classi, non a casi (test\filtri_a_caso.ps1): centinaia di
     # scenari inventati con un seme fisso (regole spente e riordinate, filtri

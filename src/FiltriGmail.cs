@@ -818,7 +818,7 @@ namespace Campanella
             FiltroDaTogliere questo = FiltroDaTogliere.Da(etichetta, grezzi);
             if (questo == null) return false;
             string chiave = questo.Chiave();
-            foreach (KeyValuePair<Regola, FiltroDaTogliere> kv in FiltriDiCampanellaConLaRegola(s))
+            foreach (KeyValuePair<Regola, FiltroDaTogliere> kv in FiltriDiCampanellaConLaRegola(s, chiave))
                 if (kv.Value.Chiave() == chiave) { chi = kv.Key; return true; }
             return false;
         }
@@ -859,12 +859,18 @@ namespace Campanella
         public static List<FiltroDaTogliere> FiltriDiCampanella(Stato s)
         {
             List<FiltroDaTogliere> fuori = new List<FiltroDaTogliere>();
-            foreach (KeyValuePair<Regola, FiltroDaTogliere> kv in FiltriDiCampanellaConLaRegola(s)) fuori.Add(kv.Value);
+            foreach (KeyValuePair<Regola, FiltroDaTogliere> kv in FiltriDiCampanellaConLaRegola(s, null)) fuori.Add(kv.Value);
             return fuori;
         }
 
-        /// <summary>Gli stessi, ognuno con la regola che lo crea (null per le sottoetichette dei ruoli).</summary>
-        static List<KeyValuePair<Regola, FiltroDaTogliere>> FiltriDiCampanellaConLaRegola(Stato s)
+        /// <summary>
+        /// Gli stessi, ognuno con la regola che lo crea (null per le
+        /// sottoetichette dei ruoli). Con perLaChiave (FiltroDaTogliere.Chiave
+        /// di un filtro), solo quelli con la sua etichetta, nello stesso ordine:
+        /// gli altri non possono avere quella chiave, e calcolarli tutti per ogni
+        /// filtro della finestra, a ogni scelta, costa (sono uno o piu' per regola).
+        /// </summary>
+        static List<KeyValuePair<Regola, FiltroDaTogliere>> FiltriDiCampanellaConLaRegola(Stato s, string perLaChiave)
         {
             List<KeyValuePair<Regola, FiltroDaTogliere>> fuori = new List<KeyValuePair<Regola, FiltroDaTogliere>>();
             string pre = s.PrefissoPulito();
@@ -876,6 +882,7 @@ namespace Campanella
             List<string> niente = new List<string>();
             foreach (Regola r in s.Regole)
             {
+                if (!ConLaChiave(davanti + r.Etichetta, perLaChiave)) continue;
                 if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) || r.EscludiEtichette.Count > 0) continue;
                 AggiungiFiltri(fuori, r, davanti + r.Etichetta, CriteriCreati(GeneratorePosta.MittentiDellaRegola(s, r),
                     r.Oggetto, r.Contiene, r.QueryLibera ?? "", r.UnoQualsiasi, dominio, personale, gruppi));
@@ -884,11 +891,23 @@ namespace Campanella
             string colleghi = GeneratorePosta.EtichettaColleghi(s.Regole);
             foreach (string c in GeneratorePosta.CategoriePresenti(gruppi))
             {
+                if (!ConLaChiave(davanti + colleghi + "/" + c, perLaChiave)) continue;
                 List<string> gruppo = new List<string>(new string[] { "@GRUPPO:" + c + "@" });
                 AggiungiFiltri(fuori, null, davanti + colleghi + "/" + c,
                     CriteriCreati(gruppo, niente, niente, "", false, dominio, personale, gruppi));
             }
             return fuori;
+        }
+
+        /// <summary>
+        /// Vero se un filtro con quell'etichetta puo' avere quella chiave
+        /// (FiltroDaTogliere.Chiave: l'etichetta senza spazi ai lati e in
+        /// minuscolo, poi a capo e i criteri, che non mancano mai); sempre vero
+        /// senza la chiave.
+        /// </summary>
+        static bool ConLaChiave(string etichetta, string chiave)
+        {
+            return chiave == null || chiave.StartsWith((etichetta ?? "").Trim().ToLowerInvariant() + "\n", StringComparison.Ordinal);
         }
 
         static void AggiungiFiltri(List<KeyValuePair<Regola, FiltroDaTogliere>> fuori, Regola r, string etichetta,
@@ -2408,7 +2427,11 @@ namespace Campanella
             // solito resta per colpa delle altre (un filtro con la stessa
             // etichetta che resta), e lasciata lei le altre si possono fare
             // (due Portali, uno che archivia e uno no: resta quello che archivia,
-            // l'altro diventa la regola)
+            // l'altro diventa la regola). Con lei tutte quelle che resterebbero
+            // anche ai giri dopo (FiltroCheResta.Certo: una regola che non si
+            // scrive, un filtro con la stessa etichetta lasciato in Gmail): cosi'
+            // con 200 filtri non serve un giro per ognuna. Ogni giro rifa' tutte
+            // le prove: quello che va via alla fine regge con tutto quello che resta
             for (int giro = 0; ; giro++)
             {
                 Stato copia = s.CopiaPerLeScelte();
@@ -2416,23 +2439,25 @@ namespace Campanella
                 for (int i = 0; i < s.Regole.Count; i++)
                     if (s.Regole[i] != null && !mappa.ContainsKey(s.Regole[i])) mappa[s.Regole[i]] = copia.Regole[i];
                 List<FiltroCheResta> rifiutati = new List<FiltroCheResta>();
-                e = Fai(copia, tutti, restano, mappa, rifiutati);
+                e = Fai(copia, tutti, restano, mappa, rifiutati, s);
                 if (rifiutati.Count == 0) break;
                 if (giro >= tutti.Count) { restano.AddRange(rifiutati); break; }
-                restano.Add(rifiutati[rifiutati.Count - 1]);
+                FiltroCheResta ultima = rifiutati[rifiutati.Count - 1];
+                foreach (FiltroCheResta r in rifiutati) if (r.Certo || r == ultima) restano.Add(r);
             }
             if (davvero)
             {
                 // le stesse scelte, che adesso reggono tutte, nello Stato vero
                 List<FiltroCheResta> rifiutati = new List<FiltroCheResta>();
-                e = Fai(s, tutti, restano, null, rifiutati);
+                e = Fai(s, tutti, restano, null, rifiutati, null);
                 restano.AddRange(rifiutati);
             }
             // nell'ordine della finestra
             List<FiltroCheResta> inOrdine = new List<FiltroCheResta>();
+            Dictionary<FiltroScelto, string> chiavi = Chiavi(tutti);
             foreach (FiltroScelto x in tutti)
                 foreach (FiltroCheResta r in restano)
-                    if (x.Voce != null && r.Chiave == x.Voce.Chiave() && !inOrdine.Contains(r)) inOrdine.Add(r);
+                    if (x.Voce != null && r.Chiave == chiavi[x] && !inOrdine.Contains(r)) inOrdine.Add(r);
             foreach (FiltroCheResta r in restano) if (!inOrdine.Contains(r)) inOrdine.Add(r);
             e.Restano = inOrdine;
             e.Riepilogo = Riepilogo(e);
@@ -2469,15 +2494,21 @@ namespace Campanella
         /// Due filtri uguali sono la stessa voce: conta la scelta con una regola
         /// (Unisci o Diventa una regola, poi "lo fa gia'"), se c'e', altrimenti
         /// quella del primo. Una regola nuova con l'etichetta di una che c'e'
-        /// gia' non nasce di nuovo (CreaRegola).
+        /// gia' non nasce di nuovo (CreaRegola). Con originale (lo Stato vero,
+        /// quando s e' una copia) dice anche quali scelte rifiutate lo
+        /// sarebbero a ogni giro di Esito (FiltroCheResta.Certo).
         /// </summary>
         static EsitoScelte Fai(Stato s, List<FiltroScelto> scelti, List<FiltroCheResta> restano,
-                               Dictionary<Regola, Regola> mappa, List<FiltroCheResta> rifiutati)
+                               Dictionary<Regola, Regola> mappa, List<FiltroCheResta> rifiutati, Stato originale)
         {
             EsitoScelte e = new EsitoScelte();
             List<FiltroDaTogliere> togli = new List<FiltroDaTogliere>();
-            List<string> fatte = new List<string>(), lasciate = new List<string>();
+            HashSet<string> fatte = new HashSet<string>(), lasciate = new HashSet<string>();
             foreach (FiltroCheResta r in restano) lasciate.Add(r.Chiave);
+            // la chiave di ogni scelta e di ogni voce da togliere, calcolata una
+            // volta sola: con tanti filtri si guarda tante volte
+            Dictionary<FiltroScelto, string> chiavi = Chiavi(scelti);
+            Dictionary<FiltroDaTogliere, string> chiaveDi = new Dictionary<FiltroDaTogliere, string>();
             // quelli scelti prima, com'erano prima di queste scelte
             List<string> salvati = new List<string>();
             if (s.FiltriDaTogliere != null)
@@ -2485,27 +2516,49 @@ namespace Campanella
             List<Regola> createAdesso = new List<Regola>();
             Dictionary<Regola, int> dopo = new Dictionary<Regola, int>();
             Dictionary<string, FiltroScelto> perVoce = new Dictionary<string, FiltroScelto>();
+            // le regole nate adesso e la scelta che le ha fatte nascere (la sua
+            // chiave); e le scelte rifiutate perche' una di quelle archivia o
+            // segna come letti diversamente, con la chiave di chi l'ha fatta nascere
+            Dictionary<Regola, string> natiDa = new Dictionary<Regola, string>();
+            List<KeyValuePair<FiltroCheResta, string>> perUnaNata = new List<KeyValuePair<FiltroCheResta, string>>();
             foreach (FiltroScelto x in scelti)
             {
-                if (!Toglie(x, lasciate)) continue;
-                string k = x.Voce.Chiave();
+                if (!Toglie(x, lasciate, chiavi)) continue;
+                string k = chiavi[x];
                 if (!perVoce.ContainsKey(k) || Peso(x) > Peso(perVoce[k])) perVoce[k] = x;
             }
             foreach (FiltroScelto x in scelti)
             {
-                if (!Toglie(x, lasciate)) { e.Lasciati++; continue; }
-                string chiave = x.Voce.Chiave();
+                if (!Toglie(x, lasciate, chiavi)) { e.Lasciati++; continue; }
+                string chiave = chiavi[x];
                 if (fatte.Contains(chiave) || perVoce[chiave] != x) continue;
                 fatte.Add(chiave);
                 Regola sostituta = (x.Scelta.Regola != null && mappa != null && mappa.ContainsKey(x.Scelta.Regola))
                     ? mappa[x.Scelta.Regola] : x.Scelta.Regola;
                 string perche = "";
+                Regola perColpaDi = null;
                 if (x.Scelta.Azione == SceltaFiltro.Unisci)
                     perche = UnisciAllaRegola(s, x.Filtro, sostituta, e.Unite, e.Scuola);
                 else if (x.Scelta.Azione == SceltaFiltro.Nuova)
-                    perche = CreaRegola(s, x, dopo, createAdesso, e.Nuove, e.Unite, e.Scuola, out sostituta);
-                if (perche != "") { Rifiuta(e, rifiutati, x.Voce, perche); continue; }
+                    perche = CreaRegola(s, x, dopo, createAdesso, e.Nuove, e.Unite, e.Scuola, out sostituta, out perColpaDi);
+                if (perche != "")
+                {
+                    // resterebbe a ogni giro: una regola che non si scrive, un'unione
+                    // che non si fa nemmeno nello Stato di prima delle scelte
+                    bool certo = (x.Scelta.Azione == SceltaFiltro.Nuova && Traduci(x.Filtro, x.Somiglia, s) == null) ||
+                                 (x.Scelta.Azione == SceltaFiltro.Unisci && originale != null && x.Scelta.Regola != null &&
+                                  originale.Regole.Contains(x.Scelta.Regola) &&
+                                  !SiPuoUnire(x.Filtro, (x.Filtro == null) ? null : SoloMittenti(x.Filtro.Criteri), x.Scelta.Regola, originale));
+                    Rifiuta(e, rifiutati, x.Voce, perche, certo);
+                    // per una regola nata adesso da un'altra scelta: resta a ogni
+                    // giro se quella scelta alla fine si fa (qui sotto)
+                    if (perColpaDi != null && natiDa.ContainsKey(perColpaDi))
+                        perUnaNata.Add(new KeyValuePair<FiltroCheResta, string>(rifiutati[rifiutati.Count - 1], natiDa[perColpaDi]));
+                    continue;
+                }
+                if (sostituta != null && createAdesso.Contains(sostituta) && !natiDa.ContainsKey(sostituta)) natiDa[sostituta] = chiave;
                 FiltroDaTogliere voce = x.Voce.Copia();
+                chiaveDi[voce] = chiave;
                 if (x.Filtro != null)
                 {
                     voce.Archivia = x.Filtro.Archivia;
@@ -2519,7 +2572,7 @@ namespace Campanella
                 bool diverse = false, aMano = false;
                 foreach (FiltroScelto y in scelti)
                 {
-                    if (y.Voce == null || y.Voce.Chiave() != chiave) continue;
+                    if (y.Voce == null || chiavi[y] != chiave) continue;
                     if (y.AMano && y.Scelta != null && y.Scelta.Azione == SceltaFiltro.Togli && y.Scelta.Regola == null) aMano = true;
                     if (y == x || y.Filtro == null) continue;
                     if (x.Filtro != null && (y.Filtro.Archivia != x.Filtro.Archivia || y.Filtro.SegnaLetto != x.Filtro.SegnaLetto)) diverse = true;
@@ -2586,7 +2639,18 @@ namespace Campanella
             // regola che esclude quell'etichetta non li prende proprio. Restando,
             // un filtro ne puo' far restare un altro
             List<FiltroDaTogliere> nelCestino = new List<FiltroDaTogliere>();
-            List<FiltroDaTogliere> inGmail = QuelliCheRestano(scelti, togli, nelCestino);
+            List<FiltroDaTogliere> inGmail = QuelliCheRestano(scelti, Via(togli, chiaveDi), nelCestino, chiavi);
+            // quelli che restano in Gmail a ogni giro di Esito, comunque vadano le
+            // altre scelte: lasciati, che non si possono togliere, o gia' fra
+            // quelli che restano. Uno che resta per loro con la stessa etichetta
+            // o nel cestino (che non dipende dalle regole di questo giro)
+            // resterebbe anche ai giri dopo (FiltroCheResta.Certo), e Esito lo
+            // lascia subito
+            HashSet<string> provati = new HashSet<string>(), certi = new HashSet<string>();
+            foreach (FiltroCheResta r in rifiutati) if (r.Certo) certi.Add(r.Chiave);
+            foreach (FiltroScelto x in scelti) if (Toglie(x, lasciate, chiavi) && !certi.Contains(chiavi[x])) provati.Add(chiavi[x]);
+            List<FiltroDaTogliere> nelCestinoFissi = new List<FiltroDaTogliere>();
+            List<FiltroDaTogliere> fissi = QuelliCheRestano(scelti, provati, nelCestinoFissi, chiavi);
             for (bool ancora = true; ancora; )
             {
                 ancora = false;
@@ -2595,12 +2659,18 @@ namespace Campanella
                     string perche = PercheResta(v, inGmail, nelCestino, s);
                     if (perche == "") continue;
                     togli.Remove(v);
-                    Rifiuta(e, rifiutati, v, perche);
+                    Rifiuta(e, rifiutati, v, perche,
+                            ConLaStessaEtichetta(v, fissi, s) != "" || ConUnoNelCestino(v, nelCestinoFissi) != "");
                     // resta lui, e con lui i filtri uguali
-                    inGmail = QuelliCheRestano(scelti, togli, nelCestino);
+                    inGmail = QuelliCheRestano(scelti, Via(togli, chiaveDi), nelCestino, chiavi);
                     ancora = true;
                 }
             }
+            // rifiutati per una regola nata adesso da un'altra scelta che alla fine
+            // si fa: al giro dopo quella regola nasce di nuovo, e loro restano
+            HashSet<string> vannoVia = Via(togli, chiaveDi);
+            foreach (KeyValuePair<FiltroCheResta, string> kv in perUnaNata)
+                if (vannoVia.Contains(kv.Value)) kv.Key.Certo = true;
             // quello che ogni voce ricorda per ricontrollarsi senza il file: le
             // etichette che la sua regola esclude adesso, e i filtri che restano
             // in Gmail con una di quelle e possono prendere i suoi messaggi (i
@@ -2698,15 +2768,32 @@ namespace Campanella
             return fuori;
         }
 
-        /// <summary>Vero se la scelta toglie il filtro, e non e' fra quelli che restano gia' (lasciate: le chiavi).</summary>
         /// <summary>Perche' uno scelto con la 1.6.0, senza il file, resta in Gmail.</summary>
         public const string TestoCon160 = "scelto con la 1.6.0, che non ricordava se archiviava o segnava come letto: " +
             "senza il file dei filtri non si vede che cosa fa, ne' se in Gmail ce n'e' un altro con la stessa etichetta " +
             "che non lo fa (apri il file dei filtri)";
 
-        static bool Toglie(FiltroScelto x, List<string> lasciate)
+        /// <summary>Vero se la scelta toglie il filtro, e non e' fra quelli che restano gia' (lasciate: le chiavi; chiavi: quelle delle scelte, Chiavi).</summary>
+        static bool Toglie(FiltroScelto x, HashSet<string> lasciate, Dictionary<FiltroScelto, string> chiavi)
         {
-            return x != null && x.Voce != null && x.Scelta != null && x.Scelta.TogliIlFiltro && !lasciate.Contains(x.Voce.Chiave());
+            return x != null && x.Voce != null && x.Scelta != null && x.Scelta.TogliIlFiltro && !lasciate.Contains(chiavi[x]);
+        }
+
+        /// <summary>La chiave della voce di ogni scelta che ne ha una (FiltroDaTogliere.Chiave).</summary>
+        static Dictionary<FiltroScelto, string> Chiavi(List<FiltroScelto> scelti)
+        {
+            Dictionary<FiltroScelto, string> fuori = new Dictionary<FiltroScelto, string>();
+            foreach (FiltroScelto x in scelti ?? new List<FiltroScelto>())
+                if (x != null && x.Voce != null && !fuori.ContainsKey(x)) fuori[x] = x.Voce.Chiave();
+            return fuori;
+        }
+
+        /// <summary>Le chiavi dei filtri da togliere (chiaveDi: quelle gia' calcolate).</summary>
+        static HashSet<string> Via(List<FiltroDaTogliere> togli, Dictionary<FiltroDaTogliere, string> chiaveDi)
+        {
+            HashSet<string> via = new HashSet<string>();
+            foreach (FiltroDaTogliere v in togli) via.Add(chiaveDi.ContainsKey(v) ? chiaveDi[v] : v.Chiave());
+            return via;
         }
 
         /// <summary>
@@ -2783,18 +2870,17 @@ namespace Campanella
         /// uno non si capisce: allora puo' prendere qualunque messaggio) e
         /// quello che fa (null: non si sa, un filtro scelto con la 1.6.0). In
         /// nelCestino, se non e' null, quelli che mandano nel cestino, anche
-        /// senza etichetta.
+        /// senza etichetta. via: le chiavi di quelli che vanno via; chiavi:
+        /// quelle delle scelte (Chiavi).
         /// </summary>
-        static List<FiltroDaTogliere> QuelliCheRestano(List<FiltroScelto> scelti, List<FiltroDaTogliere> togli,
-                                                       List<FiltroDaTogliere> nelCestino)
+        static List<FiltroDaTogliere> QuelliCheRestano(List<FiltroScelto> scelti, HashSet<string> via, List<FiltroDaTogliere> nelCestino,
+                                                       Dictionary<FiltroScelto, string> chiavi)
         {
-            List<string> via = new List<string>();
-            foreach (FiltroDaTogliere v in togli) via.Add(v.Chiave());
             List<FiltroDaTogliere> fuori = new List<FiltroDaTogliere>();
             if (nelCestino != null) nelCestino.Clear();
             foreach (FiltroScelto x in scelti ?? new List<FiltroScelto>())
             {
-                if (x == null || x.FuoriDalFile || (x.Voce != null && via.Contains(x.Voce.Chiave()))) continue;
+                if (x == null || x.FuoriDalFile || (x.Voce != null && via.Contains(chiavi[x]))) continue;
                 FiltroDaTogliere r = new FiltroDaTogliere();
                 if (x.Filtro != null)
                 {
@@ -2981,9 +3067,11 @@ namespace Campanella
         /// altrimenti il perche'.
         /// </summary>
         static string CreaRegola(Stato s, FiltroScelto x, Dictionary<Regola, int> dopo, List<Regola> createAdesso,
-                                 List<string> nuove, List<string> unite, List<string> scuola, out Regola sostituta)
+                                 List<string> nuove, List<string> unite, List<string> scuola, out Regola sostituta,
+                                 out Regola perColpaDi)
         {
             sostituta = null;
+            perColpaDi = null;
             FiltroGmail f = x.Filtro;
             Regola r = Traduci(f, x.Somiglia, s);
             if (r == null) return "non si scrive come regola";
@@ -3021,9 +3109,12 @@ namespace Campanella
             // quello che fa lei. Con azioni diverse, una delle due non le farebbe
             foreach (Regola e in createAdesso)
                 if (ConEtichetta(e, f.Etichetta, s) && (e.Archivia != r.Archivia || e.SegnaComeLette != r.SegnaComeLette))
+                {
+                    perColpaDi = e;
                     return "c'e' gia' una regola " + NomeIntero(e, s) + ", nata adesso da un altro filtro, che " +
                            (e.Archivia != r.Archivia ? "archivia" : "segna come letti") + " diversamente: dove prendono " +
                            "gli stessi messaggi farebbe solo quello che fa lei";
+                }
             r.Colore = (gemella != null) ? gemella.Colore : ColoriEtichette.PrimoLibero(s.Regole, s.ColoriRuoli);
             Regola simile = (x.Somiglia != null && x.Somiglia.Tipo == Simile) ? RegolaDi(x.Somiglia, s) : null;
             int dove = s.Regole.Count;
