@@ -2395,10 +2395,26 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $viaGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
     Imposta $sGr3 'Prefisso' 'Scuola/'
     $tornatoGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
-    (Leggi $sGr3 'FiltriDaTogliere')[0].Gruppo = $null
+    # null davvero (assegnato da PowerShell, $null diventerebbe una stringa vuota:
+    # il gruppo "nessuno", non uno che la voce non ricorda)
+    $vNull = (Leggi $sGr3 'FiltriDaTogliere')[0]
+    $vNull.GetType().GetField('Gruppo').SetValue($vNull, $null)
     $senzaGruppoGr3 = [int]$mDaTogliereGr.Invoke($null, @($sGr3))
     Verifica "tornato il gruppo di prima (anche scritto 'Scuola/') va via di nuovo ($viaGr3 con Istituto, $tornatoGr3 con Scuola/); una voce con la regola che non ricorda il gruppo resta ($senzaGruppoGr3)" (
         $viaGr3 -eq 0 -and $tornatoGr3 -eq 1 -and $senzaGruppoGr3 -eq 0)
+    # e se la regola che ricorda non c'e' piu', il perche' e' lei, non il gruppo:
+    # il passo 4 dice che la regola che lo sostituiva non c'e' piu' (prima diceva
+    # degli altri filtri rimasti in Gmail e del gruppo delle etichette)
+    $vGr3 = (Leggi $sGr3 'FiltriDaTogliere')[0]
+    $mAltriGr3 = $tFiltri.GetMethod('PerGliAltriFiltri', $FS)
+    $gruppoGr3 = [string]$mAltriGr3.Invoke($null, @($vGr3, $sGr3.PSObject.BaseObject))
+    $vGr3.Regola = 'Una regola che non c''e'''
+    $altriGr3 = [string]$mAltriGr3.Invoke($null, @($vGr3, $sGr3.PSObject.BaseObject))
+    $percheGr3 = [string]$tFiltri.GetMethod('PercheNonLoSostituisce', $FS).Invoke($null, @($vGr3, $sGr3.PSObject.BaseObject))
+    $ancoraGr3 = [bool]$tFiltri.GetMethod('AncoraSostituito', $FS).Invoke($null, @($vGr3, $sGr3.PSObject.BaseObject))
+    Verifica "una voce senza il gruppo resta per il gruppo ('$gruppoGr3'); se la sua regola non c'e' piu', il perche' e' la regola ('$percheGr3'), e resta lo stesso" (
+        $gruppoGr3 -match '^non ricorda il gruppo delle etichette' -and $altriGr3 -eq '' -and
+        $percheGr3 -match "^la regola Una regola che non c'e', che lo sostituiva, non prende piu'" -and -not $ancoraGr3)
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'

@@ -702,7 +702,14 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
         }
     }
     Verifica "ogni filtro parte con la sua proposta, e si tolgono proprio quelli ($spuntati)$(if ($storte.Count) { ': no ' + ($storte -join ', ') })" (
-        $storte.Count -eq 0 -and $spuntati -ge 2 -and $spuntati -lt 14)
+        $storte.Count -eq 0 -and $spuntati -ge 1 -and $spuntati -lt 14)
+    # i tuoi con delle parole (Viaggi, Progetti Erasmus, Riunioni "urgenti") restano:
+    # resta in Gmail il filtro senza etichetta che manda nel cestino, che puo'
+    # prendere gli stessi messaggi, e nel cestino la regola non li cercherebbe
+    $perCestino = @(@(4, 5, 12) | Where-Object {
+        [string]$righeFF[$_].GetType().GetField('PercheResta').GetValue($righeFF[$_]) -match 'cestino' -and -not $ff.Spuntata($_) })
+    Verifica "i tuoi filtri con delle parole restano per quello che manda nel cestino, e la riga dice perche' ($($perCestino.Count))" (
+        $perCestino.Count -eq 3)
     Verifica "un filtro senza etichetta non si puo' spuntare" (
         [string]$gr.Rows[6].Cells[1].Value -eq '(nessuna)' -and $gr.Rows[6].Cells[0].ReadOnly -and -not $ff.Spuntata(6))
     $ff.Spunta(6, $true)

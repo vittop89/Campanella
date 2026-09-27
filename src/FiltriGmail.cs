@@ -2224,9 +2224,18 @@ namespace Campanella
         {
             if (v == null || s == null) return true;
             if ((v.Regola ?? "").Trim() == "") return !SceltoConLaVersioneDiPrima(v);
-            if (PerGliAltriFiltri(v, s) != "") return false;
+            return SostituitoDallaRegola(v, s) && PerGliAltriFiltri(v, s) == "";
+        }
+
+        /// <summary>
+        /// Vero se la regola che la voce ricorda, da sola, prende ancora tutti i
+        /// messaggi del filtro (RegolaCheLoSostituisceAncora), o se e' uno creato
+        /// per la sottoetichetta di un ruolo, che non archivia e non segna come
+        /// letti: senza guardare i filtri che restano in Gmail (PerGliAltriFiltri).
+        /// </summary>
+        static bool SostituitoDallaRegola(FiltroDaTogliere v, Stato s)
+        {
             if (RegolaCheLoSostituisceAncora(v, s) != null) return true;
-            // uno creato per la sottoetichetta di un ruolo, che non archivia e non segna come letti
             Regola chi;
             return CreatoDaCampanella(v.Etichetta, v.Criteri, s, out chi) && chi == null &&
                    v.Archivia == false && v.SegnaLetto == false;
@@ -2246,11 +2255,15 @@ namespace Campanella
         /// esclude i cui mittenti non li prende piu' tutti una regola esclusa,
         /// accesa e sopra di lei (spenta, spostata sotto, con altri mittenti o
         /// con un altro elenco del personale: ConUnaEtichettaEsclusa). "" se
-        /// niente di questo. Con il file la finestra rivede tutto da capo.
+        /// niente di questo, e "" anche quando la regola, da sola, non lo
+        /// sostituisce piu' (tolta, spenta, senza i suoi mittenti...): allora il
+        /// perche' e' lei, non gli altri filtri (SostituitoDallaRegola). Con il
+        /// file la finestra rivede tutto da capo.
         /// </summary>
         public static string PerGliAltriFiltri(FiltroDaTogliere v, Stato s)
         {
             if (v == null || s == null || (v.Regola ?? "").Trim() == "") return "";
+            if (!SostituitoDallaRegola(v, s)) return "";
             if (v.Gruppo == null)
                 return "non ricorda il gruppo delle etichette (\"Raggruppa sotto\") di quando l'hai scelto: se e' cambiato, " +
                        "la regola " + v.Regola.Trim() + " mette un'etichetta di un altro gruppo, e un filtro rimasto in Gmail " +
