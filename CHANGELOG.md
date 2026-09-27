@@ -117,8 +117,10 @@ Ministero e USR fixed in step 4 reach the script only with it.
   which chose them by label alone, start from today's proposal, and those
   whose rule no longer replaces them, because it was deleted or switched
   off, lost their senders, or in Gmail they now archive or mark as read and
-  the rule does not, start as left: the window does not remake by itself a
-  rule or a merge you removed). The
+  the rule does not, start as left while they are among the chosen ones:
+  left with "Usa questa scelta", they become filters like the others, and
+  the next time the window proposes them again as it does today,
+  "Diventa una regola" or "Unisci" included). The
   proposals take the other rows into account: one that "Usa questa scelta"
   could not make, because of the filters staying in Gmail (see below),
   starts as "Lascialo in Gmail" and the box under the grid says why;
@@ -195,9 +197,11 @@ Ministero e USR fixed in step 4 reach the script only with it.
   lists
   it, step 4 and the step 5 summary say so in amber, and the window starts
   it as "Lascialo in Gmail", also with the file (and also when in Gmail it
-  now archives or marks as read and the rule does not): it does not start
+  now archives or marks as read and the rule does not), and does not start
   again as "Diventa una regola" or "Unisci" for a rule born from the window
-  that was deleted or a merged sender that was removed. Chosen "Toglilo"
+  that was deleted or a merged sender that was removed, as long as it is
+  among the chosen ones: left with "Usa questa scelta", the next time it
+  starts from today's proposal like any other filter. Chosen "Toglilo"
   again by hand, it is removed without a rule. Without the file, one its rule still replaces
   starts as "Toglilo: lo fa gia' la regola ...". One that went because the
   senders of a filter staying in Gmail with a label its rule excludes are

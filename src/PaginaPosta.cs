@@ -687,8 +687,9 @@ namespace Campanella
                 "fatto. Le regole e i filtri da togliere vanno insieme nella configurazione: copiala di nuovo (passo 5) " +
                 "e incollala prima di eseguire EXTRA_togliFiltri, cosi' nessun filtro va via prima della regola che lo " +
                 "sostituisce. Serve il servizio Gmail API (passo 8 dell'installazione guidata). Riaperta con lo " +
-                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa' (ne' rifa' una regola o " +
-                "un'unione che hai tolto: il filtro parte lasciato), e aprendo di nuovo un file le scelte fatte a mano " +
+                "stesso file, la finestra riconosce le regole nate dai filtri e non le rifa' (un filtro la cui regola " +
+                "hai tolto, o a cui hai tolto l'unione, parte lasciato; lasciato con \"Usa questa scelta\", la volta " +
+                "dopo riparte dalla proposta di adesso), e aprendo di nuovo un file le scelte fatte a mano " +
                 "restano. Se poi togli o spegni " +
                 "la regola che sostituisce un filtro, o non prende piu' tutti i suoi messaggi (le togli i suoi " +
                 "mittenti, le aggiungi un'esclusione...), o cambi il gruppo delle etichette (\"Raggruppa sotto\"), il " +

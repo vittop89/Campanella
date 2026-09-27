@@ -372,8 +372,11 @@ POSTA - riordinare la casella
    sceglieva per l'etichetta sola, partono dalla proposta di adesso, e
    quelli che la loro regola non sostituisce piu', perche' l'hai tolta o
    spenta, le hai tolto i loro mittenti o in Gmail adesso archiviano o
-   segnano come letto e lei no, partono lasciati: la finestra non rifa' da
-   sola una regola o un'unione che hai tolto). "Scelti prima" sono quelli
+   segnano come letto e lei no, partono lasciati finche' restano fra quelli
+   scelti: lasciati con "Usa questa scelta", tornano filtri come gli altri,
+   e la volta dopo la finestra li propone di nuovo come adesso, anche
+   "Diventa una regola" o "Unisci"; se non li vuoi, lasciali ancora).
+   "Scelti prima" sono quelli
    salvati con "Usa questa scelta", anche quelli che partivano lasciati,
    tranne quelli che hai lasciato a mano: aprendo di nuovo un file nella
    stessa finestra (lo stesso o un altro), le scelte fatte a mano restano
@@ -455,7 +458,9 @@ POSTA - riordinare la casella
    dice in ambra; riaprendo la finestra parte "Lascialo in Gmail", anche
    con il file (anche se in Gmail adesso archivia o segna come letto e la
    regola no), e per toglierlo lo stesso basta sceglierlo a mano
-   ("Toglilo", o di nuovo "Diventa una regola" o "Unisci"). Senza
+   ("Toglilo", o di nuovo "Diventa una regola" o "Unisci"); lasciato
+   con "Usa questa scelta", la volta dopo riparte dalla proposta di
+   adesso. Senza
    il file, uno che la sua regola sostituisce ancora parte "Toglilo: lo
    fa gia' la regola ...". Uno andato via perche' i mittenti di un filtro
    rimasto in Gmail con un'etichetta che la sua regola esclude li prendeva
