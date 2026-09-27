@@ -91,6 +91,10 @@ $messaggi = @(
     @('info@sindacato-due.example', 'Sindacato Due'),
     @('mario.rossi@sindacato-due.example', 'Mario Rossi'),
     @('newsletter@flcgil.it', 'Sindacato'),
+    # un altro indirizzo del dominio del sindacato (inventato), che nessun
+    # filtro nomina: nella casella vera un dominio ha tanti indirizzi, e una
+    # regola esclusa a cui un filtro unisce newsletter@ non li prende tutti
+    @('finto@flcgil.it', 'Sindacato'),
     @('comunicazioni@istruzione.it', 'Ministero'),
     @('casella@istruzione.it', 'Istituto'),
     # un altro indirizzo del ministero: nella casella vera @istruzione.it ne ha
@@ -112,6 +116,8 @@ $messaggi = @(
     # Dirigenza da un filtro) non prendono tutto il dominio
     @('alunno.due@scuola.example', 'Alunno Due'),
     @('avvisi@portale-uno.example', 'Portale Uno'),
+    # e un altro del portale, per lo stesso motivo (esiti@esami. e' di un sottodominio)
+    @('info@portale-uno.example', 'Portale Uno'),
     @('esiti@esami.portale-uno.example', 'Portale Uno'),
     @('info@portale-due.example', 'Portale Due', 'Assemblea dei genitori'),
     @('mario.rossi@portale-due.example', 'Mario Rossi'),
