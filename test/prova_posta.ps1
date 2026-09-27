@@ -1627,10 +1627,15 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "riaperta senza file, i tre senza regola partono lasciati, e il dettaglio dice perche' ($($lasciatiO -join ', '))" (
         ($lasciatiO -join ',') -eq 'Registro elettronico,Olimpiadi e gare,Famiglie' -and
         $dettaglioO -match "la regola che lo sostituiva \(Olimpiadi e gare\) non c'e' piu'")
-    # con il file: Olimpiadi e gare torna "tuo", e parte come regola nuova
+    # con il file: Olimpiadi e gare e' ancora "scelto prima", e la regola che
+    # lo sostituiva non c'e' piu': parte lasciato, e non rifa' da sola la
+    # regola che il docente ha tolto ("Diventa una regola" si puo' scegliere)
     $ffO2.Carica($filtriR)
-    Verifica "con il file, Olimpiadi e gare non e' piu' 'scelto prima': parte come 'Diventa una regola' ('$($ffO2.Scelta(8).Testo)')" (
-        $ffO2.Scelta(8).Azione -eq 'nuova' -and $ffO2.Scelta(8).Testo -eq 'Diventa una regola')
+    $suggO2 = [string]$tFF.GetMethod('Suggerimento', $FIn).Invoke($ffO2, @($tFF.GetField('righe', $FIn).GetValue($ffO2)[8]))
+    Verifica "con il file, Olimpiadi e gare e' ancora 'scelto prima' e la sua regola non c'e' piu': parte lasciato, non come 'Diventa una regola' ('$($ffO2.Scelta(8).Testo)'), che si puo' scegliere" (
+        $ffO2.Scelta(8).Azione -eq 'lascia' -and
+        $suggO2 -match "^scelto prima; la regola che lo sostituiva \(Olimpiadi e gare\) non lo sostituisce piu'" -and
+        @($ffO2.Scelte(8) | Where-Object { $_.Testo -eq 'Diventa una regola' }).Count -eq 1)
     $ffO2.Dispose()
     # scelto di nuovo "Toglilo" a mano: si toglie e basta, senza regola
     $ffO3 = [Activator]::CreateInstance($tFF, @($sO.PSObject.BaseObject))
@@ -2249,6 +2254,77 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     }
     Verifica "lo stesso filtro due volte con azioni diverse, riaperto con lo stesso file in tutti e due gli ordini: si toglie ancora, con la regola Gare$(if ($copieRiaperte.Count) { ': no ' + ($copieRiaperte -join '; ') })" (
         $copieRiaperte.Count -eq 0)
+
+    # scelto prima con Portali, che non archivia, e nel file adesso archivia:
+    # parte lasciato. Aperto di nuovo lo stesso file e' ancora "scelto prima",
+    # e il riquadro dice perche' resta; aperto poi un file che non lo ha,
+    # resta in fondo com'era salvato, come aprendo subito quel file. Prima,
+    # riaperto, sembrava un filtro nuovo, e con un file senza di lui spariva
+    # dalla finestra e "Usa questa scelta" lo toglieva dai filtri da togliere
+    # senza dirlo
+    function StatoConPortaliScelto {
+        $st = StatoRiorganizza
+        (Leggi $st 'Regole').Add((NuovaRegolaPortali @('@portale-uno.example') ''))
+        $v = (UnFiltro ([ordered]@{ from = '@portale-uno.example'; label = 'Portali' })).DaTogliere()
+        $v.Regola = 'Portali'; $v.Archivia = $false; $v.SegnaLetto = $false
+        $l = [Activator]::CreateInstance($tListaVoci16); $l.Add($v)
+        Imposta $st 'FiltriDaTogliere' $l
+        return $st
+    }
+    function PortaliOra { return (UnFiltro ([ordered]@{ from = '@portale-uno.example'; label = 'Portali'; shouldArchive = 'true' })) }
+    function GareOra { return (UnFiltro ([ordered]@{ from = '@gare-due.example'; label = 'Gare' })) }
+    function SuggerimentoDi($ff, $i) {
+        return [string]$tFF.GetMethod('Suggerimento', $FIn).Invoke($ff, @($tFF.GetField('righe', $FIn).GetValue($ff)[$i]))
+    }
+    $sB1 = StatoConPortaliScelto
+    $ffB1 = [Activator]::CreateInstance($tFF, @($sB1.PSObject.BaseObject))
+    $ffB1.Carica((ListaFiltri @((PortaliOra), (GareOra))))
+    $primaB1 = $ffB1.Scelta(0).Testo
+    $ffB1.Carica((ListaFiltri @((PortaliOra), (GareOra))))
+    $dopoB1 = $ffB1.Scelta(0).Testo
+    $suggB1 = SuggerimentoDi $ffB1 0
+    Verifica "scelto prima con Portali e nel file adesso archivia: parte lasciato ('$primaB1'), e riaperto lo stesso file e' ancora 'scelto prima' e il riquadro dice perche' resta ('$dopoB1')" (
+        $primaB1 -eq 'Lascialo in Gmail' -and $dopoB1 -eq 'Lascialo in Gmail' -and
+        $suggB1 -match "^scelto prima; la regola che lo sostituiva \(Portali\) non lo sostituisce piu'")
+    $ffB1.Carica((ListaFiltri @((GareOra))))
+    $righeB1 = @(0..1 | ForEach-Object { $ffB1.Scelta($_).Testo })
+    $esitoB1 = [string]$tFF.GetField('lblEsito', $FIn).GetValue($ffB1).Text
+    $riepB1 = ([string]$mApplica.Invoke($null, @($sB1.PSObject.BaseObject, $ffB1.FatteAdesso()))) -replace '\r?\n', ' '
+    $ffB1.Dispose()
+    $vociB1 = @((Leggi $sB1 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola })
+    $sB2 = StatoConPortaliScelto
+    $ffB2 = [Activator]::CreateInstance($tFF, @($sB2.PSObject.BaseObject))
+    $ffB2.Carica((ListaFiltri @((GareOra))))
+    $righeB2 = @(0..1 | ForEach-Object { $ffB2.Scelta($_).Testo })
+    [void]$mApplica.Invoke($null, @($sB2.PSObject.BaseObject, $ffB2.FatteAdesso()))
+    $ffB2.Dispose()
+    $vociB2 = @((Leggi $sB2 'FiltriDaTogliere') | ForEach-Object { $_.Etichetta + '>' + $_.Regola })
+    Verifica "poi un file senza quel filtro: resta in fondo com'era salvato ($($righeB1 -join '; ')), come aprendo subito quel file ($($righeB2 -join '; ')), e resta fra quelli da togliere ($($vociB1 -join ', '))" (
+        ($righeB1 -join ',') -eq "Diventa una regola,Toglilo: lo fa gia' la regola Portali" -and ($righeB2 -join ',') -eq ($righeB1 -join ',') -and
+        $esitoB1 -match "In fondo, 1 scelto prima che nel file non c'e'\." -and
+        ($vociB1 -join ',') -eq 'Gare>Gare,Portali>Portali' -and ($vociB2 -join ',') -eq ($vociB1 -join ','))
+
+    # un filtro unito a Ministero e USR; poi il docente toglie quel mittente
+    # dalla regola. Riaperto il file, il filtro e' ancora "scelto prima" e la
+    # regola non lo sostituisce piu': parte lasciato, e "Usa questa scelta"
+    # non rimette da sola il mittente che il docente ha tolto
+    $sB3 = StatoRiorganizza
+    $usrB3 = UnFiltro ([ordered]@{ from = '@usr-regione.example'; label = 'Ministero e USR' })
+    $b3 = FinestraEScelta $sB3 @($usrB3) $null
+    $minB3 = @((Leggi $sB3 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
+    $unitoB3 = $minB3.Da -contains '@usr-regione.example'
+    [void]$minB3.Da.Remove('@usr-regione.example')
+    $senzaB3 = Senza $sB3
+    $ffB3 = [Activator]::CreateInstance($tFF, @($sB3.PSObject.BaseObject))
+    $ffB3.Carica((ListaFiltri @((UnFiltro ([ordered]@{ from = '@usr-regione.example'; label = 'Ministero e USR' })))))
+    $dopoB3 = $ffB3.Scelta(0).Testo
+    $suggB3 = SuggerimentoDi $ffB3 0
+    [void]$mApplica.Invoke($null, @($sB3.PSObject.BaseObject, $ffB3.FatteAdesso()))
+    $ffB3.Dispose()
+    Verifica "unito a Ministero e USR ('$($b3.scelte[0])'), poi il mittente tolto dalla regola: senza il file resta in ambra ('$senzaB3'); riaperto il file parte lasciato ('$dopoB3'), e 'Usa questa scelta' non rimette il mittente" (
+        $b3.scelte[0] -eq 'Unisci a Ministero e USR' -and $unitoB3 -and $senzaB3 -eq 'Ministero e USR' -and
+        $dopoB3 -eq 'Lascialo in Gmail' -and $suggB3 -match "^scelto prima; la regola che lo sostituiva \(Ministero e USR\) non lo sostituisce piu'" -and
+        $minB3.Da -notcontains '@usr-regione.example' -and (Leggi $sB3 'FiltriDaTogliere').Count -eq 0)
 
     # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'

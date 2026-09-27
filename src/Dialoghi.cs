@@ -798,17 +798,20 @@ namespace Campanella
 
         /// <summary>
         /// Mette nella finestra i filtri di un file, ognuno con la sua proposta
-        /// (FiltriGmail.Proposta); quelli scelti prima partono da togliere,
-        /// tranne quelli scelti con la 1.6.0 (FiltriGmail.SceltoConLaVersioneDiPrima),
-        /// che partono dalla proposta di adesso, e quelli che la regola che
-        /// ricordano non sostituisce piu' (con le azioni del file: in Gmail
-        /// adesso possono archiviare o segnare come letto), che partono
-        /// lasciati. Quelli scelti prima che nel file non ci sono restano, in
+        /// (FiltriGmail.Proposta); quelli scelti prima (salvati fra i filtri da
+        /// togliere) partono da togliere, tranne quelli scelti con la 1.6.0
+        /// (FiltriGmail.SceltoConLaVersioneDiPrima), che partono dalla proposta
+        /// di adesso, e quelli che la regola che ricordano non sostituisce piu'
+        /// (tolta, spenta, senza i loro mittenti, o con le azioni del file: in
+        /// Gmail adesso possono archiviare o segnare come letto), che partono
+        /// lasciati: non rifanno da soli una regola o un'unione che il docente
+        /// ha tolto. Quelli scelti prima che nel file non ci sono restano, in
         /// fondo: forse sono gia' stati tolti. Due filtri uguali partono con la
         /// stessa scelta: il secondo si toglie se si toglie il primo. Aperto un
         /// altro file (o lo stesso, di nuovo) nella stessa finestra, le scelte
         /// fatte a mano passano ai filtri uguali del file nuovo, e "scelto prima"
-        /// vale solo per quelli salvati davvero fra i filtri da togliere: una
+        /// vale per quelli salvati davvero fra i filtri da togliere, comunque
+        /// partissero (anche lasciati), tranne quelli lasciati a mano: una
         /// scelta non ancora applicata ("Diventa una regola", "Unisci") non
         /// diventa "Toglilo" e basta. Poi le proposte si rivedono con quelle
         /// delle altre righe (Rivedi).
@@ -821,34 +824,31 @@ namespace Campanella
             if (stato != null && stato.FiltriDaTogliere != null)
                 foreach (FiltroDaTogliere v in stato.FiltriDaTogliere)
                     if (v != null && !salvati.ContainsKey(v.Chiave())) salvati[v.Chiave()] = v;
-            // quelli scelti prima che sono ancora da togliere passano ai filtri
-            // uguali del file nuovo; quelli che il file nuovo non ha restano in
-            // fondo. Le scelte fatte a mano passano ai filtri uguali, come sono
-            List<string> prima = new List<string>();
-            Dictionary<string, string> regolaDiPrima = new Dictionary<string, string>();
+            // le scelte fatte a mano passano ai filtri uguali del file nuovo, come sono
             Dictionary<string, SceltaFiltro> aMano = new Dictionary<string, SceltaFiltro>();
+            foreach (Riga r in righe)
+                if (r.Voce != null && r.AMano && r.Scelta != null && !aMano.ContainsKey(r.Voce.Chiave()))
+                    aMano[r.Voce.Chiave()] = r.Scelta;
+            // quelli scelti prima passano ai filtri uguali del file nuovo (non
+            // quelli lasciati a mano: per loro vale la scelta a mano); quelli
+            // che il file nuovo non ha restano in fondo, anche se la loro riga
+            // veniva da un altro file
+            List<string> prima = new List<string>(), visti = new List<string>();
+            Dictionary<string, string> regolaDiPrima = new Dictionary<string, string>();
             // quelli scelti con la 1.6.0, che li sceglieva per l'etichetta sola
             List<string> con160 = new List<string>();
             List<Riga> vecchie = new List<Riga>();
-            for (int i = 0; i < righe.Count; i++)
+            foreach (Riga r in righe)
             {
-                Riga r = righe[i];
                 if (r.Voce == null) continue;
                 string k = r.Voce.Chiave();
-                if (r.AMano && r.Scelta != null && !aMano.ContainsKey(k)) aMano[k] = r.Scelta;
-                if (prima.Contains(k)) continue;
-                if (!Spuntata(i) || !salvati.ContainsKey(k))
-                {
-                    // scelto prima, lasciato perche' senza la sua regola (o per
-                    // le altre scelte): resta in fondo, se il file non lo ha
-                    if (r.Filtro == null && (r.Orfana || r.PercheResta != "")) vecchie.Add(r);
-                    continue;
-                }
+                if (!salvati.ContainsKey(k) || visti.Contains(k)) continue;
+                visti.Add(k);
+                vecchie.Add(r.Filtro == null ? r : ScelteDiPrima(salvati[k].Copia(), r.Somiglia));
+                if (aMano.ContainsKey(k) && !aMano[k].TogliIlFiltro) continue;
                 prima.Add(k);
                 regolaDiPrima[k] = salvati[k].Regola;
                 if (FiltriGmail.SceltoConLaVersioneDiPrima(salvati[k])) con160.Add(k);
-                if (r.Filtro == null) vecchie.Add(r);
-                else if (r.Prima) vecchie.Add(ScelteDiPrima(salvati[k].Copia(), r.Somiglia));
             }
 
             // quello che fanno in Gmail tutte le copie dello stesso filtro, che
