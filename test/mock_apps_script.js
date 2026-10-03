@@ -1904,6 +1904,20 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
       [fTutto.id, fMai.id].every(id => copiaDi(id) !== '' && !/\b(TRASH|STARRED|IMPORTANT|CATEGORY_PROMOTIONS|SPAM)\b|forward/.test(copiaDi(id))));
   }
 
+  // --- senza nessun filtro Gmail risponde null, non un elenco vuoto -------------
+  {
+    const listaVera = contesto.Gmail.Users.Settings.Filters.list;
+    contesto.Gmail.Users.Settings.Filters.list = () => null;
+    contesto.CONFIG.filtriDaTogliere = [{ etichetta: 'Newsletter', criteri: { query: 'mai esistito' } }];
+    const prima = tolti.length;
+    let erroreNull = null;
+    try { t = contesto.EXTRA_togliFiltri(); } catch (e) { erroreNull = e; }
+    verifica('con Gmail che risponde null (nessun filtro) non si ferma, non toglie niente e dice che non ci sono filtri',
+      !erroreNull && tolti.length === prima &&
+      t.replace(/\s+/g, ' ').indexOf('Gmail dice che non hai nessun filtro: forse li hai gia\' tolti tu') >= 0);
+    contesto.Gmail.Users.Settings.Filters.list = listaVera;
+  }
+
   // --- niente scelto in Campanella ----------------------------------------------
   delete contesto.CONFIG.filtriDaTogliere;
   errore = null;

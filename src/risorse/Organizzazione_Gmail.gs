@@ -999,13 +999,13 @@ function EXTRA_creaFiltriGmail() {
   PASSO_2_creaEtichette();
 
   var idEtichette = {}, perId = {};
-  var lista = Gmail.Users.Labels.list('me').labels || [];
+  var lista = (Gmail.Users.Labels.list('me') || {}).labels || [];
   for (var i = 0; i < lista.length; i++) {
     idEtichette[lista[i].name] = lista[i].id;
     perId[lista[i].id] = { nome: String(lista[i].name), sistema: lista[i].type === 'system' };
   }
 
-  var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
+  var esistenti = (Gmail.Users.Settings.Filters.list('me') || {}).filter || [];
   var creati = [], saltati = [], falliti = [], alloScript = [], vecchi = [], daTogliere = [];
   var classi = [], studenti = [], senzaFiltro = [];
   var regole = _regoleAttive_(cfg);
@@ -1191,7 +1191,7 @@ function _coloraEtichette_(tutte) {
       if (!_coloreAmmesso_(colore)) { sbagliati.push(nome + ' (' + _descriviColore_(colore) + ')'); continue; }
       if (!inGmail[nome]) { mancano.push(nome); continue; }
       try {
-        var adesso = Gmail.Users.Labels.get('me', inGmail[nome].id).color || null;
+        var adesso = (Gmail.Users.Labels.get('me', inGmail[nome].id) || {}).color || null;
         if (_stessoColore_(adesso, colore)) { uguali.push(nome); continue; }
         // un colore che non ha dato lo script si cambia solo se lo chiedi
         var senzaColore = !adesso || !adesso.backgroundColor;
@@ -1308,9 +1308,12 @@ function EXTRA_togliFiltri() {
     righe.push('');
     righe.push('Non trovati: ' + esito.nonTrovati.length);
     for (var t = 0; t < esito.nonTrovati.length; t++) righe.push('  - ' + esito.nonTrovati[t]);
-    righe = righe.concat(_aCapo_('In Gmail non c\'e\' un filtro con proprio questi criteri (tutti, e ' +
-      'nessuno in piu\') che mette questa etichetta: se l\'hai cambiato, esportalo di nuovo e sceglilo in ' +
-      'Campanella. Non ho tolto niente al suo posto.', '  ', '  '));
+    righe = righe.concat(_aCapo_(esito.nessunFiltro
+      ? 'Gmail dice che non hai nessun filtro: forse li hai gia\' tolti tu (Gmail -> Impostazioni -> Filtri e ' +
+        'indirizzi bloccati). Non ho tolto niente.'
+      : 'In Gmail non c\'e\' un filtro con proprio questi criteri (tutti, e nessuno in piu\') che mette ' +
+        'questa etichetta: se l\'hai cambiato, esportalo di nuovo e sceglilo in Campanella. Non ho tolto ' +
+        'niente al suo posto.', '  ', '  '));
   }
   if (esito.giaTolti.length) {
     righe.push('');
@@ -1394,13 +1397,15 @@ function _vociFiltri_(cfg) {
  * trovato e quali aveva gia' tolto in un giro di prima.
  */
 function _togliFiltri_(voci, prova) {
-  var esito = { tolti: [], nonRiusciti: [], nonTrovati: [], giaTolti: [] };
+  var esito = { tolti: [], nonRiusciti: [], nonTrovati: [], giaTolti: [], nessunFiltro: false };
   var etichette = {};                  // id -> { nome, sistema }
-  var lista = Gmail.Users.Labels.list('me').labels || [];
+  var lista = (Gmail.Users.Labels.list('me') || {}).labels || [];
   for (var i = 0; i < lista.length; i++) {
     etichette[lista[i].id] = { nome: String(lista[i].name), sistema: lista[i].type === 'system' };
   }
-  var esistenti = Gmail.Users.Settings.Filters.list('me').filter || [];
+  // senza nessun filtro Gmail risponde con niente (null), non con un elenco vuoto
+  var esistenti = (Gmail.Users.Settings.Filters.list('me') || {}).filter || [];
+  esito.nessunFiltro = !esistenti.length;
   var memoria = _leggiMappa_(_CHIAVE_FILTRI_TOLTI);
   var oggi = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
   var visti = {};                      // un filtro che vale per due voci si toglie una volta
@@ -2011,9 +2016,9 @@ function _sottoetichette_(nome, nomi) {
 function _etichetteDeiFiltri_() {
   if (!_servizioFiltri_()) return null;
   try {
-    var nomi = {}, lista = Gmail.Users.Labels.list('me').labels || [];
+    var nomi = {}, lista = (Gmail.Users.Labels.list('me') || {}).labels || [];
     for (var i = 0; i < lista.length; i++) nomi[lista[i].id] = String(lista[i].name);
-    var fuori = {}, filtri = Gmail.Users.Settings.Filters.list('me').filter || [];
+    var fuori = {}, filtri = (Gmail.Users.Settings.Filters.list('me') || {}).filter || [];
     for (var f = 0; f < filtri.length; f++) {
       var aggiunte = (filtri[f].action || {}).addLabelIds || [];
       for (var a = 0; a < aggiunte.length; a++) {
@@ -3141,7 +3146,7 @@ function _coloreDellEtichetta_(cfg, nome) {
  */
 function _etichetteGmail_() {
   var mappa = {};
-  var lista = Gmail.Users.Labels.list('me').labels || [];
+  var lista = (Gmail.Users.Labels.list('me') || {}).labels || [];
   for (var i = 0; i < lista.length; i++) {
     if (lista[i].type && lista[i].type !== 'user') continue;
     mappa[lista[i].name] = { id: lista[i].id };
