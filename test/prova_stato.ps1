@@ -98,6 +98,7 @@ static class ProvaStato
                 case "mittenti-in-una-riga": MittentiInUnaRiga(); break;
                 case "classi-colori": ClassiColori(); break;
                 case "classi-madri": ClassiMadri(); break;
+                case "etichette-da-non-unire": EtichetteDaNonUnire(); break;
                 case "colori-lezioni": ColoriLezioniAndataERitorno(); break;
                 // queste due girano nella stessa cartella, una dopo l'altra: la
                 // prima con lo Stato di adesso, la seconda con Formato = 1
@@ -1281,6 +1282,35 @@ static class ProvaStato
             string.Join("|", Carica().MadriClassi.ToArray()) == "Corsi");
     }
 
+    // Le etichette rimaste dai filtri uniti a una regola che il docente non
+    // vuole unire (1.6.2): solo nomi, nel file dei dati come i filtri da cui
+    // vengono, e non nelle impostazioni. Per nome: e' un campo dello stesso Stato.cs
+    static void EtichetteDaNonUnire()
+    {
+        string c = Cartella("Campanella");
+        ScriviImpostazioni(true, c, null);
+        Stato s = Carica();
+        FieldInfo campo = s.GetType().GetField("EtichetteDaNonUnire");
+        Verifica("lo Stato ha le etichette da non unire (Stato.EtichetteDaNonUnire), vuote di partenza",
+            campo != null && campo.GetValue(s) is List<string> && ((List<string>)campo.GetValue(s)).Count == 0);
+        if (campo == null) return;
+        ((List<string>)campo.GetValue(s)).Add("Famiglie");
+        ((List<string>)campo.GetValue(s)).Add("Sindacati e normativa");
+        s.Salva();
+        Dictionary<string, object> dati = Json(FileDati(c));
+        Verifica("stanno nel file dei dati, e non nelle impostazioni",
+            ListaNelFile(dati, "etichetteDaNonUnire") == "Famiglie|Sindacati e normativa" &&
+            !Json(Impostazioni()).ContainsKey("etichetteDaNonUnire"));
+        Stato t = Carica();
+        Verifica("e si rileggono uguali", string.Join("|", ((List<string>)campo.GetValue(t)).ToArray()) ==
+            "Famiglie|Sindacati e normativa");
+        // un file di prima (senza la chiave): nessuna
+        Dictionary<string, object> vecchio = new Dictionary<string, object>();
+        vecchio["regole"] = new object[] { RegolaJson("Genitori", "", null) };
+        ScriviImpostazioni(false, "", vecchio);
+        Verifica("da un file senza la chiave, nessuna", ((List<string>)campo.GetValue(Carica())).Count == 0);
+    }
+
     // I colori delle lezioni di ogni classe sul calendario (Orari, passo 4):
     // solo nomi di classi e numeri, quindi nelle impostazioni anche con i dati
     // nel Drive. Si rileggono uguali, anche "" (il colore del calendario) e le
@@ -1476,6 +1506,9 @@ static class ProvaStato
         }
         s.Personale.Add(NuovaPersona("ROSSI MARIO", "mario.rossi@scuola.example"));
         s.Regole.Add(NuovaClasse("Classi 2026-27/3B", "3B"));
+        // le etichette rimaste da non unire (1.6.2): la 1.6.1 non le conosce
+        FieldInfo campoNonUnire = s.GetType().GetField("EtichetteDaNonUnire");
+        if (campoNonUnire != null) ((List<string>)campoNonUnire.GetValue(s)).Add("Famiglie");
         s.Salva();
         Verifica("scritti con il formato di adesso (" + Stato.Formato + "), piu' alto di quello della 1.5.2",
             s.UltimoErrore == "" && Numero(Json(Impostazioni()), "formato") == Stato.Formato &&
@@ -1490,6 +1523,8 @@ static class ProvaStato
             object.Equals(v0["letti"], false) && Stato.Formato >= 4);
         Verifica("e la regola della classe con unoQualsiasi, che la 1.5.3 non conosce",
             Vero(RegolaNelFile(Json(FileDati(c)), "Classi 2026-27/3B"), "unoQualsiasi"));
+        Verifica("e le etichette rimaste da non unire, che la 1.6.1 (formato 4) non conosce",
+            campoNonUnire != null && ListaNelFile(Json(FileDati(c)), "etichetteDaNonUnire") == "Famiglie" && Stato.Formato >= 5);
     }
 
     static void VecchiaNonRiscrive()
@@ -1822,6 +1857,7 @@ $casi = @(
     'mittenti-in-una-riga'
     'classi-colori'
     'classi-madri'
+    'etichette-da-non-unire'
     'colori-lezioni'
 )
 

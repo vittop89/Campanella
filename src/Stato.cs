@@ -404,6 +404,10 @@ namespace Campanella
         // un filtro di Gmail con gli studenti sotto una di queste si riconosce
         // (FiltriGmail.EtichettaDiUnaClasse) e non si puo' scegliere
         public List<string> MadriClassi = new List<string>();
+        // le etichette rimaste dai filtri uniti a una regola con un'altra
+        // etichetta che il docente non vuole unire (FiltriGmail.EtichetteRimaste):
+        // solo nomi di etichette, con i dati personali come i filtri da cui vengono
+        public List<string> EtichetteDaNonUnire = new List<string>();
 
         // ---- cartelle (generatore anno scolastico) --------------------------
         // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
@@ -727,8 +731,13 @@ namespace Campanella
         /// riscrivendo il file li perderebbe: il filtro sembrerebbe scelto con
         /// lei, e non si saprebbe piu' quale regola lo sostituisce ne' se deve
         /// archiviare o segnare come letti come lui.
+        /// Formato 5 (1.6.2): le etichette rimaste dai filtri uniti a una regola
+        /// che il docente non vuole unire ("etichetteDaNonUnire"); la 1.6.1
+        /// riscrivendo il file le perderebbe, e quelle coppie tornerebbero
+        /// spuntate: EXTRA_unisciEtichette metterebbe l'etichetta della regola
+        /// anche a quei messaggi.
         /// </summary>
-        public const int Formato = 4;
+        public const int Formato = 5;
 
         // Il file dei dati che questa sessione ha letto o scritto, o che l'utente
         // ha scelto di sostituire: e' l'unico che Salva puo' sovrascrivere.
@@ -1222,6 +1231,10 @@ namespace Campanella
                 }
             r["filtriDaTogliere"] = filtri;
 
+            List<object> nonUnire = new List<object>();
+            if (EtichetteDaNonUnire != null) foreach (string e in EtichetteDaNonUnire) nonUnire.Add(e);
+            r["etichetteDaNonUnire"] = nonUnire;
+
             List<object> madri = new List<object>();
             if (MadriClassi != null) foreach (string m in MadriClassi) madri.Add(m);
             r["madriClassi"] = madri;
@@ -1588,6 +1601,9 @@ namespace Campanella
                     FiltriDaTogliere.Add(f);
                 }
             }
+
+            // le etichette rimaste dai filtri uniti che il docente non vuole unire
+            if (r.ContainsKey("etichetteDaNonUnire")) EtichetteDaNonUnire = Lista(r, "etichetteDaNonUnire");
 
             object[] lez = r.ContainsKey("lezioni") ? r["lezioni"] as object[] : null;
             if (lez != null)

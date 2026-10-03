@@ -46,6 +46,12 @@ namespace Campanella
         Label lblGruppo;
 
         ElencoSpunte clbRegole;
+        // le etichette rimaste dai filtri uniti a una regola (passo 4): una
+        // spunta per coppia, nell'ordine di FiltriGmail.EtichetteRimaste
+        GroupBox grpEtichette;
+        ElencoSpunte clbEtichette;
+        List<CoppiaEtichette> coppieMostrate = new List<CoppiaEtichette>();
+        bool aggiornandoEtichette = false;
         TextBox txtPrefisso;
         Label lblPrefisso, lblDoppioni, lblFiltri, lblCasella;
         // l'avviso della casella della scuola presa da una regola, e la regola
@@ -706,8 +712,9 @@ namespace Campanella
                 "sotto lo dice in ambra); e uno che puo' prendere gli stessi messaggi di un filtro che resta in Gmail e " +
                 "manda nel cestino: nel cestino la regola non cerca.\r\n\r\n" +
                 "Lo script toglie solo i filtri scelti, e prima di toglierne uno ne scrive una copia nel " +
-                "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: se non ti servono, " +
-                "cancellale da Gmail (i messaggi non si cancellano)."));
+                "registro, per rifarlo a mano. Le etichette gia' messe ai messaggi restano: quelle dei filtri uniti a " +
+                "una regola con un'altra etichetta le unisce EXTRA_unisciEtichette (il riquadro \"Etichette rimaste " +
+                "dai filtri uniti\"); le altre, se non ti servono, cancellale da Gmail (i messaggi non si cancellano)."));
 
             // le classi del docente: una regola per classe, accanto ai filtri
             string classi = "Le mie classi...";
@@ -823,9 +830,47 @@ namespace Campanella
             go.Controls.Add(chkFiltri);
             p.Controls.Add(go);
 
+            // le etichette rimaste dai filtri uniti a una regola con un'altra
+            // etichetta: le unisce EXTRA_unisciEtichette. Senza coppie non si vede
+            // (AggiornaEtichetteRimaste)
+            grpEtichette = Tema.Gruppo("Etichette rimaste dai filtri uniti", 420, y + 410, 480, 150);
+            clbEtichette = new ElencoSpunte();
+            clbEtichette.Location = new Point(14, 26);
+            clbEtichette.Size = new Size(452, 68);
+            clbEtichette.Font = Tema.Normale;
+            clbEtichette.ItemCheck += delegate(object o, ItemCheckEventArgs e)
+            {
+                if (aggiornandoEtichette || e.Index < 0 || e.Index >= coppieMostrate.Count) return;
+                string da = coppieMostrate[e.Index].Da;
+                if (S.EtichetteDaNonUnire == null) S.EtichetteDaNonUnire = new List<string>();
+                S.EtichetteDaNonUnire.RemoveAll(delegate(string x)
+                {
+                    return string.Equals((x ?? "").Trim(), da.Trim(), StringComparison.OrdinalIgnoreCase);
+                });
+                if (e.NewValue != CheckState.Checked) S.EtichetteDaNonUnire.Add(da);
+            };
+            grpEtichette.Controls.Add(clbEtichette);
+            string unisci = "Le unisce EXTRA_unisciEtichette: mette ai loro messaggi l'etichetta della regola. " +
+                            "Poi le cancelli tu da Gmail.";
+            grpEtichette.Controls.Add(Tema.Testo1(unisci, 14, 100, 420, Tema.Piccolo, Ruolo.Tenue));
+            grpEtichette.Controls.Add(Tema.Aiuto(446, 102, "Le etichette rimaste dai filtri uniti",
+                "Un filtro che hai unito a una regola con un'altra etichetta (Famiglie a Genitori, la casella della " +
+                "scuola a Segreteria) lascia la sua etichetta in Gmail, con i messaggi di prima: tolto il filtro " +
+                "(EXTRA_togliFiltri), nessuno la mette piu'.\r\n\r\n" +
+                "EXTRA_unisciEtichette mette l'etichetta della regola a tutte le conversazioni di quella rimasta, e " +
+                "basta: non archivia, non segna come letto, non toglie e non cancella niente. Poi dice quali " +
+                "etichette rimaste puoi cancellare tu da Gmail (nel menu a sinistra, i tre puntini accanto " +
+                "all'etichetta -> Rimuovi etichetta): i messaggi restano, con l'etichetta della regola. Dice anche " +
+                "quali altre etichette non mette nessuna regola, se non ti servono.\r\n\r\n" +
+                "Togli la spunta a una coppia che non vuoi unire, poi copia di nuovo la configurazione (passo 5). " +
+                "Con la modalita' prova la funzione conta soltanto."));
+            grpEtichette.Visible = false;
+            p.Controls.Add(grpEtichette);
+
             // regole che etichettano gli stessi messaggi di una sottoetichetta
             // per ruolo (lo scrive AggiornaDoppioni; vuota, non si vede)
-            lblDoppioni = Tema.Testo1("", 0, Math.Max(y + 410, lblFiltri.Bottom + 8), 900, Tema.Normale, Ruolo.Avviso);
+            lblDoppioni = Tema.Testo1("", 0, Math.Max(Math.Max(y + 410, lblFiltri.Bottom + 8), grpEtichette.Bottom + 8),
+                                      900, Tema.Normale, Ruolo.Avviso);
             lblDoppioni.Visible = false;
             p.Controls.Add(lblDoppioni);
 
@@ -1001,9 +1046,11 @@ namespace Campanella
                 "scelto al passo 4 (\"Filtri che hai gia' in Gmail...\"): esegui  EXTRA_togliFiltri, che " +
                 "prima di togliere ognuno ne scrive una copia nel registro; EXTRA_creaFiltriGmail non rifa' " +
                 "quelli scelti. Se poi cambi una regola, il filtro vecchio va tolto: a mano in Gmail " +
-                "(Impostazioni -> Filtri), oppure scegliendolo al passo 4. Con la modalita' prova accesa " +
-                "queste funzioni non cambiano niente; quelle dei colori ed EXTRA_togliFiltri dicono " +
-                "che cosa farebbero.",
+                "(Impostazioni -> Filtri), oppure scegliendolo al passo 4. Dopo EXTRA_togliFiltri, se al " +
+                "passo 4 ci sono etichette rimaste dai filtri uniti a una regola, esegui  EXTRA_unisciEtichette " +
+                "(va anche senza il servizio): mette ai loro messaggi l'etichetta della regola e dice quali " +
+                "cancellare tu da Gmail. Con la modalita' prova accesa queste funzioni non cambiano niente; " +
+                "quelle dei colori, EXTRA_togliFiltri ed EXTRA_unisciEtichette dicono che cosa farebbero.",
                 new string[] { }, new EventHandler[] { });
 
             return p;
@@ -2450,6 +2497,30 @@ namespace Campanella
                 (tolti == 0 ? "" : TestoToltiAllAvvio(tolti));
             lblFiltri.Tag = (tolti > 0 || senza > 0) ? Ruolo.Avviso : (n == 0) ? Ruolo.Tenue : Ruolo.Normale;
             Tema.Applica(lblFiltri);
+            AggiornaEtichetteRimaste();
+        }
+
+        /// <summary>
+        /// Le etichette rimaste dai filtri uniti a una regola con un'altra
+        /// etichetta (FiltriGmail.EtichetteRimaste), una spunta per coppia: tolta,
+        /// la coppia non va nella configurazione (Stato.EtichetteDaNonUnire).
+        /// Senza coppie il riquadro non si vede.
+        /// </summary>
+        void AggiornaEtichetteRimaste()
+        {
+            if (grpEtichette == null) return;
+            coppieMostrate = FiltriGmail.EtichetteRimaste(S);
+            aggiornandoEtichette = true;
+            try
+            {
+                clbEtichette.BeginUpdate();
+                clbEtichette.Items.Clear();
+                foreach (CoppiaEtichette c in coppieMostrate)
+                    clbEtichette.Items.Add(c.Testo(), !FiltriGmail.DaNonUnire(S, c.Da));
+                clbEtichette.EndUpdate();
+            }
+            finally { aggiornandoEtichette = false; }
+            grpEtichette.Visible = coppieMostrate.Count > 0;
         }
 
         /// <summary>
@@ -2627,6 +2698,10 @@ namespace Campanella
             int senzaRegola = senzaLaRegola.Count;
             sb.AppendLine("Filtri di Gmail da togliere .. " + (daTogliere == 0 ? "nessuno" :
                 daTogliere + " (li toglie EXTRA_togliFiltri, con il servizio Gmail API: passo 8)"));
+            int daUnire = FiltriGmail.DaUnire(S).Count;
+            if (daUnire > 0)
+                sb.AppendLine("Etichette rimaste da unire ... " + daUnire +
+                              " (le unisce EXTRA_unisciEtichette, dopo EXTRA_togliFiltri: passo 8)");
             sb.AppendLine();
 
             List<string> avvisi = new List<string>();

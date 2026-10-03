@@ -241,7 +241,8 @@ namespace Campanella
 
             sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
             List<string> filtri = FiltriJs(s);
-            sb.AppendLine("  ]" + (filtri.Count > 0 ? "," : ""));
+            List<CoppiaEtichette> unire = FiltriGmail.DaUnire(s);
+            sb.AppendLine("  ]" + (filtri.Count > 0 || unire.Count > 0 ? "," : ""));
             if (filtri.Count > 0)
             {
                 sb.AppendLine();
@@ -252,6 +253,21 @@ namespace Campanella
                 sb.AppendLine("  //  nel registro. Serve il servizio Gmail API.");
                 sb.AppendLine("  filtriDaTogliere: [");
                 sb.AppendLine(string.Join("," + Environment.NewLine, filtri.ToArray()));
+                sb.AppendLine("  ]" + (unire.Count > 0 ? "," : ""));
+            }
+            if (unire.Count > 0)
+            {
+                List<string> coppie = new List<string>();
+                foreach (CoppiaEtichette c in unire)
+                    coppie.Add("    { da: \"" + AnalisiOrario.Js(c.Da) + "\", a: \"" + AnalisiOrario.Js(c.A) + "\" }");
+                sb.AppendLine();
+                sb.AppendLine("  // ---- le etichette rimaste dai filtri uniti (EXTRA_unisciEtichette) ----");
+                sb.AppendLine("  //  Trovate da Campanella (Posta, passo 4): un filtro unito a una regola");
+                sb.AppendLine("  //  con un'altra etichetta lascia la sua. Lo script mette l'etichetta della");
+                sb.AppendLine("  //  regola (a) a tutte le conversazioni di quella rimasta (da), e basta:");
+                sb.AppendLine("  //  quella rimasta la cancelli tu da Gmail, quando lo script dice che si puo'.");
+                sb.AppendLine("  etichetteDaUnire: [");
+                sb.AppendLine(string.Join("," + Environment.NewLine, coppie.ToArray()));
                 sb.AppendLine("  ]");
             }
             sb.AppendLine("};");

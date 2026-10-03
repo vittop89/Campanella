@@ -796,6 +796,39 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
         $lblF.Text -match "^Nessun filtro di Gmail da togliere\. 1 filtro scelto resta in Gmail: la regola che lo sostituiva non c'e' piu'" -and
         $lblF.ForeColor.ToArgb() -eq (ColoreTema 'Ambra'))
     ControllaPannello $pannelloF 'Posta / 4 con un filtro senza la sua regola'
+    # un filtro unito a una regola con un'altra etichetta (Famiglie a Genitori):
+    # la sua etichetta e' rimasta, e il riquadro "Etichette rimaste dai filtri
+    # uniti" la mostra con la sua spunta, e ci sta; tolta la spunta, il docente
+    # non la vuole unire (Stato.EtichetteDaNonUnire)
+    $regoleD = $tStato.GetField('Regole', $FI).GetValue($stato)
+    $genD = @($regoleD | Where-Object { $_.Etichetta -eq 'Genitori' })[0]
+    $genAttiva = $genD.Attiva
+    $genD.Attiva = $true
+    $genD.Da.Add('@famiglie.example')
+    $etichettaPrima = $sceltoF.Etichetta
+    $tDT.GetField('Etichetta').SetValue($sceltoF, 'Famiglie')
+    $sceltoF.Criteri.Clear()
+    $sceltoF.Criteri['from'] = '@famiglie.example'
+    $sceltoF.Regola = 'Genitori'
+    $tDT.GetField('Gruppo').SetValue($sceltoF, [string]$stato.PrefissoPulito())
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $grpEt = $posta.GetType().GetField('grpEtichette', $FIp).GetValue($posta)
+    $clbEt = $posta.GetType().GetField('clbEtichette', $FIp).GetValue($posta)
+    Verifica "il passo 4 mostra l'etichetta rimasta dal filtro unito, spuntata ($(@($clbEt.Items) -join ', '))" (
+        $grpEt.Visible -and $clbEt.Items.Count -eq 1 -and [string]$clbEt.Items[0] -eq ('Famiglie ' + [char]0x2192 + ' Genitori') -and
+        $clbEt.GetItemChecked(0))
+    ControllaPannello $pannelloF 'Posta / 4 con un''etichetta rimasta da un filtro unito'
+    $clbEt.SetItemChecked(0, $false)
+    $nonUnire = $tStato.GetField('EtichetteDaNonUnire', $FI).GetValue($stato)
+    Verifica "tolta la spunta, il docente non la vuole unire" (@($nonUnire) -contains 'Famiglie')
+    $clbEt.SetItemChecked(0, $true)
+    Verifica "rimessa, si unisce di nuovo" (-not (@($nonUnire) -contains 'Famiglie'))
+    [void]$genD.Da.Remove('@famiglie.example')
+    $genD.Attiva = $genAttiva
+    $tDT.GetField('Etichetta').SetValue($sceltoF, $etichettaPrima)
+    $sceltoF.Criteri.Clear()
+    $sceltoF.Criteri['from'] = 'vecchio@scuola.example'
     $sceltoF.Regola = ''
     $tStato.GetField('FiltriDaTogliere', $FI).SetValue($stato, [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tDT)))
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null

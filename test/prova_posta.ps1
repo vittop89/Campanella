@@ -2417,6 +2417,80 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         $percheGr3 -match "^la regola Una regola che non c'e', che lo sostituiva, non prende piu'" -and -not $ancoraGr3)
 
     # -----------------------------------------------------------------------
+    Intestazione 'LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA'
+    # Un filtro unito a una regola con un'altra etichetta (Famiglie a Genitori,
+    # la casella della scuola a Segreteria) lascia la sua etichetta in Gmail.
+    # Campanella trova le coppie (una spunta ciascuna, passo 4) e le scrive in
+    # Configurazione.gs, in etichetteDaUnire; EXTRA_unisciEtichette mette
+    # l'etichetta della regola a quelle conversazioni (test/mock_apps_script.js)
+    $freccia = ' ' + [char]0x2192 + ' '
+    $mRimaste = $tFiltri.GetMethod('EtichetteRimaste', $FS)
+    $mDaUnire = $tFiltri.GetMethod('DaUnire', $FS)
+    $mGestita = $tFiltri.GetMethod('EtichettaGestita', $FS)
+    function Coppie($lista) { return (@($lista | ForEach-Object { $_.Da + '>' + $_.A } | Sort-Object) -join ',') }
+    function CoppieNellaConfigurazione($stato, $nome) {
+        $f = Join-Path $temporanea ($nome + '.gs')
+        Scrivi $f ([string](Genera $stato $false))
+        $c = (LeggiConfigurazione $f).CONFIG
+        return (@($c.etichetteDaUnire | Where-Object { $null -ne $_ } | ForEach-Object { $_.da + '>' + $_.a } | Sort-Object) -join ',')
+    }
+    # i casi veri (resi anonimi): la casella della scuola unita a Segreteria a
+    # mano, gli altri con la proposta di partenza (Ministero e USR e Registro
+    # elettronico si uniscono alla regola con la stessa etichetta: niente coppia)
+    $sEt = StatoRiorganizza
+    Imposta $sEt 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    $filtriEt = LeggiRiorganizza
+    $xEt = FinestraEScelta $sEt $filtriEt @{ 0 = 'Unisci a Segreteria (in "La tua scuola")' }
+    $attese = 'Famiglie>Genitori,Sindacati e normativa>Sindacati,XYIS01200Z>Segreteria'
+    $rimaste = $mRimaste.Invoke($null, @($sEt.PSObject.BaseObject))
+    Verifica "dopo 'Usa questa scelta' restano le etichette dei filtri uniti a una regola con un'altra etichetta ($(Coppie $rimaste); scelte: $($xEt.scelte -join '; '))" (
+        (Coppie $rimaste) -eq $attese)
+    Verifica "e vanno nella configurazione, in etichetteDaUnire, con l'etichetta della regola ($(CoppieNellaConfigurazione $sEt 'etichette_1'))" (
+        (CoppieNellaConfigurazione $sEt 'etichette_1') -eq $attese)
+    Verifica "il riepilogo di 'Usa questa scelta' le dice, con la funzione che le unisce" (
+        $xEt.riepilogo.IndexOf('3 etichette restano in Gmail con i messaggi di prima: ') -ge 0 -and
+        $xEt.riepilogo.IndexOf('Famiglie' + $freccia + 'Genitori') -ge 0 -and $xEt.riepilogo.IndexOf('EXTRA_unisciEtichette') -ge 0)
+    # una tolta dal docente (maiuscole a parte): resta fra le rimaste, non va
+    # nella configurazione
+    (Leggi $sEt 'EtichetteDaNonUnire').Add('famiglie')
+    Verifica "una che il docente non vuole unire resta nel riquadro ma non va nella configurazione ($(CoppieNellaConfigurazione $sEt 'etichette_2'))" (
+        (Coppie ($mRimaste.Invoke($null, @($sEt.PSObject.BaseObject)))) -eq $attese -and
+        (Coppie ($mDaUnire.Invoke($null, @($sEt.PSObject.BaseObject)))) -eq 'Sindacati e normativa>Sindacati,XYIS01200Z>Segreteria' -and
+        (CoppieNellaConfigurazione $sEt 'etichette_2') -eq 'Sindacati e normativa>Sindacati,XYIS01200Z>Segreteria')
+    (Leggi $sEt 'EtichetteDaNonUnire').Clear()
+    Verifica "le etichette delle regole, anche spente, non sono mai da unire; quella di un filtro si'" (
+        [bool]$mGestita.Invoke($null, @($sEt.PSObject.BaseObject, 'genitori')) -and
+        [bool]$mGestita.Invoke($null, @($sEt.PSObject.BaseObject, 'Formazione e corsi')) -and
+        -not [bool]$mGestita.Invoke($null, @($sEt.PSObject.BaseObject, 'Famiglie')))
+    # tolta la regola che sostituisce un filtro, il filtro resta in Gmail: la
+    # sua etichetta e' ancora in uso, e non e' piu' da unire
+    $regoleEt = Leggi $sEt 'Regole'
+    $genitoriEt = @($regoleEt | Where-Object { $_.Etichetta -eq 'Genitori' })[0]
+    [void]$regoleEt.Remove($genitoriEt)
+    Verifica "tolta Genitori, Famiglie resta in Gmail e non e' piu' da unire ($(Coppie ($mRimaste.Invoke($null, @($sEt.PSObject.BaseObject)))))" (
+        (Coppie ($mRimaste.Invoke($null, @($sEt.PSObject.BaseObject)))) -eq 'Sindacati e normativa>Sindacati,XYIS01200Z>Segreteria' -and
+        (Senza $sEt) -match 'Famiglie')
+    $regoleEt.Add($genitoriEt)
+    # cambiato il gruppo dopo la scelta, i filtri restano in Gmail finche' non
+    # si riapre il file: le loro etichette non sono ancora rimaste
+    Imposta $sEt 'Prefisso' 'Scuola'
+    Verifica "cambiato il gruppo dopo la scelta, nessuna etichetta e' ancora da unire" (
+        (Coppie ($mRimaste.Invoke($null, @($sEt.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sEt 'etichette_3') -eq '')
+    # con il gruppo dall'inizio: l'etichetta della regola ha il gruppo davanti,
+    # quella del filtro resta com'e' in Gmail
+    $sGrEt = StatoRiorganizza
+    Imposta $sGrEt 'Prefisso' 'Scuola'
+    $xGrEt = FinestraEScelta $sGrEt @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' }))) $null
+    Verifica "con il gruppo: Famiglie va in Scuola/Genitori ($(Coppie ($mRimaste.Invoke($null, @($sGrEt.PSObject.BaseObject)))); scelta: $($xGrEt.scelte -join '; '))" (
+        (Coppie ($mRimaste.Invoke($null, @($sGrEt.PSObject.BaseObject)))) -eq 'Famiglie>Scuola/Genitori' -and
+        (CoppieNellaConfigurazione $sGrEt 'etichette_4') -eq 'Famiglie>Scuola/Genitori')
+    Verifica "e il gruppo stesso non e' mai da unire" ([bool]$mGestita.Invoke($null, @($sGrEt.PSObject.BaseObject, 'scuola')))
+    # senza coppie la configurazione non ha la voce, e resta com'era
+    $sNiente = StatoRiorganizza
+    Verifica "senza etichette rimaste la configurazione non ha etichetteDaUnire" (
+        ([string](Genera $sNiente $false)).IndexOf('etichetteDaUnire') -lt 0)
+
+    # -----------------------------------------------------------------------
     Intestazione 'I FILTRI DI GMAIL CHE DIVENTANO REGOLE: UN FILTRO CHE RESTA CON UN''ETICHETTA ESCLUSA'
     # Studenti esclude Colleghi, Dirigenza e Segreteria; Ministero e USR le
     # ultime due. Un filtro che resta in Gmail con una di quelle etichette la

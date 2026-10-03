@@ -113,6 +113,19 @@ namespace Campanella
     /// quelli che prende, come si scrivono fra i mittenti di una regola, e le
     /// esclusioni, come si scrivono nella ricerca avanzata ("-from:y").
     /// </summary>
+    /// <summary>
+    /// Un'etichetta rimasta da un filtro di Gmail che va via sostituito da una
+    /// regola con un'altra etichetta (FiltriGmail.EtichetteRimaste): Da e' quella
+    /// del filtro, come in Gmail; A quella della regola, con il gruppo.
+    /// EXTRA_unisciEtichette mette A a tutte le conversazioni di Da, e basta.
+    /// </summary>
+    class CoppiaEtichette
+    {
+        public string Da = "";
+        public string A = "";
+        public string Testo() { return Da + " → " + A; }
+    }
+
     class MittentiFiltro
     {
         public List<string> Da = new List<string>();
@@ -2429,7 +2442,20 @@ namespace Campanella
         /// </summary>
         public static string Applica(Stato s, List<FiltroScelto> scelti)
         {
-            return Esito(s, scelti, true).Riepilogo;
+            string testo = Esito(s, scelti, true).Riepilogo;
+            // le etichette dei filtri uniti a una regola con un'altra etichetta
+            // restano in Gmail: le unisce EXTRA_unisciEtichette (passo 4)
+            List<CoppiaEtichette> rimaste = EtichetteRimaste(s);
+            if (rimaste.Count > 0)
+            {
+                List<string> nomi = new List<string>();
+                foreach (CoppiaEtichette c in rimaste) nomi.Add(c.Testo());
+                testo += "\r\n\r\n" + (rimaste.Count == 1 ? "Un'etichetta resta" : rimaste.Count + " etichette restano") +
+                         " in Gmail con i messaggi di prima: " + string.Join(", ", nomi.ToArray()) + ". Dopo EXTRA_togliFiltri, " +
+                         "EXTRA_unisciEtichette mette ai loro messaggi l'etichetta della regola, e poi le cancelli tu da " +
+                         "Gmail (passo 4, \"Etichette rimaste dai filtri uniti\").";
+            }
+            return testo;
         }
 
         /// <summary>
@@ -3216,6 +3242,89 @@ namespace Campanella
             foreach (string e in a) if (!Contiene(b, e)) return false;
             foreach (string e in b) if (!Contiene(a, e)) return false;
             return true;
+        }
+
+        /// <summary>
+        /// Le etichette rimaste dai filtri di Gmail che la configurazione toglie
+        /// sostituiti da una regola con un'altra etichetta (Famiglie unito a
+        /// Genitori, la casella della scuola unita a Segreteria): la loro
+        /// etichetta resta in Gmail con i messaggi di prima, e nessuno la mette
+        /// piu'. Non quelle dei filtri che restano in Gmail (CheRestano: la loro
+        /// etichetta e' ancora in uso), una volta per etichetta, e non
+        /// un'etichetta delle regole, anche spente, dei ruoli o del gruppo
+        /// (EtichettaGestita), ne' una che due regole diverse si contendono.
+        /// Anche quelle che il docente non vuole unire (Stato.EtichetteDaNonUnire):
+        /// le toglie DaUnire.
+        /// </summary>
+        public static List<CoppiaEtichette> EtichetteRimaste(Stato s)
+        {
+            List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
+            if (s == null || s.FiltriDaTogliere == null) return fuori;
+            List<string> restano = new List<string>(), contese = new List<string>();
+            foreach (FiltroDaTogliere v in CheRestano(s)) restano.Add(v.Chiave());
+            foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
+            {
+                if (v == null || (v.Regola ?? "").Trim() == "" || restano.Contains(v.Chiave())) continue;
+                if (DiUnaClasseConIndirizzi(v.Etichetta, v.Criteri, s)) continue;
+                Regola r = RegolaCheLoSostituisceAncora(v, s);
+                if (r == null) continue;
+                string da = (v.Etichetta ?? "").Trim().Trim('/').Trim(), a = NomeIntero(r, s).Trim();
+                if (da == "" || Pulita(da) == Pulita(a) || EtichettaGestita(s, da) || contese.Contains(Pulita(da))) continue;
+                CoppiaEtichette gia = null;
+                foreach (CoppiaEtichette c in fuori) if (Pulita(c.Da) == Pulita(da)) gia = c;
+                if (gia != null)
+                {
+                    // la stessa etichetta verso due regole diverse: nel dubbio nessuna
+                    if (Pulita(gia.A) != Pulita(a)) { fuori.Remove(gia); contese.Add(Pulita(da)); }
+                    continue;
+                }
+                CoppiaEtichette nuova = new CoppiaEtichette();
+                nuova.Da = da;
+                nuova.A = a;
+                fuori.Add(nuova);
+            }
+            return fuori;
+        }
+
+        /// <summary>Le etichette rimaste da unire (EtichetteRimaste), senza quelle che il docente non vuole unire.</summary>
+        public static List<CoppiaEtichette> DaUnire(Stato s)
+        {
+            List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
+            foreach (CoppiaEtichette c in EtichetteRimaste(s))
+                if (!DaNonUnire(s, c.Da)) fuori.Add(c);
+            return fuori;
+        }
+
+        /// <summary>Vero se il docente non vuole unire quell'etichetta rimasta (Stato.EtichetteDaNonUnire), maiuscole a parte.</summary>
+        public static bool DaNonUnire(Stato s, string etichetta)
+        {
+            if (s == null || s.EtichetteDaNonUnire == null) return false;
+            foreach (string e in s.EtichetteDaNonUnire) if (Pulita(e) == Pulita(etichetta)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Vero per un'etichetta che lo script gestisce: quella di una regola,
+        /// anche spenta, con il gruppo, o un livello sopra (il gruppo, Colleghi
+        /// sopra Colleghi/Docenti), o la sottoetichetta di un ruolo. Lo script
+        /// non la unisce a niente (EXTRA_unisciEtichette fa lo stesso controllo).
+        /// </summary>
+        public static bool EtichettaGestita(Stato s, string etichetta)
+        {
+            string e = Pulita(etichetta);
+            if (e == "") return true;
+            if (SottoetichettaDiUnRuolo(etichetta, s) != null) return true;
+            foreach (Regola r in s.Regole)
+            {
+                if (r == null || (r.Etichetta ?? "").Trim() == "") continue;
+                string nome = "";
+                foreach (string parte in NomeIntero(r, s).Split('/'))
+                {
+                    nome = (nome == "") ? parte : nome + "/" + parte;
+                    if (Pulita(nome) == e) return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
