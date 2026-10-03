@@ -2371,6 +2371,16 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
       !errore && t.indexOf('Nessuna etichetta da unire in Configurazione.gs') === 0 && t.indexOf('passo 4') > 0);
     verifica('e senza etichette da unire l\'anteprima non dice niente',
       contesto.PASSO_1_anteprima().indexOf('dai filtri uniti') < 0);
+    // una configurazione copiata prima delle coppie: l'etichetta di un filtro
+    // scelto da togliere si segna, e prima di cancellarla si guarda in Campanella
+    contesto.CONFIG.filtriDaTogliere = [{ etichetta: 'Famiglie', criteri: { from: '@famiglie.example' } }];
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('con una configurazione di prima, l\'etichetta di un filtro scelto da togliere e\' segnata, e dice di guardare in Campanella prima di cancellarla',
+      /\n  - Famiglie \(\d+ conversazioni?\), di un filtro scelto da togliere\n/.test(t) &&
+      t.indexOf('  - Prova vuota (vuota)\n') >= 0 &&
+      t.replace(/\s+/g, ' ').indexOf('Prima di cancellare quelle di un filtro scelto da togliere, guarda in Campanella ' +
+        '(Posta, passo 4) se sono fra le "Etichette rimaste dai filtri uniti": quelle vanno unite prima.') >= 0);
+    delete contesto.CONFIG.filtriDaTogliere;
   }
 }
 contesto.CONFIG = configDiPrima;

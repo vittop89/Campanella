@@ -1762,14 +1762,16 @@ function _righeUnisci_(coppie, esito, prova) {
 
 /** L'elenco delle altre etichette che nessuno mette piu' (_etichetteSenzaNessuno_), in righe. */
 function _righeAltre_(altre, deiFiltri) {
-  var righe = [];
+  var righe = [], diUnFiltro = 0;
   if (!altre.elenco.length && !altre.interrotto) return righe;
   righe.push((deiFiltri ? 'Etichette che nessuna regola e nessun filtro di Gmail mettono: '
                         : 'Etichette che nessuna regola mette: ') + altre.elenco.length);
   for (var e = 0; e < altre.elenco.length && e < 30; e++) {
     var a = altre.elenco[e];
     righe = righe.concat(_aCapo_(a.nome + ' (' + (a.conversazioni === 0 ? 'vuota' : a.conversazioni +
-      (a.piena ? ' o piu\'' : '') + (a.conversazioni === 1 ? ' conversazione' : ' conversazioni')) + ')', '  - ', '    '));
+      (a.piena ? ' o piu\'' : '') + (a.conversazioni === 1 ? ' conversazione' : ' conversazioni')) + ')' +
+      (a.diUnFiltro ? ', di un filtro scelto da togliere' : ''), '  - ', '    '));
+    if (a.diUnFiltro) diUnFiltro++;
   }
   if (altre.elenco.length > 30) righe.push('  ... e altre ' + (altre.elenco.length - 30));
   if (altre.interrotto) {
@@ -1779,6 +1781,11 @@ function _righeAltre_(altre, deiFiltri) {
   righe = righe.concat(_aCapo_((deiFiltri ? '' : 'Senza il servizio Gmail API non vedo quali mette ' +
     'ancora un tuo filtro. ') + 'Lo script non le tocca: se non ti servono, cancellale tu da Gmail (i ' +
     'messaggi restano).', '', ''));
+  if (diUnFiltro) {
+    righe = righe.concat(_aCapo_('Prima di cancellare quelle di un filtro scelto da togliere, guarda in Campanella ' +
+      '(Posta, passo 4) se sono fra le "Etichette rimaste dai filtri uniti": quelle vanno unite prima. Copia di ' +
+      'nuovo la configurazione (passo 5) ed esegui di nuovo questa funzione: questa non le ha.', '', ''));
+  }
   return righe;
 }
 
@@ -2040,8 +2047,15 @@ function _etichetteDeiFiltri_() {
  * tocca. Finito il tempo si ferma, e lo dice (interrotto).
  */
 function _etichetteSenzaNessuno_(cfg, coppie, deiFiltri, scadenza) {
-  var gestite = _nomiGestiti_(cfg), daUnire = {};
+  var gestite = _nomiGestiti_(cfg), daUnire = {}, deiTolti = {};
   for (var c = 0; c < coppie.length; c++) daUnire[coppie[c].da.toLowerCase()] = true;
+  // le etichette dei filtri scelti in Campanella da togliere: una puo' essere
+  // da unire anche se questa configurazione non lo dice (copiata prima)
+  var scelti = cfg.filtriDaTogliere && typeof cfg.filtriDaTogliere.length === 'number' ? cfg.filtriDaTogliere : [];
+  for (var d = 0; d < scelti.length; d++) {
+    var nomeScelto = String((scelti[d] || {}).etichetta || '').trim().replace(/\/+$/, '').trim().toLowerCase();
+    if (nomeScelto) deiTolti[nomeScelto] = true;
+  }
   var tutte = GmailApp.getUserLabels(), nomi = [];
   for (var i = 0; i < tutte.length; i++) nomi.push(String(tutte[i].getName()));
   var fuori = { elenco: [], interrotto: false };
@@ -2051,7 +2065,7 @@ function _etichetteSenzaNessuno_(cfg, coppie, deiFiltri, scadenza) {
     if (_sottoetichette_(nomi[j], nomi).length) continue;
     if (Date.now() > scadenza) { fuori.interrotto = true; break; }
     var quante = tutte[j].getThreads(0, _TETTO_ANTEPRIMA).length;
-    fuori.elenco.push({ nome: nomi[j], conversazioni: quante, piena: quante >= _TETTO_ANTEPRIMA });
+    fuori.elenco.push({ nome: nomi[j], conversazioni: quante, piena: quante >= _TETTO_ANTEPRIMA, diUnFiltro: !!deiTolti[basso] });
   }
   fuori.elenco.sort(function (x, y) {
     var a = x.nome.toLowerCase(), b = y.nome.toLowerCase();
