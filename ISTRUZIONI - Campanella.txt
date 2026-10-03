@@ -502,6 +502,30 @@ POSTA - riordinare la casella
    che hai scelto di togliere. Le etichette gia' messe ai messaggi restano:
    se non ti servono, cancellale tu da Gmail (Impostazioni -> Etichette); i
    messaggi non si cancellano.
+   Un filtro che hai unito a una regola con un'altra etichetta ("Unisci a
+   Genitori" per il filtro Famiglie, o la casella della scuola unita a
+   Segreteria) lascia la sua etichetta in Gmail, con i messaggi di prima:
+   tolto il filtro, nessuno la mette piu'. Il passo 4 le mostra nel
+   riquadro "Etichette rimaste dai filtri uniti", una spunta per coppia
+   (Famiglie -> Genitori): solo per i filtri che la configurazione toglie
+   davvero, mai per un'etichetta delle regole (anche spente), dei ruoli o
+   del gruppo. Togli la spunta a una coppia che non vuoi unire; le altre
+   vanno nella configurazione. Dopo EXTRA_togliFiltri esegui
+   EXTRA_unisciEtichette (va anche senza il servizio Gmail API): mette
+   l'etichetta della regola a tutte le conversazioni di quella rimasta, e
+   basta. Non archivia, non segna come letto, non toglie etichette e non
+   cancella niente: lo script non cancella mai un'etichetta. Poi ti dice
+   quali etichette rimaste puoi cancellare tu da Gmail (nel menu a
+   sinistra, i tre puntini accanto all'etichetta -> Rimuovi etichetta: i
+   messaggi restano, con l'etichetta della regola); non una che un filtro
+   di Gmail mette ancora (con il servizio Gmail API lo controlla: prima
+   EXTRA_togliFiltri), ne' una con delle sottoetichette. Ti dice anche
+   quali altre etichette non mette nessuna regola (con il servizio, nemmeno
+   un filtro), con quante conversazioni hanno: solo un elenco, lo script
+   non le tocca. In modalita' prova conta soltanto; se manca l'etichetta
+   della regola chiede PASSO_2_creaEtichette; se finisce il tempo,
+   rieseguila: riparte da capo e le conversazioni gia' fatte restano come
+   sono. L'anteprima dice in una riga quante etichette ci sono da unire.
    "Le mie classi...", accanto, crea un'etichetta per ogni tua classe, per
    esempio "Classi 2026-27/3B", dentro un'etichetta madre ("Classi" e l'anno
    scolastico: si puo' cambiare, e riaprendo la finestra torna quella delle
@@ -623,7 +647,8 @@ POSTA - riordinare la casella
    configurazione che copi e' in prova o agisce davvero. L'ottavo,
    facoltativo, aggiunge il servizio Gmail API: serve ai colori delle
    etichette, ai filtri veri di Gmail e a togliere i filtri che avevi gia'
-   (EXTRA_togliFiltri).
+   (EXTRA_togliFiltri); dice anche di EXTRA_unisciEtichette, per le
+   etichette rimaste dai filtri uniti a una regola.
    L'anteprima (PASSO_1_anteprima) dice per ogni regola quante conversazioni
    prenderanno l'etichetta e, se l'etichetta c'e' gia' in Gmail, quante ce
    l'hanno e se l'ha creata lo script o c'era gia'. "500+" vuol dire almeno
@@ -1038,7 +1063,9 @@ COSE CHE NON SUCCEDONO MAI
   posta, con EXTRA_togliFiltri, toglie i filtri di Gmail che hai scelto tu
   di togliere al passo 4, e solo quelli: non si rimettono da script, ma
   prima di toglierli ne scrive una copia nel registro per rifarli a mano.
-  Messaggi ed etichette restano.
+  Messaggi ed etichette restano. EXTRA_unisciEtichette mette soltanto
+  l'etichetta di una regola ai messaggi di un'etichetta rimasta da un
+  filtro unito: le etichette rimaste le cancelli tu, se vuoi.
 - La prima esecuzione del riordino parte in modalita' prova: conta e basta.
 - Lo script non scrive a nessun altro: le email arrivano solo a te.
 - Lo script dei moduli non manda email a nessuno e non condivide niente.

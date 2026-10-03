@@ -260,7 +260,10 @@ found, by its arrival time, in an earlier sheet.
   when you run `EXTRA_togliFiltri`, the mail script removes the Gmail filters
   you already had and chose to remove in step 4 (also those turned into
   Campanella rules), only those, after writing a copy of each one to the log
-  so it can be made again by hand.
+  so it can be made again by hand. `EXTRA_unisciEtichette` only adds a rule's
+  label to the messages of a label left by a filter merged into that rule:
+  the script never deletes a label, you delete the old one yourself if you
+  want.
 - The first run of the mail sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
 - The optional class labels also use the email addresses of your students,

@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.6.2 — (data da definire)
+
+Organizzazione_Gmail.gs changes (1.6.2): paste it again, together with a new
+Configurazione.gs (Posta, step 5).
+
+**Posta: the labels left by the Gmail filters merged into a rule**
+
+- A Gmail filter merged into a rule with another label ("Unisci a ...", or
+  into "La tua scuola") leaves its own label in Gmail, with the old
+  messages: once EXTRA_togliFiltri has removed the filter, nobody applies it
+  any more (Famiglie merged into Genitori, the school's mailbox merged into
+  Segreteria).
+- Step 4 shows them in a new box, "Etichette rimaste dai filtri uniti", one
+  tick per pair (Famiglie → Genitori), only for filters that the
+  configuration really removes, once per label, and never for a label of a
+  rule (also switched off), of a role or of the label group, nor for a
+  label that two different rules would claim. Untick a pair you do not
+  want: the choice is kept with the personal data (`etichetteDaNonUnire`).
+  The ticked pairs go into Configurazione.gs, in `etichetteDaUnire`; the
+  "Usa questa scelta" summary and the step 5 summary mention them.
+- New script function EXTRA_unisciEtichette: for each pair it applies the
+  rule's label to every conversation of the label left behind, in blocks of
+  100, and nothing else: it does not archive, does not mark as read, does
+  not remove labels and deletes nothing (the script still never deletes a
+  label). It then says which labels left behind you can delete yourself in
+  Gmail (left menu, the three dots next to the label → Remove label: the
+  messages stay, with the rule's label); not one that a Gmail filter still
+  applies (with the Gmail API service it checks: first EXTRA_togliFiltri),
+  nor one with sub-labels. It also lists the other labels that no rule
+  applies (with the Gmail API service, no filter either), with how many
+  conversations they have: only a list, the script does not touch them.
+  In test mode it only counts. A pair whose rule label is not in Gmail yet
+  asks for PASSO_2_creaEtichette; when the time runs out, run it again: it
+  starts over and nothing changes for the conversations already done.
+  PASSO_1_anteprima says in one line how many labels are left to merge.
+- Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
+
+**For developers**
+
+- `test/mock_apps_script.js` has the new function: test mode, more than one
+  block, the lock, a filter that still applies the label, sub-labels, the
+  rule label missing, the time running out, the label group, the skipped
+  entries and the list of the other labels.
+- `test/prova_posta.ps1` finds the pairs from the filters dialog and checks
+  `etichetteDaUnire` in Configurazione.gs; `test/prova_stato.ps1` the new
+  field and format 5.
+
 ## 1.6.1 — 27 September 2026
 
 No script changed: Organizzazione_Gmail.gs stays the 1.6.0 one. Copy

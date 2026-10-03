@@ -156,7 +156,12 @@ prendere i loro messaggi (il filtro vero di Colleghi, quello di Segreteria
 con la casella della scuola), l'etichetta e i criteri di quel filtro, che
 possono contenere gli indirizzi dei colleghi o della scuola: servono a
 tenere in Gmail il filtro scelto se poi cambiano le regole escluse, e non
-vanno nella configurazione. Una regola nata da un
+vanno nella configurazione. Delle etichette rimaste dai filtri uniti a una
+regola con un'altra etichetta (Famiglie unito a Genitori) tiene solo i nomi
+di quelle che scegli di non unire; le coppie da unire vanno nella
+configurazione (solo i nomi delle due etichette), e `EXTRA_unisciEtichette`
+mette l'etichetta della regola a quei messaggi: aggiunge soltanto, e le
+etichette rimaste le cancelli tu da Gmail, se vuoi. Una regola nata da un
 filtro ne prende l'etichetta e i criteri, i mittenti e la ricerca, che
 possono contenere indirizzi e nomi di persone (`from:"Nome Cognome"`); un
 filtro che unisce i suoi mittenti a una regola li porta nella regola, o fra

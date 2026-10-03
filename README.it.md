@@ -265,7 +265,10 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   `EXTRA_togliFiltri`, lo script della posta toglie i filtri di Gmail che
   avevi già e che al passo 4 hai scelto di togliere (anche quelli diventati
   regole di Campanella), solo quelli, dopo averne scritto una copia nel
-  registro per rifarli a mano.
+  registro per rifarli a mano. `EXTRA_unisciEtichette` aggiunge soltanto
+  l'etichetta di una regola ai messaggi di un'etichetta rimasta da un filtro
+  unito a quella regola: lo script non cancella mai un'etichetta, quella
+  rimasta la cancelli tu, se vuoi.
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
 - Le etichette delle classi, facoltative, usano anche gli indirizzi email dei
