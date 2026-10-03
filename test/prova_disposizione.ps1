@@ -440,6 +440,9 @@ Verifica "e anche tornando al tema di prima" ($lblStato.ForeColor.ToArgb() -eq (
 $iImp = -1
 for ($k = 0; $k -lt $pagine.Count; $k++) { if ($pagine[$k].Nome -eq 'Impostazioni') { $iImp = $k } }
 $metodoVaiA.Invoke($guscio, @([int]$iImp, [int]0)) | Out-Null
+$piede = $tGuscio.GetField('piede', $FIp).GetValue($guscio)
+Verifica "senza i passi (Impostazioni) la riga di stato prende tutto il piede ($($lblStato.Bounds))" (
+    -not $btnAvanti.Visible -and -not $lblStato.AutoSize -and $lblStato.Left -eq 26 -and $lblStato.Right -eq $piede.Width - 26)
 $vocImp = $null
 foreach ($v in $tGuscio.GetField('voci', $FIp).GetValue($guscio)) {
     if ($v.GetType().GetField('Pagina').GetValue($v) -eq $iImp -and $v.GetType().GetField('Passo').GetValue($v) -eq -1) {
@@ -832,6 +835,35 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $clbEt.SetItemChecked(0, $true)
     Verifica "una coppia di un filtro scelto prima della 1.6.2 e' da controllare: senza spunta, e non si spunta ($($clbEt.Items[0]))" (
         $clbEt.Items.Count -eq 1 -and [string]$clbEt.Items[0] -match 'riapri il file dei filtri' -and -not $clbEt.GetItemChecked(0))
+    # il riepilogo rilegge le spunte delle regole: quella di Genitori, accesa
+    # qui sopra, dev'essere spuntata anche nell'elenco
+    $clbGen = $posta.GetType().GetField('clbRegole', $FIp).GetValue($posta)
+    $iGen = $regoleD.IndexOf($genD)
+    $spuntaGen = $clbGen.GetItemChecked($iGen)
+    $clbGen.SetItemChecked($iGen, $true)
+    $riepC = [string]$posta.GetType().GetMethod('RiepilogoEtichette', $FIp).Invoke($posta, @())
+    $clbGen.SetItemChecked($iGen, $spuntaGen)
+    $genD.Attiva = $true
+    Verifica "il riepilogo del passo 5 la dice da controllare, anche fra le cose da sistemare, e non da unire ($((($riepC -split "`n") | Where-Object { $_ -match 'controllare|unire' }) -join ' / '))" (
+        $riepC -match "Etichette da controllare \.+ 1 \(non si uniscono finche' non riapri il file dei filtri: passo 4\)" -and
+        $riepC -match "Un'etichetta rimasta dai filtri uniti e' da controllare: riapri il file in" -and
+        $riepC -notmatch 'Etichette rimaste da unire')
+    # la riga in basso dice che cosa fare, intera e a sinistra dei bottoni,
+    # anche con la finestra piu' stretta: lunga, prima passava sotto i bottoni
+    foreach ($larga in @(1080, 1240)) {
+        $guscio.Size = New-Object System.Drawing.Size($larga, 880)
+        [System.Windows.Forms.Application]::DoEvents()
+        $rS = $lblStato.Bounds
+        $altaS = [System.Windows.Forms.TextRenderer]::MeasureText($lblStato.Text, $lblStato.Font,
+                     (New-Object System.Drawing.Size($rS.Width, [int]::MaxValue)),
+                     [System.Windows.Forms.TextFormatFlags]'WordBreak, TextBoxControl').Height
+        Verifica "larga $larga : la riga in basso dice di riaprire il file, ci sta intera ($altaS px su $($rS.Height)) e non tocca i bottoni ($rS, Indietro da $($btnIndietro.Left))" (
+            $lblStato.Text -match '^Per unire Famiglie riapri il file in "Filtri che hai gia'' in Gmail\.\.\." e premi "Usa questa scelta"' -and
+            $btnIndietro.Visible -and $btnAvanti.Visible -and $rS.Right -lt $btnIndietro.Left -and
+            $rS.Top -ge 0 -and $rS.Bottom -le $piede.Height -and $altaS -le $rS.Height)
+    }
+    $guscio.Size = New-Object System.Drawing.Size(1240, 880)
+    [System.Windows.Forms.Application]::DoEvents()
     ControllaPannello $pannelloF 'Posta / 4 con un''etichetta rimasta da controllare'
     $sceltoF.StessaEtichettaInGmail = $null
     [void]$genD.Da.Remove('@famiglie.example')

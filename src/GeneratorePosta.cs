@@ -242,7 +242,8 @@ namespace Campanella
             sb.AppendLine(string.Join("," + Environment.NewLine, blocchi.ToArray()));
             List<string> filtri = FiltriJs(s);
             List<CoppiaEtichette> unire = FiltriGmail.DaUnire(s);
-            sb.AppendLine("  ]" + (filtri.Count > 0 || unire.Count > 0 ? "," : ""));
+            List<CoppiaEtichette> controllare = FiltriGmail.DaControllare(s);
+            sb.AppendLine("  ]" + (filtri.Count > 0 || unire.Count > 0 || controllare.Count > 0 ? "," : ""));
             if (filtri.Count > 0)
             {
                 sb.AppendLine();
@@ -253,13 +254,10 @@ namespace Campanella
                 sb.AppendLine("  //  nel registro. Serve il servizio Gmail API.");
                 sb.AppendLine("  filtriDaTogliere: [");
                 sb.AppendLine(string.Join("," + Environment.NewLine, filtri.ToArray()));
-                sb.AppendLine("  ]" + (unire.Count > 0 ? "," : ""));
+                sb.AppendLine("  ]" + (unire.Count > 0 || controllare.Count > 0 ? "," : ""));
             }
             if (unire.Count > 0)
             {
-                List<string> coppie = new List<string>();
-                foreach (CoppiaEtichette c in unire)
-                    coppie.Add("    { da: \"" + AnalisiOrario.Js(c.Da) + "\", a: \"" + AnalisiOrario.Js(c.A) + "\" }");
                 sb.AppendLine();
                 sb.AppendLine("  // ---- le etichette rimaste dai filtri uniti (EXTRA_unisciEtichette) ----");
                 sb.AppendLine("  //  Trovate da Campanella (Posta, passo 4): un filtro unito a una regola");
@@ -267,11 +265,33 @@ namespace Campanella
                 sb.AppendLine("  //  regola (a) a tutte le conversazioni di quella rimasta (da), e basta:");
                 sb.AppendLine("  //  quella rimasta la cancelli tu da Gmail, quando lo script dice che si puo'.");
                 sb.AppendLine("  etichetteDaUnire: [");
-                sb.AppendLine(string.Join("," + Environment.NewLine, coppie.ToArray()));
+                sb.AppendLine(CoppieJs(unire));
+                sb.AppendLine("  ]" + (controllare.Count > 0 ? "," : ""));
+            }
+            if (controllare.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("  // ---- le etichette rimaste da controllare (Campanella, passo 4) --------");
+                sb.AppendLine("  //  Di filtri scelti prima della 1.6.2, che non ricordava se in Gmail");
+                sb.AppendLine("  //  restava un altro filtro con la stessa etichetta: lo script non le");
+                sb.AppendLine("  //  unisce e non le propone da cancellare. In Campanella riapri il file in");
+                sb.AppendLine("  //  \"Filtri che hai gia' in Gmail...\" e premi \"Usa questa scelta\", poi");
+                sb.AppendLine("  //  copia di nuovo la configurazione.");
+                sb.AppendLine("  etichetteDaControllare: [");
+                sb.AppendLine(CoppieJs(controllare));
                 sb.AppendLine("  ]");
             }
             sb.AppendLine("};");
             return sb.ToString();
+        }
+
+        /// <summary>Le coppie di etichette per la configurazione, una per riga: { da: "...", a: "..." }.</summary>
+        static string CoppieJs(List<CoppiaEtichette> coppie)
+        {
+            List<string> righe = new List<string>();
+            foreach (CoppiaEtichette c in coppie)
+                righe.Add("    { da: \"" + AnalisiOrario.Js(c.Da) + "\", a: \"" + AnalisiOrario.Js(c.A) + "\" }");
+            return string.Join("," + Environment.NewLine, righe.ToArray());
         }
 
         /// <summary>

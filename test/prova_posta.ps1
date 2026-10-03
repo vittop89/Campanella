@@ -2428,11 +2428,11 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     $mDaUnire = $tFiltri.GetMethod('DaUnire', $FS)
     $mGestita = $tFiltri.GetMethod('EtichettaGestita', $FS)
     function Coppie($lista) { return (@($lista | ForEach-Object { $_.Da + '>' + $_.A } | Sort-Object) -join ',') }
-    function CoppieNellaConfigurazione($stato, $nome) {
+    function CoppieNellaConfigurazione($stato, $nome, $chiave = 'etichetteDaUnire') {
         $f = Join-Path $temporanea ($nome + '.gs')
         Scrivi $f ([string](Genera $stato $false))
         $c = (LeggiConfigurazione $f).CONFIG
-        return (@($c.etichetteDaUnire | Where-Object { $null -ne $_ } | ForEach-Object { $_.da + '>' + $_.a } | Sort-Object) -join ',')
+        return (@($c.$chiave | Where-Object { $null -ne $_ } | ForEach-Object { $_.da + '>' + $_.a } | Sort-Object) -join ',')
     }
     # i casi veri (resi anonimi): la casella della scuola unita a Segreteria a
     # mano, gli altri con la proposta di partenza (Ministero e USR e Registro
@@ -2515,10 +2515,19 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "una voce di prima della 1.6.2: la coppia c'e' ma e' da controllare, e non va nella configurazione" (
         $rUno.Count -eq 1 -and $rUno[0].DaControllare -and $rUno[0].Testo() -match 'riapri il file dei filtri' -and
         (Coppie ($mDaUnire.Invoke($null, @($sUno.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sUno 'etichette_7') -eq '')
+    # va a parte, in etichetteDaControllare: lo script non la unisce e non la
+    # propone da cancellare
+    Verifica "e va a parte, fra le etichette da controllare ($(CoppieNellaConfigurazione $sUno 'etichette_7c' 'etichetteDaControllare'))" (
+        (CoppieNellaConfigurazione $sUno 'etichette_7c' 'etichetteDaControllare') -eq 'Famiglie>Genitori')
+    (Leggi $sUno 'EtichetteDaNonUnire').Add('Famiglie')
+    Verifica "una che il docente non vuole unire non va nemmeno fra quelle da controllare" (
+        (CoppieNellaConfigurazione $sUno 'etichette_7d' 'etichetteDaControllare') -eq '')
+    [void](Leggi $sUno 'EtichetteDaNonUnire').Remove('Famiglie')
     [void](FinestraEScelta $sUno $filtroUno $null)
-    Verifica "riaperto il file e usata la scelta, si sa, e va nella configurazione" (
+    Verifica "riaperto il file e usata la scelta, si sa, e va nella configurazione, non piu' fra quelle da controllare" (
         (Coppie ($mDaUnire.Invoke($null, @($sUno.PSObject.BaseObject)))) -eq 'Famiglie>Genitori' -and
-        (CoppieNellaConfigurazione $sUno 'etichette_8') -eq 'Famiglie>Genitori')
+        (CoppieNellaConfigurazione $sUno 'etichette_8') -eq 'Famiglie>Genitori' -and
+        (CoppieNellaConfigurazione $sUno 'etichette_8c' 'etichetteDaControllare') -eq '')
     # un altro filtro Famiglie tolto e basta ("Toglilo" senza regola): i suoi
     # messaggi non sono dei genitori, e la coppia non c'e'
     $sTolto = StatoRiorganizza

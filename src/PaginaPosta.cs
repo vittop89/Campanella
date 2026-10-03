@@ -846,9 +846,8 @@ namespace Campanella
                 if (coppieMostrate[e.Index].DaControllare)
                 {
                     e.NewValue = CheckState.Unchecked;
-                    Guscio.Stato1("Per " + coppieMostrate[e.Index].Da + " riapri il file in \"Filtri che hai gia' in Gmail...\" e " +
-                                  "premi \"Usa questa scelta\": il filtro e' stato scelto prima della 1.6.2, e Campanella non sa " +
-                                  "se in Gmail ne resta un altro con la stessa etichetta.");
+                    Guscio.Stato1("Per unire " + coppieMostrate[e.Index].Da + " riapri il file in \"Filtri che hai gia' in " +
+                                  "Gmail...\" e premi \"Usa questa scelta\": il filtro e' stato scelto prima della 1.6.2.", Tema.Ambra);
                     return;
                 }
                 string da = coppieMostrate[e.Index].Da;
@@ -877,7 +876,8 @@ namespace Campanella
                 "Togli la spunta a una coppia che non vuoi unire, poi copia di nuovo la configurazione (passo 5). " +
                 "Una coppia \"(riapri il file dei filtri)\" viene da un filtro scelto prima della 1.6.2, che non " +
                 "ricordava se in Gmail ne restava un altro con la stessa etichetta: riapri il file in \"Filtri che " +
-                "hai gia' in Gmail...\" e premi \"Usa questa scelta\". " +
+                "hai gia' in Gmail...\" e premi \"Usa questa scelta\"; intanto lo script non la unisce, e non te la " +
+                "propone da cancellare. " +
                 "Con la modalita' prova la funzione conta soltanto."));
             grpEtichette.Visible = false;
             p.Controls.Add(grpEtichette);
@@ -2713,10 +2713,13 @@ namespace Campanella
             int senzaRegola = senzaLaRegola.Count;
             sb.AppendLine("Filtri di Gmail da togliere .. " + (daTogliere == 0 ? "nessuno" :
                 daTogliere + " (li toglie EXTRA_togliFiltri, con il servizio Gmail API: passo 8)"));
-            int daUnire = FiltriGmail.DaUnire(S).Count;
+            int daUnire = FiltriGmail.DaUnire(S).Count, daControllare = FiltriGmail.DaControllare(S).Count;
             if (daUnire > 0)
                 sb.AppendLine("Etichette rimaste da unire ... " + daUnire +
                               " (le unisce EXTRA_unisciEtichette, dopo EXTRA_togliFiltri: passo 8)");
+            if (daControllare > 0)
+                sb.AppendLine("Etichette da controllare ..... " + daControllare +
+                              " (non si uniscono finche' non riapri il file dei filtri: passo 4)");
             sb.AppendLine();
 
             List<string> avvisi = new List<string>();
@@ -2729,6 +2732,12 @@ namespace Campanella
             if (senzaMail > 0)
                 avvisi.Add(senzaMail + " persone dell'elenco non hanno un indirizzo: verranno ignorate.");
             if (senzaRegola > 0) avvisi.Add(TestoSenzaLaRegola(senzaRegola, Con160(senzaLaRegola), PerGliAltri(senzaLaRegola, S)).Trim());
+            if (daControllare > 0)
+                avvisi.Add((daControllare == 1 ? "Un'etichetta rimasta dai filtri uniti e' da controllare"
+                                               : daControllare + " etichette rimaste dai filtri uniti sono da controllare") +
+                           ": riapri il file in \"Filtri che hai gia' in Gmail...\" (passo 4) e premi \"Usa questa " +
+                           "scelta\", poi copia di nuovo la configurazione. Intanto non " +
+                           (daControllare == 1 ? "cancellarla" : "cancellarle") + " da Gmail.");
 
             if (avvisi.Count > 0)
             {

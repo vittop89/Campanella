@@ -3337,6 +3337,20 @@ namespace Campanella
             return fuori;
         }
 
+        /// <summary>
+        /// Le etichette rimaste da controllare (filtri scelti prima della 1.6.2),
+        /// senza quelle che il docente non vuole unire. Vanno nella configurazione
+        /// a parte (etichetteDaControllare): lo script non le unisce, e non le
+        /// propone da cancellare, finche' non si riapre il file dei filtri.
+        /// </summary>
+        public static List<CoppiaEtichette> DaControllare(Stato s)
+        {
+            List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
+            foreach (CoppiaEtichette c in EtichetteRimaste(s))
+                if (c.DaControllare && !DaNonUnire(s, c.Da)) fuori.Add(c);
+            return fuori;
+        }
+
         /// <summary>Vero se il docente non vuole unire quell'etichetta rimasta (Stato.EtichetteDaNonUnire), maiuscole a parte.</summary>
         public static bool DaNonUnire(Stato s, string etichetta)
         {

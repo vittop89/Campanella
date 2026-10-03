@@ -2035,9 +2035,10 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
     piatto.indexOf('Genitori -> genitori: e\' la stessa etichetta') >= 0 &&
     piatto.indexOf('Contesa: e\' da unire a piu\' regole (Genitori, Sindacati): non la unisco a nessuna') >= 0 &&
     (t.match(/Circolari -> Genitori: Circolari e' un'etichetta delle regole/g) || []).length === 2);
-  verifica('senza il servizio Gmail API elenca le etichette che nessuna regola mette, senza le cartelle',
-    t.indexOf('Etichette che nessuna regola mette: 5\n  - Contesa (1 conversazione)\n  - Ex/Uno (vuota)\n' +
-              '  - Personale/Viaggi (1 conversazione)\n  - Prova vuota (vuota)\n  - Vecchio progetto (1 conversazione)') >= 0 &&
+  verifica('senza il servizio Gmail API elenca le etichette che nessuna regola mette, senza le cartelle e ' +
+           'senza quelle da unire, nemmeno saltate (Contesa, Vecchio progetto)',
+    t.indexOf('Etichette che nessuna regola mette: 3\n  - Ex/Uno (vuota)\n' +
+              '  - Personale/Viaggi (1 conversazione)\n  - Prova vuota (vuota)\n') >= 0 &&
     piatto.indexOf('Senza il servizio Gmail API non vedo quali mette ancora un tuo filtro') >= 0);
   verifica('e dice come farlo davvero', t.indexOf('provaSenzaModifiche: false') > 0);
 
@@ -2113,9 +2114,9 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
                      'etichetta.') >= 0 &&
       piatto.indexOf('Cancellata un\'etichetta rimasta, ANNULLA_etichettatura toglierebbe a quei messaggi anche ' +
                      'l\'etichetta della regola, e resterebbero senza.') >= 0);
-    verifica('fra le altre etichette non c\'e\' quella che mette un filtro',
-      t.indexOf('Etichette che nessuna regola e nessun filtro di Gmail mettono: 4\n  - Contesa (1 conversazione)\n' +
-                '  - Ex/Uno (vuota)\n  - Prova vuota (vuota)\n  - Vecchio progetto (1 conversazione)') >= 0 &&
+    verifica('fra le altre etichette non c\'e\' quella che mette un filtro, ne\' quelle da unire saltate',
+      t.indexOf('Etichette che nessuna regola e nessun filtro di Gmail mettono: 2\n' +
+                '  - Ex/Uno (vuota)\n  - Prova vuota (vuota)\n') >= 0 &&
       t.indexOf('Senza il servizio') < 0);
     verifica('i filtri restano', filtri.length === 2);
     // il servizio che non risponde: come senza
@@ -2285,6 +2286,66 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
       t.indexOf('Vecchio progetto -> Genitori: Genitori non e\' l\'etichetta di una regola accesa') >= 0 &&
       t.indexOf('Scuola -> Scuola/Genitori: Scuola e\' un\'etichetta delle regole') >= 0);
     contesto.CONFIG.prefissoEtichette = '';
+  }
+
+  // --- da controllare (filtri scelti prima della 1.6.2): ne' unite ne' da cancellare -------
+  {
+    // Campanella non sa se l'etichetta e' ancora in uso finche' non si riapre
+    // il file dei filtri: le scrive a parte, in etichetteDaControllare
+    dalleFamiglie.forEach(x => x.labels.delete('Genitori'));
+    contesto.CONFIG.provaSenzaModifiche = false;
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Genitori' }];
+    contesto.CONFIG.etichetteDaControllare = [{ da: 'Famiglie', a: 'Genitori' }, { da: 'xyis01200z/', a: 'Segreteria' },
+                                              { da: 'famiglie', a: 'Genitori' }, { da: '', a: 'Genitori' }];
+    const primaDiControllare = fotoPosta();
+    t = contesto.EXTRA_unisciEtichette();
+    console.log(t);
+    piatto = t.replace(/\s+/g, ' ');
+    verifica('una da controllare non si unisce, nemmeno se e\' anche fra quelle da unire, e il registro dice che cosa fare',
+      fotoPosta() === primaDiControllare && dalleFamiglie.every(x => !x.labels.has('Genitori')) &&
+      t.indexOf('Etichette rimaste da controllare in Campanella: 2\n  - Famiglie -> Genitori\n  - xyis01200z -> Segreteria\n') >= 0 &&
+      piatto.indexOf('Non le unisco ancora: vengono da filtri scelti prima della 1.6.2 di Campanella, che non ricordava ' +
+                     'se in Gmail restava un altro filtro con la stessa etichetta. In Campanella (Posta, passo 4) apri ' +
+                     '"Filtri che hai gia\' in Gmail...", apri il file dei filtri e premi "Usa questa scelta"; poi copia ' +
+                     'di nuovo la configurazione (passo 5) ed esegui di nuovo questa funzione. Intanto non cancellarle: ' +
+                     'prima vanno unite.') >= 0 &&
+      piatto.indexOf('Famiglie -> Genitori: e\' anche fra quelle da controllare: non la unisco') >= 0 &&
+      t.indexOf('Nessuna etichetta da unire') < 0 && t.split('\n').every(r => r.length <= 100));
+    const altreDopo = t.slice(t.indexOf('Etichette che nessuna regola mette'));
+    verifica('e l\'elenco delle altre etichette non le propone da cancellare',
+      t.indexOf('Etichette che nessuna regola mette') > 0 && altreDopo.indexOf('  - Famiglie (') < 0 &&
+      altreDopo.indexOf('  - xyis01200z (') < 0 && altreDopo.indexOf('  - Prova vuota (vuota)') >= 0);
+    const anteprima = contesto.PASSO_1_anteprima().replace(/\s+/g, ' ');
+    verifica('l\'anteprima dice che sono da controllare e di non cancellarle',
+      anteprima.indexOf('2 etichette rimaste dai filtri uniti sono da controllare in Campanella (Posta, passo 4: ' +
+                        'riapri il file dei filtri): intanto non cancellarle.') >= 0 &&
+      anteprima.indexOf('dai filtri uniti: esegui EXTRA_unisciEtichette') < 0);
+    // solo da controllare: niente "nessuna etichetta da unire"
+    delete contesto.CONFIG.etichetteDaUnire;
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('con le sole etichette da controllare non dice che non ce ne sono da unire, e non mette niente',
+      t.indexOf('Etichette rimaste da controllare in Campanella: 2\n') === 0 && t.indexOf('Nessuna etichetta da unire') < 0 &&
+      fotoPosta() === primaDiControllare);
+    // EXTRA_togliFiltri: non cancellarle ancora
+    contesto.CONFIG.filtriDaTogliere = [{ etichetta: 'Famiglie', criteri: { from: '@famiglie.example' } }];
+    contesto.Gmail = { Users: {
+      Labels: { list: () => ({ labels: [...etichette.values()].map(l => ({ id: l.id, name: l.nome, type: 'user' })) }) },
+      Settings: { Filters: { list: () => ({}), remove: () => { throw new Error('niente'); }, create: () => { throw new Error('niente'); } } }
+    } };
+    t = contesto.EXTRA_togliFiltri();
+    verifica('EXTRA_togliFiltri dice di non cancellarle ancora, e che cosa fare in Campanella',
+      t.replace(/\s+/g, ' ').indexOf('Non cancellare ancora Famiglie, xyis01200z: sono le etichette di filtri uniti a ' +
+        'una regola, da controllare in Campanella. Riapri il file in "Filtri che hai gia\' in Gmail..." (Posta, passo 4) ' +
+        'e premi "Usa questa scelta", copia di nuovo la configurazione ed esegui EXTRA_unisciEtichette.') >= 0 &&
+      t.indexOf('le unisce EXTRA_unisciEtichette: eseguila adesso') < 0);
+    contesto.CONFIG.etichetteDaControllare = [{ da: 'Famiglie', a: 'Genitori' }];
+    t = contesto.EXTRA_togliFiltri();
+    verifica('e con una sola lo dice al singolare',
+      t.replace(/\s+/g, ' ').indexOf('Non cancellare ancora Famiglie: e\' l\'etichetta di un filtro unito a una regola, ' +
+        'da controllare in Campanella.') >= 0);
+    delete contesto.Gmail;
+    delete contesto.CONFIG.filtriDaTogliere;
+    delete contesto.CONFIG.etichetteDaControllare;
   }
 
   // --- niente da unire -----------------------------------------------------------------

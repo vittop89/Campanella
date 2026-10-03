@@ -189,10 +189,18 @@ function PASSO_1_anteprima() {
                ' di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).');
   }
   // le etichette rimaste dai filtri uniti a una regola con un'altra etichetta
-  var daUnire = _coppieEtichette_(cfg).buone.length;
+  var coppieUnite = _coppieEtichette_(cfg);
+  var daUnire = coppieUnite.buone.length, daControllare = coppieUnite.daControllare.length;
   if (daUnire) {
     righe = righe.concat(_aCapo_(daUnire + (daUnire === 1 ? ' etichetta rimasta' : ' etichette rimaste') +
       ' dai filtri uniti: esegui EXTRA_unisciEtichette (dopo EXTRA_togliFiltri).', '', '  '));
+  }
+  if (daControllare) {
+    righe = righe.concat(_aCapo_((daControllare === 1 ? 'Un\'etichetta rimasta dai filtri uniti e\' da controllare'
+                                                      : daControllare + ' etichette rimaste dai filtri uniti sono da ' +
+                                                        'controllare') +
+      ' in Campanella (Posta, passo 4: riapri il file dei filtri): intanto non ' +
+      (daControllare === 1 ? 'cancellarla' : 'cancellarle') + '.', '', '  '));
   }
   righe.push('');
 
@@ -1320,11 +1328,23 @@ function EXTRA_togliFiltri() {
     '(Impostazioni -> Etichette); i messaggi non si cancellano.', '', ''));
   // le etichette dei filtri uniti a una regola con un'altra etichetta: prima
   // di cancellarle si uniscono, cosi' i loro messaggi hanno quella della regola
-  var daUnire = _coppieEtichette_(cfg).buone.length;
+  var coppieUnite = _coppieEtichette_(cfg);
+  var daUnire = coppieUnite.buone.length, daControllare = coppieUnite.daControllare;
   if (daUnire && !prova) {
     righe = righe.concat(_aCapo_((daUnire === 1 ? 'L\'etichetta' : 'Le ' + daUnire + ' etichette') + ' dei filtri ' +
       'uniti a una regola con un\'altra etichetta ' + (daUnire === 1 ? 'la unisce' : 'le unisce') +
       ' EXTRA_unisciEtichette: eseguila adesso, prima di cancellare qualcosa. Poi ti dice quali cancellare.', '', ''));
+  }
+  // quelle da controllare non si uniscono ancora: cancellate adesso, i loro
+  // messaggi resterebbero senza l'etichetta della regola
+  if (daControllare.length && !prova) {
+    var nomiDaControllare = [];
+    for (var dc = 0; dc < daControllare.length; dc++) nomiDaControllare.push(daControllare[dc].da);
+    righe = righe.concat(_aCapo_('Non cancellare ancora ' + nomiDaControllare.join(', ') + ': ' +
+      (daControllare.length === 1 ? 'e\' l\'etichetta di un filtro unito a una regola, da controllare'
+                                  : 'sono le etichette di filtri uniti a una regola, da controllare') +
+      ' in Campanella. Riapri il file in "Filtri che hai gia\' in Gmail..." (Posta, passo 4) e premi "Usa ' +
+      'questa scelta", copia di nuovo la configurazione ed esegui EXTRA_unisciEtichette.', '', ''));
   }
   if (prova) {
     righe = righe.concat(_aCapo_('Per togliere davvero questi filtri: in Configurazione.gs metti ' +
@@ -1618,7 +1638,9 @@ function _rientra_(testo, prima, dopo) {
 //  etichetta (Famiglie a Genitori, la casella della scuola a Segreteria),
 //  tolto poi con EXTRA_togliFiltri, lascia la sua etichetta con i messaggi
 //  di prima: nessuno la mette piu'. Le coppie le trova Campanella (Posta,
-//  passo 4) e stanno in Configurazione.gs, in etichetteDaUnire. Questa
+//  passo 4) e stanno in Configurazione.gs, in etichetteDaUnire (quelle di
+//  filtri scelti prima della 1.6.2 in etichetteDaControllare: le elenca, e
+//  non le unisce finche' in Campanella non riapri il file dei filtri). Questa
 //  funzione mette l'etichetta della regola a tutte le conversazioni di
 //  quella rimasta, e basta: non toglie etichette, non archivia, non segna
 //  come letto e non cancella niente. L'etichetta rimasta, ormai doppia, la
@@ -1651,7 +1673,7 @@ function EXTRA_unisciEtichette() {
     Logger.log(testo);
     // con delle coppie ancora da fare l'elenco aspetta la prossima esecuzione
     var altre = esito.restano.length ? { elenco: [], interrotto: false }
-                                     : _etichetteSenzaNessuno_(cfg, coppie.buone, esito.deiFiltri, scadenza);
+                                     : _etichetteSenzaNessuno_(cfg, coppie.rimaste, esito.deiFiltri, scadenza);
     var coda = _righeAltre_(altre, esito.deiFiltri);
     if (coda.length) {
       Logger.log(coda.join('\n'));
@@ -1670,7 +1692,7 @@ function _righeUnisci_(coppie, esito, prova) {
     righe = righe.concat(_aCapo_('MODALITA\' PROVA: non ho messo nessuna etichetta, dico soltanto quante ' +
       'conversazioni la prenderebbero.', '', ''));
   }
-  if (!coppie.buone.length && !coppie.saltate.length) {
+  if (!coppie.buone.length && !coppie.saltate.length && !coppie.daControllare.length) {
     righe = righe.concat(_aCapo_('Nessuna etichetta da unire in Configurazione.gs. Le trova Campanella (Posta, ' +
       'passo 4) fra i filtri di Gmail che hai unito a una regola con un\'altra etichetta: poi copia di nuovo ' +
       'la configurazione ed esegui ancora questa funzione.', '', ''));
@@ -1693,6 +1715,19 @@ function _righeUnisci_(coppie, esito, prova) {
       (perPagine ? '. Quella con un nome che la ricerca di Gmail non distingue riparte dalla prima pagina, e le ' +
                    'conversazioni gia\' fatte restano come sono.'
                  : '. Riprende dalle conversazioni che non hanno ancora l\'etichetta della regola.'), '', ''));
+  }
+  if (coppie.daControllare.length) {
+    if (righe.length) righe.push('');
+    righe.push('Etichette rimaste da controllare in Campanella: ' + coppie.daControllare.length);
+    for (var c = 0; c < coppie.daControllare.length; c++) {
+      var x = coppie.daControllare[c];
+      righe = righe.concat(_aCapo_(x.da + (x.a ? ' -> ' + x.a : ''), '  - ', '    '));
+    }
+    righe = righe.concat(_aCapo_('Non le unisco ancora: vengono da filtri scelti prima della 1.6.2 di Campanella, ' +
+      'che non ricordava se in Gmail restava un altro filtro con la stessa etichetta. In Campanella (Posta, ' +
+      'passo 4) apri "Filtri che hai gia\' in Gmail...", apri il file dei filtri e premi "Usa questa scelta"; ' +
+      'poi copia di nuovo la configurazione (passo 5) ed esegui di nuovo questa funzione. Intanto non ' +
+      'cancellarle: prima vanno unite.', '', ''));
   }
   if (coppie.saltate.length) {
     righe.push('');
@@ -1786,10 +1821,28 @@ function _righeCoppia_(r, prova) {
  * Gmail): questa funzione mette solo etichette delle regole, come il
  * riordino. "da" non deve essere un'etichetta che lo script gestisce (di una
  * regola, anche spenta, di un ruolo, o il loro gruppo). Una "da" con due
- * regole diverse non si unisce a nessuna, come in Campanella.
+ * regole diverse non si unisce a nessuna, come in Campanella; nemmeno una
+ * che e' anche fra etichetteDaControllare (daControllare: di filtri scelti
+ * prima della 1.6.2, che non si uniscono finche' non si riapre il file dei
+ * filtri). "rimaste" ha le "da" di tutte, anche saltate o da controllare:
+ * l'elenco delle altre etichette non le propone da cancellare.
  */
 function _coppieEtichette_(cfg) {
-  var fuori = { buone: [], saltate: [] };
+  var fuori = { buone: [], saltate: [], daControllare: [], rimaste: [] };
+  // quelle da controllare (filtri scelti prima della 1.6.2): Campanella non
+  // sa se l'etichetta e' ancora in uso, e finche' non riapri il file dei
+  // filtri non si uniscono
+  var sospese = {}, controllo = cfg.etichetteDaControllare;
+  if (controllo && typeof controllo.length === 'number') {
+    for (var c = 0; c < controllo.length; c++) {
+      var vc = controllo[c] || {};
+      var dc = String(vc.da || '').trim().replace(/\/+$/, '').trim();
+      if (!dc || sospese[dc.toLowerCase()]) continue;
+      sospese[dc.toLowerCase()] = true;
+      fuori.daControllare.push({ da: dc, a: String(vc.a || '').trim().replace(/\/+$/, '').trim() });
+      fuori.rimaste.push({ da: dc });
+    }
+  }
   var elenco = cfg.etichetteDaUnire;
   if (!elenco || typeof elenco.length !== 'number') return fuori;
   var delleRegole = {}, regole = _regoleAttive_(cfg);
@@ -1802,8 +1855,11 @@ function _coppieEtichette_(cfg) {
     var voce = elenco[j] || {};
     var da = String(voce.da || '').trim().replace(/\/+$/, '').trim();
     var a = String(voce.a || '').trim().replace(/\/+$/, '').trim();
+    // anche quelle saltate restano fuori dall'elenco delle altre etichette
+    if (da) fuori.rimaste.push({ da: da });
     if (!da || !a) { fuori.saltate.push((da || a || '(vuota)') + ': senza l\'etichetta da unire o quella della regola'); continue; }
     var chi = da + ' -> ' + a;
+    if (sospese[da.toLowerCase()]) { fuori.saltate.push(chi + ': e\' anche fra quelle da controllare: non la unisco'); continue; }
     if (da.toLowerCase() === a.toLowerCase()) { fuori.saltate.push(chi + ': e\' la stessa etichetta'); continue; }
     if (!delleRegole[a.toLowerCase()]) { fuori.saltate.push(chi + ': ' + a + ' non e\' l\'etichetta di una regola accesa'); continue; }
     if (gestite[da.toLowerCase()]) { fuori.saltate.push(chi + ': ' + da + ' e\' un\'etichetta delle regole: non la tocco'); continue; }

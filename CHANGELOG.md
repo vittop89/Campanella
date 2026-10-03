@@ -22,45 +22,60 @@ Configurazione.gs (Posta, step 5).
   when you apply the window without the file), and none for a label also
   put by a filter removed without a rule. For filters chosen before 1.6.2
   it is not known: the pair reads "(riapri il file dei filtri)", stays
-  unticked and is left out of the configuration until you reopen the
-  filters file and press "Usa questa scelta". Untick a pair you do not
-  want: the choice is kept with the personal data (`etichetteDaNonUnire`).
+  unticked and is not merged until you reopen the filters file and press
+  "Usa questa scelta": it goes into Configurazione.gs apart
+  (`etichetteDaControllare`), where EXTRA_unisciEtichette lists it, says
+  what to do and never offers it for deletion; the step 5 summary lists it
+  among the things to fix. Untick a pair you do not want: the choice is
+  kept with the personal data (`etichetteDaNonUnire`).
   The ticked pairs go into Configurazione.gs, in `etichetteDaUnire`; the
   "Usa questa scelta" summary and the step 5 summary mention them.
 - New script function EXTRA_unisciEtichette: for each pair it applies the
   rule's label to the conversations of the label left behind that do not
   have it yet, also in trash and spam, in blocks of 100, and nothing else:
   it does not archive, does not mark as read, does not remove labels and
-  deletes nothing (the script still never deletes a label). A label that a Gmail filter still
-  applies is not merged (with the Gmail API service it checks): it is still
-  in use. It then says which labels left behind you can delete yourself in
+  deletes nothing (the script still never deletes a label). A label that a
+  Gmail filter still applies is not merged (with the Gmail API service it
+  checks): it is still in use. It then says which labels left behind you can delete yourself in
   Gmail (left menu, the three dots next to the label → Remove label: the
   messages stay, with the rule's label); not one with sub-labels, and
   without the service only after EXTRA_togliFiltri. Once one is deleted,
   ANNULLA_etichettatura would leave those messages with no label: it says
   so. It also lists the other labels that no rule applies (with the Gmail
   API service, no filter either), with how many conversations they have,
-  within the time limit: only a list, the script does not touch them. In
+  within the time limit, never one left behind by a merged filter (not
+  even a skipped one, or one still to check): only a list, the script does
+  not touch them. In
   test mode it only counts. A pair whose rule label is not in Gmail yet
   asks for PASSO_2_creaEtichette; when the time runs out, or Gmail's index
   lags behind, run it again: it resumes from the conversations that still
   lack the rule's label. A label written with double quotes, or whose name
   Gmail search cannot tell from another one ("Scuola Segreteria" and
   "Scuola/Segreteria"), is gone through page by page, and run again it
-  starts from the first page. PASSO_1_anteprima says in one line how many labels are left
-  to merge, and EXTRA_togliFiltri, when there are some, says to run
-  EXTRA_unisciEtichette before deleting anything.
+  starts from the first page. PASSO_1_anteprima says in one line how many
+  labels are left to merge, and how many to check in Campanella;
+  EXTRA_togliFiltri, when there are some, says to run EXTRA_unisciEtichette
+  before deleting anything, and not to delete the ones to check.
 - Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
+
+**Campanella**
+
+- The status line at the bottom stays to the left of "Indietro" and
+  "Avanti" and wraps: a long message used to run under the buttons and
+  cover them. One that still does not fit ends with an ellipsis and shows
+  in full when you hover it.
 
 **For developers**
 
 - `test/mock_apps_script.js` has the new function: test mode, more than one
   block, the lock, a filter that still applies the label, sub-labels, the
   rule label missing, the time running out, the label group, the skipped
-  entries and the list of the other labels.
+  entries, the pairs still to check and the list of the other labels.
 - `test/prova_posta.ps1` finds the pairs from the filters dialog and checks
-  `etichetteDaUnire` in Configurazione.gs; `test/prova_stato.ps1` the new
-  field and format 5.
+  `etichetteDaUnire` and `etichetteDaControllare` in Configurazione.gs;
+  `test/prova_stato.ps1` the new field and format 5;
+  `test/prova_disposizione.ps1` the step 5 summary of a pair to check, and
+  the status line next to the buttons, at the smallest window size too.
 
 ## 1.6.1 — 27 September 2026
 

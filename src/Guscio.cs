@@ -275,6 +275,8 @@ namespace Campanella
         Panel contenuto, laterale, testata, piede;
         Label lblTitolo, lblSottotitolo, lblStato;
         Button btnTema, btnIndietro, btnAvanti;
+        /// <summary>Vero se in basso ci sono "Indietro" e "Avanti" (lo strumento ha dei passi).</summary>
+        bool bottoniNelPiede = false;
 
         List<Pagina> pagine = new List<Pagina>();
 
@@ -475,7 +477,14 @@ namespace Campanella
             btnIndietro.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             piede.Resize += delegate { DisponiPiede(); };
 
-            lblStato = Tema.Testo1("", 26, 20, 0, Tema.Piccolo, Ruolo.Buono);
+            // la riga di stato sta a sinistra dei bottoni (DisponiPiede) e va a capo:
+            // un messaggio lungo prima passava sotto i bottoni e li copriva. Se
+            // non ci sta neanche cosi' finisce con i puntini, e passandoci sopra
+            // si legge intero
+            lblStato = Tema.Testo1("", 26, 5, 0, Tema.Piccolo, Ruolo.Buono);
+            lblStato.AutoSize = false;
+            lblStato.AutoEllipsis = true;
+            lblStato.TextAlign = ContentAlignment.MiddleLeft;
             piede.Controls.Add(lblStato);
             piede.Controls.Add(btnIndietro);
             piede.Controls.Add(btnAvanti);
@@ -626,6 +635,7 @@ namespace Campanella
             int seguente = ultimo ? PaginaSeguente() : -1;
             btnIndietro.Visible = conPassi;
             btnAvanti.Visible = conPassi;
+            bottoniNelPiede = conPassi;
             btnIndietro.Enabled = conPassi && p.Passo > 0;
             btnAvanti.Text = (seguente >= 0) ? "Vai a " + pagine[seguente].Nome + "  >" : "Avanti  >";
             btnAvanti.Enabled = conPassi && (!ultimo || seguente >= 0);
@@ -653,13 +663,19 @@ namespace Campanella
             VaiA(pagina, p.Passo + 1);
         }
 
-        /// <summary>I bottoni in basso a destra: "Avanti" si allarga quando dice dove porta.</summary>
+        /// <summary>
+        /// I bottoni in basso a destra: "Avanti" si allarga quando dice dove porta.
+        /// La riga di stato prende lo spazio a sinistra dei bottoni, o tutto se
+        /// non ci sono, e l'altezza del piede: due righe.
+        /// </summary>
         void DisponiPiede()
         {
             int largo = TextRenderer.MeasureText(btnAvanti.Text, btnAvanti.Font).Width + 40;
             btnAvanti.Width = Math.Max(130, largo);
             btnAvanti.Location = new Point(piede.Width - 26 - btnAvanti.Width, 12);
             btnIndietro.Location = new Point(btnAvanti.Left - 18 - btnIndietro.Width, 14);
+            int destra = bottoniNelPiede ? btnIndietro.Left - 24 : piede.Width - 26;
+            lblStato.Bounds = new Rectangle(26, 5, Math.Max(80, destra - 26), Math.Max(20, piede.Height - 10));
         }
 
         /// <summary>
