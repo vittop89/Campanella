@@ -811,6 +811,7 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     $sceltoF.Criteri['from'] = '@famiglie.example'
     $sceltoF.Regola = 'Genitori'
     $tDT.GetField('Gruppo').SetValue($sceltoF, [string]$stato.PrefissoPulito())
+    $sceltoF.StessaEtichettaInGmail = $false
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
     [System.Windows.Forms.Application]::DoEvents()
     $grpEt = $posta.GetType().GetField('grpEtichette', $FIp).GetValue($posta)
@@ -824,6 +825,15 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     Verifica "tolta la spunta, il docente non la vuole unire" (@($nonUnire) -contains 'Famiglie')
     $clbEt.SetItemChecked(0, $true)
     Verifica "rimessa, si unisce di nuovo" (-not (@($nonUnire) -contains 'Famiglie'))
+    # scelto prima della 1.6.2: da controllare, senza spunta, e non si spunta
+    $sceltoF.StessaEtichettaInGmail = $null
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
+    $clbEt.SetItemChecked(0, $true)
+    Verifica "una coppia di un filtro scelto prima della 1.6.2 e' da controllare: senza spunta, e non si spunta ($($clbEt.Items[0]))" (
+        $clbEt.Items.Count -eq 1 -and [string]$clbEt.Items[0] -match 'riapri il file dei filtri' -and -not $clbEt.GetItemChecked(0))
+    ControllaPannello $pannelloF 'Posta / 4 con un''etichetta rimasta da controllare'
+    $sceltoF.StessaEtichettaInGmail = $null
     [void]$genD.Da.Remove('@famiglie.example')
     $genD.Attiva = $genAttiva
     $tDT.GetField('Etichetta').SetValue($sceltoF, $etichettaPrima)

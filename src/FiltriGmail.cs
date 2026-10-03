@@ -118,7 +118,16 @@ namespace Campanella
     {
         public string Da = "";
         public string A = "";
-        public string Testo() { return Da + " → " + A; }
+        /// <summary>
+        /// Vero se un filtro con quell'etichetta e' stato scelto prima della
+        /// 1.6.2, che non ricordava se in Gmail ne restava un altro con la stessa
+        /// etichetta: finche' non si riapre il file dei filtri non si unisce.
+        /// </summary>
+        public bool DaControllare = false;
+        public string Testo()
+        {
+            return Da + " → " + A + (DaControllare ? "  (riapri il file dei filtri)" : "");
+        }
     }
 
     /// <summary>
@@ -2564,6 +2573,9 @@ namespace Campanella
             // volta sola: con tanti filtri si guarda tante volte
             Dictionary<FiltroScelto, string> chiavi = Chiavi(scelti);
             Dictionary<FiltroDaTogliere, string> chiaveDi = new Dictionary<FiltroDaTogliere, string>();
+            // le voci che vengono dal file aperto: solo per loro si vede se in
+            // Gmail resta un altro filtro con la stessa etichetta
+            HashSet<string> conFile = new HashSet<string>();
             // quelli scelti prima, com'erano prima di queste scelte
             List<string> salvati = new List<string>();
             if (s.FiltriDaTogliere != null)
@@ -2618,6 +2630,7 @@ namespace Campanella
                 if (sostituta != null && createAdesso.Contains(sostituta) && !natiDa.ContainsKey(sostituta)) natiDa[sostituta] = chiave;
                 FiltroDaTogliere voce = x.Voce.Copia();
                 chiaveDi[voce] = chiave;
+                if (x.Filtro != null) conFile.Add(chiave);
                 if (x.Filtro != null)
                 {
                     // con il file: quello che fa adesso, con il gruppo delle etichette di adesso
@@ -2757,10 +2770,12 @@ namespace Campanella
                 v.Gruppo = s.PrefissoPulito();
                 v.Escluse = EtichetteEscluse(v.Regola, s);
                 // un altro filtro con la stessa etichetta resta in Gmail: la sua
-                // etichetta e' ancora in uso, non e' rimasta (EtichetteRimaste)
+                // etichetta e' ancora in uso, non e' rimasta (EtichetteRimaste).
+                // Senza il file si vedono solo le voci salvate: quello che la voce
+                // sapeva resta, e se non lo sapeva resta da controllare
                 bool stessa = false;
                 foreach (FiltroDaTogliere g in inGmail) if (Pulita(g.Etichetta) == Pulita(v.Etichetta)) stessa = true;
-                v.StessaEtichettaInGmail = stessa;
+                if (stessa || conFile.Contains(chiaveDi.ContainsKey(v) ? chiaveDi[v] : v.Chiave())) v.StessaEtichettaInGmail = stessa;
                 if (v.Accanto == null) v.Accanto = new List<FiltroDaTogliere>();
                 foreach (FiltroDaTogliere g in FiltriAccanto(v, inGmail, s))
                 {
@@ -3259,51 +3274,66 @@ namespace Campanella
         /// lasciava in Gmail un altro filtro con la stessa etichetta
         /// (FiltroDaTogliere.StessaEtichettaInGmail). Una volta per etichetta, e
         /// non un'etichetta delle regole, anche spente, dei ruoli o del gruppo
-        /// (EtichettaGestita), ne' una che due regole diverse si contendono.
-        /// Anche quelle che il docente non vuole unire (Stato.EtichetteDaNonUnire):
-        /// le toglie DaUnire.
+        /// (EtichettaGestita), ne' una che due regole diverse si contendono o che
+        /// un filtro tolto e basta ("Toglilo" senza regola) metteva anche ad
+        /// altri messaggi. Quelle di un filtro scelto prima della 1.6.2, che non
+        /// sapeva se ne restava un altro con la stessa etichetta, sono da
+        /// controllare (CoppiaEtichette.DaControllare): si uniscono dopo aver
+        /// riaperto il file dei filtri. Anche quelle che il docente non vuole
+        /// unire (Stato.EtichetteDaNonUnire): le toglie DaUnire.
         /// </summary>
         public static List<CoppiaEtichette> EtichetteRimaste(Stato s)
         {
             List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
             if (s == null || s.FiltriDaTogliere == null) return fuori;
-            // le etichette ancora in uso: di un filtro scelto che resta in Gmail,
-            // o di uno che ne lasciava in Gmail un altro con la stessa etichetta
-            List<string> restano = new List<string>(), inUso = new List<string>(), contese = new List<string>();
-            foreach (FiltroDaTogliere v in CheRestano(s)) { restano.Add(v.Chiave()); inUso.Add(Pulita(v.Etichetta)); }
-            foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
-                if (v != null && v.StessaEtichettaInGmail == true) inUso.Add(Pulita(v.Etichetta));
-            foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
+            // le etichette dei filtri scelti che restano in Gmail: ancora in uso
+            List<string> restano = new List<string>(), viste = new List<string>();
+            foreach (FiltroDaTogliere v in CheRestano(s)) restano.Add(Pulita(v.Etichetta));
+            foreach (FiltroDaTogliere v0 in s.FiltriDaTogliere)
             {
-                if (v == null || (v.Regola ?? "").Trim() == "" || restano.Contains(v.Chiave())) continue;
-                if (DiUnaClasseConIndirizzi(v.Etichetta, v.Criteri, s)) continue;
-                Regola r = RegolaCheLoSostituisceAncora(v, s);
-                if (r == null) continue;
-                string da = (v.Etichetta ?? "").Trim().Trim('/').Trim(), a = NomeIntero(r, s).Trim();
-                if (da == "" || Pulita(da) == Pulita(a) || EtichettaGestita(s, da) || inUso.Contains(Pulita(da)) ||
-                    contese.Contains(Pulita(da))) continue;
-                CoppiaEtichette gia = null;
-                foreach (CoppiaEtichette c in fuori) if (Pulita(c.Da) == Pulita(da)) gia = c;
-                if (gia != null)
+                if (v0 == null) continue;
+                string chiave = Pulita(v0.Etichetta);
+                if (chiave == "" || viste.Contains(chiave)) continue;
+                viste.Add(chiave);
+                string da = (v0.Etichetta ?? "").Trim().Trim('/').Trim();
+                if (restano.Contains(chiave) || EtichettaGestita(s, da)) continue;
+                // tutte le voci con quell'etichetta vanno via con la stessa regola,
+                // e nessuna lasciava in Gmail un altro filtro con quell'etichetta:
+                // un "Toglilo" e basta, due regole diverse o un'etichetta ancora in
+                // uso, e nel dubbio niente
+                string a = null;
+                bool no = false, daControllare = false;
+                foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
                 {
-                    // la stessa etichetta verso due regole diverse: nel dubbio nessuna
-                    if (Pulita(gia.A) != Pulita(a)) { fuori.Remove(gia); contese.Add(Pulita(da)); }
-                    continue;
+                    if (v == null || Pulita(v.Etichetta) != chiave) continue;
+                    if (v.StessaEtichettaInGmail == true || DiUnaClasseConIndirizzi(v.Etichetta, v.Criteri, s)) { no = true; break; }
+                    if (v.StessaEtichettaInGmail == null) daControllare = true;
+                    Regola r = ((v.Regola ?? "").Trim() == "") ? null : RegolaCheLoSostituisceAncora(v, s);
+                    if (r == null) { no = true; break; }
+                    string meta = NomeIntero(r, s).Trim();
+                    if (a == null) a = meta;
+                    else if (Pulita(a) != Pulita(meta)) { no = true; break; }
                 }
-                CoppiaEtichette nuova = new CoppiaEtichette();
-                nuova.Da = da;
-                nuova.A = a;
-                fuori.Add(nuova);
+                if (no || a == null || Pulita(da) == Pulita(a)) continue;
+                CoppiaEtichette c = new CoppiaEtichette();
+                c.Da = da;
+                c.A = a;
+                c.DaControllare = daControllare;
+                fuori.Add(c);
             }
             return fuori;
         }
 
-        /// <summary>Le etichette rimaste da unire (EtichetteRimaste), senza quelle che il docente non vuole unire.</summary>
+        /// <summary>
+        /// Le etichette rimaste da unire (EtichetteRimaste), senza quelle che il
+        /// docente non vuole unire e senza quelle da controllare (filtri scelti
+        /// prima della 1.6.2: riaprendo il file dei filtri si sa).
+        /// </summary>
         public static List<CoppiaEtichette> DaUnire(Stato s)
         {
             List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
             foreach (CoppiaEtichette c in EtichetteRimaste(s))
-                if (!DaNonUnire(s, c.Da)) fuori.Add(c);
+                if (!c.DaControllare && !DaNonUnire(s, c.Da)) fuori.Add(c);
             return fuori;
         }
 

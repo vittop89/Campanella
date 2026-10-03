@@ -1649,7 +1649,9 @@ function EXTRA_unisciEtichette() {
     // supera il tempo di Google, quello che e' stato fatto resta scritto
     testo = _righeUnisci_(coppie, esito, prova).join('\n');
     Logger.log(testo);
-    var altre = _etichetteSenzaNessuno_(cfg, coppie.buone, esito.deiFiltri, scadenza);
+    // con delle coppie ancora da fare l'elenco aspetta la prossima esecuzione
+    var altre = esito.restano.length ? { elenco: [], interrotto: false }
+                                     : _etichetteSenzaNessuno_(cfg, coppie.buone, esito.deiFiltri, scadenza);
     var coda = _righeAltre_(altre, esito.deiFiltri);
     if (coda.length) {
       Logger.log(coda.join('\n'));
@@ -1682,12 +1684,15 @@ function _righeUnisci_(coppie, esito, prova) {
     }
   }
   if (esito.restano.length) {
-    var fuori = [];
+    var fuori = [], perPagine = false;
     for (var k = 0; k < esito.restano.length; k++) fuori.push(esito.restano[k].da + ' -> ' + esito.restano[k].a);
+    for (var q = 0; q < esito.coppie.length; q++) if (esito.coppie[q].stato === 'interrotta' && esito.coppie[q].perPagine) perPagine = true;
     righe.push('');
     righe = righe.concat(_aCapo_((esito.ritardo ? 'L\'indice di Gmail e\' in ritardo' : 'Tempo finito') +
       ': esegui di nuovo questa funzione' + (esito.ritardo ? ' fra qualche minuto' : '') + ' per ' + fuori.join(', ') +
-      '. Riprende dalle conversazioni che non hanno ancora l\'etichetta della regola.', '', ''));
+      (perPagine ? '. Quella con un nome che la ricerca di Gmail non distingue riparte dalla prima pagina, e le ' +
+                   'conversazioni gia\' fatte restano come sono.'
+                 : '. Riprende dalle conversazioni che non hanno ancora l\'etichetta della regola.'), '', ''));
   }
   if (coppie.saltate.length) {
     righe.push('');
@@ -1696,12 +1701,16 @@ function _righeUnisci_(coppie, esito, prova) {
   }
   if (esito.coppie.length) {
     righe.push('');
+    var aggiunte = 0;
+    for (var g = 0; g < esito.coppie.length; g++) aggiunte += esito.coppie[g].conversazioni;
     if (prova) {
       righe = righe.concat(_aCapo_('Per mettere davvero le etichette: in Configurazione.gs metti ' +
         'provaSenzaModifiche: false ed esegui di nuovo EXTRA_unisciEtichette.', '', ''));
     } else {
-      righe = righe.concat(_aCapo_('Non ho tolto ne\' cancellato niente: ho solo aggiunto l\'etichetta della ' +
-        'regola, senza archiviare e senza segnare come letto.', '', ''));
+      righe = righe.concat(_aCapo_(aggiunte
+        ? 'Non ho tolto ne\' cancellato niente: ho solo aggiunto l\'etichetta della regola, senza archiviare e ' +
+          'senza segnare come letto.'
+        : 'Non ho messo nessuna etichetta, e non ho tolto ne\' cancellato niente.', '', ''));
       if (cancellabili) {
         righe = righe.concat(_aCapo_('Cancellata un\'etichetta rimasta, ANNULLA_etichettatura toglierebbe a quei ' +
           'messaggi anche l\'etichetta della regola, e resterebbero senza.', '', ''));
@@ -1746,7 +1755,8 @@ function _righeCoppia_(r, prova) {
   if (r.stato === 'inUso') {
     return _aCapo_(chi + 'non la unisco: la mette ancora un filtro di Gmail. Se e\' uno di quelli da togliere, ' +
       'esegui prima EXTRA_togliFiltri, poi di nuovo questa funzione; se resta in Gmail, l\'etichetta e\' ancora ' +
-      'in uso: in Campanella (Posta, passo 4) togli la spunta a questa coppia.', '  - ', '    ');
+      'in uso: in Campanella (Posta, passo 4) togli la spunta a questa coppia e copia di nuovo la configurazione ' +
+      '(passo 5).', '  - ', '    ');
   }
   var n = r.conversazioni + (r.conversazioni === 1 ? ' conversazione' : ' conversazioni');
   var testo = chi;
@@ -1860,11 +1870,16 @@ function _unisciEtichette_(coppie, prova, scadenza) {
     if (!nuova && !prova) { r.stato = 'senzaRegola'; continue; }
     r.nuova = !!nuova;
     r.sotto = _sottoetichette_(c.da, nomi);
-    // la ricerca le trova per nome: con le virgolette nel nome non si puo'
-    // scrivere, e allora si passano tutte per pagine (aggiungere un'etichetta
-    // non cambia le conversazioni dell'altra)
-    var perNome = c.da.indexOf('"') < 0 && c.a.indexOf('"') < 0;
-    var ricerca = 'label:' + _virgolette_(c.da) + (nuova ? ' -label:' + _virgolette_(c.a) : '');
+    // la ricerca le trova per nome, anche nel cestino e nello spam: con le
+    // virgolette nel nome non si puo' scrivere, e un nome che per la ricerca
+    // di Gmail e' uguale a un altro (spazi, "/" e "-" sono lo stesso
+    // trattino) confonderebbe le etichette. Allora si passano tutte per pagine,
+    // esatte (aggiungere un'etichetta non cambia le conversazioni dell'altra),
+    // e rieseguita riparte dalla prima
+    var perNome = c.da.indexOf('"') < 0 && c.a.indexOf('"') < 0 && !_nomeAmbiguo_(c.da, nomi) &&
+                  !_nomeAmbiguo_(c.a, nomi) && _chiaveRicerca_(c.da) !== _chiaveRicerca_(c.a);
+    r.perPagine = !perNome;
+    var ricerca = 'label:' + _virgolette_(c.da) + (nuova ? ' -label:' + _virgolette_(c.a) : '') + ' in:anywhere';
     if (prova) {
       if (perNome) {
         r.conversazioni = _contaConversazioni_(ricerca, 5000, null);
@@ -1892,16 +1907,35 @@ function _unisciEtichette_(coppie, prova, scadenza) {
         nuova.addToThreads(threads);
         r.conversazioni += threads.length;
         Utilities.sleep(300);           // gentile con le quote di Gmail
-        if (!perNome) {
-          if (threads.length < _THREAD_PER_BLOCCO) break;
-          inizio += _THREAD_PER_BLOCCO;
-        }
+        // un blocco non pieno era l'ultimo: un'altra ricerca, con l'indice in
+        // ritardo, ritroverebbe le stesse e direbbe di riprovare per niente
+        if (threads.length < _THREAD_PER_BLOCCO) break;
+        if (!perNome) inizio += _THREAD_PER_BLOCCO;
       }
     }
     if (r.stato === 'interrotta') { esito.restano = coppie.slice(i); break; }
-    r.cancellabile = !prova && !r.sotto.length && r.filtro === false;
+    // si dice come cancellarla (e che cosa farebbe poi ANNULLA_etichettatura)
+    r.cancellabile = !prova && !r.sotto.length;
   }
   return esito;
+}
+
+/**
+ * Il nome di un'etichetta come lo legge la ricerca di Gmail: maiuscole,
+ * spazi, "/" e "-" a parte (label:"Scuola Segreteria" e label:"Scuola/
+ * Segreteria" possono trovare le stesse conversazioni).
+ */
+function _chiaveRicerca_(nome) {
+  return String(nome).toLowerCase().replace(/[\s\/\-]+/g, '-');
+}
+
+/** Vero se un'altra etichetta di Gmail ha lo stesso nome per la ricerca (_chiaveRicerca_). */
+function _nomeAmbiguo_(nome, nomi) {
+  var chiave = _chiaveRicerca_(nome), basso = String(nome).toLowerCase();
+  for (var i = 0; i < nomi.length; i++) {
+    if (nomi[i].toLowerCase() !== basso && _chiaveRicerca_(nomi[i]) === chiave) return true;
+  }
+  return false;
 }
 
 /** Le sottoetichette di un'etichetta (Famiglie/Prime), fra i nomi di Gmail. */

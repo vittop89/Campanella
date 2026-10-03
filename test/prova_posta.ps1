@@ -2492,15 +2492,41 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Imposta $sDue 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
     $xDue = FinestraEScelta $sDue @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' })),
                                     (UnFiltro ([ordered]@{ from = 'zia@altro.example'; label = 'Famiglie' }))) @{ 1 = 'Lascialo in Gmail' }
-    $vociDue = @(Leggi $sDue 'FiltriDaTogliere')
+    $vociDue = Leggi $sDue 'FiltriDaTogliere'
     Verifica "con un altro filtro Famiglie lasciato in Gmail l'etichetta e' ancora in uso: niente coppia ($($xDue.scelte -join '; '))" (
         $vociDue.Count -eq 1 -and $vociDue[0].StessaEtichettaInGmail -eq $true -and
         (Coppie ($mRimaste.Invoke($null, @($sDue.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sDue 'etichette_5') -eq '' -and
         $xDue.riepilogo.IndexOf('EXTRA_unisciEtichette') -lt 0)
+    # riaperta la finestra senza il file e "Usa questa scelta": la voce non vede
+    # l'altro filtro, e tiene quello che sapeva
+    $xDueSenza = FinestraEScelta $sDue @() $null
+    Verifica "riaperta senza il file e usata la scelta, la voce si ricorda ancora dell'altro filtro, e la coppia non c'e'" (
+        (Leggi $sDue 'FiltriDaTogliere')[0].StessaEtichettaInGmail -eq $true -and
+        (Coppie ($mRimaste.Invoke($null, @($sDue.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sDue 'etichette_6') -eq '')
     $sUno = StatoRiorganizza
     Imposta $sUno 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
-    [void](FinestraEScelta $sUno @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' }))) $null)
-    Verifica "con il filtro Famiglie da solo, la voce ricorda che non ne resta un altro" (@(Leggi $sUno 'FiltriDaTogliere')[0].StessaEtichettaInGmail -eq $false)
+    $filtroUno = @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' })))
+    [void](FinestraEScelta $sUno $filtroUno $null)
+    Verifica "con il filtro Famiglie da solo, la voce ricorda che non ne resta un altro" ((Leggi $sUno 'FiltriDaTogliere')[0].StessaEtichettaInGmail -eq $false)
+    # una voce scelta prima della 1.6.2 non lo sa: la coppia e' da controllare,
+    # non va nella configurazione; riaperto il file, si sa
+    (Leggi $sUno 'FiltriDaTogliere')[0].StessaEtichettaInGmail = $null
+    $rUno = @($mRimaste.Invoke($null, @($sUno.PSObject.BaseObject)))
+    Verifica "una voce di prima della 1.6.2: la coppia c'e' ma e' da controllare, e non va nella configurazione" (
+        $rUno.Count -eq 1 -and $rUno[0].DaControllare -and $rUno[0].Testo() -match 'riapri il file dei filtri' -and
+        (Coppie ($mDaUnire.Invoke($null, @($sUno.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sUno 'etichette_7') -eq '')
+    [void](FinestraEScelta $sUno $filtroUno $null)
+    Verifica "riaperto il file e usata la scelta, si sa, e va nella configurazione" (
+        (Coppie ($mDaUnire.Invoke($null, @($sUno.PSObject.BaseObject)))) -eq 'Famiglie>Genitori' -and
+        (CoppieNellaConfigurazione $sUno 'etichette_8') -eq 'Famiglie>Genitori')
+    # un altro filtro Famiglie tolto e basta ("Toglilo" senza regola): i suoi
+    # messaggi non sono dei genitori, e la coppia non c'e'
+    $sTolto = StatoRiorganizza
+    Imposta $sTolto 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    $xTolto = FinestraEScelta $sTolto @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' })),
+                                        (UnFiltro ([ordered]@{ from = 'zia@altro.example'; label = 'Famiglie' }))) @{ 1 = 'Toglilo' }
+    Verifica "con un altro filtro Famiglie tolto e basta la coppia non c'e' ($($xTolto.scelte -join '; '))" (
+        (Leggi $sTolto 'FiltriDaTogliere').Count -eq 2 -and (Coppie ($mRimaste.Invoke($null, @($sTolto.PSObject.BaseObject)))) -eq '')
     # una che il docente non vuole unire non la dice nemmeno il riepilogo
     $sNo = StatoRiorganizza
     Imposta $sNo 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')

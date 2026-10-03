@@ -841,6 +841,16 @@ namespace Campanella
             clbEtichette.ItemCheck += delegate(object o, ItemCheckEventArgs e)
             {
                 if (aggiornandoEtichette || e.Index < 0 || e.Index >= coppieMostrate.Count) return;
+                // di un filtro scelto prima della 1.6.2: non si sa se l'etichetta e'
+                // ancora in uso, finche' non si riapre il file dei filtri
+                if (coppieMostrate[e.Index].DaControllare)
+                {
+                    e.NewValue = CheckState.Unchecked;
+                    Guscio.Stato1("Per " + coppieMostrate[e.Index].Da + " riapri il file in \"Filtri che hai gia' in Gmail...\" e " +
+                                  "premi \"Usa questa scelta\": il filtro e' stato scelto prima della 1.6.2, e Campanella non sa " +
+                                  "se in Gmail ne resta un altro con la stessa etichetta.");
+                    return;
+                }
                 string da = coppieMostrate[e.Index].Da;
                 if (S.EtichetteDaNonUnire == null) S.EtichetteDaNonUnire = new List<string>();
                 S.EtichetteDaNonUnire.RemoveAll(delegate(string x)
@@ -865,6 +875,9 @@ namespace Campanella
                 "all'etichetta -> Rimuovi etichetta): i messaggi restano, con l'etichetta della regola. Dice anche " +
                 "quali altre etichette non mette nessuna regola, se non ti servono.\r\n\r\n" +
                 "Togli la spunta a una coppia che non vuoi unire, poi copia di nuovo la configurazione (passo 5). " +
+                "Una coppia \"(riapri il file dei filtri)\" viene da un filtro scelto prima della 1.6.2, che non " +
+                "ricordava se in Gmail ne restava un altro con la stessa etichetta: riapri il file in \"Filtri che " +
+                "hai gia' in Gmail...\" e premi \"Usa questa scelta\". " +
                 "Con la modalita' prova la funzione conta soltanto."));
             grpEtichette.Visible = false;
             p.Controls.Add(grpEtichette);
@@ -2518,7 +2531,7 @@ namespace Campanella
                 clbEtichette.BeginUpdate();
                 clbEtichette.Items.Clear();
                 foreach (CoppiaEtichette c in coppieMostrate)
-                    clbEtichette.Items.Add(c.Testo(), !FiltriGmail.DaNonUnire(S, c.Da));
+                    clbEtichette.Items.Add(c.Testo(), !c.DaControllare && !FiltriGmail.DaNonUnire(S, c.Da));
                 clbEtichette.EndUpdate();
             }
             finally { aggiornandoEtichette = false; }

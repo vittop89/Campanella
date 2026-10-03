@@ -152,7 +152,9 @@ function corrispondeToken(t, token) {
 
 function cerca(query) {
   const tokens = tokenizza(query);
+  const ovunque = /(^|\s)in:anywhere(\s|$)/.test(query);
   return casella.filter(t => {
+    if (t.nelCestino && !ovunque) return false;
     // Come in Gmail, le chat restano fuori solo se la ricerca lo chiede con
     // -in:chats (lo script lo chiede sempre): se ne occupa il token "in"
     for (const tok of tokens) {
@@ -2075,9 +2077,10 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
   // --- rieseguita: niente cambia, e lo dice ------------------------------------------
   const dopo = fotoPosta();
   t = contesto.EXTRA_unisciEtichette();
-  verifica('rieseguita non cambia niente, e dice che hanno gia\' tutte l\'etichetta della regola',
+  verifica('rieseguita non cambia niente, e dice che hanno gia\' tutte l\'etichetta della regola e che non ne ha messa nessuna',
     fotoPosta() === dopo && t.replace(/\s+/g, ' ').indexOf('Famiglie -> Genitori: le conversazioni di Famiglie hanno ' +
-      'gia\' tutte anche Genitori.') >= 0);
+      'gia\' tutte anche Genitori.') >= 0 &&
+    t.replace(/\s+/g, ' ').indexOf('Non ho messo nessuna etichetta, e non ho tolto ne\' cancellato niente.') >= 0);
 
   // --- con il servizio Gmail API: quella che un filtro mette ancora non si unisce -----------
   {
@@ -2102,7 +2105,8 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
       !dallaScuola.labels.has('Segreteria') &&
       piatto.indexOf('xyis01200z -> Segreteria: non la unisco: la mette ancora un filtro di Gmail. Se e\' uno di quelli ' +
                      'da togliere, esegui prima EXTRA_togliFiltri, poi di nuovo questa funzione; se resta in Gmail, ' +
-                     'l\'etichetta e\' ancora in uso: in Campanella (Posta, passo 4) togli la spunta a questa coppia.') >= 0);
+                     'l\'etichetta e\' ancora in uso: in Campanella (Posta, passo 4) togli la spunta a questa coppia e ' +
+                     'copia di nuovo la configurazione (passo 5).') >= 0);
     verifica('Famiglie, che nessun filtro mette piu\', si puo\' cancellare, e dice come e che cosa farebbe ANNULLA',
       piatto.indexOf('Famiglie -> Genitori: le conversazioni di Famiglie hanno gia\' tutte anche Genitori. Famiglie si ' +
                      'puo\' cancellare: in Gmail, nel menu a sinistra, passa sopra Famiglie -> i tre puntini -> Rimuovi ' +
@@ -2166,17 +2170,17 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
     sogliaInterruzione = Infinity;
     orologio = 0;
     piatto = t.replace(/\s+/g, ' ');
-    verifica('finito il tempo si ferma, dice dove, e che cosa resta da fare, compresa la coppia a meta\'',
+    verifica('finito il tempo si ferma, dice dove, e che cosa resta da fare, compresa la coppia a meta\'; l\'elenco delle altre aspetta',
       piatto.indexOf('Famiglie -> Genitori: fermata dopo 100 conversazioni.') >= 0 &&
       piatto.indexOf('Tempo finito: esegui di nuovo questa funzione per Famiglie -> Genitori, Sindacati e normativa -> ' +
                      'Sindacati. Riprende dalle conversazioni che non hanno ancora l\'etichetta della regola.') >= 0 &&
-      dalleFamiglie.filter(x => x.labels.has('Genitori')).length === 100);
+      dalleFamiglie.filter(x => x.labels.has('Genitori')).length === 100 && t.indexOf('nessuna regola mette') < 0);
     const ricerchePrima = chiamate.search;
     t = contesto.EXTRA_unisciEtichette();
-    verifica('rieseguita riprende dalle 50 che mancano, e finisce',
+    verifica('rieseguita riprende dalle 50 che mancano, e finisce senza cercare di nuovo dopo l\'ultimo blocco',
       dalleFamiglie.every(x => x.labels.has('Genitori')) && t.indexOf('Tempo finito') < 0 &&
       t.replace(/\s+/g, ' ').indexOf('Famiglie -> Genitori: 50 conversazioni hanno adesso anche Genitori.') >= 0 &&
-      chiamate.search - ricerchePrima <= 6);
+      chiamate.search - ricerchePrima === 2);
   }
 
   // --- l'indice di Gmail in ritardo: si ferma invece di girare a vuoto -------------------------
@@ -2191,6 +2195,54 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
         'minuto per Famiglie -> Genitori.') >= 0);
     t = contesto.EXTRA_unisciEtichette();
     verifica('e rieseguita finisce', dalleFamiglie.every(x => x.labels.has('Genitori')));
+  }
+
+  // --- l'indice in ritardo sull'ultimo blocco non conta: era l'ultimo ----------------------
+  {
+    // 50 da fare: un blocco solo, non pieno
+    dalleFamiglie.slice(0, 50).forEach(x => x.labels.delete('Genitori'));
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Genitori' }, { da: 'Sindacati e normativa', a: 'Sindacati' }];
+    // la ricerca vede le etichette nuove solo un giro dopo
+    const cercaVera = GmailApp.search;
+    let vecchie = null;
+    GmailApp.search = function (q, i, n) {
+      const adesso = cercaVera.call(GmailApp, q, i, n);
+      const fuori = vecchie && vecchie.q === q ? vecchie.r : adesso;
+      vecchie = { q, r: adesso };
+      return fuori;
+    };
+    t = contesto.EXTRA_unisciEtichette();
+    GmailApp.search = cercaVera;
+    verifica('con l\'indice di Gmail in ritardo di un giro basta un\'esecuzione: dopo un blocco non pieno non cerca piu\'',
+      dalleFamiglie.every(x => x.labels.has('Genitori')) && t.indexOf('in ritardo') < 0 && t.indexOf('Tempo finito') < 0);
+  }
+
+  // --- nel cestino e nello spam: anche quelle ---------------------------------------------
+  {
+    const nelCestino = aggiungi('genitore.vecchio@famiglie.example', 'Vecchio colloquio', '');
+    nelCestino.nelCestino = true;
+    famiglie.addToThreads([nelCestino]);
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Genitori' }];
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('anche una conversazione nel cestino prende l\'etichetta della regola, prima di cancellare quella vecchia',
+      nelCestino.labels.has('Genitori') && t.replace(/\s+/g, ' ').indexOf('Famiglie -> Genitori: 1 conversazione ha adesso anche Genitori.') >= 0);
+  }
+
+  // --- un nome che la ricerca di Gmail non distingue da un altro: per pagine -------------------
+  {
+    const spazio = GmailApp.createLabel('Scuola Segreteria');
+    GmailApp.createLabel('Scuola/Segreteria');
+    const dellaSegreteria = [aggiungi('ufficio@scuola.example', 'Pratica', ''), aggiungi('ufficio@scuola.example', 'Altra pratica', '')];
+    spazio.addToThreads(dellaSegreteria);
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Scuola Segreteria', a: 'Segreteria' }];
+    const ricerchePrima = chiamate.search;
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('con un nome che la ricerca di Gmail confonde (Scuola Segreteria e Scuola/Segreteria) va per pagine, senza ricerche',
+      dellaSegreteria.every(x => x.labels.has('Segreteria')) && chiamate.search === ricerchePrima &&
+      t.replace(/\s+/g, ' ').indexOf('Scuola Segreteria -> Segreteria: 2 conversazioni hanno adesso anche Segreteria.') >= 0);
+    etichette.delete('Scuola Segreteria');
+    etichette.delete('Scuola/Segreteria');
+    dellaSegreteria.forEach(x => { x.labels.clear(); });
   }
 
   // --- un nome con le virgolette: per pagine invece che con la ricerca -------------------------
@@ -2228,7 +2280,8 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
                                         { da: 'Scuola', a: 'Scuola/Genitori' }];
     t = contesto.EXTRA_unisciEtichette();
     verifica('con il gruppo unisce a Scuola/Genitori, e salta Genitori senza gruppo e il gruppo stesso',
-      dalleFamiglie.every(x => x.labels.has('Scuola/Genitori')) && scuolaGenitori.getThreads(0, 500).length === 150 &&
+      dalleFamiglie.every(x => x.labels.has('Scuola/Genitori')) &&
+      scuolaGenitori.getThreads(0, 500).length === famiglie.getThreads(0, 500).length &&
       t.indexOf('Vecchio progetto -> Genitori: Genitori non e\' l\'etichetta di una regola accesa') >= 0 &&
       t.indexOf('Scuola -> Scuola/Genitori: Scuola e\' un\'etichetta delle regole') >= 0);
     contesto.CONFIG.prefissoEtichette = '';

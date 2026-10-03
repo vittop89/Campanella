@@ -511,11 +511,16 @@ POSTA - riordinare la casella
    davvero, mai per un'etichetta delle regole (anche spente), dei ruoli o
    del gruppo, ne' per una ancora in uso: se quando hai scelto restava in
    Gmail un altro filtro con la stessa etichetta, Campanella se lo ricorda
-   e quella coppia non c'e'. Togli la spunta a una coppia che non vuoi
-   unire; le altre vanno nella configurazione. Dopo EXTRA_togliFiltri
+   e quella coppia non c'e' (nemmeno se un altro filtro con quell'etichetta
+   l'hai tolto e basta). Per un filtro scelto prima della 1.6.2 non lo sa:
+   la coppia dice "(riapri il file dei filtri)", resta senza spunta e non
+   va nella configurazione finche' non riapri il file in "Filtri che hai
+   gia' in Gmail..." e premi "Usa questa scelta". Togli la spunta a una
+   coppia che non vuoi unire; le altre vanno nella configurazione. Dopo
+   EXTRA_togliFiltri
    esegui EXTRA_unisciEtichette (va anche senza il servizio Gmail API):
    mette l'etichetta della regola alle conversazioni di quella rimasta che
-   non ce l'hanno ancora, e basta. Non archivia, non segna come letto, non
+   non ce l'hanno ancora, anche nel cestino e nello spam, e basta. Non archivia, non segna come letto, non
    toglie etichette e non cancella niente: lo script non cancella mai
    un'etichetta. Un'etichetta che un filtro di Gmail mette ancora non la
    unisce (con il servizio Gmail API lo controlla): e' ancora in uso. Poi
@@ -530,7 +535,10 @@ POSTA - riordinare la casella
    conversazioni hanno: solo un elenco, lo script non le tocca. In
    modalita' prova conta soltanto; se manca l'etichetta della regola chiede
    PASSO_2_creaEtichette; se finisce il tempo, rieseguila: riprende dalle
-   conversazioni che non hanno ancora l'etichetta della regola.
+   conversazioni che non hanno ancora l'etichetta della regola (un nome che
+   la ricerca di Gmail non distingue da un altro, come "Scuola Segreteria"
+   e "Scuola/Segreteria", o con le virgolette, lo passa pagina per pagina,
+   e rieseguita riparte dalla prima).
    EXTRA_togliFiltri, se ci sono etichette da unire, ricorda di eseguirla
    prima di cancellare qualcosa. L'anteprima dice in una riga quante
    etichette ci sono da unire.

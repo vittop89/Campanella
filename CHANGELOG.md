@@ -18,16 +18,20 @@ Configurazione.gs (Posta, step 5).
   rule (also switched off), of a role or of the label group, nor for a
   label that two different rules would claim, nor for a label still in
   use: each filter to remove now remembers whether another filter with the
-  same label stayed in Gmail when you chose (`stessaEtichettaInGmail`).
-  Untick a pair you do not want: the choice is kept with the personal data
-  (`etichetteDaNonUnire`).
+  same label stayed in Gmail when you chose (`stessaEtichettaInGmail`; kept
+  when you apply the window without the file), and none for a label also
+  put by a filter removed without a rule. For filters chosen before 1.6.2
+  it is not known: the pair reads "(riapri il file dei filtri)", stays
+  unticked and is left out of the configuration until you reopen the
+  filters file and press "Usa questa scelta". Untick a pair you do not
+  want: the choice is kept with the personal data (`etichetteDaNonUnire`).
   The ticked pairs go into Configurazione.gs, in `etichetteDaUnire`; the
   "Usa questa scelta" summary and the step 5 summary mention them.
 - New script function EXTRA_unisciEtichette: for each pair it applies the
   rule's label to the conversations of the label left behind that do not
-  have it yet, in blocks of 100, and nothing else: it does not archive,
-  does not mark as read, does not remove labels and deletes nothing (the
-  script still never deletes a label). A label that a Gmail filter still
+  have it yet, also in trash and spam, in blocks of 100, and nothing else:
+  it does not archive, does not mark as read, does not remove labels and
+  deletes nothing (the script still never deletes a label). A label that a Gmail filter still
   applies is not merged (with the Gmail API service it checks): it is still
   in use. It then says which labels left behind you can delete yourself in
   Gmail (left menu, the three dots next to the label → Remove label: the
@@ -40,8 +44,10 @@ Configurazione.gs (Posta, step 5).
   test mode it only counts. A pair whose rule label is not in Gmail yet
   asks for PASSO_2_creaEtichette; when the time runs out, or Gmail's index
   lags behind, run it again: it resumes from the conversations that still
-  lack the rule's label. A label written with double quotes is gone through
-  page by page. PASSO_1_anteprima says in one line how many labels are left
+  lack the rule's label. A label written with double quotes, or whose name
+  Gmail search cannot tell from another one ("Scuola Segreteria" and
+  "Scuola/Segreteria"), is gone through page by page, and run again it
+  starts from the first page. PASSO_1_anteprima says in one line how many labels are left
   to merge, and EXTRA_togliFiltri, when there are some, says to run
   EXTRA_unisciEtichette before deleting anything.
 - Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
