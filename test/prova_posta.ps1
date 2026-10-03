@@ -2536,6 +2536,42 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
                                         (UnFiltro ([ordered]@{ from = 'zia@altro.example'; label = 'Famiglie' }))) @{ 1 = 'Toglilo' }
     Verifica "con un altro filtro Famiglie tolto e basta la coppia non c'e' ($($xTolto.scelte -join '; '))" (
         (Leggi $sTolto 'FiltriDaTogliere').Count -eq 2 -and (Coppie ($mRimaste.Invoke($null, @($sTolto.PSObject.BaseObject)))) -eq '')
+
+    # --- solo la sottoetichetta del ruolo, non anche Colleghi -----------------
+    # Colleghi diventa @SENZAGRUPPO@ (chi non ha un ruolo), chi esclude Colleghi
+    # esclude anche le sottoetichette; la regola salvata non cambia, e nel
+    # dubbio la regola dei colleghi non sostituisce nessun filtro
+    $sRuoli = StatoRiorganizza
+    Imposta $sRuoli 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    Imposta $sRuoli 'EtichettaPerRuolo' $true
+    AggiungiPersona $sRuoli 'ROSSI MARIO' 'DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO' 'mario.rossi@scuola.example' $true
+    AggiungiPersona $sRuoli 'VERDI ANNA' 'ESPERTO ESTERNO' 'anna.verdi@scuola.example' $true
+    function RegolaNellaConfigurazione($stato, $nome, $etichetta) {
+        $f = Join-Path $temporanea ($nome + '.gs')
+        Scrivi $f ([string](Genera $stato $false))
+        $c = (LeggiConfigurazione $f).CONFIG
+        return @{ regola = @($c.regole | Where-Object { $_.etichetta -eq $etichetta })[0]; tutte = @($c.regole | ForEach-Object { $_.etichetta }) }
+    }
+    $colleghiPrima = RegolaNellaConfigurazione $sRuoli 'ruoli_1' 'Colleghi'
+    $studentiPrima = RegolaNellaConfigurazione $sRuoli 'ruoli_1' 'Studenti'
+    $filtroDocente = @((UnFiltro ([ordered]@{ from = 'mario.rossi@scuola.example'; label = 'Colleghi' })))
+    $xPrima = FinestraEScelta $sRuoli $filtroDocente $null
+    Verifica "senza la scelta Colleghi cerca tutto il personale e Studenti esclude solo Colleghi ($(@($colleghiPrima.regola.da) -join ',') / $(@($studentiPrima.regola.escludiEtichette) -join ','))" (
+        (@($colleghiPrima.regola.da) -join ',') -eq '@PERSONALE@' -and @($studentiPrima.regola.escludiEtichette) -notcontains 'Colleghi/Docenti')
+    Imposta $sRuoli 'SoloSottoetichettaRuolo' $true
+    $colleghiDopo = RegolaNellaConfigurazione $sRuoli 'ruoli_2' 'Colleghi'
+    $studentiDopo = RegolaNellaConfigurazione $sRuoli 'ruoli_2' 'Studenti'
+    $ordine = $colleghiDopo.tutte
+    Verifica "con la scelta Colleghi cerca chi non ha un ruolo (@SENZAGRUPPO@), Studenti esclude anche Colleghi/Docenti, che viene prima ($(@($colleghiDopo.regola.da) -join ',') / $(@($studentiDopo.regola.escludiEtichette) -join ','))" (
+        (@($colleghiDopo.regola.da) -join ',') -eq '@SENZAGRUPPO@' -and
+        @($studentiDopo.regola.escludiEtichette) -contains 'Colleghi' -and @($studentiDopo.regola.escludiEtichette) -contains 'Colleghi/Docenti' -and
+        [array]::IndexOf($ordine, 'Colleghi/Docenti') -lt [array]::IndexOf($ordine, 'Studenti'))
+    $colleghiSalvata = @((Leggi $sRuoli 'Regole') | Where-Object { $_.Etichetta -eq 'Colleghi' })[0]
+    Verifica "la regola Colleghi salvata non cambia" ((@($colleghiSalvata.Da) -join ',') -eq '@PERSONALE@')
+    $xDopo = FinestraEScelta $sRuoli $filtroDocente $null
+    Verifica "con la scelta un filtro di un docente con l'etichetta Colleghi non e' 'lo fa gia'' la regola Colleghi (prima: $($xPrima.scelte[0]); dopo: $($xDopo.scelte[0]))" (
+        $xDopo.scelte[0] -notmatch "lo fa gia'" -and (Leggi $sRuoli 'FiltriDaTogliere').Count -eq 0)
+
     # una che il docente non vuole unire non la dice nemmeno il riepilogo
     $sNo = StatoRiorganizza
     Imposta $sNo 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')

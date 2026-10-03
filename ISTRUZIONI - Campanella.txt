@@ -166,7 +166,15 @@ POSTA - riordinare la casella
      lunghi del registro (DOCENTE LAUREATO SCUOLA SECONDARIA II GRADO,
      ASSISTENTE AMMINISTRATIVO, DIRETTORE SGA...) si radunano in queste
      cinque categorie; chi ha un ruolo che l'applicazione non riconosce
-     resta sotto Colleghi e basta.
+     resta sotto Colleghi e basta. Di partenza un messaggio di un docente
+     prende Colleghi e Colleghi/Docenti: in Gmail, aprendo Colleghi, non
+     compaiono i messaggi che hanno solo una sua sottoetichetta. Con la
+     spunta accanto, "Solo la sottoetichetta, non anche Colleghi", chi ha
+     un ruolo prende solo la sua sottoetichetta, e Colleghi resta per chi
+     non ne ha uno (nella configurazione: @SENZAGRUPPO@); Studenti continua
+     a non prendere nessun collega. Vale per i messaggi etichettati da
+     quel momento: per rifare tutto, ANNULLA_etichettaturaCompleta e poi
+     PASSO_3_riordinaPostaEsistente.
    - "Scrivere a un gruppo": scegli la categoria (per esempio
      Amministrativi) e premi "Scrivi in Gmail": Campanella mette quegli
      indirizzi negli appunti e apre in Gmail un messaggio nuovo e vuoto. In

@@ -183,10 +183,17 @@ function PASSO_1_anteprima() {
   // i colori scelti in Campanella: li puo' mettere solo il servizio Gmail API
   righe.push(_rigaColori_(cfg));
   // i filtri di Gmail che avevi gia' e che hai scelto di togliere
-  var daTogliere = _vociFiltri_(cfg).buone.length;
+  // senza contare quelli che EXTRA_togliFiltri ha gia' tolto (se lo ricorda)
+  var vociFiltri = _vociFiltri_(cfg).buone, giaTolti = 0, memoriaTolti = _leggiMappa_(_CHIAVE_FILTRI_TOLTI);
+  for (var vf = 0; vf < vociFiltri.length; vf++) if (memoriaTolti[vociFiltri[vf].firma]) giaTolti++;
+  var daTogliere = vociFiltri.length - giaTolti;
   if (daTogliere) {
     righe.push(daTogliere + (daTogliere === 1 ? ' filtro' : ' filtri') +
                ' di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).');
+  }
+  if (giaTolti) {
+    righe.push((giaTolti === 1 ? 'Un filtro di Gmail scelto e\' gia\' stato tolto'
+                               : giaTolti + ' filtri di Gmail scelti sono gia\' stati tolti') + ' da EXTRA_togliFiltri.');
   }
   // le etichette rimaste dai filtri uniti a una regola con un'altra etichetta
   var coppieUnite = _coppieEtichette_(cfg);
@@ -367,7 +374,7 @@ function _indirizziScritti_(regola) {
   var da = regola.da || [];
   for (var i = 0; i < da.length; i++) {
     var v = String(da[i] || '').trim();
-    if (!v || v === '@PERSONALE@' || v === '@DOMINIO@') continue;
+    if (!v || v === '@PERSONALE@' || v === '@SENZAGRUPPO@' || v === '@DOMINIO@') continue;
     if (v.indexOf('@GRUPPO:') === 0 && v.charAt(v.length - 1) === '@') continue;
     if (_nomeClasse_(v) !== null) continue;          // gli studenti: lo dice _notaClasse_
     return true;
@@ -509,10 +516,15 @@ function _soloRuolo_(regola) {
   return v.indexOf('@GRUPPO:') === 0 && v.length > 9 && v.charAt(v.length - 1) === '@';
 }
 
-/** Tutto l'elenco del personale (la regola Colleghi): contiene ogni regola fatta di colleghi. */
+/**
+ * Tutto l'elenco del personale (la regola Colleghi): contiene ogni regola
+ * fatta di colleghi. Anche con @SENZAGRUPPO@, quando chi ha un ruolo prende
+ * solo la sua sottoetichetta: i colleghi sono gli stessi, divisi.
+ */
 function _tuttoIlPersonale_(regola) {
   var da = regola.da || [];
-  return da.length === 1 && String(da[0] || '').trim() === '@PERSONALE@';
+  var v = da.length === 1 ? String(da[0] || '').trim() : '';
+  return v === '@PERSONALE@' || v === '@SENZAGRUPPO@';
 }
 
 /** Spezza un testo in righe corte per il registro: "prima" apre la prima riga, "dopo" le altre. */
@@ -2456,6 +2468,9 @@ function _queryDellaRegola_(cfg, regola, periodoExtra) {
 /**
  * Sostituisce i segnaposto con i valori veri:
  *   @PERSONALE@        tutto l'elenco del personale
+ *   @SENZAGRUPPO@      chi dell'elenco non e' in nessun gruppo (con le
+ *                      sottoetichette dei ruoli, chi ha un ruolo prende solo
+ *                      quella, non anche Colleghi)
  *   @DOMINIO@          il dominio della scuola
  *   @GRUPPO:Docenti@   solo quel gruppo di CONFIG.gruppi
  *   @CLASSE:3B@        gli studenti della 3B, dal file Classe_3B.gs copiato
@@ -2479,6 +2494,17 @@ function _espandi_(cfg, elenco, regola) {
       for (var k = 0; k < p.length; k++) {
         var indirizzo = String(p[k] || '').trim();
         if (indirizzo) out.push(indirizzo);
+      }
+    } else if (v === '@SENZAGRUPPO@') {
+      var neiGruppi = {}, gruppi = cfg.gruppi || {};
+      for (var n in gruppi) {
+        var membri = gruppi[n] || [];
+        for (var m = 0; m < membri.length; m++) neiGruppi[String(membri[m] || '').trim().toLowerCase()] = true;
+      }
+      var tutti = cfg.personale || [];
+      for (var q = 0; q < tutti.length; q++) {
+        var senza = String(tutti[q] || '').trim();
+        if (senza && !neiGruppi[senza.toLowerCase()]) out.push(senza);
       }
     } else if (v === '@DOMINIO@') {
       if (cfg.dominioScuola) out.push('@' + String(cfg.dominioScuola).replace(/^@/, ''));

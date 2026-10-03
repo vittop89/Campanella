@@ -382,6 +382,9 @@ namespace Campanella
         public string Dominio = "";
         public string Prefisso = "";           // gruppo delle etichette: vuoto = nomi diretti (passo 4)
         public bool EtichettaPerRuolo = false; // sottoetichette Colleghi/Docenti, Colleghi/Amministrativi...
+        // con EtichettaPerRuolo: chi ha un ruolo prende solo la sua sottoetichetta
+        // (Colleghi/Docenti), non anche Colleghi; Colleghi resta per chi non ne ha
+        public bool SoloSottoetichettaRuolo = false;
         // i colori delle sottoetichette dei ruoli scelti a mano: categoria ->
         // colore ("" = nessun colore). Le categorie che non ci sono prendono
         // una sfumatura del colore di Colleghi (ColoriEtichette.DelRuolo)
@@ -1096,6 +1099,7 @@ namespace Campanella
             r["dominio"] = Dominio;
             r["prefisso"] = Prefisso;
             r["etichettaPerRuolo"] = EtichettaPerRuolo;
+            r["soloSottoetichettaRuolo"] = SoloSottoetichettaRuolo;
             Dictionary<string, object> ruoli = new Dictionary<string, object>();
             if (ColoriRuoli != null)
                 foreach (KeyValuePair<string, string> kv in ColoriRuoli) ruoli[kv.Key] = kv.Value ?? "";
@@ -1290,6 +1294,7 @@ namespace Campanella
                 s.Dominio = Str(r, "dominio", s.Dominio);
                 s.Prefisso = Str(r, "prefisso", s.Prefisso);
                 s.EtichettaPerRuolo = Bool(r, "etichettaPerRuolo", false);
+                s.SoloSottoetichettaRuolo = Bool(r, "soloSottoetichettaRuolo", false);
                 s.ColoriRuoli = ColoriDeiRuoli(r);
                 s.Registro = Str(r, "registro", s.Registro);
                 s.SchemaEmail = Str(r, "schemaEmail", s.SchemaEmail);

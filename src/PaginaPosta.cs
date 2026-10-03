@@ -41,7 +41,7 @@ namespace Campanella
         ComboBox cmbSchema, cmbOrdine;
         bool aggiornandoRuoli = false;
 
-        CheckBox chkRuoliEtichette;
+        CheckBox chkRuoliEtichette, chkSoloRuolo;
         ComboBox cmbGruppo;
         Label lblGruppo;
 
@@ -134,6 +134,8 @@ namespace Campanella
             if (S.OrdineNominativo >= 0 && S.OrdineNominativo < cmbOrdine.Items.Count)
                 cmbOrdine.SelectedIndex = S.OrdineNominativo;
             chkRuoliEtichette.Checked = S.EtichettaPerRuolo;
+            chkSoloRuolo.Checked = S.SoloSottoetichettaRuolo;
+            chkSoloRuolo.Enabled = S.EtichettaPerRuolo;
             chkProva.Checked = S.Prova;
             chkReport.Checked = S.Report;
             chkEscludiInviata.Checked = S.EscludiInviata;
@@ -412,9 +414,32 @@ namespace Campanella
                 "Le sottoetichette compaiono nel passo 5, dentro la configurazione.");
             chkRuoliEtichette.CheckedChanged += delegate
             {
+                chkSoloRuolo.Enabled = chkRuoliEtichette.Checked;
                 if (zitto) return;
                 S.EtichettaPerRuolo = chkRuoliEtichette.Checked;
                 AggiornaGruppi();
+            };
+            // accanto: chi ha un ruolo prende solo la sua sottoetichetta
+            int xSolo = chkRuoliEtichette.PreferredSize.Width + 8 + 17 + 28;
+            chkSoloRuolo = Tema.SpuntaAiuto(p,
+                "Solo la sottoetichetta, non anche Colleghi", xSolo, yr,
+                "Solo la sottoetichetta del ruolo",
+                "Senza questa spunta un messaggio di un docente prende due etichette: Colleghi e " +
+                "Colleghi/Docenti. In Gmail, aprendo Colleghi nel menu a sinistra, non compaiono i " +
+                "messaggi che hanno solo una sua sottoetichetta: per questo di partenza ci sono tutte " +
+                "e due.\r\n\r\n" +
+                "Con la spunta chi ha un ruolo prende solo la sua sottoetichetta (Colleghi/Docenti), " +
+                "e Colleghi resta per chi non ha un ruolo che riconosco. Studenti continua a non " +
+                "prendere nessun collega.\r\n\r\n" +
+                "Vale per i messaggi che lo script etichetta da adesso: quelli che hanno gia' tutte e " +
+                "due le etichette le tengono. Per rifare tutto da capo: ANNULLA_etichettaturaCompleta, " +
+                "poi PASSO_3_riordinaPostaEsistente. Dopo averla cambiata copia di nuovo la " +
+                "configurazione (passo 5).");
+            chkSoloRuolo.CheckedChanged += delegate
+            {
+                if (zitto) return;
+                S.SoloSottoetichettaRuolo = chkSoloRuolo.Checked;
+                AggiornaNotaGruppo();
             };
 
             // la stessa divisione, all'incontrario: non chi mi ha scritto, ma a chi scrivo
@@ -492,7 +517,8 @@ namespace Campanella
             foreach (string c in Stato.Categorie)
                 if (gruppi.ContainsKey(c)) pezzi.Add(c + " " + gruppi[c].Count);
             lblGruppo.Text = "Categorie: " + string.Join("  ·  ", pezzi.ToArray()) +
-                (S.EtichettaPerRuolo ? "  ·  in Gmail diventano " + EtichettaColleghi() + "/<categoria>" : "");
+                (S.EtichettaPerRuolo ? "  ·  in Gmail diventano " + EtichettaColleghi() + "/<categoria>" +
+                                       (S.SoloSottoetichettaRuolo ? ", senza " + EtichettaColleghi() : "") : "");
         }
 
         /// <summary>Gli indirizzi della categoria scelta, o null (e l'ha gia' detto) se non ce ne sono.</summary>

@@ -58,6 +58,28 @@ Configurazione.gs (Posta, step 5).
   before deleting anything, and not to delete the ones to check.
 - Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
 
+**Posta: only the role sub-label**
+
+- Step 3 has a new tick next to "In Gmail dividi i colleghi per ruolo":
+  "Solo la sottoetichetta, non anche Colleghi". With it, a colleague with a
+  recognised role gets only the role sub-label (Colleghi/Docenti), and
+  Colleghi is left for those without one: in the configuration the
+  Colleghi rule searches `@SENZAGRUPPO@` (the staff list minus every role
+  group, a new placeholder of the script), and a rule that excludes
+  Colleghi (Studenti) also excludes every role sub-label. The saved rule
+  does not change. In the filters window, with the tick on, the Colleghi
+  rule never replaces a Gmail filter: in doubt the filter stays. Off by
+  default.
+- PASSO_1_anteprima no longer counts as "to remove" the Gmail filters that
+  EXTRA_togliFiltri has already removed: it says how many are already gone.
+- With the Gmail API service and no filters at all, Gmail answers with
+  nothing (null) instead of an empty list: EXTRA_togliFiltri stopped with
+  "Cannot read properties of null". Every list of labels and filters now
+  reads it as empty, and EXTRA_togliFiltri says that Gmail has no filter.
+- EXTRA_unisciEtichette, with a configuration copied before the pairs,
+  marks the labels of filters chosen for removal in the list of the other
+  labels, and says to check Campanella before deleting them.
+
 **Campanella**
 
 - The status line at the bottom stays to the left of "Indietro" and

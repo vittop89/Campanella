@@ -184,6 +184,11 @@ namespace Campanella
             sb.AppendLine("  //  @PERSONALE@ = l'elenco qui sopra   \u00b7   @DOMINIO@ = tutto il dominio");
             if (gruppi.Count > 0)
                 sb.AppendLine("  //  @GRUPPO:Docenti@ = solo quel gruppo qui sopra");
+            if (SoloSottoetichette(s))
+            {
+                sb.AppendLine("  //  @SENZAGRUPPO@ = chi dell'elenco non e' in nessun gruppo: chi ha un ruolo");
+                sb.AppendLine("  //  prende solo la sottoetichetta del ruolo, non anche " + colleghi + ".");
+            }
             sb.AppendLine("  //  colore = sfondo e testo dell'etichetta in Gmail, dalla tavolozza di Gmail:");
             sb.AppendLine("  //  li mette il servizio Gmail API (EXTRA_coloraEtichette).");
             // solo con le classi: chi non le usa ha la configurazione di prima
@@ -202,7 +207,7 @@ namespace Campanella
             for (int i = 0; i < s.Regole.Count; i++)
             {
                 Regola r = s.Regole[i];
-                List<string> da = MittentiDellaRegola(s, r);
+                List<string> da = MittentiNellaConfigurazione(s, r);
                 bool attiva = AttivaNellaConfigurazione(s, r, indirizzi);
 
                 StringBuilder b = new StringBuilder();
@@ -215,8 +220,9 @@ namespace Campanella
                 // solo se vero: le regole di sempre restano scritte come prima
                 if (r.UnoQualsiasi) b.AppendLine("      unoQualsiasi: true,");
                 if (r.QueryLibera != "") b.AppendLine("      queryLibera: \"" + AnalisiOrario.Js(r.QueryLibera) + "\",");
-                if (r.EscludiEtichette.Count > 0)
-                    b.AppendLine("      escludiEtichette: " + ListaJs(r.EscludiEtichette) + ",");
+                List<string> escluse = EscluseNellaConfigurazione(s, r);
+                if (escluse.Count > 0)
+                    b.AppendLine("      escludiEtichette: " + ListaJs(escluse) + ",");
                 if (r.Archivia) b.AppendLine("      archivia:  true,");
                 if (r.SegnaComeLette) b.AppendLine("      segnaComeLette: true,");
                 // solo un colore che Gmail accetta: uno scritto a mano che non va
@@ -432,6 +438,75 @@ namespace Campanella
             if (r.Sorgente == "segreteria") return Righe(s.Segreteria);
             if (r.Sorgente == "registro") return Righe(s.Registro);
             return Regola.DividiMittenti(r.Da);
+        }
+
+        /// <summary>
+        /// Vero se chi ha un ruolo prende solo la sua sottoetichetta
+        /// (Colleghi/Docenti) e non anche Colleghi: con le sottoetichette dei
+        /// ruoli accese, la scelta fatta e almeno un ruolo nell'elenco.
+        /// </summary>
+        public static bool SoloSottoetichette(Stato s)
+        {
+            return s != null && s.EtichettaPerRuolo && s.SoloSottoetichettaRuolo && s.GruppiPerRuolo().Count > 0;
+        }
+
+        /// <summary>Vero se la regola e' quella dei colleghi (l'etichetta Colleghi, maiuscole a parte).</summary>
+        static bool DeiColleghi(Regola r)
+        {
+            return r != null && (r.Etichetta ?? "").Trim().ToLowerInvariant() == "colleghi";
+        }
+
+        /// <summary>
+        /// Vero se, con solo le sottoetichette dei ruoli, la regola dei colleghi
+        /// non prende chi ha un ruolo: cerca l'elenco del personale
+        /// (@PERSONALE@), che nella configurazione diventa @SENZAGRUPPO@.
+        /// </summary>
+        public static bool ColleghiSenzaIRuoli(Stato s, Regola r)
+        {
+            if (!DeiColleghi(r) || !SoloSottoetichette(s)) return false;
+            foreach (string d in MittentiDellaRegola(s, r)) if ((d ?? "").Trim() == "@PERSONALE@") return true;
+            return false;
+        }
+
+        /// <summary>
+        /// I mittenti della regola come li scrive la configurazione: quelli di
+        /// MittentiDellaRegola, ma per la regola dei colleghi con solo le
+        /// sottoetichette dei ruoli @PERSONALE@ diventa @SENZAGRUPPO@ (chi non
+        /// ha un ruolo). La regola salvata non cambia.
+        /// </summary>
+        public static List<string> MittentiNellaConfigurazione(Stato s, Regola r)
+        {
+            List<string> da = MittentiDellaRegola(s, r);
+            if (!ColleghiSenzaIRuoli(s, r)) return da;
+            List<string> fuori = new List<string>();
+            foreach (string d in da) fuori.Add((d ?? "").Trim() == "@PERSONALE@" ? "@SENZAGRUPPO@" : d);
+            return fuori;
+        }
+
+        /// <summary>
+        /// Le etichette che la regola esclude, come le scrive la configurazione:
+        /// con solo le sottoetichette dei ruoli, chi esclude Colleghi (Studenti)
+        /// esclude anche ogni sottoetichetta dei ruoli, perche' chi ha un ruolo
+        /// non ha piu' Colleghi.
+        /// </summary>
+        public static List<string> EscluseNellaConfigurazione(Stato s, Regola r)
+        {
+            List<string> fuori = new List<string>(r.EscludiEtichette);
+            if (!SoloSottoetichette(s)) return fuori;
+            string colleghi = EtichettaColleghi(s.Regole);
+            bool escludeColleghi = false;
+            foreach (string e in fuori)
+                if ((e ?? "").Trim().ToLowerInvariant() == colleghi.Trim().ToLowerInvariant()) escludeColleghi = true;
+            if (!escludeColleghi) return fuori;
+            foreach (string c in CategoriePresenti(s.GruppiPerRuolo()))
+            {
+                string sotto = colleghi + "/" + c;
+                bool gia = false;
+                foreach (string e in fuori)
+                    if (string.Equals((e ?? "").Trim(), sotto, StringComparison.OrdinalIgnoreCase)) gia = true;
+                if (!gia) fuori.Add(sotto);
+            }
+            return fuori;
         }
 
         /// <summary>

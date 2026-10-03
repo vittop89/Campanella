@@ -1845,6 +1845,11 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
     email.length === 1 && email[0].a === IO && /Filtri di Gmail tolti/.test(email[0].o) &&
     email[0].c.indexOf('Contiene le parole: from:(@famiglie.example)') >= 0 && email[0].c.indexOf('Non trovati: 1') >= 0);
   {
+    const righeAnteprima = contesto.PASSO_1_anteprima().split('\n');
+    verifica('dopo, l\'anteprima non li conta piu\' fra quelli da togliere: dice che sono gia\' tolti (' +
+             righeAnteprima.filter(r => /filtr/.test(r) && /togli|tolt/.test(r)).join(' / ') + ')',
+      righeAnteprima.indexOf('1 filtro di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).') >= 0 &&
+      righeAnteprima.indexOf('4 filtri di Gmail scelti sono gia\' stati tolti da EXTRA_togliFiltri.') >= 0);
     const memoria = proprieta.get('ORGGMAIL_FILTRI_TOLTI') || '';
     verifica('si segna quali voci ha tolto, senza indirizzi ne\' parole', memoria !== '' &&
       memoria.indexOf('@') < 0 && memoria.indexOf('famiglie') < 0 && memoria.indexOf('riunione') < 0);
@@ -2975,6 +2980,50 @@ intestazione('LA POSTA VA SOLO A TE');
   if (altrove.length) console.log('    verso: ' + altrove.map(m => String(m.a)).join(', '));
   const inCopia = posta.filter(m => { const o = m.opzioni || {}; return !!(o.cc || o.bcc); });
   verifica('nessuna in copia o in copia nascosta', inCopia.length === 0);
+}
+
+intestazione('SOLO LE SOTTOETICHETTE DEI RUOLI (@SENZAGRUPPO@)');
+{
+  // Chi ha un ruolo prende solo Colleghi/<ruolo>, non anche Colleghi; Colleghi
+  // resta per chi non ne ha; Studenti esclude anche le sottoetichette
+  const S = 'scuola.example';
+  const prima = contesto.CONFIG;
+  casella.length = 0;
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  sogliaInterruzione = Infinity;
+  delete contesto.Gmail;
+  const dalDocente = aggiungi('docente@' + S, 'Verifica di fisica', '');
+  const daChiNonHaRuolo = aggiungi('senza.ruolo@' + S, 'Chiavi del laboratorio', '');
+  const dalloStudente = aggiungi('studente@' + S, 'Una domanda', '');
+  contesto.CONFIG = {
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: '', provaSenzaModifiche: false,
+    soloUltimiMesi: 0, escludiPostaInviata: true, inviaReport: false,
+    personale: ['docente@' + S, 'Senza.Ruolo@' + S],
+    gruppi: { Docenti: ['DOCENTE@' + S] },
+    regole: [
+      { attiva: true, etichetta: 'Colleghi', da: ['@SENZAGRUPPO@'] },
+      { attiva: true, etichetta: 'Colleghi/Docenti', da: ['@GRUPPO:Docenti@'] },
+      { attiva: true, etichetta: 'Studenti', da: ['@DOMINIO@'], escludiEtichette: ['Colleghi', 'Colleghi/Docenti'] }
+    ]
+  };
+  verifica('@SENZAGRUPPO@ e\' chi dell\'elenco non e\' in nessun gruppo (maiuscole a parte)',
+    JSON.stringify(contesto._espandi_(contesto.CONFIG, ['@SENZAGRUPPO@'], null)) === JSON.stringify(['Senza.Ruolo@' + S]));
+  const anteprima = contesto.PASSO_1_anteprima();
+  verifica('l\'anteprima non chiede di controllare i mittenti di Colleghi e non vede doppioni',
+    anteprima.indexOf('nessun messaggio da questi mittenti') < 0 && anteprima.indexOf('Regole che mettono due etichette') < 0);
+  contesto.PASSO_3_riordinaPostaEsistente();
+  verifica('il docente prende solo Colleghi/Docenti, chi non ha un ruolo Colleghi, lo studente Studenti (' +
+           [dalDocente, daChiNonHaRuolo, dalloStudente].map(x => [...x.labels].sort().join('+')).join(', ') + ')',
+    [...dalDocente.labels].sort().join('|') === 'Colleghi/Docenti' &&
+    [...daChiNonHaRuolo.labels].sort().join('|') === 'Colleghi' &&
+    [...dalloStudente.labels].sort().join('|') === 'Studenti');
+  contesto.CONFIG.gruppi.Docenti.push('senza.ruolo@' + S);
+  verifica('con tutti in un gruppo la regola Colleghi non cerca niente, invece di tutta la casella',
+    contesto._queryDellaRegola_(contesto.CONFIG, contesto.CONFIG.regole[0]).length === 0);
+  contesto.CONFIG = prima;
 }
 
 intestazione('RISULTATO');

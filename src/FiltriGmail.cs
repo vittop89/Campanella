@@ -906,7 +906,7 @@ namespace Campanella
             {
                 if (!ConLaChiave(davanti + r.Etichetta, perLaChiave)) continue;
                 if (!GeneratorePosta.AttivaNellaConfigurazione(s, r, personale) || r.EscludiEtichette.Count > 0) continue;
-                AggiungiFiltri(fuori, r, davanti + r.Etichetta, CriteriCreati(GeneratorePosta.MittentiDellaRegola(s, r),
+                AggiungiFiltri(fuori, r, davanti + r.Etichetta, CriteriCreati(GeneratorePosta.MittentiNellaConfigurazione(s, r),
                     r.Oggetto, r.Contiene, r.QueryLibera ?? "", r.UnoQualsiasi, dominio, personale, gruppi));
             }
             // le sottoetichette dei ruoli: un gruppo dell'elenco del personale per mittente
@@ -1060,6 +1060,15 @@ namespace Campanella
                 {
                     foreach (string p in personale) if ((p ?? "").Trim() != "") tutti.Add(p.Trim());
                 }
+                else if (v == "@SENZAGRUPPO@")
+                {
+                    // chi dell'elenco non e' in nessun gruppo (maiuscole a parte)
+                    List<string> neiGruppi = new List<string>();
+                    foreach (List<string> g in gruppi.Values)
+                        foreach (string x in g) neiGruppi.Add((x ?? "").Trim().ToLowerInvariant());
+                    foreach (string p in personale)
+                        if ((p ?? "").Trim() != "" && !neiGruppi.Contains(p.Trim().ToLowerInvariant())) tutti.Add(p.Trim());
+                }
                 else if (v == "@DOMINIO@")
                 {
                     if (dominio != "") tutti.Add("@" + dominio);
@@ -1155,6 +1164,9 @@ namespace Campanella
         /// </summary>
         static bool MittentiDubbi(Stato s, Regola r)
         {
+            // con solo le sottoetichette dei ruoli la regola dei colleghi non
+            // prende chi ha un ruolo: nel dubbio non sostituisce nessun filtro
+            if (GeneratorePosta.ColleghiSenzaIRuoli(s, r)) return true;
             foreach (string d in GeneratorePosta.MittentiDellaRegola(s, r))
                 if (!Segnaposto(d) && !UnMittente((d ?? "").Trim())) return true;
             return false;
