@@ -227,6 +227,14 @@ namespace Campanella
         /// file e' quello di adesso. Non fa parte della chiave.
         /// </summary>
         public string Gruppo = null;
+        /// <summary>
+        /// Vero se quando si e' scelto restava in Gmail un altro filtro con la
+        /// stessa etichetta (lasciato, o che non si poteva togliere): la sua
+        /// etichetta e' ancora in uso, e non e' un'etichetta rimasta da unire a
+        /// quella della regola (FiltriGmail.EtichetteRimaste). null se non si sa
+        /// (scelto prima della 1.6.2). Non fa parte della chiave.
+        /// </summary>
+        public bool? StessaEtichettaInGmail = null;
 
         /// <summary>I criteri che Gmail conosce, nell'ordine in cui si scrivono.</summary>
         public static readonly string[] NomiCriteri =
@@ -316,6 +324,7 @@ namespace Campanella
             f.Accanto = new List<FiltroDaTogliere>();
             if (Accanto != null) foreach (FiltroDaTogliere g in Accanto) if (g != null) f.Accanto.Add(g.Copia());
             f.Gruppo = Gruppo;
+            f.StessaEtichettaInGmail = StessaEtichettaInGmail;
             return f;
         }
     }
@@ -732,7 +741,9 @@ namespace Campanella
         /// lei, e non si saprebbe piu' quale regola lo sostituisce ne' se deve
         /// archiviare o segnare come letti come lui.
         /// Formato 5 (1.6.2): le etichette rimaste dai filtri uniti a una regola
-        /// che il docente non vuole unire ("etichetteDaNonUnire"); la 1.6.1
+        /// che il docente non vuole unire ("etichetteDaNonUnire"), e dentro ogni
+        /// filtro da togliere se in Gmail ne restava un altro con la stessa
+        /// etichetta ("stessaEtichettaInGmail"); la 1.6.1
         /// riscrivendo il file le perderebbe, e quelle coppie tornerebbero
         /// spuntate: EXTRA_unisciEtichette metterebbe l'etichetta della regola
         /// anche a quei messaggi.
@@ -1212,6 +1223,7 @@ namespace Campanella
                     if (f.Escluse != null) d["escluse"] = new List<string>(f.Escluse);
                     // e il gruppo delle etichette di allora, se si sa ("" e' nessun gruppo)
                     if (f.Gruppo != null) d["gruppo"] = f.Gruppo;
+                    if (f.StessaEtichettaInGmail.HasValue) d["stessaEtichettaInGmail"] = f.StessaEtichettaInGmail.Value;
                     if (f.Accanto != null && f.Accanto.Count > 0)
                     {
                         List<object> accanto = new List<object>();
@@ -1583,6 +1595,8 @@ namespace Campanella
                     if (d.ContainsKey("cestino") && d["cestino"] is bool) f.Cestino = (bool)d["cestino"];
                     if (d.ContainsKey("escluse")) f.Escluse = Lista(d, "escluse");
                     if (d.ContainsKey("gruppo") && d["gruppo"] is string) f.Gruppo = (string)d["gruppo"];
+                    if (d.ContainsKey("stessaEtichettaInGmail") && d["stessaEtichettaInGmail"] is bool)
+                        f.StessaEtichettaInGmail = (bool)d["stessaEtichettaInGmail"];
                     object[] accanto = d.ContainsKey("accanto") ? d["accanto"] as object[] : null;
                     if (accanto != null)
                         foreach (object o2 in accanto)

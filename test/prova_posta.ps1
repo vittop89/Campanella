@@ -2485,6 +2485,30 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
         (Coppie ($mRimaste.Invoke($null, @($sGrEt.PSObject.BaseObject)))) -eq 'Famiglie>Scuola/Genitori' -and
         (CoppieNellaConfigurazione $sGrEt 'etichette_4') -eq 'Famiglie>Scuola/Genitori')
     Verifica "e il gruppo stesso non e' mai da unire" ([bool]$mGestita.Invoke($null, @($sGrEt.PSObject.BaseObject, 'scuola')))
+    # un altro filtro Famiglie resta in Gmail (lasciato): l'etichetta e' ancora in
+    # uso, non e' rimasta. La voce lo ricorda (StessaEtichettaInGmail), anche
+    # senza il file
+    $sDue = StatoRiorganizza
+    Imposta $sDue 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    $xDue = FinestraEScelta $sDue @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' })),
+                                    (UnFiltro ([ordered]@{ from = 'zia@altro.example'; label = 'Famiglie' }))) @{ 1 = 'Lascialo in Gmail' }
+    $vociDue = @(Leggi $sDue 'FiltriDaTogliere')
+    Verifica "con un altro filtro Famiglie lasciato in Gmail l'etichetta e' ancora in uso: niente coppia ($($xDue.scelte -join '; '))" (
+        $vociDue.Count -eq 1 -and $vociDue[0].StessaEtichettaInGmail -eq $true -and
+        (Coppie ($mRimaste.Invoke($null, @($sDue.PSObject.BaseObject)))) -eq '' -and (CoppieNellaConfigurazione $sDue 'etichette_5') -eq '' -and
+        $xDue.riepilogo.IndexOf('EXTRA_unisciEtichette') -lt 0)
+    $sUno = StatoRiorganizza
+    Imposta $sUno 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    [void](FinestraEScelta $sUno @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' }))) $null)
+    Verifica "con il filtro Famiglie da solo, la voce ricorda che non ne resta un altro" (@(Leggi $sUno 'FiltriDaTogliere')[0].StessaEtichettaInGmail -eq $false)
+    # una che il docente non vuole unire non la dice nemmeno il riepilogo
+    $sNo = StatoRiorganizza
+    Imposta $sNo 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    (Leggi $sNo 'EtichetteDaNonUnire').Add('Famiglie')
+    $xNo = FinestraEScelta $sNo @((UnFiltro ([ordered]@{ from = '@famiglie.example'; label = 'Famiglie' }))) $null
+    Verifica "il riepilogo non dice le etichette che il docente non vuole unire" ($xNo.riepilogo.IndexOf('EXTRA_unisciEtichette') -lt 0 -and
+        (Coppie ($mRimaste.Invoke($null, @($sNo.PSObject.BaseObject)))) -eq 'Famiglie>Genitori')
+
     # senza coppie la configurazione non ha la voce, e resta com'era
     $sNiente = StatoRiorganizza
     Verifica "senza etichette rimaste la configurazione non ha etichetteDaUnire" (

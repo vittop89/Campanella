@@ -509,23 +509,31 @@ POSTA - riordinare la casella
    riquadro "Etichette rimaste dai filtri uniti", una spunta per coppia
    (Famiglie -> Genitori): solo per i filtri che la configurazione toglie
    davvero, mai per un'etichetta delle regole (anche spente), dei ruoli o
-   del gruppo. Togli la spunta a una coppia che non vuoi unire; le altre
-   vanno nella configurazione. Dopo EXTRA_togliFiltri esegui
-   EXTRA_unisciEtichette (va anche senza il servizio Gmail API): mette
-   l'etichetta della regola a tutte le conversazioni di quella rimasta, e
-   basta. Non archivia, non segna come letto, non toglie etichette e non
-   cancella niente: lo script non cancella mai un'etichetta. Poi ti dice
-   quali etichette rimaste puoi cancellare tu da Gmail (nel menu a
+   del gruppo, ne' per una ancora in uso: se quando hai scelto restava in
+   Gmail un altro filtro con la stessa etichetta, Campanella se lo ricorda
+   e quella coppia non c'e'. Togli la spunta a una coppia che non vuoi
+   unire; le altre vanno nella configurazione. Dopo EXTRA_togliFiltri
+   esegui EXTRA_unisciEtichette (va anche senza il servizio Gmail API):
+   mette l'etichetta della regola alle conversazioni di quella rimasta che
+   non ce l'hanno ancora, e basta. Non archivia, non segna come letto, non
+   toglie etichette e non cancella niente: lo script non cancella mai
+   un'etichetta. Un'etichetta che un filtro di Gmail mette ancora non la
+   unisce (con il servizio Gmail API lo controlla): e' ancora in uso. Poi
+   ti dice quali etichette rimaste puoi cancellare tu da Gmail (nel menu a
    sinistra, i tre puntini accanto all'etichetta -> Rimuovi etichetta: i
-   messaggi restano, con l'etichetta della regola); non una che un filtro
-   di Gmail mette ancora (con il servizio Gmail API lo controlla: prima
-   EXTRA_togliFiltri), ne' una con delle sottoetichette. Ti dice anche
-   quali altre etichette non mette nessuna regola (con il servizio, nemmeno
-   un filtro), con quante conversazioni hanno: solo un elenco, lo script
-   non le tocca. In modalita' prova conta soltanto; se manca l'etichetta
-   della regola chiede PASSO_2_creaEtichette; se finisce il tempo,
-   rieseguila: riparte da capo e le conversazioni gia' fatte restano come
-   sono. L'anteprima dice in una riga quante etichette ci sono da unire.
+   messaggi restano, con l'etichetta della regola); non una con delle
+   sottoetichette, e senza il servizio solo dopo EXTRA_togliFiltri.
+   Attento: cancellata un'etichetta rimasta, ANNULLA_etichettatura
+   toglierebbe a quei messaggi anche l'etichetta della regola, e
+   resterebbero senza. Ti dice anche quali altre etichette non mette
+   nessuna regola (con il servizio, nemmeno un filtro), con quante
+   conversazioni hanno: solo un elenco, lo script non le tocca. In
+   modalita' prova conta soltanto; se manca l'etichetta della regola chiede
+   PASSO_2_creaEtichette; se finisce il tempo, rieseguila: riprende dalle
+   conversazioni che non hanno ancora l'etichetta della regola.
+   EXTRA_togliFiltri, se ci sono etichette da unire, ricorda di eseguirla
+   prima di cancellare qualcosa. L'anteprima dice in una riga quante
+   etichette ci sono da unire.
    "Le mie classi...", accanto, crea un'etichetta per ogni tua classe, per
    esempio "Classi 2026-27/3B", dentro un'etichetta madre ("Classi" e l'anno
    scolastico: si puo' cambiare, e riaprendo la finestra torna quella delle

@@ -109,11 +109,6 @@ namespace Campanella
     }
 
     /// <summary>
-    /// I mittenti di un filtro fatto solo di mittenti (FiltriGmail.SoloMittenti):
-    /// quelli che prende, come si scrivono fra i mittenti di una regola, e le
-    /// esclusioni, come si scrivono nella ricerca avanzata ("-from:y").
-    /// </summary>
-    /// <summary>
     /// Un'etichetta rimasta da un filtro di Gmail che va via sostituito da una
     /// regola con un'altra etichetta (FiltriGmail.EtichetteRimaste): Da e' quella
     /// del filtro, come in Gmail; A quella della regola, con il gruppo.
@@ -126,6 +121,11 @@ namespace Campanella
         public string Testo() { return Da + " → " + A; }
     }
 
+    /// <summary>
+    /// I mittenti di un filtro fatto solo di mittenti (FiltriGmail.SoloMittenti):
+    /// quelli che prende, come si scrivono fra i mittenti di una regola, e le
+    /// esclusioni, come si scrivono nella ricerca avanzata ("-from:y").
+    /// </summary>
     class MittentiFiltro
     {
         public List<string> Da = new List<string>();
@@ -2445,7 +2445,7 @@ namespace Campanella
             string testo = Esito(s, scelti, true).Riepilogo;
             // le etichette dei filtri uniti a una regola con un'altra etichetta
             // restano in Gmail: le unisce EXTRA_unisciEtichette (passo 4)
-            List<CoppiaEtichette> rimaste = EtichetteRimaste(s);
+            List<CoppiaEtichette> rimaste = DaUnire(s);
             if (rimaste.Count > 0)
             {
                 List<string> nomi = new List<string>();
@@ -2756,6 +2756,11 @@ namespace Campanella
                 }
                 v.Gruppo = s.PrefissoPulito();
                 v.Escluse = EtichetteEscluse(v.Regola, s);
+                // un altro filtro con la stessa etichetta resta in Gmail: la sua
+                // etichetta e' ancora in uso, non e' rimasta (EtichetteRimaste)
+                bool stessa = false;
+                foreach (FiltroDaTogliere g in inGmail) if (Pulita(g.Etichetta) == Pulita(v.Etichetta)) stessa = true;
+                v.StessaEtichettaInGmail = stessa;
                 if (v.Accanto == null) v.Accanto = new List<FiltroDaTogliere>();
                 foreach (FiltroDaTogliere g in FiltriAccanto(v, inGmail, s))
                 {
@@ -3249,9 +3254,11 @@ namespace Campanella
         /// sostituiti da una regola con un'altra etichetta (Famiglie unito a
         /// Genitori, la casella della scuola unita a Segreteria): la loro
         /// etichetta resta in Gmail con i messaggi di prima, e nessuno la mette
-        /// piu'. Non quelle dei filtri che restano in Gmail (CheRestano: la loro
-        /// etichetta e' ancora in uso), una volta per etichetta, e non
-        /// un'etichetta delle regole, anche spente, dei ruoli o del gruppo
+        /// piu'. Non un'etichetta ancora in uso: quella di un filtro scelto che
+        /// resta in Gmail (CheRestano), o di uno che, quando si e' scelto,
+        /// lasciava in Gmail un altro filtro con la stessa etichetta
+        /// (FiltroDaTogliere.StessaEtichettaInGmail). Una volta per etichetta, e
+        /// non un'etichetta delle regole, anche spente, dei ruoli o del gruppo
         /// (EtichettaGestita), ne' una che due regole diverse si contendono.
         /// Anche quelle che il docente non vuole unire (Stato.EtichetteDaNonUnire):
         /// le toglie DaUnire.
@@ -3260,8 +3267,12 @@ namespace Campanella
         {
             List<CoppiaEtichette> fuori = new List<CoppiaEtichette>();
             if (s == null || s.FiltriDaTogliere == null) return fuori;
-            List<string> restano = new List<string>(), contese = new List<string>();
-            foreach (FiltroDaTogliere v in CheRestano(s)) restano.Add(v.Chiave());
+            // le etichette ancora in uso: di un filtro scelto che resta in Gmail,
+            // o di uno che ne lasciava in Gmail un altro con la stessa etichetta
+            List<string> restano = new List<string>(), inUso = new List<string>(), contese = new List<string>();
+            foreach (FiltroDaTogliere v in CheRestano(s)) { restano.Add(v.Chiave()); inUso.Add(Pulita(v.Etichetta)); }
+            foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
+                if (v != null && v.StessaEtichettaInGmail == true) inUso.Add(Pulita(v.Etichetta));
             foreach (FiltroDaTogliere v in s.FiltriDaTogliere)
             {
                 if (v == null || (v.Regola ?? "").Trim() == "" || restano.Contains(v.Chiave())) continue;
@@ -3269,7 +3280,8 @@ namespace Campanella
                 Regola r = RegolaCheLoSostituisceAncora(v, s);
                 if (r == null) continue;
                 string da = (v.Etichetta ?? "").Trim().Trim('/').Trim(), a = NomeIntero(r, s).Trim();
-                if (da == "" || Pulita(da) == Pulita(a) || EtichettaGestita(s, da) || contese.Contains(Pulita(da))) continue;
+                if (da == "" || Pulita(da) == Pulita(a) || EtichettaGestita(s, da) || inUso.Contains(Pulita(da)) ||
+                    contese.Contains(Pulita(da))) continue;
                 CoppiaEtichette gia = null;
                 foreach (CoppiaEtichette c in fuori) if (Pulita(c.Da) == Pulita(da)) gia = c;
                 if (gia != null)

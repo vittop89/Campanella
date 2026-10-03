@@ -1304,6 +1304,26 @@ static class ProvaStato
         Stato t = Carica();
         Verifica("e si rileggono uguali", string.Join("|", ((List<string>)campo.GetValue(t)).ToArray()) ==
             "Famiglie|Sindacati e normativa");
+        // un filtro da togliere ricorda se in Gmail ne restava un altro con la
+        // stessa etichetta (1.6.2): si scrive solo se si sa, e si rilegge
+        AggiungiFiltro(t, "Famiglie", "query", "from:(@famiglie.example)");
+        AggiungiFiltro(t, "Viaggi", "from", "agenzia@viaggi.example");
+        FieldInfo campoStessa = (FiltriDi(t) != null && FiltriDi(t).Count == 2) ? FiltriDi(t)[0].GetType().GetField("StessaEtichettaInGmail") : null;
+        Verifica("un filtro da togliere sa se in Gmail ne restava un altro con la stessa etichetta (FiltroDaTogliere.StessaEtichettaInGmail)",
+            campoStessa != null);
+        if (campoStessa != null)
+        {
+            campoStessa.SetValue(FiltriDi(t)[0], (bool?)true);
+            t.Salva();
+            object[] voci = Json(FileDati(c))["filtriDaTogliere"] as object[];
+            Dictionary<string, object> v0 = (voci != null && voci.Length == 2) ? voci[0] as Dictionary<string, object> : null;
+            Dictionary<string, object> v1 = (voci != null && voci.Length == 2) ? voci[1] as Dictionary<string, object> : null;
+            Verifica("si scrive solo per chi lo sa", v0 != null && v1 != null && v0.ContainsKey("stessaEtichettaInGmail") &&
+                object.Equals(v0["stessaEtichettaInGmail"], true) && !v1.ContainsKey("stessaEtichettaInGmail"));
+            Stato w = Carica();
+            Verifica("e si rilegge", FiltriDi(w) != null && FiltriDi(w).Count == 2 &&
+                object.Equals(campoStessa.GetValue(FiltriDi(w)[0]), true) && campoStessa.GetValue(FiltriDi(w)[1]) == null);
+        }
         // un file di prima (senza la chiave): nessuna
         Dictionary<string, object> vecchio = new Dictionary<string, object>();
         vecchio["regole"] = new object[] { RegolaJson("Genitori", "", null) };

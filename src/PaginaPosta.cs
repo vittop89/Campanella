@@ -858,7 +858,9 @@ namespace Campanella
                 "scuola a Segreteria) lascia la sua etichetta in Gmail, con i messaggi di prima: tolto il filtro " +
                 "(EXTRA_togliFiltri), nessuno la mette piu'.\r\n\r\n" +
                 "EXTRA_unisciEtichette mette l'etichetta della regola a tutte le conversazioni di quella rimasta, e " +
-                "basta: non archivia, non segna come letto, non toglie e non cancella niente. Poi dice quali " +
+                "basta: non archivia, non segna come letto, non toglie e non cancella niente. Un'etichetta che un " +
+                "filtro di Gmail mette ancora non la unisce: e' ancora in uso (e se un altro filtro con la stessa " +
+                "etichetta resta in Gmail, qui la coppia non c'e'). Poi dice quali " +
                 "etichette rimaste puoi cancellare tu da Gmail (nel menu a sinistra, i tre puntini accanto " +
                 "all'etichetta -> Rimuovi etichetta): i messaggi restano, con l'etichetta della regola. Dice anche " +
                 "quali altre etichette non mette nessuna regola, se non ti servono.\r\n\r\n" +
