@@ -70,6 +70,11 @@ Configurazione.gs (Posta, step 5).
   does not change. In the filters window, with the tick on, the Colleghi
   rule never replaces a Gmail filter: in doubt the filter stays. Off by
   default.
+- The default colours of Ministero e USR and Newsletter are no longer greys
+  (they looked like labels with no colour in Gmail): dark teal and light
+  lilac, which no other default label uses. A rule that still has the old
+  default grey gets the new colour, if no other label uses it; a colour
+  chosen by hand stays. EXTRA_coloraEtichette applies them.
 - PASSO_1_anteprima no longer counts as "to remove" the Gmail filters that
   EXTRA_togliFiltri has already removed: it says how many are already gone.
 - With the Gmail API service and no filters at all, Gmail answers with

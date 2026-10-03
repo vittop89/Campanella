@@ -2130,7 +2130,7 @@ namespace Campanella
             ministero.EscludiEtichette.AddRange(new string[] { "Dirigenza", "Segreteria" });
             ministero.Descrizione = "Comunicazioni ministeriali e degli uffici scolastici regionali, tranne " +
                 "quello che e' gia' in Dirigenza o Segreteria (la casella della scuola, codice@istruzione.it).";
-            ministero.Colore = "#434343/#ffffff";
+            ministero.Colore = "#0d3b44/#ffffff";
             r.Add(ministero);
 
             Regola sindacati = new Regola();
@@ -2168,7 +2168,7 @@ namespace Campanella
             newsletter.Archivia = true;
             newsletter.Descrizione = "Promozioni e messaggi con il link per disiscriversi. " +
                 "Vengono archiviati: e' la voce che libera piu' spazio nella Posta in arrivo.";
-            newsletter.Colore = "#999999/#000000";
+            newsletter.Colore = "#e4d7f5/#000000";
             r.Add(newsletter);
 
             Regola genitori = new Regola();
@@ -2483,6 +2483,15 @@ namespace Campanella
         /// cui colore e' gia' preso, il primo libero. "" (nessun colore,
         /// scelto apposta) resta com'e'.
         /// </summary>
+        /// <summary>Il grigio di partenza fino alla 1.6.1 di quella regola (Ministero e USR, Newsletter), o null.</summary>
+        static string GrigioDiPrima(string etichetta)
+        {
+            string e = (etichetta ?? "").Trim().ToLowerInvariant();
+            if (e == "ministero e usr") return "#434343/#ffffff";
+            if (e == "newsletter") return "#999999/#000000";
+            return null;
+        }
+
         public static void Completa(List<Regola> regole, Dictionary<string, string> coloriRuoli)
         {
             List<Regola> partenza = Stato.RegoleDiDefault();
@@ -2491,6 +2500,22 @@ namespace Campanella
             {
                 string s = Sfondo(r.Colore);
                 if (s != "") presi.Add(s);
+            }
+            // i grigi di partenza fino alla 1.6.1 (Ministero e USR, Newsletter):
+            // nell'elenco di Gmail sembravano etichette senza colore. Chi ha
+            // ancora proprio quello prende il colore di partenza di adesso, se
+            // nessun'altra etichetta lo usa; un colore scelto a mano resta
+            foreach (Regola r in regole)
+            {
+                string vecchio = GrigioDiPrima(r.Etichetta);
+                if (vecchio == null || !string.Equals(r.Colore, vecchio, StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (Regola d in partenza)
+                {
+                    if (!string.Equals((r.Etichetta ?? "").Trim(), d.Etichetta, StringComparison.OrdinalIgnoreCase)) continue;
+                    string s = Sfondo(d.Colore);
+                    if (!presi.Contains(s)) { presi.Remove(Sfondo(vecchio)); r.Colore = d.Colore; presi.Add(s); }
+                    break;
+                }
             }
             // prima per sorgente, poi per nome: una regola tua che si chiama
             // "Dirigenza" non deve portare via il colore a quella vera

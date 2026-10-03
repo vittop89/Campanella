@@ -409,7 +409,20 @@ try {
             $testoK.Contains('      colore:    { sfondo: "#cc3a21", testo: "#ffffff" },'))
         $m = ColoriNellaConfigurazione $k
         Verifica "ogni regola porta il suo colore" (
-            $m['Dirigenza'] -eq '#cc3a21/#ffffff' -and $m['Colleghi'] -eq '#4a86e8/#000000' -and $m['Newsletter'] -eq '#999999/#000000')
+            $m['Dirigenza'] -eq '#cc3a21/#ffffff' -and $m['Colleghi'] -eq '#4a86e8/#000000' -and $m['Newsletter'] -eq '#e4d7f5/#000000' -and
+            $m['Ministero e USR'] -eq '#0d3b44/#ffffff')
+        # i grigi di partenza di prima (Ministero e USR, Newsletter) diventano i
+        # colori nuovi; un grigio su un'altra regola, o un colore gia' preso, no
+        $tRegolaG = $asm.GetType('Campanella.Regola')
+        $listaG = [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tRegolaG))
+        foreach ($coppia in @(@('Ministero e USR', '#434343/#ffffff'), @('Newsletter', '#999999/#000000'),
+                              @('Mia', '#434343/#ffffff'), @('Viola', '#e4d7f5/#000000'))) {
+            $rg = [Activator]::CreateInstance($tRegolaG); $rg.Etichetta = $coppia[0]; $rg.Colore = $coppia[1]; $listaG.Add($rg)
+        }
+        $asm.GetType('Campanella.ColoriEtichette').GetMethod('Completa', $FS).Invoke($null, [object[]]@($listaG, ([System.Collections.Generic.Dictionary[string,string]]::new()))) | Out-Null
+        $dopoG = @($listaG | ForEach-Object { $_.Etichetta + '=' + $_.Colore }) -join '; '
+        Verifica "i grigi di partenza di prima diventano i colori nuovi, se liberi; un grigio scelto per un'altra regola resta ($dopoG)" (
+            $dopoG -eq 'Ministero e USR=#0d3b44/#ffffff; Newsletter=#999999/#000000; Mia=#434343/#ffffff; Viola=#e4d7f5/#000000')
         Verifica "e le sottoetichette dei ruoli le sfumature di Colleghi" (
             $m['Colleghi/Docenti'] -eq '#a4c2f4/#000000' -and $m['Colleghi/Amministrativi'] -eq '#6d9eeb/#000000')
         $regoleK = Leggi $k 'Regole'
@@ -3629,6 +3642,9 @@ process.stdout.write(JSON.stringify({ classi: fuori, globali: Object.keys(c).sor
             $minSenza = @((Leggi $senza 'Regole') | Where-Object { $_.Etichetta -eq 'Ministero e USR' })[0]
             $minSenza.EscludiEtichette.Clear()
             $minSenza.Descrizione = 'Comunicazioni ministeriali e degli uffici scolastici regionali.'
+            # e i grigi di partenza di allora (la 1.6.2 li ha cambiati)
+            $minSenza.Colore = '#434343/#ffffff'
+            @((Leggi $senza 'Regole') | Where-Object { $_.Etichetta -eq 'Newsletter' })[0].Colore = '#999999/#000000'
             Verifica "e con le regole salvate dalla 1.5.3 l'impronta e' quella della 1.5.3 (E9111A66); con quelle di partenza di adesso un'altra ($impNuova)" (
                 ([string]$mImpronta.Invoke($null, @($senza.PSObject.BaseObject))) -eq 'E9111A66' -and $impNuova -ne 'E9111A66')
         }

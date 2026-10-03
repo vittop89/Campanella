@@ -109,7 +109,7 @@ var CONFIG = {
       etichetta: "Ministero e USR",
       da:        ["@istruzione.it", "@posta.istruzione.it", "@miur.it", "@mim.gov.it"],
       escludiEtichette: ["Dirigenza", "Segreteria"],
-      colore:    { sfondo: "#434343", testo: "#ffffff" },
+      colore:    { sfondo: "#0d3b44", testo: "#ffffff" },
       nota:      "Comunicazioni ministeriali e degli uffici scolastici regionali."
     },
     {
@@ -139,7 +139,7 @@ var CONFIG = {
       etichetta: "Newsletter",
       queryLibera: "category:promotions OR unsubscribe",
       archivia:  true,
-      colore:    { sfondo: "#999999", testo: "#000000" },
+      colore:    { sfondo: "#e4d7f5", testo: "#000000" },
       nota:      "Promozioni e messaggi con il link per disiscriversi, archiviati."
     },
     {
