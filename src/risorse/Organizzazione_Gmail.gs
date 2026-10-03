@@ -30,8 +30,12 @@
  *       cerca solo l'oggetto: quelli restano allo smistamento del punto 3);
  *    5. (facoltativo) da' alle etichette i colori scelti in Campanella;
  *    6. (facoltativo) toglie i filtri di Gmail che avevi gia' e che hai
- *       scelto in Campanella, dopo averne scritto una copia nel registro.
- *    I punti 4, 5 e 6 vogliono il servizio avanzato "Gmail API" (Servizi -> "+").
+ *       scelto in Campanella, dopo averne scritto una copia nel registro;
+ *    7. (facoltativo) mette l'etichetta della regola ai messaggi delle
+ *       etichette rimaste dai filtri che in Campanella hai unito a una regola
+ *       (Famiglie a Genitori), e dice quali puoi cancellare tu da Gmail.
+ *    I punti 4, 5 e 6 vogliono il servizio avanzato "Gmail API" (Servizi -> "+");
+ *    il 7 lo usa, se c'e', per vedere se un filtro mette ancora un'etichetta.
  *
  *  COSA NON FA
  *    Non cancella messaggi ne' etichette. Non svuota il cestino. Non segnala
@@ -64,6 +68,10 @@
  *                                    e che hai scelto in Campanella (Posta,
  *                                    passo 4), dopo averne scritto una copia
  *                                    nel registro (facoltativo)
+ *    EXTRA_unisciEtichette ......... mette l'etichetta della regola ai
+ *                                    messaggi delle etichette rimaste dai
+ *                                    filtri uniti a una regola, e dice quali
+ *                                    cancellare tu da Gmail (facoltativo)
  *    EXTRA_codiceStato ............. stampa il codice da incollare in
  *                                    Campanella (Impostazioni): dice se il
  *                                    riordino e' fatto
@@ -95,7 +103,7 @@
 // ---------------------------------------------------------------------------
 // Limiti e costanti interne
 // ---------------------------------------------------------------------------
-var _POSTA_VERSIONE         = '1.6.0'; // versione di questo file (vedi l'intestazione)
+var _POSTA_VERSIONE         = '1.6.2'; // versione di questo file (vedi l'intestazione)
 var _MAX_SECONDI_ESECUZIONE = 260;   // ~4 min 20 s: sotto il limite di Google
 var _THREAD_PER_BLOCCO      = 100;   // massimo consentito da addToThreads()
 var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
@@ -179,6 +187,12 @@ function PASSO_1_anteprima() {
   if (daTogliere) {
     righe.push(daTogliere + (daTogliere === 1 ? ' filtro' : ' filtri') +
                ' di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).');
+  }
+  // le etichette rimaste dai filtri uniti a una regola con un'altra etichetta
+  var daUnire = _coppieEtichette_(cfg).buone.length;
+  if (daUnire) {
+    righe = righe.concat(_aCapo_(daUnire + (daUnire === 1 ? ' etichetta rimasta' : ' etichette rimaste') +
+      ' dai filtri uniti: esegui EXTRA_unisciEtichette (dopo EXTRA_togliFiltri).', '', '  '));
   }
   righe.push('');
 
@@ -1587,6 +1601,287 @@ function _rientra_(testo, prima, dopo) {
   var righe = String(testo).split('\n');
   for (var i = 0; i < righe.length; i++) righe[i] = (i === 0 ? prima : dopo) + righe[i];
   return righe.join('\n');
+}
+
+
+// ===========================================================================
+//  EXTRA - LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA (facoltativo)
+//  Un filtro di Gmail che in Campanella hai unito a una regola con un'altra
+//  etichetta (Famiglie a Genitori, la casella della scuola a Segreteria),
+//  tolto poi con EXTRA_togliFiltri, lascia la sua etichetta con i messaggi
+//  di prima: nessuno la mette piu'. Le coppie le trova Campanella (Posta,
+//  passo 4) e stanno in Configurazione.gs, in etichetteDaUnire. Questa
+//  funzione mette l'etichetta della regola a tutte le conversazioni di
+//  quella rimasta, e basta: non toglie etichette, non archivia, non segna
+//  come letto e non cancella niente. L'etichetta rimasta, ormai doppia, la
+//  cancelli tu da Gmail quando qui c'e' scritto che si puo': i messaggi
+//  restano, con quella della regola. Dice anche quali altre etichette non
+//  mette nessuna regola (con il servizio Gmail API, nemmeno un filtro): se
+//  non ti servono, cancellale tu. In prova conta soltanto.
+// ===========================================================================
+function EXTRA_unisciEtichette() {
+  var cfg = _config_();
+  var coppie = _coppieEtichette_(cfg);
+  var prova = !!cfg.provaSenzaModifiche;
+
+  // lo stesso blocco del riordino, dello smistamento e dei filtri
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto. ' +
+                   'Non ho messo nessuna etichetta.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var esito, altre;
+  try {
+    esito = _unisciEtichette_(coppie.buone, prova);
+    altre = _etichetteSenzaNessuno_(cfg, coppie.buone, esito.deiFiltri);
+  } finally {
+    lock.releaseLock();
+  }
+
+  var righe = [];
+  if (prova) {
+    righe = righe.concat(_aCapo_('MODALITA\' PROVA: non ho messo nessuna etichetta, dico soltanto quante ' +
+      'conversazioni la prenderebbero.', '', ''));
+  }
+  if (!coppie.buone.length && !coppie.saltate.length) {
+    righe = righe.concat(_aCapo_('Nessuna etichetta da unire in Configurazione.gs. Le trova Campanella (Posta, ' +
+      'passo 4) fra i filtri di Gmail che hai unito a una regola con un\'altra etichetta: poi copia di nuovo ' +
+      'la configurazione ed esegui ancora questa funzione.', '', ''));
+  }
+  if (esito.coppie.length) {
+    righe.push((prova ? 'Etichette rimaste da unire: ' : 'Etichette rimaste unite adesso: ') + esito.coppie.length);
+    for (var i = 0; i < esito.coppie.length; i++) righe = righe.concat(_righeCoppia_(esito.coppie[i], prova));
+  }
+  if (esito.restano.length) {
+    var fuori = [];
+    for (var k = 0; k < esito.restano.length; k++) fuori.push(esito.restano[k].da + ' -> ' + esito.restano[k].a);
+    righe.push('');
+    righe = righe.concat(_aCapo_('Tempo finito: esegui di nuovo questa funzione per ' + fuori.join(', ') +
+      '. Ricomincia da capo, e le conversazioni gia\' fatte restano come sono.', '', ''));
+  }
+  if (coppie.saltate.length) {
+    righe.push('');
+    righe.push('Voci di etichetteDaUnire saltate: ' + coppie.saltate.length);
+    for (var s = 0; s < coppie.saltate.length; s++) righe = righe.concat(_aCapo_(coppie.saltate[s], '  - ', '    '));
+  }
+  if (altre.length) {
+    righe.push('');
+    righe.push((esito.deiFiltri ? 'Etichette che nessuna regola e nessun filtro di Gmail mettono: '
+                                : 'Etichette che nessuna regola mette: ') + altre.length);
+    for (var e = 0; e < altre.length && e < 30; e++) {
+      var a = altre[e];
+      righe.push('  - ' + a.nome + ' (' + (a.conversazioni === 0 ? 'vuota' : a.conversazioni +
+                 (a.piena ? ' o piu\'' : '') + (a.conversazioni === 1 ? ' conversazione' : ' conversazioni')) + ')');
+    }
+    if (altre.length > 30) righe.push('  ... e altre ' + (altre.length - 30));
+    righe = righe.concat(_aCapo_((esito.deiFiltri ? '' : 'Senza il servizio Gmail API non vedo quali mette ' +
+      'ancora un tuo filtro. ') + 'Lo script non le tocca: se non ti servono, cancellale tu da Gmail (i ' +
+      'messaggi restano).', '', ''));
+  }
+  if (!prova && esito.coppie.length) {
+    righe.push('');
+    righe = righe.concat(_aCapo_('Non ho tolto ne\' cancellato niente: ho solo aggiunto l\'etichetta della ' +
+      'regola, senza archiviare e senza segnare come letto.', '', ''));
+  } else if (prova && esito.coppie.length) {
+    righe.push('');
+    righe = righe.concat(_aCapo_('Per mettere davvero le etichette: in Configurazione.gs metti ' +
+      'provaSenzaModifiche: false ed esegui di nuovo EXTRA_unisciEtichette.', '', ''));
+  }
+  var testo = righe.join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
+/** Quello che EXTRA_unisciEtichette dice di una coppia. */
+function _righeCoppia_(r, prova) {
+  var chi = r.da + ' -> ' + r.a + ': ';
+  if (r.stato === 'manca') {
+    return _aCapo_(chi + 'in Gmail ' + r.da + ' non c\'e\' (forse l\'hai gia\' cancellata): niente da fare.', '  - ', '    ');
+  }
+  if (r.stato === 'senzaRegola') {
+    return _aCapo_(chi + 'in Gmail ' + r.a + ' non c\'e\' ancora: esegui PASSO_2_creaEtichette, poi di nuovo ' +
+      'questa funzione.', '  - ', '    ');
+  }
+  var n = r.conversazioni + (r.conversazioni === 1 ? ' conversazione' : ' conversazioni');
+  var testo = chi + (r.stato === 'interrotta' ? 'tempo finito dopo ' + n + '.' :
+              prova ? n + ' prenderebbero anche ' + r.a + (r.nuova ? '.' : ' (nascera\' con PASSO_2_creaEtichette).') :
+              (r.conversazioni === 1 ? '1 conversazione ha' : n + ' hanno') + ' adesso anche ' + r.a + '.');
+  if (r.stato !== 'interrotta') {
+    if (r.sotto.length) {
+      testo += ' ' + r.da + ' ha delle sottoetichette (' + r.sotto.join(', ') + '): lasciala, o sposta prima ' +
+               'quelle.';
+    } else if (r.filtro === true) {
+      testo += ' Non cancellarla ancora: la mette ancora un filtro di Gmail. Togli prima i filtri ' +
+               '(EXTRA_togliFiltri), poi esegui di nuovo questa funzione.';
+    } else if (!prova) {
+      testo += (r.filtro === false ? ' ' + r.da + ' si puo\' cancellare:'
+                                   : ' Cancellala solo dopo EXTRA_togliFiltri (senza il servizio Gmail API non vedo ' +
+                                     'se un filtro la mette ancora):') +
+               ' in Gmail, nel menu a sinistra, passa sopra ' + r.da + ' -> i tre puntini -> Rimuovi etichetta. I ' +
+               'messaggi restano, con ' + r.a + '.';
+    }
+  }
+  return _aCapo_(testo, '  - ', '    ');
+}
+
+/**
+ * Le coppie di etichetteDaUnire: buone ({ da, a }) e saltate (il perche').
+ * "a" deve essere l'etichetta di una regola accesa (con il gruppo, come in
+ * Gmail): questa funzione mette solo etichette delle regole, come il
+ * riordino. "da" non deve essere un'etichetta che lo script gestisce (di una
+ * regola, anche spenta, di un ruolo, o il loro gruppo).
+ */
+function _coppieEtichette_(cfg) {
+  var fuori = { buone: [], saltate: [] };
+  var elenco = cfg.etichetteDaUnire;
+  if (!elenco || typeof elenco.length !== 'number') return fuori;
+  var delleRegole = {}, regole = _regoleAttive_(cfg);
+  for (var i = 0; i < regole.length; i++) {
+    var nome = _etichettaCompleta_(cfg, regole[i]);
+    delleRegole[nome.toLowerCase()] = nome;
+  }
+  var gestite = _nomiGestiti_(cfg), viste = {};
+  for (var j = 0; j < elenco.length; j++) {
+    var voce = elenco[j] || {};
+    var da = String(voce.da || '').trim(), a = String(voce.a || '').trim();
+    if (!da || !a) { fuori.saltate.push((da || a || '(vuota)') + ': senza l\'etichetta da unire o quella della regola'); continue; }
+    var chi = da + ' -> ' + a;
+    if (da.toLowerCase() === a.toLowerCase()) { fuori.saltate.push(chi + ': e\' la stessa etichetta'); continue; }
+    if (!delleRegole[a.toLowerCase()]) { fuori.saltate.push(chi + ': ' + a + ' non e\' l\'etichetta di una regola accesa'); continue; }
+    if (gestite[da.toLowerCase()]) { fuori.saltate.push(chi + ': ' + da + ' e\' un\'etichetta delle regole: non la tocco'); continue; }
+    var gia = viste[da.toLowerCase()];
+    if (gia) {
+      if (gia.toLowerCase() !== a.toLowerCase()) fuori.saltate.push(chi + ': ' + da + ' e\' gia\' da unire a ' + gia);
+      continue;
+    }
+    viste[da.toLowerCase()] = delleRegole[a.toLowerCase()];
+    fuori.buone.push({ da: da, a: delleRegole[a.toLowerCase()] });
+  }
+  return fuori;
+}
+
+/**
+ * Le etichette che lo script gestisce, in minuscolo: quelle di tutte le
+ * regole, anche spente (con il gruppo, come in Gmail; i ruoli e le classi
+ * sono regole anche loro), e i livelli sopra di loro (il gruppo, Colleghi
+ * sopra Colleghi/Docenti).
+ */
+function _nomiGestiti_(cfg) {
+  var fuori = {};
+  var regole = cfg.regole || [];
+  for (var i = 0; i < regole.length; i++) {
+    if (!regole[i] || !regole[i].etichetta) continue;
+    var parti = _etichettaCompleta_(cfg, regole[i]).split('/');
+    var nome = '';
+    for (var p = 0; p < parti.length; p++) {
+      nome = (p === 0) ? parti[0] : nome + '/' + parti[p];
+      fuori[nome.toLowerCase()] = true;
+    }
+  }
+  return fuori;
+}
+
+/**
+ * Mette (in prova soltanto conta) l'etichetta "a" a tutte le conversazioni
+ * con l'etichetta "da", a blocchi, e niente altro. Dice per ogni coppia
+ * com'e' andata, quali coppie restano se il tempo finisce, e (con il
+ * servizio Gmail API) quali etichette mettono i filtri di Gmail.
+ */
+function _unisciEtichette_(coppie, prova) {
+  var scadenza = Date.now() + _MAX_SECONDI_ESECUZIONE * 1000;
+  var esito = { coppie: [], restano: [], deiFiltri: _etichetteDeiFiltri_() };
+  var nomi = [], tutte = GmailApp.getUserLabels();
+  for (var t = 0; t < tutte.length; t++) nomi.push(String(tutte[t].getName()));
+  for (var i = 0; i < coppie.length; i++) {
+    var c = coppie[i];
+    if (Date.now() > scadenza) { esito.restano = coppie.slice(i); break; }
+    var r = { da: c.da, a: c.a, stato: 'fatta', conversazioni: 0, sotto: [], filtro: null, nuova: false };
+    esito.coppie.push(r);
+    var vecchia = GmailApp.getUserLabelByName(c.da);
+    if (!vecchia) { r.stato = 'manca'; continue; }
+    var nuova = GmailApp.getUserLabelByName(c.a);
+    if (!nuova && !prova) { r.stato = 'senzaRegola'; continue; }
+    r.nuova = !!nuova;
+    r.sotto = _sottoetichette_(c.da, nomi);
+    if (esito.deiFiltri) r.filtro = !!esito.deiFiltri[c.da.toLowerCase()];
+    // aggiungere un'etichetta non cambia le conversazioni che hanno quella
+    // vecchia: le pagine restano le stesse
+    for (var inizio = 0; ; inizio += _THREAD_PER_BLOCCO) {
+      if (Date.now() > scadenza) { r.stato = 'interrotta'; break; }
+      var threads = vecchia.getThreads(inizio, _THREAD_PER_BLOCCO);
+      if (!threads.length) break;
+      if (!prova) {
+        nuova.addToThreads(threads);
+        Utilities.sleep(300);         // gentile con le quote di Gmail
+      }
+      r.conversazioni += threads.length;
+      if (threads.length < _THREAD_PER_BLOCCO) break;
+    }
+    if (r.stato === 'interrotta') { esito.restano = coppie.slice(i + 1); break; }
+  }
+  return esito;
+}
+
+/** Le sottoetichette di un'etichetta (Famiglie/Prime), fra i nomi di Gmail. */
+function _sottoetichette_(nome, nomi) {
+  var fuori = [], inizio = String(nome).toLowerCase() + '/';
+  for (var i = 0; i < nomi.length; i++) {
+    if (nomi[i].toLowerCase().indexOf(inizio) === 0) fuori.push(nomi[i]);
+  }
+  return fuori;
+}
+
+/**
+ * Le etichette (in minuscolo) che mette almeno un filtro di Gmail, con il
+ * servizio Gmail API; null se il servizio non c'e' o non risponde: allora
+ * non si sa.
+ */
+function _etichetteDeiFiltri_() {
+  if (!_servizioFiltri_()) return null;
+  try {
+    var nomi = {}, lista = Gmail.Users.Labels.list('me').labels || [];
+    for (var i = 0; i < lista.length; i++) nomi[lista[i].id] = String(lista[i].name);
+    var fuori = {}, filtri = Gmail.Users.Settings.Filters.list('me').filter || [];
+    for (var f = 0; f < filtri.length; f++) {
+      var aggiunte = (filtri[f].action || {}).addLabelIds || [];
+      for (var a = 0; a < aggiunte.length; a++) {
+        if (nomi[aggiunte[a]]) fuori[nomi[aggiunte[a]].toLowerCase()] = true;
+      }
+    }
+    return fuori;
+  } catch (errore) {
+    Logger.log('Non ho potuto leggere i filtri di Gmail (' + errore.message + '): non so quali etichette mettono.');
+    return null;
+  }
+}
+
+/**
+ * Le etichette di Gmail che nessuno mette piu': non sono delle regole, ne'
+ * da unire, ne' (con il servizio Gmail API) di un filtro; e non hanno
+ * sottoetichette, che le contano come cartelle. Con quante conversazioni
+ * hanno, fino al tetto dell'anteprima. Solo un elenco: lo script non le tocca.
+ */
+function _etichetteSenzaNessuno_(cfg, coppie, deiFiltri) {
+  var gestite = _nomiGestiti_(cfg), daUnire = {};
+  for (var c = 0; c < coppie.length; c++) daUnire[coppie[c].da.toLowerCase()] = true;
+  var tutte = GmailApp.getUserLabels(), nomi = [];
+  for (var i = 0; i < tutte.length; i++) nomi.push(String(tutte[i].getName()));
+  var fuori = [];
+  for (var j = 0; j < tutte.length; j++) {
+    var basso = nomi[j].toLowerCase();
+    if (gestite[basso] || daUnire[basso] || (deiFiltri && deiFiltri[basso])) continue;
+    if (_sottoetichette_(nomi[j], nomi).length) continue;
+    var quante = tutte[j].getThreads(0, _TETTO_ANTEPRIMA).length;
+    fuori.push({ nome: nomi[j], conversazioni: quante, piena: quante >= _TETTO_ANTEPRIMA });
+  }
+  fuori.sort(function (x, y) {
+    var a = x.nome.toLowerCase(), b = y.nome.toLowerCase();
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+  return fuori;
 }
 
 

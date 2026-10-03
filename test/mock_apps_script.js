@@ -1913,6 +1913,267 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
 contesto.CONFIG = configDiPrima;
 indirizzoAttivo = IO;
 
+intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
+{
+  // Un filtro unito in Campanella a una regola con un'altra etichetta lascia
+  // la sua (Famiglie, e la regola e' Genitori). EXTRA_unisciEtichette mette
+  // l'etichetta della regola a tutte le sue conversazioni, e basta: non
+  // toglie etichette, non archivia, non segna come letto, non cancella.
+  const S = 'scuola.example';
+  casella.length = 0;
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  sogliaInterruzione = Infinity;
+  delete contesto.Gmail;
+  const famiglie = GmailApp.createLabel('Famiglie');
+  const normativa = GmailApp.createLabel('Sindacati e normativa');
+  const casellaScuola = GmailApp.createLabel('xyis01200z');
+  const ex = GmailApp.createLabel('Ex');
+  GmailApp.createLabel('Ex/Uno');
+  const vecchio = GmailApp.createLabel('Vecchio progetto');
+  GmailApp.createLabel('Prova vuota');
+  GmailApp.createLabel('Personale');
+  const viaggi = GmailApp.createLabel('Personale/Viaggi');
+  const genitori = GmailApp.createLabel('Genitori');
+  const sindacati = GmailApp.createLabel('Sindacati');
+  GmailApp.createLabel('Segreteria');
+  GmailApp.createLabel('Circolari');
+  // 150 conversazioni: piu' di un blocco da 100
+  const dalleFamiglie = [];
+  for (let i = 0; i < 150; i++) dalleFamiglie.push(aggiungi('genitore' + i + '@famiglie.example', 'Colloquio ' + i, '', { unread: i % 2 === 0 }));
+  famiglie.addToThreads(dalleFamiglie);
+  dalleFamiglie[3].inInbox = false;
+  const sindacali = [aggiungi('info@sindacato-uno.example', 'Assemblea', ''),
+                     aggiungi('info@sindacato-uno.example', 'Sciopero', ''),
+                     aggiungi('info@sindacato-due.example', 'Contratto', '')];
+  normativa.addToThreads(sindacali);
+  sindacati.addToThreads([sindacali[0]]);
+  const dallaScuola = aggiungi('xyis01200z@istruzione.example', 'Nota', '');
+  casellaScuola.addToThreads([dallaScuola]);
+  ex.addToThreads([aggiungi('qualcuno@altro.example', 'Vecchia cosa', '')]);
+  vecchio.addToThreads([aggiungi('progetto@altro.example', 'Riunione', '')]);
+  viaggi.addToThreads([aggiungi('agenzia@viaggi.example', 'Biglietti', '')]);
+  const fotoEtichette = () => JSON.stringify([...etichette.values()].map(l => [l.nome, l.id]));
+  const fotoPosta = () => JSON.stringify(casella.map(t => [t.id, [...t.labels].sort(), t.inInbox, t.unread]));
+  const etichettePrima = fotoEtichette(), postaPrima = fotoPosta();
+
+  const coppie = [
+    { da: 'Famiglie', a: 'Genitori' },
+    { da: 'Sindacati e normativa', a: 'Sindacati' },
+    { da: 'xyis01200z', a: 'Segreteria' },
+    { da: 'Ex', a: 'Segreteria' },
+    { da: 'Assente', a: 'Genitori' },
+    // queste si saltano: un'etichetta delle regole (anche spenta), una che non
+    // e' di una regola accesa, una gia' da unire a un'altra regola, una uguale
+    { da: 'Circolari', a: 'Genitori' },
+    { da: 'Formazione e corsi', a: 'Genitori' },
+    { da: 'Vecchio progetto', a: 'Inventata' },
+    { da: 'Famiglie', a: 'Sindacati' },
+    { da: 'Genitori', a: 'genitori' }
+  ];
+  contesto.CONFIG = {
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: '', provaSenzaModifiche: true,
+    soloUltimiMesi: 0, escludiPostaInviata: true, inviaReport: true, personale: [],
+    regole: [
+      { attiva: true, etichetta: 'Genitori', da: ['@famiglie.example'] },
+      { attiva: true, etichetta: 'Sindacati', da: ['@sindacato-uno.example', '@sindacato-due.example'], archivia: true },
+      { attiva: true, etichetta: 'Segreteria', da: ['xyis01200z@istruzione.example'] },
+      { attiva: true, etichetta: 'Circolari', oggetto: ['circolare'] },
+      { attiva: false, etichetta: 'Formazione e corsi', oggetto: ['corso'] }
+    ],
+    etichetteDaUnire: coppie
+  };
+
+  // --- l'anteprima lo dice in una riga ------------------------------------------
+  {
+    const a = contesto.PASSO_1_anteprima().split('\n');
+    const i = a.findIndex(r => r.indexOf('dai filtri uniti') >= 0);
+    verifica('l\'anteprima dice in una riga quante etichette ci sono da unire, e con quale funzione',
+      i > 6 && a[i] === '5 etichette rimaste dai filtri uniti: esegui EXTRA_unisciEtichette (dopo EXTRA_togliFiltri).' &&
+      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && a.every(r => r.length <= 100));
+  }
+
+  // --- con il blocco preso non tocca niente ------------------------------------
+  contesto.CONFIG.provaSenzaModifiche = false;
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  let t = contesto.EXTRA_unisciEtichette();
+  LockService.getUserLock = bloccoVero;
+  verifica('con un\'altra esecuzione in corso non mette niente, e dice di riprovare',
+    fotoPosta() === postaPrima && t.indexOf('riprova fra un minuto') > 0);
+
+  // --- in prova: conta e basta -----------------------------------------------------
+  contesto.CONFIG.provaSenzaModifiche = true;
+  t = contesto.EXTRA_unisciEtichette();
+  console.log(t);
+  verifica('in prova non mette nessuna etichetta e non ne crea ne\' cancella',
+    fotoPosta() === postaPrima && fotoEtichette() === etichettePrima);
+  verifica('e dice quante conversazioni prenderebbero l\'etichetta della regola, anche oltre il primo blocco',
+    t.indexOf('MODALITA\' PROVA') === 0 &&
+    t.indexOf('  - Famiglie -> Genitori: 150 conversazioni prenderebbero anche Genitori.') >= 0 &&
+    t.indexOf('  - Sindacati e normativa -> Sindacati: 3 conversazioni prenderebbero anche Sindacati.') >= 0);
+  verifica('dice che un\'etichetta da unire non c\'e\'',
+    /Assente -> Genitori: in Gmail Assente non c'e'/.test(t.replace(/\n +/g, ' ')));
+  verifica('salta le voci che non vanno: un\'etichetta delle regole, anche spenta, una regola che non c\'e\', ' +
+           'una gia\' da unire a un\'altra, una uguale',
+    /Voci di etichetteDaUnire saltate: 5\n/.test(t) && t.indexOf('Circolari -> Genitori: Circolari e\' un\'etichetta delle regole') >= 0 &&
+    t.indexOf('Formazione e corsi -> Genitori: Formazione e corsi e\' un\'etichetta delle regole') >= 0 &&
+    t.indexOf('Vecchio progetto -> Inventata: Inventata non e\' l\'etichetta di una regola accesa') >= 0 &&
+    t.indexOf('Famiglie -> Sindacati: Famiglie e\' gia\' da unire a Genitori') >= 0 &&
+    t.indexOf('Genitori -> genitori: e\' la stessa etichetta') >= 0);
+  verifica('senza il servizio Gmail API elenca le etichette che nessuna regola mette, senza le cartelle',
+    t.indexOf('Etichette che nessuna regola mette: 4\n  - Ex/Uno (vuota)\n  - Personale/Viaggi (1 conversazione)\n' +
+              '  - Prova vuota (vuota)\n  - Vecchio progetto (1 conversazione)') >= 0 &&
+    t.indexOf('Senza il servizio Gmail API non vedo quali mette ancora un tuo filtro') >= 0);
+  verifica('e dice come farlo davvero', t.indexOf('provaSenzaModifiche: false') > 0);
+
+  // --- davvero, senza il servizio Gmail API ------------------------------------------
+  contesto.CONFIG.provaSenzaModifiche = false;
+  const postaMandata = posta.length;
+  t = contesto.EXTRA_unisciEtichette();
+  console.log(t);
+  verifica('tutte le conversazioni di Famiglie hanno anche Genitori, e tengono Famiglie',
+    dalleFamiglie.every(x => x.labels.has('Genitori') && x.labels.has('Famiglie')));
+  verifica('quelle di Sindacati e normativa anche Sindacati, la casella della scuola anche Segreteria',
+    sindacali.every(x => x.labels.has('Sindacati') && x.labels.has('Sindacati e normativa')) &&
+    dallaScuola.labels.has('Segreteria') && dallaScuola.labels.has('xyis01200z'));
+  verifica('non archivia e non segna come letto, nemmeno con una regola che archivia, e non tocca le altre',
+    JSON.stringify(casella.map(x => [x.id, x.inInbox, x.unread])) ===
+      JSON.stringify(JSON.parse(postaPrima).map(x => [x[0], x[2], x[3]])) &&
+    !casella.some(x => x.labels.has('Genitori') && !x.labels.has('Famiglie')) &&
+    [...JSON.parse(postaPrima)].every(x => { const th = casella.find(y => y.id === x[0]); return x[1].every(e => th.labels.has(e)); }));
+  verifica('nessuna etichetta creata o cancellata', fotoEtichette() === etichettePrima);
+  {
+    const piatto = t.replace(/\s+/g, ' ');
+    verifica('dice quante ne ha unite, e che senza il servizio Gmail API si cancellano solo dopo EXTRA_togliFiltri',
+      piatto.indexOf('Etichette rimaste unite adesso: 5') >= 0 &&
+      piatto.indexOf('Famiglie -> Genitori: 150 conversazioni hanno adesso anche Genitori. Cancellala solo dopo ' +
+                     'EXTRA_togliFiltri (senza il servizio Gmail API non vedo se un filtro la mette ancora): in Gmail, ' +
+                     'nel menu a sinistra, passa sopra Famiglie -> i tre puntini -> Rimuovi etichetta. I messaggi ' +
+                     'restano, con Genitori.') >= 0 &&
+      piatto.indexOf('xyis01200z -> Segreteria: 1 conversazione ha adesso anche Segreteria.') >= 0);
+    verifica('un\'etichetta con delle sottoetichette non la fa cancellare',
+      piatto.indexOf('Ex -> Segreteria: 1 conversazione ha adesso anche Segreteria. Ex ha delle sottoetichette ' +
+                     '(Ex/Uno): lasciala, o sposta prima quelle.') >= 0);
+    verifica('e che non ha tolto ne\' cancellato niente',
+      piatto.indexOf('Non ho tolto ne\' cancellato niente: ho solo aggiunto l\'etichetta della regola, senza archiviare ' +
+                     'e senza segnare come letto.') >= 0);
+  }
+  verifica('non manda email', posta.length === postaMandata);
+  verifica('nessuna riga del riepilogo supera i 100 caratteri', t.split('\n').every(r => r.length <= 100));
+
+  // --- rieseguita: niente cambia ---------------------------------------------------
+  const dopo = fotoPosta();
+  contesto.EXTRA_unisciEtichette();
+  verifica('rieseguita non cambia niente', fotoPosta() === dopo);
+
+  // --- con il servizio Gmail API: dice quali si possono cancellare ----------------------
+  {
+    const filtri = [
+      { id: 'F1', criteria: { from: 'xyis01200z@istruzione.example' }, action: { addLabelIds: [casellaScuola.id] } },
+      { id: 'F2', criteria: { from: 'agenzia@viaggi.example' }, action: { addLabelIds: [viaggi.id, 'STARRED'] } }
+    ];
+    contesto.Gmail = { Users: {
+      Labels: { list: () => ({ labels: [{ id: 'STARRED', name: 'STARRED', type: 'system' }].concat(
+        [...etichette.values()].map(l => ({ id: l.id, name: l.nome, type: 'user' }))) }) },
+      Settings: { Filters: {
+        list: () => ({ filter: JSON.parse(JSON.stringify(filtri)) }),
+        remove: () => { throw new Error('qui non si toglie niente'); },
+        create: () => { throw new Error('qui non si crea niente'); }
+      } }
+    } };
+    t = contesto.EXTRA_unisciEtichette();
+    console.log(t);
+    const piatto = t.replace(/\n +/g, ' ');
+    verifica('Famiglie, che nessun filtro mette piu\', si puo\' cancellare, e dice come',
+      piatto.indexOf('Famiglie -> Genitori: 150 conversazioni hanno adesso anche Genitori. Famiglie si puo\' cancellare: ' +
+                     'in Gmail, nel menu a sinistra, passa sopra Famiglie -> i tre puntini -> Rimuovi etichetta.') >= 0);
+    verifica('quella che un filtro mette ancora no: prima EXTRA_togliFiltri',
+      piatto.indexOf('xyis01200z -> Segreteria: 1 conversazione ha adesso anche Segreteria. Non cancellarla ancora: la ' +
+                     'mette ancora un filtro di Gmail. Togli prima i filtri (EXTRA_togliFiltri), poi esegui di nuovo ' +
+                     'questa funzione.') >= 0);
+    verifica('fra le altre etichette non c\'e\' quella che mette un filtro',
+      t.indexOf('Etichette che nessuna regola e nessun filtro di Gmail mettono: 3\n  - Ex/Uno (vuota)\n  - Prova vuota ' +
+                '(vuota)\n  - Vecchio progetto (1 conversazione)') >= 0 && t.indexOf('Senza il servizio') < 0);
+    verifica('i filtri restano', filtri.length === 2);
+    // il servizio che non risponde: come senza
+    contesto.Gmail.Users.Settings.Filters.list = () => { throw new Error('Backend Error'); };
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('con il servizio che non risponde dice che non sa, come senza',
+      t.indexOf('Senza il servizio Gmail API non vedo') >= 0 && registro.some(r => r.indexOf('Non ho potuto leggere i filtri di Gmail') === 0));
+    delete contesto.Gmail;
+  }
+
+  // --- l'etichetta della regola non c'e' ancora -----------------------------------------
+  {
+    etichette.delete('Genitori');
+    const primaDi = fotoPosta();
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Genitori' }];
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('senza l\'etichetta della regola non mette niente e dice di eseguire PASSO_2_creaEtichette',
+      fotoPosta() === primaDi && !etichette.has('Genitori') &&
+      t.replace(/\n +/g, ' ').indexOf('Famiglie -> Genitori: in Gmail Genitori non c\'e\' ancora: esegui PASSO_2_creaEtichette') >= 0);
+    contesto.CONFIG.provaSenzaModifiche = true;
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('in prova la conta, e dice che nascera\' con PASSO_2_creaEtichette',
+      !etichette.has('Genitori') && t.replace(/\n +/g, ' ').indexOf('150 conversazioni prenderebbero anche Genitori ' +
+        '(nascera\' con PASSO_2_creaEtichette).') >= 0);
+    contesto.CONFIG.provaSenzaModifiche = false;
+    etichette.set('Genitori', genitori);
+  }
+
+  // --- il tempo finisce: dice di eseguirla di nuovo ----------------------------------------
+  {
+    dalleFamiglie.forEach(x => x.labels.delete('Genitori'));
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Genitori' }, { da: 'Sindacati e normativa', a: 'Sindacati' }];
+    chiamate.addToThreads = 0;
+    sogliaInterruzione = 1;
+    t = contesto.EXTRA_unisciEtichette();
+    sogliaInterruzione = Infinity;
+    orologio = 0;
+    const piatto = t.replace(/\n +/g, ' ');
+    verifica('finito il tempo si ferma, dice dove, e che cosa resta da fare',
+      piatto.indexOf('Famiglie -> Genitori: tempo finito dopo 100 conversazioni.') >= 0 &&
+      piatto.indexOf('Tempo finito: esegui di nuovo questa funzione per Sindacati e normativa -> Sindacati.') >= 0 &&
+      dalleFamiglie.filter(x => x.labels.has('Genitori')).length === 100);
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('rieseguita finisce il lavoro', dalleFamiglie.every(x => x.labels.has('Genitori')) &&
+      t.indexOf('Tempo finito') < 0);
+  }
+
+  // --- con il gruppo: l'etichetta della regola ha il gruppo davanti ---------------------------
+  {
+    contesto.CONFIG.prefissoEtichette = 'Scuola';
+    GmailApp.createLabel('Scuola');
+    const scuolaGenitori = GmailApp.createLabel('Scuola/Genitori');
+    contesto.CONFIG.etichetteDaUnire = [{ da: 'Famiglie', a: 'Scuola/Genitori' }, { da: 'Famiglie', a: 'Genitori' },
+                                        { da: 'Scuola', a: 'Scuola/Genitori' }];
+    t = contesto.EXTRA_unisciEtichette();
+    verifica('con il gruppo unisce a Scuola/Genitori, e salta Genitori senza gruppo e il gruppo stesso',
+      dalleFamiglie.every(x => x.labels.has('Scuola/Genitori')) && scuolaGenitori.getThreads(0, 500).length === 150 &&
+      t.indexOf('Famiglie -> Genitori: Genitori non e\' l\'etichetta di una regola accesa') >= 0 &&
+      t.indexOf('Scuola -> Scuola/Genitori: Scuola e\' un\'etichetta delle regole') >= 0);
+    contesto.CONFIG.prefissoEtichette = '';
+  }
+
+  // --- niente da unire -----------------------------------------------------------------
+  {
+    delete contesto.CONFIG.etichetteDaUnire;
+    let errore = null;
+    try { t = contesto.EXTRA_unisciEtichette(); } catch (e) { errore = e; }
+    verifica('senza etichette da unire lo dice, e dice dove si trovano',
+      !errore && t.indexOf('Nessuna etichetta da unire in Configurazione.gs') === 0 && t.indexOf('passo 4') > 0);
+    verifica('e senza etichette da unire l\'anteprima non dice niente',
+      contesto.PASSO_1_anteprima().indexOf('dai filtri uniti') < 0);
+  }
+}
+contesto.CONFIG = configDiPrima;
+indirizzoAttivo = IO;
+orologio = 0;
+sogliaInterruzione = Infinity;
+
 // il file di una classe come lo scrive Campanella (LeMieClassi.FileClasse): la
 // classe, l'etichetta della regola per cui e' stato copiato e gli indirizzi.
 // Piu' file nello stesso progetto si sommano, in qualunque ordine li legga Google
