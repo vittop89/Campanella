@@ -1,13 +1,33 @@
 # Changelog
 
-## 1.6.2 — (data da definire)
+## 1.6.2 — 4 October 2026
 
 Organizzazione_Gmail.gs changes (1.6.2): paste it again, together with a new
 Configurazione.gs (Posta, step 5).
 
+Orari.gs and Calendario.gs change (1.6.2, the titles of the lessons hour by
+hour): paste the code again (Orari, step 4, "Cosa fare, passo per passo"),
+together with a new DatiOrari.gs.
+
 Moduli.gs and Pannello.gs change only in their messages (sentences no
 longer broken across lines): paste them again when convenient (Cartelle,
 step 2).
+
+**Step-by-step guides**
+
+- Posta, Cartelle, Orari and Privacy have a last step, "Guida passo passo":
+  a guide for teachers who rarely use a computer, with what to do the first
+  time, what every function of the scripts is for and how to run it, and a
+  recipe for each common case (a rule changed, a new timetable, an error to
+  undo...). "Vai a" jumps to a section; "Salva in PDF..." saves it as an A4
+  PDF, written by Campanella itself with the standard Helvetica fonts (no
+  library, nothing embedded; the same guide always gives the same file). The
+  texts are in src/risorse/Guida_*.txt, in a small format (titles, steps,
+  bullets, "Attenzione" and "Consiglio" boxes, bold). The new
+  test\prova_guida.ps1 (in the CI list) checks the format, that every script
+  function a guide names exists and that every function run by hand is
+  explained in its guide, and the PDF (cross-reference table, stream
+  lengths, pages, margins, escaping, same file for the same text).
 
 **Posta: the labels left by the Gmail filters merged into a rule**
 

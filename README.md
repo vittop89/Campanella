@@ -13,8 +13,14 @@ for the open-source audience.
 |------|--------------|
 | **Posta** (mail) | sorts the Gmail mailbox into labels (management, secretariat, circulars, colleagues, students…), past and future mail, in the colours you pick; optionally a label for each of your classes |
 | **Cartelle** (folders) | builds the school-year folder tree in Drive and copies the templates into it; for Google Forms, which cannot be copied from a PC, it writes the script that gives each form its response sheet for the year |
-| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar (the school account's, or another account's such as your personal one), with no lessons on the days you list as holidays and, when the timetable changes, the new one from a date on, and your parents' meetings with the Meet link (bookings stay in the electronic register) |
+| **Orari** (timetables) | reads the timetable from an Excel file, mails **you** one message per teacher, and puts your own timetable on Google Calendar (the school account's, or another account's such as your personal one), with no lessons on the days you list as holidays and, when the timetable changes, the new one from a date on, and your parents' meetings with the Meet link (bookings stay in the electronic register); the title and colour of every lesson are chosen hour by hour on a timetable grid |
 | **Privacy** | the rules on school data and AI, tools to strip personal data before pasting into an assistant, and the documents for the principal and the DPO |
+
+Every tool ends with a **step-by-step guide** written for teachers who rarely
+use a computer: what to do the first time, what every function of the scripts
+is for and how to run it, and a recipe for each common case (a rule changed, a
+new timetable, an error to undo). It is read inside the application and saved
+as a **PDF** to print.
 
 The application **never touches mail, calendar or Drive on its own**: it
 prepares the code of a Google Apps Script that the user pastes into their own
@@ -119,12 +125,13 @@ src/
   PaginaImpostazioni.cs  settings: theme, data in Drive, rizzo-pii, updates, terms
   Tema.cs             light/dark palette, control factories, CasellaTema
   Stato.cs            data model, persistence (settings + data in Drive)
-  Dialoghi.cs         small dialogs: paste a list, show a text, edit a rule
-  PaginaPosta.cs      the Posta tool (7 steps)
+  Dialoghi.cs         small dialogs: paste a list, show a text, edit a rule, lesson titles and colours
+  Guida.cs            the step-by-step guides (risorse/Guida_*.txt): reading, page and a library-free PDF writer
+  PaginaPosta.cs      the Posta tool (8 steps)
   GeneratorePosta.cs  Configurazione.gs of the Posta tool, without windows
-  PaginaCartelle.cs   the Cartelle tool (2 steps: folders, Google Forms)
+  PaginaCartelle.cs   the Cartelle tool (3 steps: folders, Google Forms, guide)
   GeneratoreAnno.cs   the year folders on disk, without windows
-  PaginaOrari.cs      the Orari tool (4 steps)
+  PaginaOrari.cs      the Orari tool (5 steps)
   PaginaPrivacy.cs    the Privacy tool + documents for principal and DPO
   Moduli.cs           the Google Forms scripts: configuration, instructions, manifest
   Anonimizzatore.cs   HTTP client of rizzo-pii (local addresses only)
@@ -136,7 +143,7 @@ src/
   Calendario.cs       days without lessons, national holidays, the plan of calendar series
   Colloqui.cs         parents' meetings: the lines of step 4, the import from .csv/.xlsx, their plan and DatiOrari.gs part
   SoloCalendario.cs   Calendario.gs, the calendar-only Orari.gs for another Google account
-  risorse/            the .gs and .js files embedded in the executable
+  risorse/            the .gs and .js files and the guides embedded in the executable
 src-installer/        the C# installer, per-user, no UAC (local builds only)
 installer/            Inno Setup script (the published installer, it/en), terms, SignPath artifact config
 strumenti/firma.ps1   local signing with a self-signed certificate (-Firma, -Pubblica)
@@ -187,6 +194,7 @@ node test\invarianti_script.js    # mail and timetable scripts: no mail to other
 .\test\prova_personale.ps1        # staff list: paste formats, roles grouped into five categories
 .\test\prova_stato.ps1            # loading and saving settings and Drive data, in temporary folders
 .\test\prova_guscio.ps1           # the main window, never shown: error message, status code, closing
+.\test\prova_guida.ps1            # the step-by-step guides: format, script functions named and explained, the PDF
 .\test\prova_disinstallazione.ps1 # what the C# uninstaller removes, on fake folders, and that Campanella.iss removes the same settings
 .\test\prova_posta.ps1            # the real Configurazione.gs generator through the Gmail bench
 .\test\prova_cartelle.ps1         # the year folders on a fake Drive

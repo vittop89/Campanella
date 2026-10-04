@@ -45,6 +45,7 @@ $elenco = @(
     'prova_personale.ps1'
     'prova_stato.ps1'
     'prova_guscio.ps1'
+    'prova_guida.ps1'
     'prova_disinstallazione.ps1'
     'prova_posta.ps1'
     'prova_cartelle.ps1'

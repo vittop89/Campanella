@@ -27,7 +27,8 @@ namespace Campanella
             "4  Regole ed etichette",
             "5  Codice da incollare",
             "6  Installazione guidata",
-            "7  Aiuto e problemi"
+            "7  Aiuto e problemi",
+            "8  Guida passo passo"
         };
 
         Panel[] pagine;
@@ -89,6 +90,7 @@ namespace Campanella
             pagine[4] = PaginaCodice();
             pagine[5] = PaginaInstallazione();
             pagine[6] = PaginaAiuto();
+            pagine[7] = PaginaGuida("Guida_Posta.txt", "Posta");
             foreach (Panel p in pagine)
             {
                 p.Dock = DockStyle.Fill;

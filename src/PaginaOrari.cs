@@ -31,7 +31,8 @@ namespace Campanella
             "1  Il file dell'orario",
             "2  Controlla la lettura",
             "3  Le email a te stesso",
-            "4  Google Calendar"
+            "4  Google Calendar",
+            "5  Guida passo passo"
         };
 
         /// <summary>Colori di Google Calendar: nome italiano -> valore di CalendarApp.Color.</summary>
@@ -101,6 +102,7 @@ namespace Campanella
             pagine[1] = PaginaControlla();
             pagine[2] = PaginaInvio();
             pagine[3] = PaginaCalendario();
+            pagine[4] = PaginaGuida("Guida_Orari.txt", "Orari");
             foreach (Panel p in pagine)
             {
                 p.Dock = DockStyle.Fill;

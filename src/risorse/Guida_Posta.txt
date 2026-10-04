@@ -1,0 +1,847 @@
+# Guida alla Posta
+
+Questa guida accompagna la sezione **Posta** di Campanella un passo alla volta. Non serve
+saper usare bene il computer: basta seguire i passi nell'ordine, senza fretta. Se un passo
+non torna, fermati e guarda la parte "Se qualcosa non va", in fondo.
+
+## A che cosa serve
+
+La Posta mette in ordine la tua casella Gmail con delle etichette: Dirigenza, Segreteria,
+Circolari, Colleghi, Studenti e altre. Lo fa sulla posta che hai gia' ricevuto e poi, da sola,
+su quella che arriva ogni giorno. Campanella non tocca la tua posta: prepara un piccolo
+programma Google che tu incolli nel tuo account e fai partire. Prima di fare sul serio c'e'
+sempre una prova, che conta e basta.
+
+- Lo script crea le etichette e le mette ai messaggi. Se vuoi, da' loro i colori che scegli,
+  crea i filtri veri di Gmail e toglie i filtri vecchi che scegli tu.
+- Non cancella messaggi, non svuota il cestino, non segna niente come spam, non scrive a
+  nessuno: i riepiloghi arrivano solo a te.
+- Al massimo archivia, cioe' toglie un messaggio dalla Posta in arrivo: il messaggio resta
+  sotto la sua etichetta e in "Tutti i messaggi".
+
+## Le parole da sapere
+
+- **Etichetta**: un cartellino che Gmail attacca a un messaggio. Le etichette si vedono nella
+  colonna di sinistra di Gmail; un clic su una etichetta mostra solo i suoi messaggi. Un
+  messaggio puo' averne piu' d'una: una circolare del dirigente prende Dirigenza e Circolari.
+- **Regola**: in Campanella, la descrizione di quali messaggi prendono un'etichetta (per
+  esempio: quelli che arrivano dalla segreteria).
+- **Filtro**: una regola che sta dentro le impostazioni di Gmail. Forse ne hai fatti tu, anni
+  fa. Campanella ti aiuta a riordinarli.
+- **Script**: un piccolo programma. **Apps Script** e' il servizio di Google dove gira, sul
+  sito script.google.com. Lo script gira dentro il tuo account, anche a computer spento.
+- **Editor**: la pagina di script.google.com dove incolli il codice e fai partire le funzioni.
+- **Funzione**: un comando dello script, con un nome come **PASSO_1_anteprima**. Si sceglie
+  da un menu a tendina in alto e si avvia con il bottone **Esegui**.
+- **Registro di esecuzione**: il riquadro che si apre in basso nell'editor quando premi
+  **Esegui**. Li' lo script scrive che cosa ha fatto.
+- **Autorizzare**: dare allo script il permesso di leggere e ordinare la tua posta. Google lo
+  chiede una volta sola, la prima volta che esegui una funzione.
+- **Modalita' prova**: lo script conta e dice che cosa farebbe, ma non cambia niente.
+- **Configurazione**: il file con le tue scelte, che Campanella prepara per te.
+- **Impronta**: un breve codice che riassume le tue scelte. Serve a controllare che
+  nell'editor ci sia la configurazione di adesso.
+- **Appunti**: dove il computer tiene quello che hai copiato. I bottoni "Copia..." di
+  Campanella mettono il testo negli appunti; tu poi lo incolli.
+- **Ctrl+A, Ctrl+V, Ctrl+S**: tieni premuto il tasto Ctrl (in basso a sinistra sulla tastiera)
+  e premi la lettera. Ctrl+A seleziona tutto, Ctrl+V incolla, Ctrl+S salva.
+
+## La prima volta: in Campanella
+
+La prima volta servono una decina di minuti. Campanella salva da sola quello che scrivi: se ti
+interrompi, non perdi niente.
+
+### Aprire la Posta
+
+1. Apri Campanella.
+2. Nella colonna di sinistra premi **Posta**. Sotto compaiono i suoi passi, da
+   "1 Come funziona" a "7 Aiuto e problemi".
+3. Per spostarti premi un passo nella colonna di sinistra, oppure usa **Avanti >** e
+   **< Indietro**, in basso a destra.
+
+### Passo 1 - Come funziona
+
+1. Leggi i riquadri: dicono in breve che cosa fa lo script e che cosa non fa mai.
+2. Premi il bottone **Cominciamo >**. Si apre il passo 2.
+
+### Passo 2 - La tua scuola
+
+1. Nella casella **Dominio della scuola** scrivi la parte degli indirizzi della scuola che
+   viene dopo la chiocciola. Se gli indirizzi sono come mario.rossi@scuola.example, scrivi
+   scuola.example.
+2. Nella casella **Dirigenza** scrivi gli indirizzi del dirigente e dei collaboratori, uno
+   per riga.
+3. Nella casella **Segreteria** scrivi gli indirizzi della segreteria, uno per riga. Qui va
+   anche la casella istituzionale della scuola (il codice della scuola @istruzione.it): cosi'
+   i suoi messaggi non finiscono anche in "Ministero e USR".
+4. Nella casella **Registro elettronico** scrivi da dove arrivano gli avvisi del registro: un
+   indirizzo intero, oppure la chiocciola e il dominio (per esempio @registro.example), che
+   vale per tutti gli indirizzi di quel dominio.
+
+? Se non sai che cosa scrivere in una casella, lasciala vuota: le regole che la usano vengono
+  saltate e le altre funzionano lo stesso. Il tuo indirizzo non serve: lo script lo sa da solo.
+
+### Passo 3 - Il personale
+
+L'elenco del personale serve a distinguere i colleghi dagli studenti, che hanno indirizzi dello
+stesso dominio. Nel riquadro "Da dove prendo gli indirizzi" ci sono tre modi.
+
+- **A) Ce li ho gia'**: copia gli indirizzi (per esempio da una email mandata a tutti i
+  docenti) e premi **Incolla elenco**. Va bene un indirizzo per riga, o separati da virgole.
+- **B) Da ClasseViva (solo Spaggiari)**: premi **Come si fa...** e segui le istruzioni,
+  oppure **Estensione...** per un'estensione di Chrome che legge l'elenco con un clic.
+- **C) Dalla tua casella**: il modo piu' preciso, perche' legge i mittenti veri. Serve lo
+  script gia' installato: vedi la funzione **EXTRA_elencaIndirizziScuola**. La prima volta
+  puoi saltarlo e tornarci dopo.
+
+Le persone compaiono nella tabella a destra. Solo le righe con la spunta nella colonna "Usa"
+vanno nello script.
+
+1. Togli la spunta a chi non e' un collega (studenti, genitori), poi premi
+   **Togli le righe senza spunta**.
+2. Se hai solo i nomi, scegli sotto come sono fatti gli indirizzi della scuola (per esempio
+   {nome}.{cognome}) e premi **Genera le email dai nomi**. Sono un'ipotesi: puoi
+   controllarli con **Controlla gli indirizzi...**.
+3. Facoltativo: spunta **In Gmail dividi i colleghi per ruolo**. Oltre a Colleghi nascono
+   Colleghi/Docenti, Colleghi/Amministrativi e le altre categorie.
+
+? "Scrivere a un gruppo", in fondo alla pagina, non serve allo script: scelta una categoria,
+  **Scrivi in Gmail** apre un messaggio nuovo e mette gli indirizzi negli appunti. In Gmail
+  clicca Ccn e incollali con Ctrl+V. Campanella non manda niente da sola.
+
+### Passo 4 - Regole ed etichette
+
+A sinistra c'e' l'elenco delle regole: ogni riga e' un'etichetta di Gmail. Di partenza ci sono
+Dirigenza, Segreteria, Circolari, Registro elettronico, Colleghi, Studenti, Ministero e USR,
+Sindacati, Formazione e corsi, Orari, Newsletter e Genitori. Formazione e corsi e Genitori
+partono spente.
+
+1. Per spegnere una regola togli la spunta con un clic sul quadratino; per riaccenderla
+   clicca di nuovo. Un clic sul nome mostra a destra la descrizione; un doppio clic la apre
+   in **Modifica**.
+2. Lascia vuota la casella **Raggruppa sotto** se questo e' l'account della scuola. Se e' il
+   tuo account personale e ci arriva anche la posta della scuola, scrivi un nome, per esempio
+   Scuola: le etichette nasceranno tutte li' dentro (Scuola/Circolari...).
+3. Nel riquadro **Come deve lavorare lo script** la spunta **Modalita' prova** deve restare
+   accesa: la prima volta lo script conta e basta.
+4. In **Quanta posta guardare** scegli fin dove andare indietro: tutta la posta, o gli ultimi
+   12, 24 o 36 mesi.
+5. In **Controlla la posta nuova ogni** scegli ogni quante ore lo script guarda i messaggi
+   nuovi. Un'ora va bene.
+6. Se vuoi, spunta **Mandami un riepilogo per email quando ha finito**: arriva solo a te.
+
+! Leggi le scritte in color ambra che compaiono sotto le regole: segnalano qualcosa da
+  sistemare, e spesso hanno accanto il bottone che lo sistema.
+
+? Ogni etichetta ha un colore: scelta una regola, accanto a "Colore in Gmail" premi
+  **Cambia...**. I colori li mette il servizio Gmail API, che si aggiunge alla fine.
+
+### Passo 5 - Codice da incollare
+
+Qui c'e' il materiale pronto: non serve capirlo. In cima c'e' la riga "Impronta della
+configurazione", con il codice che lo script dovra' scrivere nella sua anteprima; la stessa
+riga dice se la configurazione e' in modalita' prova o agisce davvero. Il menu a tendina
+sceglie che cosa vedere (codice principale, configurazione, funzione per Spaggiari, riepilogo
+delle etichette) e **Copia negli appunti** lo copia. La prima volta non serve fare niente qui:
+i bottoni del passo 6 copiano al posto tuo.
+
+### Passo 6 - Installazione guidata
+
+Otto riquadri numerati, uno per ogni cosa da fare nell'editor dello script. Ogni riquadro ha
+i suoi bottoni e una casella **Fatto**: spuntala quando hai finito, cosi' se ti interrompi sai
+dove eri arrivato. La parte qui sotto spiega ogni riquadro con calma.
+
+### Passo 7 - Aiuto e problemi
+
+Le domande piu' frequenti, con la risposta. Guardalo se qualcosa non va.
+
+## La prima volta: nel tuo account Google
+
+Tieni Campanella aperta al passo 6 e, accanto, il browser (per esempio Chrome). Si passa
+dall'uno all'altro: in Campanella premi un bottone che copia, nel browser incolli.
+
+### Riquadro 1 - Aprire l'editor dello script
+
+1. In Campanella, nel riquadro 1, premi **Apri script.google.com**. Si apre il browser.
+2. Controlla in alto a destra di essere entrato con l'account Gmail da riordinare. Se Google
+   chiede di accedere, entra con quell'account.
+3. Premi **Nuovo progetto**. Si apre l'editor, con un file gia' pronto.
+4. In alto a sinistra c'e' il nome del progetto: fai clic sul nome, scrivi
+   Organizzazione Gmail e conferma.
+
+? Se il progetto "Organizzazione Gmail" c'e' gia', non farne un altro: aprilo dall'elenco di
+  script.google.com, oppure con **Apri il progetto nel Drive**.
+
+### Riquadro 2 - Incollare il codice principale
+
+1. In Campanella, nel riquadro 2, premi **Copia il codice principale**.
+2. Nell'editor, nella colonna di sinistra, fai clic sul file Codice.gs (o Code.gs).
+3. Fai clic nel testo, a destra, e premi Ctrl+A: il testo si colora, e' selezionato.
+4. Premi Ctrl+V: al posto delle poche righe compare il codice lungo.
+5. Premi Ctrl+S per salvare.
+
+? Non serve leggere il codice. Non va mai cambiato a mano.
+
+### Riquadro 3 - Aggiungere la configurazione
+
+1. In Campanella, nel riquadro 3, premi **Copia la configurazione**.
+2. Nell'editor, nella colonna di sinistra, accanto alla scritta "File" premi il **+** e
+   scegli **Script**. Compare un file nuovo che aspetta un nome.
+3. Scrivi esattamente Configurazione (con la C maiuscola e senza .gs) e premi Invio.
+4. Fai clic nel testo del file nuovo, premi Ctrl+A e poi Ctrl+V.
+5. Premi Ctrl+S per salvare.
+
+! Il nome deve essere proprio Configurazione. Con un altro nome lo script si ferma e dice
+  che manca il file "Configurazione.gs".
+
+### Riquadro 4 - Prima esecuzione e autorizzazione
+
+1. Nella colonna di sinistra fai clic sul file Codice.gs: il menu delle funzioni mostra
+   quelle del file aperto, e con Configurazione aperta sarebbe vuoto.
+2. In alto, accanto al bottone **Esegui**, apri il menu a tendina e scegli
+   **PASSO_1_anteprima**.
+3. Premi **Esegui**.
+4. Compare una finestra che chiede il permesso: premi **Rivedi autorizzazioni**.
+5. Scegli il tuo account, quello della posta da riordinare.
+6. Compare la schermata "Google non ha verificato questa app". E' normale: premi
+   **Avanzate**, in basso a sinistra.
+7. Sotto compare **Apri Organizzazione Gmail (non sicura)**: premila.
+8. Google mostra che cosa potra' fare lo script. Premi **Consenti**.
+9. Torni all'editor e la funzione parte. In basso si apre il registro di esecuzione.
+
+? L'avviso "non verificata" compare per tutti gli script personali, anche per i tuoi. Il
+  codice gira solo dentro il tuo account e nessun altro lo vede. Le volte dopo basta premere
+  **Esegui**.
+
+! Se nella schermata dei permessi ci sono delle caselle da spuntare, spuntale tutte: senza
+  un permesso lo script non puo' lavorare.
+
+### Leggere il registro di esecuzione
+
+Il registro si apre in basso, sotto il codice. Quando la funzione ha finito, compare una riga
+che dice che l'esecuzione e' completata; sopra ci sono le righe scritte dallo script. Per
+**PASSO_1_anteprima**:
+
+- la versione dello script e il tuo account;
+- il dominio della scuola e quante persone ci sono nell'elenco;
+- l'impronta della configurazione;
+- una tabella con una riga per etichetta. "DA ETICHETTARE" sono le conversazioni che la
+  prenderanno; "GIA' ETICHETTATE" quelle che ce l'hanno adesso; "IN GMAIL" dice se
+  l'etichetta e' da creare o c'e' gia'. Un numero con il + (500+) vuol dire "almeno 500".
+
+1. Confronta l'impronta con quella scritta in cima al passo 5 di Campanella.
+2. Se sono uguali, va tutto bene. Se sono diverse, la configurazione incollata e' vecchia:
+   copiala di nuovo (riquadro 3) e incollala al posto di quella di prima.
+
+? Se compare "Logging output too large" non e' un errore: Google accorcia le scritte lunghe.
+
+### Riquadro 5 - Guardare le etichette che nasceranno
+
+1. Nel menu a tendina scegli **PASSO_2_creaEtichette** e premi **Esegui**.
+2. Il registro dice "MODALITA' PROVA: non creo niente" ed elenca le etichette da creare. In
+   prova non nasce niente: va bene cosi'.
+
+### Riquadro 6 - Togliere la prova e riordinare la posta
+
+Fallo solo se l'anteprima ti convince: i numeri sembrano giusti e i colleghi non finiscono fra
+gli studenti.
+
+1. In Campanella, nel riquadro 6, premi **Copia la configurazione senza modalita' prova**.
+   Campanella toglie anche la spunta "Modalita' prova" del passo 4.
+2. Nell'editor fai clic sul file Configurazione, poi nel testo. Premi Ctrl+A, Ctrl+V, Ctrl+S.
+3. Fai clic sul file Codice.gs, scegli **PASSO_3_riordinaPostaEsistente** e premi
+   **Esegui**.
+4. Lo script crea le etichette e le mette alla posta che hai gia'. In Gmail le etichette
+   compaiono nella colonna di sinistra.
+
+? Con tanta posta, dopo qualche minuto il registro dice "Tempo massimo di esecuzione
+  raggiunto": e' normale. Lo script riparte da solo dopo circa un minuto, finche' ha finito.
+  Puoi chiudere la pagina e spegnere il computer.
+
+### Riquadro 7 - Accendere l'automazione
+
+1. Scegli **PASSO_4_attivaAutomazione** e premi **Esegui**.
+2. Il registro dice "Smistamento automatico attivo". Da adesso i messaggi nuovi prendono le
+   etichette da soli, ogni ora (o ogni quante ore hai scelto), anche a computer spento.
+
+### Riquadro 8 - Facoltativo: il servizio Gmail API
+
+Il servizio Gmail API e' un pezzo in piu' per lo script. Serve per i colori delle etichette,
+per i filtri veri di Gmail e per togliere i filtri vecchi. Se non ti serve, saltalo.
+
+1. Nell'editor, nella colonna di sinistra, trova la voce **Servizi** e premi il **+** accanto.
+2. Nell'elenco scegli **Gmail API** e premi **Aggiungi**. Sotto "Servizi" compare Gmail.
+3. Se hai scelto dei colori, esegui **EXTRA_coloraEtichette**.
+
+L'installazione e' finita. Ricordati di spuntare **Fatto** nei riquadri del passo 6.
+
+## Le funzioni dello script
+
+Ogni funzione si esegue allo stesso modo:
+
+1. Apri script.google.com e apri il progetto Organizzazione Gmail.
+2. Nella colonna di sinistra fai clic sul file Codice.gs.
+3. In alto, nel menu a tendina accanto a **Esegui**, scegli la funzione.
+4. Premi **Esegui** e aspetta che il registro dica che l'esecuzione e' completata.
+5. Leggi il registro: dice che cosa e' successo e, se serve, che cosa fare dopo.
+
+? Nel menu c'e' anche **smistaNuoviMessaggi**: e' quella che lo script esegue da solo ogni
+  ora, non serve sceglierla. Se nello stesso progetto hai anche gli Orari, vedi anche le
+  funzioni ORARI_: non riguardano la posta.
+
+! In modalita' prova quasi tutte le funzioni dicono soltanto che cosa farebbero. Non le
+  funzioni ANNULLA_: quelle lavorano davvero anche in prova.
+
+### PASSO_1_anteprima
+
+E' una prova a vuoto: dice quante conversazioni prenderebbe ogni etichetta, senza modificare
+niente. Usala la prima volta e ogni volta che hai incollato una configurazione nuova: non fa
+mai danni.
+
+1. Scegli **PASSO_1_anteprima** e premi **Esegui**.
+2. Controlla che l'impronta sia uguale a quella del passo 5 di Campanella, e guarda la tabella.
+
+Alla fine vedi la versione dello script, l'account, l'impronta, la tabella e, se servono,
+delle note: per esempio quanti filtri di Gmail ci sono da togliere. Se l'impronta e' diversa,
+copia di nuovo la configurazione. Sotto una regola che non trova niente compare "nessun
+messaggio da questi mittenti": controlla gli indirizzi. "Gmail non accetta la ricerca di
+questa regola": apri la regola in **Modifica** e controlla la "Ricerca avanzata di Gmail".
+
+### PASSO_2_creaEtichette
+
+Crea in Gmail le etichette delle regole accese, senza metterle ai messaggi; in modalita' prova
+le elenca soltanto. Serve la prima volta, per vedere quali etichette nasceranno; dopo quasi
+mai, perche' le crea da solo anche il riordino.
+
+1. Scegli **PASSO_2_creaEtichette** e premi **Esegui**.
+
+Alla fine vedi "Etichette da creare" (in prova) o "Etichette create adesso", e quelle "gia'
+presenti". Se manca il servizio Gmail API, una riga dice che le etichette nuove sono nate senza
+colore: aggiungi il servizio (riquadro 8) ed esegui **EXTRA_coloraEtichette**.
+
+### PASSO_3_riordinaPostaEsistente
+
+Mette le etichette alla posta che hai gia' ricevuto. Tocca solo i messaggi che non hanno ancora
+l'etichetta della regola. Usala dopo aver tolto la prova, e di nuovo quando hai cambiato o
+aggiunto una regola e vuoi applicarla anche alla posta vecchia.
+
+1. Scegli **PASSO_3_riordinaPostaEsistente** e premi **Esegui**.
+2. Aspetta. Con tanta posta si ferma da solo dopo qualche minuto e riparte dopo circa un
+   minuto, finche' ha finito.
+
+Alla fine vedi "RIORDINO COMPLETATO" e, per ogni etichetta, quante conversazioni l'hanno
+presa; in prova "PROVA COMPLETATA - nessuna modifica applicata". Con il riepilogo acceso ti
+arriva un'email "[Organizzazione Gmail] Riordino completato". "Tempo massimo di esecuzione
+raggiunto" e' normale. "Un'altra esecuzione e' in corso" vuol dire che sta gia' lavorando:
+lascialo fare. Per ripartire da zero esegui **ANNULLA_progressoRiordino**.
+
+### PASSO_4_attivaAutomazione
+
+Accende lo smistamento automatico: ogni ora (o ogni quante ore hai scelto) lo script guarda la
+posta degli ultimi giorni e mette le etichette ai messaggi nuovi. Usala una volta, dopo il
+riordino; di nuovo se cambi "Controlla la posta nuova ogni" o per riaccenderlo.
+
+1. Scegli **PASSO_4_attivaAutomazione** e premi **Esegui**.
+
+Alla fine vedi "Smistamento automatico attivo: ogni 1 ora/e i messaggi nuovi vengono
+etichettati da soli". Se compare "ATTENZIONE: sei ancora in modalita' prova", l'automazione e'
+accesa ma non cambia niente: fai il riquadro 6 del passo 6.
+
+### EXTRA_elencaIndirizziScuola
+
+Legge la tua casella e raccoglie gli indirizzi del dominio della scuola che ti hanno scritto o a
+cui hai scritto: serve per l'elenco del personale (passo 3, modo C). Vuole lo script installato
+e autorizzato, e il dominio scritto al passo 2.
+
+1. Scegli **EXTRA_elencaIndirizziScuola** e premi **Esegui**. Puo' metterci qualche minuto.
+2. In Gmail cerca l'email che ti sei mandato, con oggetto "[Organizzazione Gmail] Indirizzi @"
+   seguito dal dominio della scuola.
+3. Apri l'email, seleziona il blocco degli indirizzi e copialo (Ctrl+C).
+4. In Campanella, passo 3, premi **Incolla elenco**.
+5. Le righe nuove arrivano senza spunta, perche' fra loro ci sono anche gli studenti. Metti
+   la spunta ai colleghi e premi **Togli le righe senza spunta**.
+6. Incolla di nuovo la configurazione (vedi "I casi, passo passo").
+
+Nel registro c'e' solo quanti indirizzi ha trovato: l'elenco non ci viene scritto. Se l'email
+non parte, l'elenco compare nel registro, a blocchi: copialo da li'. Se dice che manca
+"dominioScuola", scrivi il dominio al passo 2 e incolla di nuovo la configurazione.
+
+? La stessa email serve a controllare gli indirizzi che hai gia': al passo 3 premi
+  **Controlla gli indirizzi...** e incollala. Campanella corregge quelli che puo' attribuire
+  senza dubbi e segnala gli altri. Nessuno viene aggiunto all'elenco.
+
+### EXTRA_creaFiltriGmail
+
+Crea i filtri veri di Gmail, uno per regola: cosi' Gmail mette l'etichetta appena arriva il
+messaggio, senza aspettare lo script. E' facoltativa. Vuole il servizio Gmail API e la
+modalita' prova spenta.
+
+1. Scegli **EXTRA_creaFiltriGmail** e premi **Esegui**.
+
+Alla fine vedi "Filtri creati" e "Filtri gia' presenti (saltati)". Studenti e Ministero e USR
+non hanno un filtro, perche' un filtro di Gmail non sa escludere i messaggi che hanno gia'
+un'altra etichetta: restano allo script, che quindi deve restare acceso. Per le classi il filtro
+cerca solo l'oggetto. Se dice che il servizio "Gmail API" non e' attivo, fai il riquadro 8; in
+prova risponde che i filtri non vengono creati.
+
+! Se poi cambi una regola, il filtro vecchio resta in Gmail e lavora come prima. Toglilo (vedi
+  "I filtri vecchi di Gmail") e riesegui questa funzione.
+
+### EXTRA_coloraEtichette
+
+Da' alle etichette i colori scelti al passo 4: a quelle senza colore e a quelle create o
+colorate dallo script. Un colore che avevi dato tu a una tua etichetta resta. Usala dopo aver
+aggiunto il servizio Gmail API, e ogni volta che cambi un colore in Campanella e incolli la
+configurazione nuova.
+
+1. Scegli **EXTRA_coloraEtichette** e premi **Esegui**.
+
+Alla fine vedi "Etichette colorate adesso", "Gia' del colore scelto" e quelle non toccate perche'
+il colore gliel'avevi dato tu. "SERVIZIO "Gmail API" NON ATTIVO": fai il riquadro 8. Se un
+colore viene saltato perche' Gmail non lo accetta, sceglilo di nuovo in Campanella.
+
+### EXTRA_coloraTutteLeEtichette
+
+Come **EXTRA_coloraEtichette**, ma ricolora anche le etichette che c'erano gia', comprese
+quelle a cui avevi dato un colore tu. Usala quando vuoi che tutte le etichette delle regole
+abbiano i colori di Campanella.
+
+1. Scegli **EXTRA_coloraTutteLeEtichette** e premi **Esegui**.
+
+Il riepilogo e' lo stesso della funzione precedente. Le etichette delle regole senza colore
+restano come sono, e i colori si possono sempre cambiare a mano da Gmail.
+
+### EXTRA_togliFiltri
+
+Toglie da Gmail i filtri vecchi che hai scelto in Campanella (passo 4,
+**Filtri che hai gia' in Gmail...**). Prima di togliere ogni filtro ne scrive una copia
+completa nel registro, per poterlo rifare a mano. Vuole il servizio Gmail API. Tutto il
+percorso e' nel caso "I filtri vecchi di Gmail".
+
+1. Scegli **EXTRA_togliFiltri** e premi **Esegui**.
+
+Alla fine vedi "Filtri di Gmail tolti adesso", con le copie; se ci sono etichette da unire, ti
+ricorda **EXTRA_unisciEtichette**. In prova dice soltanto che cosa toglierebbe; eseguita di
+nuovo non toglie niente e lo dice. "Non trovati": in Gmail non c'e' un filtro proprio uguale
+(forse l'hai cambiato): esportalo e sceglilo di nuovo. "Non riusciti": riprova fra qualche
+minuto. "Nessun filtro da togliere in Configurazione.gs": incolla di nuovo la configurazione
+dopo aver premuto **Usa questa scelta**.
+
+### EXTRA_unisciEtichette
+
+Se hai unito un tuo filtro vecchio a una regola con un'altra etichetta (per esempio Famiglie a
+Genitori), la vecchia etichetta resta in Gmail con i suoi messaggi. Questa funzione mette a quei
+messaggi anche l'etichetta della regola, e basta. Usala dopo **EXTRA_togliFiltri**, se al
+passo 4 c'e' il riquadro "Etichette rimaste dai filtri uniti". Va anche senza il servizio
+Gmail API.
+
+1. Scegli **EXTRA_unisciEtichette** e premi **Esegui**.
+2. Leggi per ogni coppia (Famiglie -> Genitori) quante conversazioni hanno adesso anche
+   l'etichetta della regola, e quali etichette rimaste puoi cancellare.
+
+In fondo c'e' anche un elenco delle altre etichette che nessuna regola mette: e' solo un
+elenco, lo script non le tocca. "La mette ancora un filtro di Gmail": esegui prima
+**EXTRA_togliFiltri**. Se l'etichetta della regola non c'e' ancora, esegui
+**PASSO_2_creaEtichette**. Se il tempo finisce, eseguila di nuovo: riprende da dove serve.
+
+! Non cancellare un'etichetta rimasta prima di averla unita. E dopo averla cancellata,
+  **ANNULLA_etichettatura** toglierebbe a quei messaggi anche l'etichetta della regola.
+
+### EXTRA_cancellaEtichette
+
+L'unica funzione che cancella delle etichette: solo quelle rimaste dai filtri uniti, quando i
+loro messaggi hanno gia' l'etichetta della regola, e quelle vuote che nessuna regola usa. I
+messaggi non si cancellano mai. Usala dopo **EXTRA_unisciEtichette**. Vuole il servizio Gmail
+API.
+
+1. Scegli **EXTRA_cancellaEtichette** e premi **Esegui**.
+2. In Campanella, passo 4, nel riquadro "Etichette rimaste dai filtri uniti" seleziona ogni
+   etichetta cancellata e premi **Gia' cancellata**.
+
+Alla fine vedi "Etichette cancellate", ognuna con il perche' (unita a..., vuota), e quelle
+tenute, con il motivo; oppure "Niente da cancellare". In prova dice solo che cosa cancellerebbe.
+"TEMPO FINITO": eseguila di nuovo finche' non lo dice piu'.
+
+### EXTRA_ripulisciEtichette
+
+Dopo che hai cambiato una regola, toglie la sua etichetta dalle conversazioni che la regola non
+prende piu'. Toglie solo l'etichetta: i messaggi restano. Usala dopo aver cambiato una regola
+(un mittente tolto, una parola in meno, un'esclusione) e incollato la configurazione nuova. Non
+serve il servizio Gmail API.
+
+1. Scegli **EXTRA_ripulisciEtichette** e premi **Esegui**.
+
+Alla fine vedi per ogni etichetta da quante conversazioni e' stata tolta (in prova: da quante
+la toglierebbe), oppure "Niente da ripulire". "Regole non ripulite, nel dubbio" sono quelle di
+cui lo script non conosce tutti i mittenti. "TEMPO FINITO": eseguila di nuovo.
+
+! Se avevi messo tu a mano quell'etichetta a un messaggio che la regola non prende, va via
+  anche da li'. Le regole spente non vengono toccate.
+
+### EXTRA_codiceStato
+
+Scrive un codice breve, senza dati personali, che dice a Campanella se il riordino e' fatto e
+se lo smistamento automatico e' acceso.
+
+1. Scegli **EXTRA_codiceStato** e premi **Esegui**.
+2. Nel registro copia la riga che comincia con CMP1-.
+3. In Campanella apri **Impostazioni**, trova "Il riordino della posta risulta gia' fatto?",
+   incolla il codice nella casella e premi **Verifica**.
+
+Il registro dice anche, in chiaro, la versione dello script, quante conversazioni sono
+etichettate e se lo smistamento automatico e' attivo o spento.
+
+### ANNULLA_automazione
+
+Spegne lo smistamento automatico dei messaggi nuovi e la ripresa del riordino. Se nello stesso
+progetto ci sono gli Orari, ferma anche le loro riprese automatiche.
+
+1. Scegli **ANNULLA_automazione** e premi **Esegui**.
+
+Alla fine vedi "Automazione spenta. Le etichette gia' applicate restano dove sono." Se dice
+che un'altra esecuzione sta lavorando, riprova fra un minuto. Per riaccendere esegui
+**PASSO_4_attivaAutomazione**.
+
+### ANNULLA_etichettatura
+
+Toglie dai messaggi le etichette messe dallo script, e ferma il riordino se sta ancora
+lavorando. Senza "Raggruppa sotto" svuota solo le etichette create dallo script: quelle che
+avevi gia' in Gmail con lo stesso nome le nomina e le lascia come sono. Serve quando hai
+sbagliato e vuoi tornare indietro.
+
+1. Scegli **ANNULLA_etichettatura** e premi **Esegui**.
+2. Se in cima compare "TEMPO SCADUTO A META'", eseguila di nuovo, e ancora, finche' in cima
+   non compare "FATTO".
+
+Le etichette restano nell'elenco di Gmail, vuote: se vuoi, le cancelli da Gmail. "NIENTE DA
+TOGLIERE" vuol dire che le etichette non le ha create questo script (per esempio le aveva
+create Campanella 1.4.6 o prima): usa **ANNULLA_etichettaturaCompleta**.
+
+! I messaggi archiviati non tornano nella Posta in arrivo (sono in "Tutti i messaggi") e
+  quelli segnati come letti restano letti. I filtri veri di Gmail non vengono tolti.
+
+### ANNULLA_etichettaturaCompleta
+
+Come **ANNULLA_etichettatura**, ma svuota tutte le etichette delle regole accese, anche quelle
+con lo stesso nome che avevi fatto tu, e anche dai messaggi a cui le avevi messe tu a mano. Usala
+quando **ANNULLA_etichettatura** risponde "NIENTE DA TOGLIERE", o per rifare tutto da capo.
+
+1. Scegli **ANNULLA_etichettaturaCompleta** e premi **Esegui**.
+2. Ripetila finche' in cima non compare "FATTO".
+
+! Non distingue i messaggi etichettati da te da quelli etichettati dallo script: li svuota
+  tutti. Le etichette delle regole spente non le tocca.
+
+### ANNULLA_progressoRiordino
+
+Il riordino della posta vecchia si ricorda a che punto e' arrivato. Questa funzione azzera quel
+segnaposto e ferma la ripresa automatica, cosi' il prossimo **PASSO_3_riordinaPostaEsistente**
+ricomincia dall'inizio.
+
+1. Scegli **ANNULLA_progressoRiordino** e premi **Esegui**.
+
+Alla fine vedi "Segnaposto azzerato: il prossimo PASSO_3 ricomincia dall'inizio." Le etichette
+gia' messe restano.
+
+## I casi, passo passo
+
+Ogni volta che cambi qualcosa in Campanella, lo script non lo sa finche' non incolli di nuovo
+la configurazione. Per questo molte ricette cominciano cosi'.
+
+### Incollare di nuovo la configurazione
+
+1. In Campanella apri il passo 5, **Codice da incollare**.
+2. Nel menu a tendina scegli "2. Configurazione".
+3. Guarda la riga in cima: dice se la configurazione e' in modalita' prova o agisce davvero.
+4. Premi **Copia negli appunti**.
+5. Nell'editor dello script fai clic sul file Configurazione, poi nel testo.
+6. Premi Ctrl+A, poi Ctrl+V, poi Ctrl+S.
+7. Fai clic sul file Codice.gs ed esegui **PASSO_1_anteprima**: l'impronta deve essere
+   uguale a quella del passo 5.
+
+### Ho cambiato una regola in Campanella
+
+1. Al passo 4 fai doppio clic sulla regola. Si apre **Modifica**.
+2. Cambia quello che serve: i mittenti (uno per riga), le parole nell'oggetto, la ricerca
+   avanzata, "Archivia", "Segna come gia' letti". Poi premi **Salva**.
+3. Incolla di nuovo la configurazione (la ricetta qui sopra).
+4. Se la regola adesso prende messaggi in piu', esegui **PASSO_3_riordinaPostaEsistente**:
+   mette l'etichetta anche ai messaggi vecchi.
+5. Se la regola adesso prende meno messaggi, esegui **EXTRA_ripulisciEtichette**: toglie
+   l'etichetta da quelli che non prende piu'.
+6. Se avevi creato i filtri veri di Gmail, togli il filtro vecchio di quella regola, poi
+   esegui di nuovo **EXTRA_creaFiltriGmail**.
+
+? I mittenti di Dirigenza, Segreteria e Registro elettronico non si scrivono nella regola, ma
+  al passo 2. In **Modifica** il bottone **Apri La tua scuola** ti porta nella casella giusta.
+
+### Voglio aggiungere una regola mia
+
+1. Al passo 4 premi **Aggiungi regola...** e scrivi il **Nome dell'etichetta**.
+2. Scrivi i mittenti, uno per riga, oppure le parole che devono stare nell'oggetto. Se basta
+   una delle due cose, spunta **Basta uno dei due: l'oggetto oppure i mittenti**.
+3. Premi **Salva**.
+4. Incolla di nuovo la configurazione: l'anteprima dice quanti messaggi prende.
+5. Se il numero ti convince, esegui **PASSO_3_riordinaPostaEsistente**.
+
+### Voglio togliere un'etichetta che non serve piu'
+
+1. Al passo 4 togli la spunta alla regola, oppure aprila in **Modifica** e premi
+   **Elimina regola**.
+2. Incolla di nuovo la configurazione. Da adesso lo script non mette piu' quell'etichetta.
+3. L'etichetta resta in Gmail con i suoi messaggi. Se non ti serve, cancellala da Gmail: nella
+   colonna di sinistra premi i tre puntini accanto all'etichetta e scegli
+   **Rimuovi etichetta**. I messaggi restano.
+4. Se avevi creato i filtri veri di Gmail, togli anche il filtro di quella regola.
+
+? Se l'etichetta e' vuota e nessuna regola la usa, la cancella anche
+  **EXTRA_cancellaEtichette** (serve il servizio Gmail API).
+
+### Ho sbagliato e voglio tornare indietro
+
+Niente panico: nessun messaggio viene mai cancellato, quindi non si perde posta.
+
+1. Esegui **ANNULLA_automazione**: lo script smette di lavorare da solo.
+2. Esegui **ANNULLA_etichettatura**. Ripetila finche' in cima non compare "FATTO". Se
+   risponde "NIENTE DA TOGLIERE", esegui **ANNULLA_etichettaturaCompleta**.
+3. Se avevi creato i filtri veri di Gmail, toglili: a mano in Gmail (la rotella, poi Vedi
+   tutte le impostazioni, poi Filtri e indirizzi bloccati), oppure con "Toglilo" in
+   **Filtri che hai gia' in Gmail...** ed **EXTRA_togliFiltri**.
+4. Sistema le regole in Campanella, incolla di nuovo la configurazione e riparti da
+   **PASSO_1_anteprima**.
+
+! I messaggi archiviati restano archiviati: li trovi in "Tutti i messaggi". Quelli segnati
+  come letti restano letti.
+
+### Ho aggiunto dei colleghi all'elenco
+
+1. Al passo 3 aggiungi le persone (con **Incolla elenco**) e controlla che abbiano la spunta.
+2. Incolla di nuovo la configurazione.
+3. Esegui **PASSO_3_riordinaPostaEsistente**: i loro messaggi vecchi prendono Colleghi.
+4. Esegui **EXTRA_ripulisciEtichette**: toglie Studenti dai messaggi che adesso sono di un
+   collega.
+
+### Lo script si e' fermato per il tempo
+
+Google lascia lavorare uno script solo pochi minuti alla volta. Con tanta posta e' normale.
+
+- **PASSO_3_riordinaPostaEsistente** dice "Tempo massimo di esecuzione raggiunto" e riparte
+  da solo dopo circa un minuto. Non devi fare niente: puoi chiudere la pagina. Lo stesso se
+  Google mostra "Superato il tempo massimo di esecuzione".
+- **ANNULLA_etichettatura** e **ANNULLA_etichettaturaCompleta** dicono "TEMPO SCADUTO A
+  META'": eseguile di nuovo finche' non compare "FATTO".
+- **EXTRA_ripulisciEtichette**, **EXTRA_cancellaEtichette** ed **EXTRA_unisciEtichette**
+  dicono "TEMPO FINITO" o "Tempo finito": eseguile di nuovo, riprendono da dove serve.
+
+? Lo script lavora circa un migliaio di conversazioni al minuto. Con caselle molto grandi il
+  riordino puo' durare anche un'ora, a riprese: non serve restare a guardare.
+
+### Voglio spegnere il controllo automatico
+
+1. Esegui **ANNULLA_automazione**. Il registro dice "Automazione spenta": le etichette gia'
+   messe restano.
+2. Per riaccenderlo, quando vuoi, esegui **PASSO_4_attivaAutomazione**.
+
+! I filtri veri di Gmail, se li hai creati, continuano a mettere le etichette: lavorano
+  dentro Gmail, non nello script. Per fermarli toglili da Gmail.
+
+? Per cambiare solo ogni quante ore lavora: al passo 4 cambia "Controlla la posta nuova ogni",
+  incolla di nuovo la configurazione ed esegui di nuovo **PASSO_4_attivaAutomazione**.
+
+### I filtri vecchi di Gmail
+
+I filtri che avevi fatto in Gmail continuano a lavorare accanto allo script: un messaggio puo'
+finire sia in Genitori sia nella tua vecchia Famiglie. Campanella ti aiuta a riordinarli.
+
+1. In Gmail premi la rotella in alto a destra, poi **Vedi tutte le impostazioni**, poi la
+   scheda **Filtri e indirizzi bloccati**.
+2. Spunta la casella sopra l'elenco dei filtri, per sceglierli tutti, e premi **Esporta**.
+   Gmail scarica un file, di solito mailFilters.xml.
+3. In Campanella, passo 4, premi **Filtri che hai gia' in Gmail...**, poi **Apri il file...**
+   e scegli il file scaricato.
+4. Ogni filtro ha gia' una proposta nella colonna "Che cosa fare": puoi lasciarla com'e'. Per
+   cambiarla scegli nella tendina "Lascialo in Gmail", "Toglilo", "Unisci a..." (i suoi
+   mittenti vanno in una regola) o "Diventa una regola". Il riquadro sotto spiega che cosa
+   succede.
+5. Premi **Usa questa scelta**. Campanella dice che cosa ha fatto.
+6. Incolla di nuovo la configurazione.
+7. Controlla di avere il servizio Gmail API (riquadro 8 del passo 6) ed esegui
+   **EXTRA_togliFiltri**.
+8. Se al passo 4 e' comparso il riquadro "Etichette rimaste dai filtri uniti", esegui
+   **EXTRA_unisciEtichette**. Poi, se vuoi, cancella le etichette rimaste (da Gmail o con
+   **EXTRA_cancellaEtichette**) e in Campanella premi **Gia' cancellata** per ognuna.
+9. Cancella il file mailFilters.xml dal computer: contiene i tuoi filtri, con indirizzi e
+   parole.
+
+? Le etichette gia' messe ai messaggi restano. E se un filtro tolto ti serve di nuovo, lo
+  rifai a mano in Gmail con la copia che lo script ha scritto nel registro.
+
+! Se dopo togli o spegni la regola che sostituisce un filtro, quel filtro resta in Gmail e il
+  passo 4 lo dice in ambra. Per decidere di nuovo, riapri il file dei filtri nella finestra.
+
+### Voglio i colori delle etichette
+
+1. Al passo 4 scegli una regola e, accanto a "Colore in Gmail", premi **Cambia...**. Scegli
+   il colore. Ripeti per le altre regole.
+2. Incolla di nuovo la configurazione.
+3. Controlla di avere il servizio Gmail API (riquadro 8) ed esegui **EXTRA_coloraEtichette**.
+
+### La casella della scuola finisce anche in Ministero e USR
+
+1. Al passo 2 scrivi la casella istituzionale della scuola (codice@istruzione.it) fra gli
+   indirizzi della Segreteria, o della Dirigenza.
+2. Al passo 4, se compare un avviso in ambra con un bottone, premilo. Il bottone si chiama
+   **Escludi Dirigenza e Segreteria da Ministero e USR** oppure
+   **Sposta Ministero e USR sotto Dirigenza e Segreteria**.
+3. Incolla di nuovo la configurazione.
+4. Se avevi creato i filtri veri di Gmail, togli quello vecchio di Ministero e USR con
+   **Filtri che hai gia' in Gmail...** ed **EXTRA_togliFiltri**.
+
+### Voglio un'etichetta per ogni mia classe
+
+1. Al passo 4 premi **Le mie classi...**. Le classi arrivano dall'orario e da Cartelle; le
+   altre le aggiungi tu.
+2. Spunta le tue classi. Per ognuna puoi cambiare le parole da cercare nell'oggetto.
+3. Se vuoi che prenda anche i messaggi degli studenti, scegli la classe, incolla i loro
+   indirizzi nella casella sotto e premi il bottone di copia con il nome del file (per
+   esempio **Copia Classe_3B.gs**).
+4. Nell'editor aggiungi un file nuovo (il **+** accanto a "File", poi **Script**), chiamalo
+   come il file (per esempio Classe_3B), incollaci il testo e premi Ctrl+S.
+5. In Campanella premi **Usa queste classi**.
+6. Incolla di nuovo la configurazione: l'anteprima dice quanti indirizzi ha trovato per ogni
+   classe.
+
+! Gli indirizzi degli studenti sono dati di minori: Campanella non li conserva, stanno solo
+  nei file Classe_ dello script. A fine anno cancellali dal progetto.
+
+### E' arrivata una nuova versione di Campanella
+
+Aggiornare Campanella non cambia lo script che hai gia' incollato nel tuo account Google.
+
+1. Installa la nuova versione: le tue scelte e i tuoi dati restano.
+2. Leggi le note del rilascio: dicono quali script sono cambiati e vanno incollati di nuovo.
+3. Se lo script della posta e' cambiato (o nel dubbio: non fa danni), al passo 6 premi
+   **Copia il codice principale**.
+4. Nell'editor fai clic su Codice.gs, nel testo, e premi Ctrl+A, Ctrl+V e Ctrl+S.
+5. Incolla di nuovo anche la configurazione.
+6. Esegui **PASSO_1_anteprima**: in cima "Versione dello script" deve dire la versione
+   nuova, e l'impronta deve essere quella del passo 5.
+
+? Se Google chiede di nuovo il permesso, rifai i passi dell'autorizzazione (riquadro 4).
+
+### Comincia un nuovo anno scolastico
+
+1. Al passo 3 aggiorna l'elenco del personale: aggiungi i colleghi nuovi e togli chi non c'e'
+   piu'. Per avere gli indirizzi giusti puoi usare **EXTRA_elencaIndirizziScuola**.
+2. Se usi le classi, apri **Le mie classi...**: la finestra propone di togliere le classi
+   dell'anno prima. Spunta le classi nuove e premi **Usa queste classi**.
+3. Incolla di nuovo la configurazione. In fondo l'anteprima elenca i file delle classi che
+   nessuna regola usa piu'.
+4. Cancella quei file nell'editor: i tre puntini accanto al nome del file, poi **Elimina**.
+   Non cancellare quelli con il nome di una classe di quest'anno: li sostituisci con il file
+   nuovo.
+
+? Le etichette delle classi dell'anno prima restano in Gmail con i loro messaggi: Campanella
+  non le cancella mai.
+
+### Cambio scuola
+
+Di solito con la scuola nuova cambia anche l'account Gmail.
+
+1. Nell'account della scuola vecchia apri l'editor ed esegui **ANNULLA_automazione**.
+2. Se vuoi, entra con quell'account in myaccount.google.com/permissions e revoca l'accesso
+   allo script.
+3. In Campanella, passo 2, scrivi il dominio e gli indirizzi della scuola nuova.
+4. Al passo 3 premi **Svuota tutto** e carica l'elenco del personale della scuola nuova.
+5. Al passo 4 rimetti la spunta **Modalita' prova**.
+6. Rifai l'installazione nel nuovo account, dal riquadro 1 del passo 6.
+
+! L'elenco dei colleghi della scuola vecchia contiene dati personali: non lasciarlo in
+  Campanella se non serve piu'.
+
+## Se qualcosa non va
+
+### Windows dice che l'app non e' sicura
+
+E' la protezione SmartScreen, che diffida dei programmi poco diffusi. Premi "Ulteriori
+informazioni" e poi "Esegui comunque".
+
+### Google dice "Google non ha verificato questa app"
+
+E' normale per tutti gli script personali. Premi **Avanzate**, in basso a sinistra, poi
+**Apri Organizzazione Gmail (non sicura)** e infine **Consenti**.
+
+### Nel menu a tendina non trovo PASSO_1_anteprima
+
+Nella colonna di sinistra fai clic sul file Codice.gs: il menu mostra le funzioni del file
+aperto. Controlla anche di aver incollato il codice principale in Codice.gs e premuto Ctrl+S.
+
+### Lo script dice che manca il file "Configurazione.gs"
+
+Il file della configurazione manca o ha un altro nome. Rifai il riquadro 3 del passo 6: il
+file deve chiamarsi esattamente Configurazione.
+
+### Lo script dice che il servizio "Gmail API" non e' attivo
+
+Rifai il riquadro 8 del passo 6 (Servizi, poi **+**, poi **Gmail API**, poi **Aggiungi**) ed
+esegui di nuovo la funzione.
+
+### Lo script dice che un'altra esecuzione sta lavorando
+
+Il riordino, lo smistamento o un invio degli Orari sta lavorando proprio adesso. Aspetta un
+minuto e riprova.
+
+### L'impronta dell'anteprima e' diversa da quella di Campanella
+
+La configurazione nell'editor e' vecchia: incollala di nuovo al posto di quella di prima.
+
+### Lo script fa la prova ma non cambia niente
+
+La configurazione e' ancora in modalita' prova. Al passo 6 premi
+**Copia la configurazione senza modalita' prova**, incollala nel file Configurazione al posto
+di quella di prima e premi Ctrl+S.
+
+### I messaggi nuovi non prendono le etichette
+
+1. Esegui **EXTRA_codiceStato** e guarda la riga "Smistamento automatico".
+2. Se dice "spento", esegui **PASSO_4_attivaAutomazione**.
+3. Se e' attivo, controlla di non essere in modalita' prova (qui sopra).
+4. Ricorda che lo script passa ogni ora: un messaggio arrivato da pochi minuti puo' non
+   avere ancora l'etichetta.
+
+### Alcuni messaggi sono nell'etichetta sbagliata
+
+Le etichette si sommano: una circolare del dirigente prende sia Dirigenza sia Circolari, e non
+e' un errore. Se un collega finisce fra gli Studenti, manca nell'elenco del personale: segui
+"Ho aggiunto dei colleghi all'elenco", meglio con gli indirizzi di
+**EXTRA_elencaIndirizziScuola**. Se una regola prende troppo, segui "Ho cambiato una regola
+in Campanella".
+
+### Una regola non trova niente
+
+Sotto la regola l'anteprima scrive "nessun messaggio da questi mittenti". Controlla gli
+indirizzi: spesso quello del registro elettronico e' diverso da come pensavi. Apri in Gmail
+una notifica vera e guarda il mittente.
+
+### Le etichette sono grigie
+
+I colori li mette il servizio Gmail API: aggiungilo (riquadro 8) ed esegui
+**EXTRA_coloraEtichette**. Per le etichette che avevi colorato tu, usa
+**EXTRA_coloraTutteLeEtichette**.
+
+### Un messaggio prende anche l'etichetta di un mio vecchio filtro
+
+E' il filtro che avevi fatto in Gmail, che continua a lavorare. Segui il caso "I filtri vecchi
+di Gmail".
+
+### Non trovo l'elenco di EXTRA_elencaIndirizziScuola
+
+E' nell'email che lo script ti ha mandato, con oggetto che comincia con "[Organizzazione
+Gmail] Indirizzi". Nel registro c'e' solo il conto; l'elenco ci finisce, a blocchi, solo se
+l'email non e' partita.
+
+### ANNULLA_etichettatura risponde "NIENTE DA TOGLIERE"
+
+Le etichette le aveva create una versione vecchia dello script, che non se lo segnava, oppure
+c'erano gia' prima. Esegui **ANNULLA_etichettaturaCompleta**: toglie le etichette delle regole
+accese da tutti i messaggi, anche da quelli a cui le avevi messe tu.

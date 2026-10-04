@@ -1,0 +1,828 @@
+# Guida agli Orari
+
+## A che cosa serve
+
+La sezione Orari prende il tabellone dell'orario della scuola (il file Excel con una riga per
+ogni docente) e ne fa due cose.
+La prima: ti manda una email per ogni collega, con la sua griglia, cosi' ritrovi l'orario di
+chiunque cercando il cognome in Gmail. Le email arrivano solo a te: nessun collega riceve niente.
+La seconda: mette il tuo orario su Google Calendar. Ogni classe ha il suo colore, nei giorni di
+vacanza non ci sono lezioni, e ci sono anche i tuoi colloqui con le famiglie, con il link del Meet.
+
+? Non sei obbligato a fare tutte e due le cose. Se ti interessa solo il calendario, le email
+  puoi lasciarle stare.
+
+## Le parole da sapere
+
+Campanella non tocca mai da sola ne' la posta ne' il calendario: prepara dei testi, che tu copi
+e incolli in una pagina di Google. Ecco le parole che incontrerai; torna qui quando ti servono.
+
+- Account: il tuo "profilo" Google, cioe' l'indirizzo con cui entri in Gmail. Puoi averne piu'
+  di uno, per esempio quello della scuola e quello personale.
+- Script: un testo con delle istruzioni che Campanella prepara per Google.
+- Apps Script: il servizio di Google dove si incollano gli script e si fanno partire. Si apre
+  dal sito script.google.com; la pagina dove si lavora si chiama editor.
+- Progetto: una specie di cartella dentro Apps Script, con dei file che finiscono con .gs.
+- Funzione: un pezzo dello script che fa una cosa sola, con un nome tutto attaccato come
+  **ORARI_4_calendario**. Eseguire una funzione vuol dire farla partire.
+- Autorizzare: dare allo script il permesso di lavorare nel tuo account. Google lo chiede la
+  prima volta.
+- Registro di esecuzione: il riquadro in fondo all'editor dove lo script scrive i suoi messaggi.
+- DatiOrari.gs: il file con i dati del tuo orario. Non devi capirlo: lo copi e lo incolli.
+- Serie: un evento del calendario che si ripete ogni settimana, per esempio "2B, lunedi' alle 8".
+
+## La pagina Orari di Campanella
+
+### Come ci si muove
+
+Apri Campanella. Nella colonna di sinistra clicca **Orari**: sotto compaiono i quattro passi.
+Puoi cliccare un passo per andarci, oppure usare i bottoni in basso a destra, **Avanti** e
+**Indietro**. In basso a sinistra una riga ti dice che cosa e' appena successo, per esempio
+"Copiato.". Accanto a molte voci c'e' un piccolo punto di domanda: cliccalo e si apre una
+spiegazione di quella voce. Campanella ricorda da sola le tue scelte: quando la riapri, le
+ritrovi.
+
+### Passo 1: Il file dell'orario
+
+Qui dai a Campanella il tabellone della scuola.
+
+1. Se in alto vedi il riquadro "Consiglio: prima di mandarti gli orari, fai il riordino della
+   posta", puoi seguirlo con **Vai a Posta** oppure andare avanti: non e' obbligatorio.
+2. Clicca **Scegli il file...** e cerca il tabellone sul computer: un file Excel (.xlsx) oppure
+   un file .csv, con una riga per docente e, in orizzontale, i giorni divisi nelle ore.
+3. Se il file ha piu' fogli, scegli quello giusto nel menu **Foglio**.
+4. Leggi il riquadro "Cosa ho capito": dice quanti docenti e quante classi ha trovato, i giorni,
+   le ore al giorno e i primi nomi.
+
+! Se in basso compare "Foglio non riconosciuto.", Campanella non ha capito quel foglio. Prova un
+  altro foglio dal menu. Il punto di domanda accanto alla prima riga dice quali file vanno bene.
+
+### Passo 2: Controlla la lettura
+
+Qui guardi se Campanella ha letto bene l'orario: e' solo un controllo, non si cambia niente. Nel
+primo menu lascia "orario di un docente", nel secondo scegli un collega di cui conosci l'orario
+e confronta la griglia con il file. Prova anche un paio di altri docenti e, dal primo menu,
+"orario di una classe". Le ore segnate "D" nel tabellone diventano "a disposizione". Se la
+griglia e' giusta, tutto il resto lo sara'.
+
+### Passo 3: Le email a te stesso
+
+Qui prepari le email con gli orari di tutti. Arrivano tutte a te, all'indirizzo dell'account in
+cui incolli lo script: Campanella non chiede indirizzi, e nessun collega riceve niente.
+
+- **Oggetto delle email**: per esempio Orario {docente}. {docente} diventa il nome del docente,
+  {periodo} il periodo scritto nel tabellone.
+- **Prepara anche gli orari delle classi**: con la spunta arriva anche una email per classe,
+  sempre a te. Nel suo oggetto {classe} diventa il nome della classe.
+- **Nota da mettere in fondo a ogni email**: facoltativa, per esempio "Orario provvisorio".
+- Il menu sotto ha tre voci: "1. Codice degli orari", "2. Dati dell'orario" e "3. Cosa fare,
+  passo per passo". **Copia negli appunti** copia la voce scelta, **Salva su file...** la salva
+  sul computer, **Apri l'editor dello script** apre script.google.com nel browser.
+
+### Passo 4: Google Calendar
+
+Qui decidi come va il tuo orario sul calendario. La pagina e' lunga: scorrila fino in fondo.
+
+1. "Dove metti l'orario": scegli "nell'account della scuola, nello stesso progetto della Posta"
+   (la scelta di partenza) oppure "in un altro account Google, per esempio il tuo personale".
+   La differenza e' spiegata nella sezione "Scuola o account personale".
+2. "Il tuo nome, come nel tabellone": scegli il tuo nome dall'elenco, com'e' scritto nel
+   tabellone, di solito il cognome (per esempio ROSSI).
+3. "Nome del calendario": Campanella propone "Orario" e il tuo nome; puoi cambiarlo. Se hai gia'
+   un calendario con questo nome, lo script usa quello; se no, lo crea.
+4. "Dal" e "al": il primo e l'ultimo giorno in cui mettere le lezioni, compresi.
+5. "La prima ora comincia alle" e "ogni ora dura ... minuti". Se le ore non sono tutte uguali
+   (intervallo, ore da 50 minuti), scrivi nella casella sotto quando comincia ciascuna,
+   separate da virgola: per esempio 08:00, 09:00, 10:00, 11:10, 12:10.
+6. "Colore": il colore di tutto il calendario. Puoi lasciare "scelto da Google".
+7. **Titoli e colori delle lezioni...** apre la finestra dove scegli il nome e il colore di ogni
+   lezione (vedi qui sotto). Accanto vedi in piccolo i colori di adesso.
+8. "Giorni senza lezione": una riga per ogni festa o vacanza. **Aggiungi le feste nazionali**
+   mette quelle del periodo.
+9. "Colloqui con le famiglie": una riga per il ricevimento di ogni settimana, per le giornate
+   dei colloqui generali e per i periodi senza colloqui. **Importa da un file...** li prende da
+   un file .csv o .xlsx.
+10. "L'orario e' cambiato: il nuovo vale dal": la prima volta lasciala spenta.
+11. Leggi il riepilogo in grassetto: quante ore hai, quante serie andranno sul calendario,
+   quante lezioni salta per le vacanze, quanti colloqui. In ambra le cose da guardare.
+12. In fondo c'e' il menu con i file da incollare e "Cosa fare, passo per passo", con
+   **Copia negli appunti**, **Salva su file...** e **Apri Google Calendar**.
+
+? Sotto le caselle dei giorni senza lezione e dei colloqui Campanella mostra, mentre scrivi,
+  come ha letto ogni riga. Le righe in ambra sono da guardare: correggile.
+
+### La finestra "Titoli e colori delle lezioni..."
+
+Si apre con il bottone **Titoli e colori delle lezioni...** del passo 4. Prima devi aver scelto
+il tuo nome: senza, Campanella non sa quali sono le tue classi, e te lo dice.
+
+La finestra mostra il tuo orario come un tabellone: i giorni in colonna, le ore in riga, ogni
+lezione colorata. A destra c'e' la legenda: i titoli, ognuno con il suo colore e le sue ore. Il
+titolo e' il nome che la lezione avra' sul calendario. Di partenza e' la classe com'e' scritta
+nel tabellone (per esempio S2 B); puoi cambiarlo o completarlo, per esempio "2B - MAT" il
+lunedi' e "2B - FIS" il giovedi'.
+
+Per scegliere le lezioni:
+- un clic su una cella sceglie quella lezione;
+- Ctrl+clic (tieni premuto il tasto Ctrl mentre clicchi) ne aggiunge o ne toglie un'altra;
+- un clic sul nome di un giorno sceglie tutta la colonna, uno sul numero di un'ora tutta la riga;
+- un clic su una voce della legenda sceglie tutte le ore con quel titolo;
+- con la tastiera, le frecce si spostano e la barra spaziatrice aggiunge o toglie la cella.
+
+Le celle scelte hanno un bordo spesso, e sotto il tabellone una frase le descrive. Poi:
+1. Per il titolo: nella casella "Titolo sul calendario" scrivi il titolo nuovo, o sceglilo
+   dall'elenco, e premi Invio. Le celle mostrano il titolo e, sotto, in piccolo, la classe.
+2. Per tornare al nome della classe, clicca **Rimetti la classe**.
+3. Per il colore: nel menu "Colore" scegli Pomodoro, Mirtillo, Basilico o un altro. La voce
+   "colore del calendario" vuol dire: lo stesso colore di tutto il calendario.
+4. Alla fine clicca **Usa questi titoli e colori**. **Annulla** chiude senza cambiare niente.
+
+Cose da sapere:
+- Il colore va con il titolo: le ore con lo stesso titolo hanno lo stesso colore e, se sono una
+  dopo l'altra, diventano un evento solo. Le ore a disposizione partono grigie (Grafite).
+- Un titolo nuovo tiene il colore che le sue ore avevano. Con la spunta accanto, che si chiama
+  **Titolo nuovo, colore nuovo** ed e' spenta di partenza, ne prende uno che gli altri non usano.
+- Se scegli per una classe il colore di un'altra, l'altra ne prende subito un altro, e la
+  finestra te lo mostra. Se le vuoi uguali, scegli lo stesso colore anche per lei.
+- **Colori di partenza** rimette i colori che Campanella da' da sola.
+- Se hai scritto dei colloqui, nella legenda c'e' la voce "Colloqui con le famiglie": li' scegli
+  solo il loro colore.
+- Un titolo vale per quel giorno, quell'ora e quella classe: se un orario nuovo li' ha un'altra
+  classe, non vale piu'.
+
+! Titoli e colori arrivano sul calendario solo dopo che hai copiato e incollato di nuovo
+  DatiOrari.gs. Per le lezioni gia' sul calendario vedi i casi "Ho cambiato solo i colori" e
+  "Ho cambiato i titoli delle lezioni".
+
+## Scuola o account personale: dove mettere l'orario
+
+Al passo 4, in "Dove metti l'orario", scegli in quale Google Calendar va il tuo orario.
+
+### Nell'account della scuola (la scelta di partenza)
+
+L'orario va nel Google Calendar dell'account della scuola. Il codice degli orari sta nello
+stesso progetto dello strumento Posta, e da li' partono anche le email. Nel progetto, oltre ai
+file della Posta, ci sono il file Orari, con il "Codice degli orari" (passo 3, voce 1 del menu),
+e il file DatiOrari, con i "Dati dell'orario" (passo 3, voce 2, o passo 4, voce 1: sono uguali).
+
+### In un altro account Google, per esempio il tuo personale
+
+Sceglilo se il calendario che usi tutti i giorni e' quello di un altro account. L'orario lo
+mette uno script dentro QUELL'account, in un progetto tutto suo, con due file soltanto:
+- Calendario: il "Codice solo calendario" (passo 4, voce 1 del menu). E' il codice degli
+  orari senza le email: le funzioni hanno gli stessi nomi e fanno le stesse cose.
+- DatiOrari: i "Dati del tuo orario" (passo 4, voce 2). Dentro c'e' solo il tuo orario: il tuo
+  cognome, le tue classi e le tue ore, i giorni senza lezione, i colori e i tuoi colloqui.
+  Nessun collega, nessun orario delle classi.
+
+In quell'account Google chiede solo due permessi: il Calendario e quello di riprendere da solo
+un lavoro lungo. Niente posta, niente email, niente Drive. Le email degli orari, se le vuoi,
+restano nel progetto della scuola, con Orari.gs e i "Dati dell'orario" del passo 3: li'
+**ORARI_4_calendario** non mette niente e ti dice dove sta il calendario.
+
+! Nel progetto dell'altro account vanno i "Dati del tuo orario", non quelli di tutto il
+  tabellone: con quelli lo script si ferma e te lo dice. Se usi tutti e due i progetti, quando
+  cambi qualcosa incolla i dati nuovi in tutti e due.
+
+! Se passi all'altro account e nel calendario della scuola c'e' gia' l'orario, toglilo prima
+  di cambiare la scelta in Campanella: nel progetto della scuola, con il DatiOrari.gs che c'e',
+  esegui **ORARI_ANNULLA_calendario**. Oppure elimina quel calendario da Google Calendar.
+
+## L'editor degli script, passo passo
+
+Qui ci sono le cose che si fanno nell'editor di Google. Servono in tutti i casi della guida:
+torna qui quando un passo ti dice "incolla" o "esegui".
+
+### Aprire script.google.com
+
+1. Apri il browser (Chrome, Edge o un altro) e vai su script.google.com. Oppure, in Campanella,
+   al passo 3, clicca **Apri l'editor dello script**.
+2. Guarda in alto a destra con quale account sei entrato. Se nel browser usi piu' account,
+   scegli quello giusto, oppure apri una finestra in incognito ed entra solo con quello.
+
+Nell'account della scuola usi lo stesso progetto della Posta, che di solito si chiama
+Organizzazione Gmail: aprilo dall'elenco con un clic. Se non ce l'hai ancora, le istruzioni di
+Campanella dicono di fare prima lo strumento Posta, che ti guida a crearlo.
+
+### Il progetto in un altro account
+
+1. In script.google.com, entrato con l'altro account, clicca **Nuovo progetto**.
+2. Clicca sul nome del progetto, in alto, e dagli un nome, per esempio Orario sul calendario.
+3. Nella colonna di sinistra clicca l'ingranaggio, **Impostazioni progetto**. In "Fuso orario"
+   scegli quello con Roma. Poi torna all'editor con il simbolo < > a sinistra.
+4. Nel file Codice.gs che c'e' gia', cancella tutto e incolla il "Codice solo calendario". Se
+   vuoi, rinomina il file Calendario.
+5. Aggiungi il file DatiOrari, come spiegato qui sotto.
+
+### Aggiungere un file e incollarci dentro
+
+1. Nella colonna di sinistra dell'editor, accanto alla parola "File", clicca il "+" e scegli
+   "Script".
+2. Scrivi il nome esattamente come indicato, senza .gs (per esempio DatiOrari) e premi Invio.
+3. In Campanella scegli nel menu la voce giusta e clicca **Copia negli appunti**.
+4. Torna all'editor e clicca dentro il file. Premi Ctrl+A (seleziona tutto) e poi Ctrl+V
+   (incolla): quello che c'era viene sostituito.
+5. Premi Ctrl+S per salvare.
+
+Per sostituire un file che c'e' gia', per esempio con un DatiOrari.gs nuovo, cliccalo nella
+colonna di sinistra e ripeti i punti da 3 a 5.
+
+### Eseguire una funzione
+
+1. Nella colonna di sinistra clicca il file Orari (o Calendario, nell'altro account).
+2. In alto, sopra il codice, c'e' un menu a tendina con il nome di una funzione. Aprilo e
+   scegli quella che ti serve, per esempio **ORARI_1_anteprima**.
+3. Clicca **Esegui**.
+4. In fondo si apre il Registro di esecuzione. Aspetta che lo script finisca e leggi il suo
+   messaggio.
+
+? Il menu a tendina mostra le funzioni del file aperto. Se non trovi le funzioni che cominciano
+  con ORARI_, clicca prima il file Orari nella colonna di sinistra.
+
+### Autorizzare lo script, la prima volta
+
+La prima volta che esegui una funzione, Google chiede il permesso. E' normale.
+
+1. Compare una finestra che chiede l'autorizzazione: clicca **Rivedi autorizzazioni**.
+2. Scegli il tuo account.
+3. Compare la schermata "Google non ha verificato questa app". Non spaventarti: compare per tutti
+   gli script personali, anche per quelli scritti da te. Clicca **Avanzate**, in basso a
+   sinistra.
+4. Clicca **Apri ... (non sicura)**: al posto dei puntini c'e' il nome del tuo progetto.
+5. Clicca **Consenti**.
+6. Lo script parte. Se non parte, clicca di nuovo **Esegui**.
+
+Il codice gira solo dentro il tuo account e nessun altro lo vede. Nell'account della scuola
+Google chiede anche il permesso per il Calendario, anche se usi solo le email, perche' guarda
+tutti i file del progetto insieme. Il calendario lo toccano solo **ORARI_4_calendario**,
+**ORARI_5_cambioOrario**, **ORARI_6_coloraLezioni**, **ORARI_7_colloqui** e
+**ORARI_ANNULLA_calendario**, e solo quando le esegui tu.
+
+### Dove leggere i messaggi
+
+Ogni funzione, alla fine, scrive un messaggio nel Registro di esecuzione, in fondo all'editor.
+Leggilo sempre fino in fondo: dice che cosa ha fatto e, se qualcosa non va, che cosa fare. Se lo
+script si ferma per un problema, il registro mostra un errore con la spiegazione in italiano: le
+soluzioni piu' comuni sono nella sezione "Se qualcosa non va".
+
+Un lavoro lungo si ferma da solo dopo circa quattro minuti, con il messaggio "Tempo massimo
+raggiunto". Non devi fare niente: un minuto dopo Google lo fa ripartire da dove era arrivato,
+anche se chiudi la pagina. Le riprese non scrivono nel registro che hai davanti: per leggerle,
+nell'editor clicca **Esecuzioni** nella colonna di sinistra. Oppure guarda il calendario.
+
+### Il fuso orario
+
+Il calendario nasce con il fuso orario dello script, che deve essere quello dell'Italia
+(Europe/Rome): con un altro, le lezioni comparirebbero a un'altra ora. **ORARI_1_anteprima**
+scrive il fuso nella riga "Fuso orario dello script" e ti avvisa se non va bene. Per cambiarlo:
+nell'editor clicca l'ingranaggio **Impostazioni progetto**, in "Fuso orario" scegli quello con
+Roma, poi torna all'editor e riesegui la funzione.
+
+## La prima volta, dall'inizio alla fine
+
+Ecco tutto il percorso. Prenditi mezz'ora, con calma. Puoi fermarti dopo ogni parte e
+riprendere un altro giorno: Campanella ricorda le tue scelte.
+
+### In Campanella
+
+1. Apri Campanella e clicca **Orari**. Passo 1: clicca **Scegli il file...**, apri il
+   tabellone della scuola e leggi "Cosa ho capito".
+2. Clicca **Avanti**. Passo 2: controlla la griglia di un paio di docenti e di una classe.
+3. Clicca **Avanti**. Passo 3: se vuoi le email, controlla l'oggetto e, se ti servono, metti la
+   spunta "Prepara anche gli orari delle classi".
+4. Clicca **Avanti**. Passo 4: in "Dove metti l'orario" scegli l'account, poi scegli il tuo
+   nome e controlla il nome del calendario e le date "Dal" e "al".
+5. Scrivi quando comincia la prima ora e quanto dura un'ora, o l'inizio di ogni ora.
+6. Clicca **Aggiungi le feste nazionali**, poi aggiungi a mano vacanze, patrono e ponti della
+   circolare della scuola. Guarda sotto la casella che ogni riga sia letta bene.
+7. Se vuoi, scrivi i tuoi colloqui con le famiglie, e sistema titoli e colori con il bottone
+   **Titoli e colori delle lezioni...**.
+8. Leggi il riepilogo in grassetto. Se ci sono righe in ambra, sistemale.
+
+### Nell'editor, con l'account della scuola
+
+1. Apri script.google.com con l'account della scuola e apri il progetto della Posta.
+2. Aggiungi il file Orari. In Campanella, passo 3, scegli nel menu "1. Codice degli orari",
+   clicca **Copia negli appunti** e incollalo nel file Orari. Salva con Ctrl+S.
+3. Aggiungi il file DatiOrari. In Campanella, passo 4, scegli nel menu "1. Dati dell'orario",
+   clicca **Copia negli appunti** e incollalo nel file DatiOrari. Salva.
+4. Controlla il fuso orario in **Impostazioni progetto**: deve essere quello con Roma.
+5. Torna all'editor, clicca il file Orari, scegli **ORARI_1_anteprima** e clicca **Esegui**. La
+   prima volta autorizza lo script. Leggi il registro: non manda e non mette niente, dice solo
+   che cosa farebbe.
+6. Per le email: scegli **ORARI_2_invia** ed esegui. Dopo qualche minuto le email sono nella tua
+   casella. Per gli orari delle classi, poi, **ORARI_3_inviaOrariClassi**.
+7. Per il calendario: scegli **ORARI_4_calendario** ed esegui. Con tante lezioni ci mette
+   qualche minuto, e puo' fermarsi e riprendere da solo.
+8. In Campanella, passo 4, clicca **Apri Google Calendar**. Nella colonna di sinistra c'e' il
+   calendario con il tuo orario, e ogni classe ha il suo colore.
+
+### Nell'editor, con un altro account
+
+1. Con l'altro account prepara il progetto come in "Il progetto in un altro account": fuso
+   orario con Roma, il "Codice solo calendario" e i "Dati del tuo orario" (passo 4, voce 2).
+2. Scegli **ORARI_1_anteprima**, clicca **Esegui** e autorizza lo script. Leggi il registro.
+3. Scegli **ORARI_4_calendario** ed esegui.
+4. Apri calendar.google.com con quell'account: a sinistra c'e' il calendario con l'orario.
+
+? In Campanella, al passo 4, la voce "Cosa fare, passo per passo" del menu ripete queste
+  istruzioni per l'account che hai scelto, con il numero di versione giusto.
+
+## Le funzioni dello script, una per una
+
+Le funzioni si scelgono dal menu a tendina in alto nell'editor e si fanno partire con
+**Esegui**. **ORARI_2_invia**, **ORARI_3_inviaOrariClassi** e **ORARI_ANNULLA_invio** ci sono
+solo nel progetto della scuola; le altre anche in quello dell'altro account.
+
+Da qui in avanti "copia e incolla DatiOrari.gs" vuol dire: in Campanella, al passo 4, scegli nel
+menu la voce dei dati ("1. Dati dell'orario", oppure "2. Dati del tuo orario" se l'orario va in
+un altro account) e clicca **Copia negli appunti**; poi, nell'editor, clicca il file DatiOrari
+e premi Ctrl+A, Ctrl+V e Ctrl+S.
+
+### ORARI_1_anteprima
+
+Dice che cosa farebbe lo script, senza mandare email e senza toccare il calendario. Usala la
+prima volta e ogni volta che incolli un file nuovo, prima di fare sul serio: puoi eseguirla
+tutte le volte che vuoi. Si sceglie, si esegue e si legge il registro. Che cosa si vede:
+- in cima "ANTEPRIMA" e la versione dello script ("Orari.gs versione ..." oppure, nell'altro
+  account, "Calendario.gs versione ...");
+- il fuso orario dello script, con un avviso se non e' quello dell'Italia;
+- il periodo, quanti docenti ci sono, i giorni e le ore;
+- nel progetto della scuola: a chi arrivano le email (solo a te), l'etichetta, quante email
+  partirebbero, quante te ne restano oggi e, in fondo, l'esempio del primo messaggio;
+- per il calendario: il nome e le date, i giorni senza lezione, quante serie mettera'
+  **ORARI_4_calendario**, quante lezioni salta, i colori delle classi e i colloqui.
+
+Se va storto: "Calendario: nessuno" vuol dire che al passo 4 non hai scelto il tuo nome:
+sceglilo, poi copia e incolla di nuovo DatiOrari.gs. Una riga che comincia con "ATTENZIONE" o
+con "Calendario da sistemare" dice che cosa fare. La versione scritta in cima deve essere quella
+che Campanella indica in "Cosa fare, passo per passo", al passo 4: se e' diversa, reincolla il
+codice.
+
+### ORARI_2_invia
+
+Ti manda una email per ogni docente del tabellone, con la sua griglia: tutte a te, nessuna ai
+colleghi. Usala la prima volta e quando arriva un tabellone nuovo.
+
+1. Scegli **ORARI_2_invia** e clicca **Esegui**.
+2. Aspetta: alla fine il registro scrive "FATTO: mandati ... messaggi su ...".
+
+Nella tua Posta in arrivo trovi un messaggio per docente: per ritrovare l'orario di un collega,
+cerca il suo cognome in Gmail. Se c'e' gia' l'etichetta "Orari" (la crea lo strumento Posta), i
+messaggi la prendono.
+
+Se va storto: "Tempo massimo raggiunto ... Riprende da solo fra un minuto." e' normale, non
+fare niente. "Hai finito le email che Google ti lascia mandare oggi" o "Quota giornaliera
+esaurita": Google lascia mandare 100 email al giorno con un account Gmail normale e 1500 con
+quello della scuola. Riesegui **ORARI_2_invia** domani: riparte da dove si era fermata, senza
+doppioni.
+
+! Se la riesegui dopo che ha finito, ricomincia da capo e ti arrivano tutte le email un'altra
+  volta.
+
+### ORARI_3_inviaOrariClassi
+
+Ti manda una email per ogni classe, con il suo orario, sempre e solo a te. Usala dopo
+**ORARI_2_invia**, se ti servono anche gli orari delle classi.
+
+1. In Campanella, passo 3, metti la spunta "Prepara anche gli orari delle classi".
+2. Copia di nuovo i "Dati dell'orario" e incollali nel file DatiOrari, al posto di tutto. Salva.
+3. Scegli **ORARI_3_inviaOrariClassi** e clicca **Esegui**. Alla fine il registro scrive
+   "FATTO: mandati ... orari di classe su ...".
+
+Se va storto: "In DatiOrari.gs non ci sono gli orari delle classi" vuol dire che manca la spunta
+del punto 1, o che non hai incollato il file nuovo. Per il tempo e per la quota vale quello che
+c'e' scritto per **ORARI_2_invia**.
+
+### ORARI_4_calendario
+
+Mette il tuo orario su Google Calendar per tutto il periodo scelto, con i colloqui con le
+famiglie. Usala la prima volta, o dopo aver tolto tutto: per le modifiche successive ci sono le
+altre funzioni.
+
+1. Controlla con **ORARI_1_anteprima** che sia tutto giusto.
+2. Scegli **ORARI_4_calendario** e clicca **Esegui**.
+3. Aspetta: con tante lezioni ci mette qualche minuto, e se si ferma per il tempo riprende da
+   sola dopo un minuto. Poi leggi il messaggio finale.
+
+Se non hai un calendario con il nome scelto, lo crea, con il fuso orario dello script. Ogni
+gruppo di ore di fila con la stessa classe (o lo stesso titolo) diventa un evento che si ripete
+ogni settimana fino alla data di fine, tranne nei giorni senza lezione, con il colore della sua
+classe; le ore "D" diventano "A disposizione". Poi mette i colloqui: il ricevimento di ogni
+settimana come le lezioni, le giornate dei colloqui generali come eventi singoli, con il link
+del Meet al posto del luogo. Ogni evento ha un contrassegno invisibile di Campanella: cosi' le
+altre funzioni toccano solo gli eventi messi dallo script, mai i tuoi.
+
+Alla fine il registro scrive "Creato il calendario ..." (o "Uso il calendario ..."), quante serie
+ha messo, quante lezioni ha saltato nei giorni senza lezione, i colori e i colloqui. In Google
+Calendar il calendario e' nella colonna di sinistra. Le lezioni puoi spostarle o cancellarle a
+mano, come gli altri eventi.
+
+Se va storto: con "Nel calendario ... ci sono gia' ... serie di eventi messe da Campanella"
+l'orario c'e' gia', e lo script si ferma per non mettere ogni lezione due volte; con "Mi fermo:
+il fuso orario dello script non e' quello dell'Italia" cambia il fuso e riesegui. Per questi e
+gli altri messaggi vedi "Se qualcosa non va".
+
+### ORARI_5_cambioOrario
+
+L'orario della scuola cambia da una certa data: lo script lascia come sono le settimane prima e
+da quella data mette l'orario nuovo. Usala quando arriva un orario nuovo a meta' anno, oppure
+quando aggiungi un giorno senza lezione dopo aver gia' messo l'orario.
+
+1. In Campanella, passo 4, metti la spunta "L'orario e' cambiato: il nuovo vale dal" e scegli
+   il primo giorno dell'orario nuovo. Non cambiare "Dal" e "al".
+2. Copia e incolla di nuovo DatiOrari.gs.
+3. Scegli **ORARI_5_cambioOrario** e clicca **Esegui**.
+4. Aspetta la fine: se si ferma per il tempo, riprende da sola.
+
+Che cosa fa: Google non lascia accorciare un evento che si ripete. Allora lo script rifa' le
+serie dell'orario di prima fino al giorno prima del cambio, e poi toglie le vecchie. Le lezioni
+che avevi spostato, rinominato o colorato a mano tornano come eventi singoli, alla loro ora e
+come le avevi lasciate. Dalla data scelta mette l'orario nuovo e i colloqui di DatiOrari.gs. Alla
+fine il registro scrive "Cambio d'orario dal ...", con quante serie ha rifatto, tolto e creato.
+Rieseguita con la stessa data da' lo stesso risultato: non mette niente due volte. Altre
+modifiche fatte a mano a una serie, per esempio un promemoria, non passano alla serie rifatta:
+se ne avevi fatte, rifalle.
+
+Se va storto:
+- "manca la data da cui vale l'orario nuovo": hai dimenticato la spunta del punto 1, o non hai
+  incollato il file nuovo.
+- "Non c'e' nessun calendario chiamato ...": l'orario non e' mai stato messo con
+  **ORARI_4_calendario**, oppure il nome del calendario e' cambiato.
+- "La data del cambio d'orario ... viene dopo la fine del periodo": scegli una data giusta.
+
+### ORARI_6_coloraLezioni
+
+Da' alle lezioni gia' sul calendario i colori scelti in Campanella, e ai colloqui il loro.
+Cambia solo il colore: non rifa' e non sposta niente. Usala dopo aver cambiato i colori in
+"Titoli e colori delle lezioni...".
+
+1. Cambia i colori in Campanella e clicca **Usa questi titoli e colori**.
+2. Copia e incolla di nuovo DatiOrari.gs.
+3. Scegli **ORARI_6_coloraLezioni** e clicca **Esegui**.
+
+Alla fine il registro scrive "Colori delle classi nel calendario ...", con quante lezioni ha
+colorato e quante avevano gia' il colore giusto. Se si ferma per il tempo, riprende da sola.
+
+Se va storto: le lezioni di una classe a cui hai dato "colore del calendario" restano come
+sono, e il colore che avevano lo togli tu da Google Calendar. Con un lavoro a meta' di
+**ORARI_4_calendario**, **ORARI_5_cambioOrario** o **ORARI_7_colloqui** non colora niente e te
+lo dice: falli finire, poi riesegui. Le lezioni che sul calendario hanno ancora un titolo
+vecchio restano come sono: vedi il caso "Ho cambiato i titoli delle lezioni".
+
+### ORARI_7_colloqui
+
+Aggiorna i colloqui con le famiglie da oggi in poi, senza toccare le lezioni; i colloqui passati
+restano come sono. Usala quando cambi, aggiungi o togli dei colloqui dopo aver gia' messo
+l'orario.
+
+1. In Campanella, passo 4, sistema la casella "Colloqui con le famiglie".
+2. Copia e incolla di nuovo DatiOrari.gs.
+3. Scegli **ORARI_7_colloqui** e clicca **Esegui**.
+
+Alla fine il registro scrive "Colloqui aggiornati dal ...", con quanti ricevimenti ha rifatto o
+tolto e quanti colloqui ha messo. Se si ferma per il tempo, riprende da sola. Se hai spuntato un
+cambio d'orario con una data che deve ancora venire, i colloqui nuovi partono da quella data, e
+il messaggio te lo dice.
+
+Se va storto: "Non c'e' nessun calendario chiamato ..." vuol dire che prima va messo l'orario
+con **ORARI_4_calendario**, che mette anche i colloqui. "Il periodo del calendario e' finito"
+vuol dire che e' cominciato un anno nuovo: vedi il caso "Nuovo anno scolastico".
+
+### ORARI_ANNULLA_calendario
+
+Toglie dal calendario gli eventi messi da Campanella, lezioni e colloqui, nel periodo scritto in
+DatiOrari.gs, e dimentica un lavoro rimasto a meta' con le sue riprese. Usala quando hai
+sbagliato e vuoi ricominciare, quando hai cambiato i titoli, o prima di cambiare il nome del
+calendario.
+
+1. Controlla che nel file DatiOrari ci siano lo stesso nome del calendario e le stesse date con
+   cui hai messo l'orario.
+2. Scegli **ORARI_ANNULLA_calendario** e clicca **Esegui**.
+3. Leggi il messaggio: "Tolti ... eventi messi da Campanella dal calendario ...".
+
+Restano il calendario stesso e tutti gli altri eventi, quelli messi da te. Lo script non
+cancella mai un calendario: se vuoi toglierlo, lo elimini tu da Google Calendar.
+
+Se va storto: con "Tempo massimo raggiunto: tolti ... eventi su ..." rieseguila tu, perche'
+questa funzione non riparte da sola: toglie quelli che restano. Con "Non c'e' nessun calendario
+chiamato ..." il nome in DatiOrari.gs non e' quello del calendario: in Campanella rimetti il
+nome di prima, copia e incolla DatiOrari.gs e riesegui.
+
+! Toglie anche le lezioni che avevi spostato o cambiato a mano, e le copie fatte a mano di una
+  lezione: se poi rimetti l'orario, quelle modifiche vanno rifatte. E se dopo aver messo
+  l'orario hai cambiato le date "Dal" e "al", gli eventi fuori dalle date nuove non li trova (e
+  nemmeno **ORARI_5_cambioOrario**): rimetti le date di prima.
+
+### ORARI_ANNULLA_invio
+
+Fa dimenticare allo script a che punto erano arrivati gli invii delle email, e toglie le loro
+riprese. Non toglie le email gia' arrivate e non tocca il calendario. Usala se un invio si e'
+fermato a meta', per esempio per la quota, e vuoi ricominciare da capo invece di continuare.
+
+1. Scegli **ORARI_ANNULLA_invio** e clicca **Esegui**. Il registro scrive "Dimenticato il
+   punto in cui erano arrivati gli invii".
+2. Il prossimo **ORARI_2_invia** ricomincia dal primo docente, e
+   **ORARI_3_inviaOrariClassi** dalla prima classe.
+
+### ANNULLA_automazione (dello strumento Posta)
+
+Non fa parte del codice degli orari, ma sta nello stesso progetto della scuola. Spegne tutte le
+riprese automatiche, comprese quelle degli invii, del calendario, dei colori e dei colloqui, e
+anche lo smistamento automatico della posta. Un lavoro sul calendario rimasto a meta' resta
+fermo: riparte solo se riesegui tu la sua funzione, e continua da dove era arrivato. Nel
+progetto dell'altro account non c'e': li' **ORARI_ANNULLA_calendario** toglie gli eventi,
+dimentica un lavoro a meta' e le sue riprese.
+
+## I casi, ricetta per ricetta
+
+### La prima volta
+
+1. Segui la sezione "La prima volta, dall'inizio alla fine". Prima di **ORARI_4_calendario**
+   esegui sempre **ORARI_1_anteprima** e leggi il registro.
+2. Esegui **ORARI_4_calendario** una volta sola, poi guarda una settimana in Google Calendar.
+3. Se qualcosa non torna, non rieseguire **ORARI_4_calendario**: sistema in Campanella e segui
+   il caso giusto qui sotto (per ricominciare da capo, "Ho sbagliato e voglio togliere tutto").
+
+### Ho cambiato solo i colori
+
+1. In Campanella, passo 4, clicca **Titoli e colori delle lezioni...**, scegli le lezioni (o
+   una voce della legenda) e il colore nuovo, poi clicca **Usa questi titoli e colori**.
+2. Copia e incolla DatiOrari.gs.
+3. Nell'editor esegui **ORARI_6_coloraLezioni**.
+4. Leggi il messaggio finale. In Google Calendar le lezioni hanno i colori nuovi e sono rimaste
+   al loro posto.
+
+? Il colore di tutto il calendario, non delle singole lezioni, lo cambi direttamente da Google
+  Calendar.
+
+### Ho cambiato i titoli delle lezioni
+
+I titoli nuovi li prendono le lezioni che lo script mette da quel momento. Per darli a quelle
+gia' sul calendario bisogna toglierle e rimetterle.
+
+1. In Campanella, passo 4, clicca **Titoli e colori delle lezioni...**, cambia i titoli e
+   clicca **Usa questi titoli e colori**.
+2. Copia e incolla DatiOrari.gs.
+3. Esegui **ORARI_ANNULLA_calendario** e aspetta il messaggio "Tolti ... eventi".
+4. Esegui **ORARI_4_calendario**: rimette tutto l'orario con i titoli nuovi.
+
+! Cosi' si perdono le modifiche fatte a mano alle lezioni (spostate, cancellate, rinominate):
+  rifalle dopo. E se quest'anno l'orario e' gia' cambiato una volta con
+  **ORARI_5_cambioOrario**, non usare questa strada: rimetterebbe l'orario nuovo anche sulle
+  settimane di prima. Usa quella del consiglio qui sotto.
+
+? Un'altra strada, che lascia come sono le settimane passate: metti la spunta "L'orario e'
+  cambiato: il nuovo vale dal" con la data da cui vuoi i titoli nuovi (per esempio domani),
+  copia e incolla DatiOrari.gs ed esegui **ORARI_5_cambioOrario**.
+
+### L'orario della scuola cambia da una certa data
+
+1. In Campanella, passo 1, apri il tabellone nuovo con **Scegli il file...** e controllalo al
+   passo 2.
+2. Passo 4: controlla che il tuo nome sia ancora scelto. Non cambiare "Dal" e "al", e non
+   cambiare il nome del calendario.
+3. Metti la spunta "L'orario e' cambiato: il nuovo vale dal" e scegli il primo giorno
+   dell'orario nuovo.
+4. Clicca **Titoli e colori delle lezioni...** e controlla: un titolo scelto per un'ora che
+   adesso ha un'altra classe non vale piu'. Clicca **Usa questi titoli e colori**.
+5. Copia e incolla DatiOrari.gs.
+6. Esegui **ORARI_1_anteprima**: deve dire "L'orario e' cambiato: il nuovo vale dal ...".
+7. Esegui **ORARI_5_cambioOrario** e aspetta la fine (se si ferma, riprende da sola). Leggi il
+   messaggio "Cambio d'orario dal ..." e guarda il calendario dopo quella data.
+8. Se vuoi anche le email con il nuovo orario dei colleghi, esegui **ORARI_2_invia**.
+
+! Non usare **ORARI_4_calendario**: si ferma, perche' l'orario sul calendario c'e' gia'. Le
+  settimane prima della data restano come erano, anche le lezioni spostate o cancellate a mano.
+
+### Cambiano solo i colloqui con le famiglie
+
+I colloqui si scrivono al passo 4, nella casella "Colloqui con le famiglie", una riga per voce.
+Le prenotazioni dei genitori restano nel registro elettronico: sul calendario ci sono solo il
+giorno, l'ora e il link. Esempi di righe che Campanella capisce:
+- ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/...
+- dal 12/10/2026 al 22/05/2027 ogni giovedi 10:10-11:10 Ricevimento
+- 15/12/2026 15:00-18:00 Colloqui generali https://meet.google.com/...
+- niente colloqui dal 14/12/2026 al 09/01/2027
+
+1. In Campanella, passo 4, cambia le righe della casella. Sotto guarda come Campanella ha letto
+   ogni riga, e correggi quelle in ambra.
+2. Copia e incolla DatiOrari.gs.
+3. Esegui **ORARI_7_colloqui**.
+4. Leggi il messaggio "Colloqui aggiornati dal ...". Le lezioni non le tocca, e i colloqui
+   passati restano come sono.
+
+? Per cambiare solo il colore dei colloqui: in **Titoli e colori delle lezioni...** clicca la
+  voce "Colloqui con le famiglie" della legenda e scegli il colore; poi copia e incolla
+  DatiOrari.gs ed esegui **ORARI_6_coloraLezioni**.
+
+### Voglio cambiare il nome del calendario
+
+Lo script riconosce il calendario dal nome. Per questo conta l'ordine dei passi.
+
+1. Nell'editor deve esserci ancora il DatiOrari.gs vecchio, con il nome vecchio. Se l'hai gia'
+   sostituito, in Campanella rimetti per un momento il nome vecchio e copia e incolla
+   DatiOrari.gs.
+2. Esegui **ORARI_ANNULLA_calendario**: toglie lezioni e colloqui dal calendario vecchio.
+   Aspetta il messaggio "Tolti ... eventi".
+3. In Campanella, passo 4, scrivi il nome nuovo in "Nome del calendario".
+4. Copia e incolla DatiOrari.gs, che adesso ha il nome nuovo.
+5. Esegui **ORARI_4_calendario**: crea il calendario nuovo e ci mette l'orario.
+6. In Google Calendar il calendario vecchio e' rimasto, vuoto. Se non ti serve, eliminalo tu:
+   lo script non cancella mai un calendario. Le modifiche fatte a mano alle lezioni del
+   calendario vecchio non passano al nuovo.
+
+? Se vuoi solo un nome diverso, senza rifare niente, c'e' una strada piu' corta: cambia il nome
+  direttamente in Google Calendar, poi scrivi in Campanella lo stesso identico nome (con le
+  stesse maiuscole e gli stessi spazi) e copia e incolla DatiOrari.gs. Lo script ritrova il
+  calendario con il nome nuovo, con tutte le sue lezioni.
+
+### Ho sbagliato e voglio togliere tutto
+
+1. Controlla che nel file DatiOrari ci siano il nome del calendario e le date con cui hai messo
+   l'orario.
+2. Esegui **ORARI_ANNULLA_calendario**. Se il messaggio dice "Tempo massimo raggiunto",
+   rieseguila finche' non scrive soltanto "Tolti ... eventi messi da Campanella".
+3. Il calendario resta, vuoto. Se non ti serve, eliminalo tu da Google Calendar.
+4. Le email gia' arrivate restano nella tua casella: se non le vuoi, cancellale tu da Gmail. Se
+   un invio e' ancora a meta' e non vuoi che continui, esegui **ORARI_ANNULLA_invio**.
+5. Per spegnere tutte le riprese, nel progetto della scuola esegui **ANNULLA_automazione**
+   (spegne anche lo smistamento della posta). Nel progetto dell'altro account basta il punto 2;
+   se quel progetto non ti serve piu', eliminalo.
+6. Alla fine, se vuoi, togli agli script il permesso di entrare nel tuo account dalla pagina
+   myaccount.google.com/permissions.
+
+? Gli script di Campanella non cancellano mai email, calendari o file: tolgono solo gli eventi
+  che hanno messo loro. Per rimettere l'orario da capo: sistema in Campanella, copia e incolla
+  DatiOrari.gs ed esegui **ORARI_4_calendario**.
+
+### Vacanze e giorni senza lezione
+
+Nei giorni senza lezione sul calendario non c'e' nessuna lezione, e nemmeno il ricevimento
+settimanale (le giornate dei colloqui generali scritte a parte invece restano). Si scrivono al
+passo 4, nella casella "Giorni senza lezione", una riga per giorno o per periodo. Esempi:
+- 01/11/2026 Tutti i Santi
+- 23/12/2026-06/01/2027 Vacanze di Natale
+- dal 23/12/2026 al 06/01/2027 Vacanze
+- 7-8/12/2026 Ponte
+
+Prima di mettere l'orario:
+1. Clicca **Aggiungi le feste nazionali**: mette quelle del periodo, Pasqua e Pasquetta comprese.
+2. Aggiungi a mano vacanze, patrono e ponti, copiandoli dalla circolare sul calendario
+   scolastico della regione e della scuola.
+3. Sotto la casella guarda come Campanella ha letto ogni riga, con i giorni della settimana.
+   Correggi le righe in ambra.
+4. Copia e incolla DatiOrari.gs ed esegui **ORARI_4_calendario**.
+
+Se l'orario e' gia' sul calendario e aggiungi un giorno dopo:
+1. Scrivi la riga nuova nella casella e controlla come e' stata letta.
+2. Metti la spunta "L'orario e' cambiato: il nuovo vale dal" e scegli una data che non viene
+   dopo il nuovo giorno senza lezione (va bene anche domani). L'orario resta lo stesso: va bene.
+3. Copia e incolla DatiOrari.gs.
+4. Esegui **ORARI_5_cambioOrario**. Le settimane prima della data restano come sono.
+
+! Non scrivere qui l'inizio o la ripresa delle lezioni: sono giorni di lezione. Per un periodo
+  scrivi tutte e due le date: "23/12/2026 Vacanze natalizie" e' soltanto il 23 dicembre.
+
+### Nuovo anno scolastico
+
+1. In Campanella, passo 1, apri il tabellone del nuovo anno e controllalo al passo 2.
+2. Passo 4: cambia "Dal" e "al" con le date del nuovo anno, e togli la spunta "L'orario e'
+   cambiato", se c'era.
+3. Nella casella "Giorni senza lezione" cancella le righe dell'anno scorso e scrivi quelle nuove,
+   con **Aggiungi le feste nazionali** e la circolare.
+4. Nella casella "Colloqui con le famiglie" metti i colloqui del nuovo anno.
+5. Apri **Titoli e colori delle lezioni...**. I titoli dell'anno scorso valgono solo dove, a
+   quel giorno e a quell'ora, c'e' la stessa classe; le classi nuove prendono un colore che le
+   altre non hanno. Sistema e clicca **Usa questi titoli e colori**.
+6. Copia e incolla DatiOrari.gs.
+7. Esegui **ORARI_1_anteprima**: controlla le date e la versione dello script (vedi il caso
+   della nuova versione di Campanella).
+8. Esegui **ORARI_4_calendario**.
+9. Se vuoi le email del nuovo anno, esegui **ORARI_2_invia**.
+
+? Puoi tenere lo stesso calendario: le lezioni dell'anno scorso restano nelle loro date, e lo
+  script lavora solo fra "Dal" e "al". Se preferisci un calendario per ogni anno, cambia il nome
+  del calendario prima del punto 6.
+
+! Se vuoi togliere le lezioni dell'anno scorso, fallo prima del punto 6: con il DatiOrari.gs
+  vecchio ancora nell'editor, esegui **ORARI_ANNULLA_calendario**.
+
+### E' arrivata una nuova versione di Campanella
+
+Aggiornare Campanella non cambia gli script che hai gia' incollato nel tuo account Google. Due
+regole:
+- Orari.gs (o Calendario.gs, nell'altro account) si ricopia solo quando cambia il suo codice.
+  Lo dicono le note di ogni versione, sulla pagina dei rilasci ("Scripts to paste again").
+- DatiOrari.gs si ricopia ogni volta che cambi qualcosa in Campanella: il tabellone, il nome,
+  le date, le ore, i giorni senza lezione, i colloqui, i titoli o i colori.
+
+1. Installa la versione nuova con Installa-Campanella.exe: le tue impostazioni restano.
+2. Leggi le note della versione, sulla pagina dei rilasci.
+3. Se dicono di reincollare il codice degli orari: in Campanella, passo 3, scegli "1. Codice
+   degli orari", clicca **Copia negli appunti**, poi nell'editor clicca il file Orari e premi
+   Ctrl+A, Ctrl+V, Ctrl+S. Nell'altro account fai lo stesso con la voce "1. Codice solo
+   calendario" del passo 4, nel file Calendario (o Codice.gs, se non l'hai rinominato).
+4. Se le note lo dicono, copia e incolla anche DatiOrari.gs; se nello stesso progetto c'e' anche
+   la Posta, reincolla anche il suo codice principale (pagina Posta).
+5. Esegui **ORARI_1_anteprima**: in cima deve scrivere la versione che Campanella indica in
+   "Cosa fare, passo per passo", al passo 4.
+
+? Nel dubbio, reincollare il codice preparato da Campanella non fa danni.
+
+## Se qualcosa non va
+
+Il messaggio dello script dice quasi sempre che cosa fare: leggilo fino in fondo. Ecco i casi
+piu' comuni.
+
+### "Tempo massimo raggiunto ... Riprende da solo fra un minuto."
+
+Non e' un errore: Google lascia lavorare uno script per pochi minuti alla volta, e lo script
+riparte da solo dopo un minuto da dove era arrivato, anche se chiudi la pagina (vedi "Dove
+leggere i messaggi"). Solo **ORARI_ANNULLA_calendario** non riparte da sola: rieseguila tu.
+
+### Google chiede di rallentare, o ha finito le modifiche di oggi
+
+- "Google dice che ho fatto troppe modifiche al calendario in poco tempo": non fare niente, lo
+  script riprende da solo fra un minuto.
+- "Google ha finito le modifiche al calendario che ti lascia fare oggi" o "Google continua a
+  rifiutare le modifiche al calendario": riesegui la stessa funzione domani (o fra un'ora).
+  Riparte da dove era arrivata.
+
+### "Nel calendario ... ci sono gia' ... serie di eventi messe da Campanella"
+
+Hai eseguito **ORARI_4_calendario** dove l'orario c'e' gia'. Lo script si e' fermato per non
+mettere ogni lezione due volte, e non ha toccato niente. Scegli che cosa volevi fare:
+- hai cambiato o aggiunto solo i colloqui: esegui **ORARI_7_colloqui**;
+- l'orario della scuola e' cambiato: segui il caso "L'orario della scuola cambia da una certa
+  data";
+- vuoi rifare tutto da capo: **ORARI_ANNULLA_calendario** e poi **ORARI_4_calendario**.
+
+### Il tuo nome non e' fra i docenti del tabellone
+
+- Il riepilogo del passo 4 dice "... non e' nel tabellone: scegli un nome dall'elenco.": nella
+  casella "Il tuo nome, come nel tabellone" apri l'elenco e scegli il tuo nome com'e' scritto.
+- Dice "... puo' essere ROSSI A. o ROSSI M.": nel tabellone ci sono due docenti che cominciano
+  cosi'. Scegli dall'elenco il tuo nome esatto.
+- Lo script dice "Nel tabellone non trovo il nome" oppure "In DatiOrari.gs non c'e' la parte
+  "calendario"": sistema il nome in Campanella, poi copia e incolla di nuovo DatiOrari.gs.
+
+### Il fuso orario
+
+- "ATTENZIONE: il fuso orario dello script non e' quello dell'Italia", oppure "Mi fermo: il fuso
+  orario dello script...": in **Impostazioni progetto** scegli il fuso con Roma e riesegui. Il
+  calendario non e' stato toccato.
+- Il messaggio dice che il calendario ha un altro fuso e ci sono gia' lezioni di Campanella
+  (succede con i calendari creati da Campanella 1.5 o prima): esegui
+  **ORARI_ANNULLA_calendario** e poi **ORARI_4_calendario**. Le lezioni spostate o cancellate a
+  mano vanno rifatte.
+- "Google non ripete le lezioni del calendario ... nel fuso orario": esegui
+  **ORARI_ANNULLA_calendario**, poi in Google Calendar cambia il nome di quel calendario (o
+  eliminalo, se dentro non c'e' altro), poi esegui **ORARI_4_calendario**: ne crea uno nuovo.
+
+! Cambiare il fuso del calendario dalle impostazioni di Google Calendar non basta: le lezioni
+  gia' messe restano nel fuso di prima.
+
+### Altri messaggi dello script
+
+- "Manca il file "DatiOrari.gs"": aggiungi il file DatiOrari, incollaci i dati copiati da
+  Campanella, salva e riesegui.
+- "Un'altra esecuzione ... e' ancora in corso": sta lavorando un'altra funzione dello stesso
+  progetto. Se il messaggio dice "riprovo da solo fra un minuto", non fare niente; se dice
+  "aspetta che finisca e riprova", aspetta qualche minuto e riesegui.
+- "DatiOrari.gs e' cambiato a meta' del lavoro": hai incollato un file nuovo mentre una funzione
+  lavorava ancora. Il messaggio dice esattamente che cosa fare. La prossima volta aspetta che il
+  lavoro sia finito prima di incollare.
+- "C'e' un cambio d'orario a meta'", "C'e' un aggiornamento dei colloqui a meta'" o "L'orario
+  messo da ORARI_4_calendario e' ancora a meta'": un'altra funzione non ha finito. Il messaggio
+  dice se riprende da sola o se devi rieseguirla tu: falla finire, poi esegui quella che volevi.
+- "... e' stato fermato con ANNULLA_automazione": il lavoro non riparte da solo. Riesegui tu la
+  sua funzione: continua da dove era arrivato.
+- "Ci sono ... calendari tuoi chiamati ...": hai due calendari con lo stesso nome. Cambia il nome
+  di uno dei due in Google Calendar, oppure scegli un altro nome in Campanella e copia e incolla
+  DatiOrari.gs.
+- "Non c'e' nessun calendario chiamato ...": lo script cerca, fra i tuoi calendari, quello con il
+  nome esatto di DatiOrari.gs. L'orario non e' mai stato messo, o il nome e' cambiato.
+- "Qui non tocco il calendario": sei nel progetto della scuola, ma in Campanella hai scelto un
+  altro account. Il calendario si mette dal progetto di quell'account.
+- "Questo DatiOrari.gs e' quello di tutto il tabellone": nel progetto dell'altro account vanno i
+  "Dati del tuo orario" (passo 4, voce 2), al posto di tutto.
+- "Non riesco a sapere qual e' il tuo indirizzo": lo script non e' ancora autorizzato.
+  Rieseguilo e autorizzalo.
+
+### Le lezioni sono a un'ora sbagliata
+
+1. Controlla il fuso orario con **ORARI_1_anteprima**.
+2. In Campanella, passo 4, controlla "La prima ora comincia alle", la durata e la casella con
+   l'inizio di ogni ora. Il riepilogo in grassetto scrive le ore come le ha capite.
+3. Correggi, poi copia e incolla DatiOrari.gs.
+4. Esegui **ORARI_ANNULLA_calendario** e poi **ORARI_4_calendario**. Le modifiche fatte a mano
+   alle lezioni vanno rifatte. Se quest'anno l'orario e' gia' cambiato una volta, usa invece
+   **ORARI_5_cambioOrario** da domani, come nel consiglio del caso dei titoli.
+
+### Una lezione compare due volte, o c'e' in un giorno di vacanza
+
+Se il messaggio finale diceva "Google non ha salvato il contrassegno", fai quello che c'e'
+scritto li'; se la lezione l'avevi copiata tu, cancella la copia. Una lezione in un giorno di
+vacanza vuol dire che quel giorno mancava fra i giorni senza lezione, o che la sua riga era in
+ambra: segui il caso "Vacanze e giorni senza lezione".

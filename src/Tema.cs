@@ -146,6 +146,13 @@ namespace Campanella
                 }
                 if (t.Multiline) Scorrimento(t);
             }
+            else if (c is RichTextBox)
+            {
+                // la guida passo passo: i colori del testo li mette lei, qui le barre
+                c.BackColor = Sfondo;
+                c.ForeColor = Testo;
+                Scorrimento(c);
+            }
             else if (c is ComboBox)
             {
                 ComboBox cb = (ComboBox)c;

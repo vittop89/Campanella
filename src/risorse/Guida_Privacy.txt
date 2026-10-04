@@ -1,0 +1,646 @@
+# Guida alla Privacy
+
+Questa guida e' scritta per chi usa il computer poco e malvolentieri. Non serve sapere niente
+in anticipo: ogni passo dice dove cliccare e che cosa vedrai. Vai piano, un passo alla volta.
+Se qualcosa non torna, in fondo c'e' la parte "Se qualcosa non va".
+
+## A che cosa serve la sezione Privacy
+
+La sezione Privacy di Campanella ti aiuta a usare i documenti della scuola senza mettere in giro
+i dati delle persone. Fa tre cose. Ti ricorda le regole da rispettare. Toglie nomi e altri dati
+da un testo prima che tu lo dia a un'intelligenza artificiale, e poi rimette i nomi veri nella
+risposta. Fa una copia "ripulita" dei tuoi file, per esempio un PDF da mandare a qualcuno.
+Tutto il lavoro di pulizia avviene sul tuo computer: il testo non viene spedito da nessuna parte.
+
+### Le parole che incontrerai
+
+- Dati personali: tutto quello che permette di riconoscere una persona. Un nome e cognome, un
+  codice fiscale, un indirizzo, un numero di telefono, un IBAN.
+- IA (intelligenza artificiale): i programmi a cui si scrive una domanda e che rispondono, come
+  ChatGPT, Claude o Gemini. Quello che gli scrivi esce dal tuo computer e va su computer di altri.
+- Anonimizzare (o "ripulire"): togliere i dati personali da un testo, cosi' che non si capisca
+  piu' di chi si parla.
+- Segnaposto: la parola che Campanella mette al posto di un dato tolto. Per esempio al posto di
+  "Mario Rossi" puo' comparire [FULLNAME_1]. E' scritto fra parentesi quadre.
+- Dizionario: il promemoria che dice quale segnaposto corrisponde a quale nome vero. Serve per
+  rimettere i nomi veri nella risposta dell'IA. Resta solo nel tuo computer.
+- File: un documento salvato nel computer, per esempio una relazione o un verbale.
+- Cartella: il "contenitore" dove stanno i file, come una cartellina di carta.
+- Estensione: le lettere dopo il punto nel nome di un file, che dicono che tipo di file e'.
+  "verbale.pdf" e' un PDF; "relazione.docx" e' un documento Word.
+- Appunti: il posto dove Windows tiene quello che hai copiato, finche' non lo incolli.
+- rizzo-pii: il programma gratuito che riconosce i dati personali. Campanella lo usa per fare la
+  pulizia. Va installato una volta sola e deve essere aperto mentre lavori.
+
+## Prima di cominciare: rizzo-pii
+
+Campanella da sola non sa riconoscere i nomi: lo fa rizzo-pii, un programma italiano gratuito che
+gira sul tuo computer, senza collegarsi a internet. Riconosce 22 tipi di dati personali, compresi
+codice fiscale, partita IVA e IBAN. Senza rizzo-pii i passi 2 e 3 della sezione Privacy non
+funzionano. Il passo 1 (le regole) invece si legge anche senza.
+
+### Installare rizzo-pii (una volta sola)
+
+1. Apri Campanella.
+2. Nella barra a sinistra clicca **Impostazioni**.
+3. Scorri la pagina fino al titolo "rizzo-pii e aggiornamenti".
+4. Clicca **Cerca aggiornamenti**. Campanella chiede a GitHub (il sito dove sono pubblicati i
+   programmi) qual e' l'ultima versione. Serve internet.
+5. Se rizzo-pii non c'e', leggerai "rizzo-pii non risulta installato o avviato" e comparira' il
+   bottone **Scarica e installa rizzo-pii**, con accanto la grandezza (circa 1,2 GB).
+6. Clicca **Scarica e installa rizzo-pii**. Si apre una domanda: "Scaricare rizzo-pii?".
+   Clicca **Si'**.
+7. Compare una barra che si riempie e la scritta "Scaricato ... MB su ... MB". Ci vuole qualche
+   minuto: lascia Campanella aperta.
+8. Alla fine leggi "Scaricato. Avvio l'installazione". Da qui in poi comanda il programma di
+   installazione di rizzo-pii: segui le sue finestre.
+
+! Il file e' grande perche' contiene il "cervello" che riconosce i nomi. E' proprio questo che
+  permette di lavorare senza mandare niente in rete.
+
+? Per fermare lo scarico clicca lo stesso bottone: mentre scarica si chiama
+  **Ferma lo scarico**. Il file a meta' viene cancellato.
+
+### Controllare che rizzo-pii sia acceso
+
+rizzo-pii deve essere aperto mentre usi i passi 2 e 3. Per sapere se Campanella lo vede:
+
+1. Apri l'applicazione Rizzo PII che hai installato. All'inizio carica il suo "cervello": puo'
+   volerci qualche secondo.
+2. In Campanella vai in **Privacy**, passo **2  Testo per l'IA**.
+3. Clicca **Controlla rizzo-pii**.
+4. Sotto il bottone compare una riga. Se dice "rizzo-pii pronto", con il nome del modello e
+   "22 categorie di dati personali", e' tutto a posto.
+
+Se invece leggi "sta ancora caricando il modello", aspetta una decina di secondi e clicca di nuovo
+**Controlla rizzo-pii**. Se leggi "Non trovo rizzo-pii in ascolto", vuol dire che non e' aperto:
+aprilo e riprova.
+
+? Lo stesso controllo c'e' anche in **Impostazioni**, con il bottone **Controlla rizzo-pii**.
+  Le Impostazioni lo fanno anche da sole ogni volta che le apri.
+
+### L'indirizzo del servizio (di solito non si tocca)
+
+In **Impostazioni**, accanto a "Indirizzo del servizio", c'e' la casella con l'indirizzo dove
+Campanella cerca rizzo-pii. Di partenza e' http://127.0.0.1:5005, cioe' "questo computer".
+Lascialo cosi'. Va cambiato solo se qualcuno ha messo rizzo-pii su un'altra "porta" (l'ultimo
+numero). Un indirizzo che porta fuori dal tuo computer viene rifiutato: Campanella non manda
+i testi altrove.
+
+## Prima volta, dall'inizio alla fine
+
+### Aprire la sezione Privacy
+
+1. Apri Campanella. Vedi la pagina "Da dove vuoi cominciare?" con quattro riquadri.
+2. Nel riquadro **Privacy** clicca **Apri Privacy**. In alternativa, clicca **Privacy** nella
+   barra a sinistra.
+3. Sotto la voce **Privacy**, nella barra a sinistra, compaiono i passi:
+   **1  Le regole**, **2  Testo per l'IA**, **3  File da ripulire**. L'ultimo,
+   **4  Guida passo passo**, e' questa guida.
+4. Per passare da un passo all'altro clicca il passo nella barra a sinistra, oppure usa
+   **Avanti** e **Indietro** in basso a destra.
+
+### Passo 1: le regole (da leggere una volta)
+
+1. Clicca **1  Le regole**. Il titolo e' "Dati della scuola, computer, intelligenza artificiale".
+2. Leggi i sette riquadri, uno sotto l'altro. Sono le cose da sapere sui dati della scuola.
+   Se non entrano nello schermo, scorri in giu' con la rotellina del mouse.
+3. Leggi il riquadro "Devo avvisare la dirigenza o il DPO?". Il DPO e' il responsabile della
+   protezione dei dati della tua scuola: la persona a cui chiedere quando hai un dubbio.
+4. Se ti servono, sotto ci sono quattro bottoni con dei documenti (li spiego piu' avanti).
+5. In fondo metti la spunta su **Ho letto: mi ricordo come funziona**.
+
+Dopo la spunta, nella pagina iniziale il riquadro Privacy dice "Regole lette. Serve rizzo-pii
+avviato per anonimizzare." Senza la spunta dice "Da leggere prima di dare documenti della scuola
+a un'IA". La spunta serve solo a ricordarti che le hai lette: non sblocca niente.
+
+### Passo 2: un testo per l'IA, il giro completo
+
+Prima di cominciare, apri rizzo-pii (vedi sopra).
+
+1. Clicca **2  Testo per l'IA**. Il titolo e' "Prepara un testo da dare all'intelligenza
+   artificiale".
+2. Controlla che ci sia la spunta sulla casella che comincia con **Tieni il dizionario**.
+   Di partenza c'e'. Serve per rimettere i nomi veri alla fine.
+3. Apri il tuo documento (per esempio in Word), seleziona il testo e copialo: tasti Ctrl e C
+   insieme.
+4. Torna in Campanella e clicca **Incolla dagli appunti**. Il testo compare nel riquadro di
+   sinistra, "Testo originale". Puoi anche cliccare nel riquadro e premere Ctrl e V.
+5. Clicca **Togli i dati personali**. Il bottone si spegne e leggi "Sto ripulendo il testo con
+   rizzo-pii...". Un testo lungo puo' richiedere anche qualche minuto: aspetta.
+6. Nel riquadro di destra, "Testo da dare all'IA", compare il testo con i segnaposto al posto
+   dei nomi, per esempio [FULLNAME_1].
+7. Sotto leggi quanti dati ha tolto, per esempio "Tolti 5 dati personali", divisi per tipo,
+   e "Dizionario tenuto in memoria".
+8. Rileggi con calma il riquadro di destra. Cerca nomi, soprannomi o dettagli rimasti.
+9. Clicca **Copia il testo pulito**. In basso leggi "Testo pulito copiato: adesso puoi
+   incollarlo nell'IA."
+10. Apri l'IA che usi, clicca nella casella dove si scrive, premi Ctrl e V e invia.
+11. Quando l'IA risponde, seleziona la sua risposta e copiala (Ctrl e C).
+12. Torna in Campanella, clicca nel riquadro "Risposta dell'IA (con i segnaposto)" e premi
+   Ctrl e V.
+13. Clicca **Rimetti i nomi veri**. Nel riquadro "Risposta con i nomi veri" compare la risposta
+   con i nomi giusti al posto dei segnaposto.
+14. Clicca **Copia la risposta** e incollala dove ti serve (per esempio in Word).
+15. Quando hai finito, clicca **Svuota tutto**: cancella i testi e il dizionario.
+
+! Non chiudere Campanella e non ripulire un altro testo prima di aver rimesso i nomi veri
+  (passo 13). Il dizionario sta solo nella memoria del programma: chiudendo Campanella si perde,
+  e ripulendo un testo nuovo viene sostituito da quello del testo nuovo.
+
+? Scrivi all'IA di lasciare i segnaposto come sono, per esempio: "Lascia invariate le parole
+  fra parentesi quadre". Campanella rimette un nome solo se trova il segnaposto scritto
+  esattamente uguale, parentesi comprese.
+
+### Passo 3: dei file da ripulire, il giro completo
+
+Prima di cominciare, apri rizzo-pii (vedi sopra).
+
+1. Clicca **3  File da ripulire**. Il titolo e' "Ripulisci dei file".
+2. Vedi un grande riquadro con la scritta "Trascina qui i file (PDF, TXT, MD, CSV, HTM, HTML)".
+   Sono i tipi di file che Campanella sa ripulire.
+3. Clicca **Sfoglia...** (il primo, quello in alto a sinistra). Si apre la finestra di Windows
+   per scegliere i file.
+4. Trova il tuo file, cliccalo e clicca **Apri**. Il file compare nell'elenco sotto.
+5. Guarda sotto l'elenco la casella "Dove mettere le copie pulite". Di partenza c'e' una cartella
+   "Anonimizzati" dentro i tuoi Documenti. Se va bene, lasciala.
+6. Clicca **Ripulisci i file**.
+7. Nel riquadro in basso compaiono le righe del lavoro. Per ogni file leggi "ok" e quanti dati
+   ha tolto. Alla fine leggi "=== FINE ===" e il riassunto.
+8. Clicca **Apri la cartella**. Si apre la cartella con le copie pulite.
+9. Apri la copia e controllala a occhio prima di mandarla a qualcuno.
+
+! Il file originale non viene toccato. Campanella scrive una copia nuova nella cartella delle
+  copie pulite. Le copie dei file non hanno dizionario: i nomi tolti non si possono rimettere.
+
+## Le funzioni una per una
+
+### Passo 1: i riquadri delle regole
+
+A che cosa servono: ricordano le sette cose da sapere. Il titolare dei dati e' la scuola, non tu.
+Gli script di Campanella lavorano nell'account Google della scuola. I dati degli studenti (come
+certificazioni, PDP e PEI, relazioni cliniche) non vanno ne' sul computer ne' a un'IA. All'IA si
+da' solo testo gia' ripulito. Meno dati tieni, meglio e'. Campanella non scrive a nessun altro.
+Per i dubbi c'e' il DPO.
+
+Quando: la prima volta, e ogni volta che hai un dubbio. Non c'e' niente da cliccare: si leggono.
+
+### Passo 1: i bottoni dei documenti
+
+Sotto il riquadro "Devo avvisare la dirigenza o il DPO?" ci sono quattro bottoni:
+
+- **Nota tecnica per dirigente e DPO**: un testo che spiega che cosa fa Campanella, da dare al
+  dirigente o al DPO.
+- **Modello di email**: una email gia' scritta da mandare al dirigente e al DPO, da completare.
+- **Cosa dice il GDPR**: la spiegazione con i riferimenti di legge (il GDPR e' la legge europea
+  sui dati personali).
+- **Note complete sulla privacy**: tutte le note di Campanella sui dati personali.
+
+Passi:
+
+1. Clicca uno dei quattro bottoni.
+2. Si apre un documento di testo (di solito con il Blocco note di Windows).
+3. Leggilo, oppure copialo in una email.
+
+Che cosa succede dietro: Campanella salva il documento nella cartella "documenti" accanto al
+programma e lo apre. Gli stessi bottoni ci sono anche in **Impostazioni**.
+
+Se va storto: se compare "Documento mancante", la tua copia di Campanella non ha quel documento.
+Scarica di nuovo Campanella dalla pagina dei rilasci.
+
+### Passo 1: la spunta "Ho letto"
+
+A che cosa serve: ricorda a Campanella che hai letto le regole. Cambia solo la frase nel riquadro
+Privacy della pagina iniziale. Campanella se la ricorda anche dopo averla chiusa.
+
+### Passo 2: Controlla rizzo-pii
+
+A che cosa serve: sapere se rizzo-pii e' aperto e pronto, prima di cominciare.
+
+1. Clicca **Controlla rizzo-pii**.
+2. Leggi la riga che compare sotto: prima "Controllo rizzo-pii su ...", poi la risposta.
+
+Che cosa vedi: in verde "rizzo-pii pronto". In ambra (arancione) un avviso: "sta ancora caricando
+il modello" (aspetta e riprova) oppure "Non trovo rizzo-pii in ascolto" (aprilo e riprova).
+
+### Passo 2: la spunta "Tieni il dizionario"
+
+A che cosa serve: se c'e' la spunta, Campanella tiene in memoria quale segnaposto corrisponde a
+quale nome, e dopo puoi rimettere i nomi veri nella risposta. Se la togli, la pulizia e'
+definitiva: sotto leggerai "Nessun dizionario: l'operazione non e' reversibile."
+
+Quando toglierla: quando non ti serve tornare ai nomi veri, per esempio se vuoi solo un testo
+senza nomi da tenere o da mandare.
+
+Campanella ricorda la tua scelta anche la volta dopo. Vale per il testo del passo 2: sui file del
+passo 3 il dizionario non c'e' mai.
+
+### Passo 2: il "?" accanto alla prima riga
+
+In cima al passo c'e' la frase "Incolla il testo com'e', premi Togli i dati personali e usa il
+risultato.", con accanto un piccolo "?" in un cerchio.
+
+1. Clicca il "?".
+2. Si apre un riquadro "Come si usa" con i tre passi in breve.
+3. Per chiuderlo clicca da un'altra parte o premi il tasto Esc.
+
+### Passo 2: Incolla dagli appunti
+
+A che cosa serve: mette nel riquadro "Testo originale" quello che hai appena copiato. Fa la stessa
+cosa di Ctrl e V, ma senza dover cliccare nel riquadro.
+
+! Sostituisce quello che c'era nel riquadro "Testo originale".
+
+Se non succede niente: negli appunti non c'e' del testo. Torna al documento, seleziona il testo e
+copialo di nuovo con Ctrl e C.
+
+### Passo 2: Togli i dati personali
+
+A che cosa serve: e' il bottone principale. Manda il testo del riquadro di sinistra a rizzo-pii,
+sul tuo computer, e mette a destra il testo ripulito.
+
+1. Controlla che nel riquadro "Testo originale" ci sia il testo.
+2. Clicca **Togli i dati personali**.
+3. Aspetta: il bottone resta spento e il puntatore del mouse mostra il segno di attesa
+   finche' rizzo-pii non ha finito.
+
+Che cosa vedi alla fine: il testo pulito a destra, e sotto una riga. Puo' essere:
+
+- in verde: "Tolti 5 dati personali", con il conto per tipo e le voci del dizionario;
+- in ambra: "Non ho trovato dati personali. Rileggi comunque: potrebbe esserci qualcosa che
+  identifica una persona senza essere un nome."
+
+In basso nella finestra leggi anche "Testo ripulito: ... dati personali tolti."
+
+Se va storto:
+
+- "Niente da fare - Incolla prima il testo da ripulire.": il riquadro di sinistra e' vuoto.
+- "rizzo-pii non e' pronto": rizzo-pii non e' aperto, o sta ancora caricando. Aprilo, aspetta,
+  e clicca di nuovo.
+- "Non ci sono riuscito": rizzo-pii ha dato un errore. Leggi il messaggio; con un testo molto
+  lungo prova a ripulirlo in due o tre pezzi.
+
+### Passo 2: Copia il testo pulito
+
+A che cosa serve: copia negli appunti il testo del riquadro "Testo da dare all'IA", pronto da
+incollare nell'IA.
+
+Che cosa vedi: in basso "Testo pulito copiato: adesso puoi incollarlo nell'IA." Se il riquadro e'
+vuoto leggi invece "Non c'e' ancora niente da copiare."
+
+? Campanella chiede a Windows di non tenere questa copia nella cronologia degli appunti e di non
+  mandarla agli altri tuoi dispositivi.
+
+### Passo 2: Rimetti i nomi veri
+
+A che cosa serve: rimette i nomi veri al posto dei segnaposto nella risposta dell'IA.
+
+1. Incolla la risposta dell'IA nel riquadro "Risposta dell'IA (con i segnaposto)".
+2. Clicca **Rimetti i nomi veri**.
+3. Leggi il risultato nel riquadro di destra, "Risposta con i nomi veri".
+
+Che cosa vedi: in basso "Rimessi 3 valori veri su 5 del dizionario". Il primo numero conta i
+segnaposto trovati nella risposta. E' normale che sia piu' piccolo: l'IA non sempre nomina tutti.
+
+Se va storto:
+
+- "Niente dizionario": Campanella non ha un dizionario. Succede se hai chiuso Campanella, se hai
+  cliccato **Svuota tutto**, se la spunta "Tieni il dizionario" era tolta, o se nel testo non
+  c'erano dati da togliere. I nomi vanno rimessi a mano.
+- Un segnaposto resta com'e': l'IA l'ha scritto diverso (senza parentesi, con uno spazio, tradotto).
+  Correggilo a mano.
+
+### Passo 2: Copia la risposta
+
+A che cosa serve: copia negli appunti la risposta con i nomi veri. In basso leggi "Risposta
+copiata." Poi incollala dove ti serve con Ctrl e V.
+
+### Passo 2: Svuota tutto
+
+A che cosa serve: cancella i quattro riquadri e il dizionario. Usalo quando hai finito, cosi' i
+nomi veri non restano in memoria.
+
+! Dopo **Svuota tutto** non puoi piu' rimettere i nomi veri in una risposta. Se rizzo-pii stava
+  ancora lavorando, il suo risultato viene buttato.
+
+### Passo 3: il riquadro "Trascina qui i file"
+
+A che cosa serve: aggiungere file all'elenco senza passare dalla finestra di Windows.
+
+1. Apri la cartella dove sta il file (per esempio Documenti).
+2. Clicca sul file e tieni premuto il tasto sinistro del mouse.
+3. Muovi il mouse sopra il riquadro "Trascina qui i file": il riquadro cambia colore.
+4. Lascia il tasto. Il file compare nell'elenco.
+
+Puoi trascinare anche piu' file insieme, o una cartella intera. In basso leggi "Aggiunti ... file."
+Un file gia' in elenco non viene aggiunto due volte.
+
+### Passo 3: Sfoglia... (in alto)
+
+A che cosa serve: scegliere i file con la finestra di Windows.
+
+1. Clicca **Sfoglia...** in alto, accanto a **Aggiungi una cartella...**.
+2. La finestra mostra solo i tipi che Campanella sa ripulire. Per vedere tutti i file, in basso
+   a destra scegli "Tutti i file".
+3. Per prendere piu' file insieme, tieni premuto il tasto Ctrl e clicca i file uno a uno.
+4. Clicca **Apri**.
+
+### Passo 3: Aggiungi una cartella...
+
+A che cosa serve: mettere in elenco tutti i file di una cartella, anche quelli nelle cartelle
+che stanno dentro.
+
+1. Clicca **Aggiungi una cartella...**.
+2. Nella finestra "Scegli la cartella: prendo tutti i file, anche nelle sottocartelle" clicca la
+   cartella e poi **OK**.
+
+Campanella salta da solo i file "di lavoro" che non vanno toccati: quelli che cominciano con ~$
+(un documento aperto in Word), quelli nascosti e quelli scaricati a meta'.
+
+Se va storto: se leggi in ambra "Una cartella non si legge (permessi?)", una cartella era
+protetta. Campanella l'ha saltata e ha preso le altre.
+
+### Passo 3: Togli i selezionati e Svuota l'elenco
+
+A che cosa servono: **Togli i selezionati** toglie dall'elenco i file che hai cliccato (con Ctrl
+ne scegli piu' di uno). **Svuota l'elenco** toglie tutti i file dall'elenco.
+
+! Tolgono i file solo dall'elenco di Campanella. I file restano nel computer, al loro posto.
+
+### Passo 3: il riepilogo sotto i bottoni
+
+Quando l'elenco non e' vuoto, sopra il riquadro in basso compare una riga che dice quanti file
+sono in elenco ("In elenco: 6"), quanti Campanella sa ripulire ("che so trattare: 5") e quanti
+verranno saltati ("1 di formato non gestito"). Ti dice subito se qualche file, per esempio un
+Word, non verra' ripulito.
+
+### Passo 3: Dove mettere le copie pulite
+
+A che cosa serve: scegliere la cartella dove Campanella scrive le copie ripulite.
+
+1. Lascia quella proposta (la cartella "Anonimizzati" nei tuoi Documenti), oppure
+2. clicca **Sfoglia...** accanto alla casella, scegli una cartella e clicca **OK**.
+
+Campanella si ricorda l'ultima cartella usata.
+
+! La cartella delle copie non puo' essere la stessa in cui sta uno dei file da ripulire: le
+  copie finirebbero sopra gli originali. Campanella in quel caso si ferma e te lo dice.
+
+? Usa una cartella fuori da quelle che ripulisci. Se le copie stanno dentro una cartella che poi
+  aggiungi con **Aggiungi una cartella...**, finiscono anche loro nell'elenco.
+
+### Passo 3: Ripulisci i file
+
+A che cosa serve: fa partire la pulizia di tutti i file in elenco.
+
+1. Controlla l'elenco e la cartella delle copie.
+2. Clicca **Ripulisci i file**. Il bottone si spegne e si accende **Ferma**.
+3. Aspetta. Nel riquadro in basso leggi una riga per ogni file.
+
+Le righe del riquadro in basso:
+
+- "ok" con il nome del file e "(... dati tolti)": la copia e' pronta.
+- "ok" con "ATTENZIONE": la copia c'e', ma alcuni dati non sono stati tolti (per esempio testo
+  dentro un'immagine). Apri la copia e controllala.
+- "no" con il nome e il motivo: quel file e' stato saltato, per esempio "formato .docx non
+  gestito" oppure "file vuoto".
+- In fondo: "=== FINE ===", quanti file ripuliti, quanti dati tolti, quanti saltati, e la
+  cartella delle copie.
+
+La copia ha lo stesso nome dell'originale. Se due file hanno lo stesso nome (da cartelle
+diverse), il secondo diventa per esempio "verbale (2).pdf".
+
+! Se nella cartella delle copie c'e' gia' un file con lo stesso nome, viene sostituito dalla
+  copia nuova.
+
+Se va storto:
+
+- "Elenco vuoto - Trascina qui almeno un file.": aggiungi prima dei file.
+- "Manca la cartella - Scegli dove mettere le copie pulite.": la casella della cartella e' vuota.
+- "Cartella da cambiare": la cartella delle copie e' quella di un file da ripulire. Scegline
+  un'altra, per esempio una cartella "Anonimizzati".
+- "rizzo-pii non e' pronto" e nel riquadro "non ho toccato nessun file": apri rizzo-pii e riprova.
+
+### Passo 3: Ferma
+
+A che cosa serve: fermare la pulizia a meta'. Campanella finisce il file che sta facendo, poi
+si ferma e scrive "Fermato da te." Le copie gia' fatte restano nella cartella.
+
+### Passo 3: Apri la cartella
+
+A che cosa serve: apre la cartella delle copie pulite, per vederle e controllarle. Se la cartella
+non esiste ancora (non hai mai ripulito niente), non si apre niente.
+
+### Impostazioni: i comandi di rizzo-pii
+
+Nella pagina **Impostazioni**, sotto "rizzo-pii e aggiornamenti", ci sono:
+
+- **Controlla rizzo-pii**: come quello del passo 2. La risposta compare sopra i bottoni, con la
+  versione di rizzo-pii.
+- **Cerca aggiornamenti**: chiede a GitHub l'ultima versione di Campanella e di rizzo-pii.
+  Si collega a internet solo quando lo clicchi.
+- **Scarica e installa rizzo-pii**: compare dopo **Cerca aggiornamenti**, se rizzo-pii manca.
+  Se ne hai una versione vecchia compare invece **Aggiorna rizzo-pii**.
+- **Apri la pagina**: apre nel browser la pagina di rizzo-pii, da cui puoi scaricarlo a mano.
+- Il "?" accanto al titolo spiega in breve che cos'e' rizzo-pii.
+
+## I casi, ricetta per ricetta
+
+### Voglio che l'IA corregga una relazione con i nomi degli alunni
+
+! Prima di tutto: certificazioni, PDP, PEI e relazioni cliniche non si danno a un'IA, nemmeno
+  ripuliti. In una classe di venti persone si capisce lo stesso di chi si parla.
+
+1. Apri rizzo-pii.
+2. In Campanella vai in **Privacy**, passo **2  Testo per l'IA**.
+3. Controlla che ci sia la spunta **Tieni il dizionario, cosi' posso ripristinare la risposta**.
+4. Nel tuo documento seleziona il testo della relazione e copialo (Ctrl e C).
+5. In Campanella clicca **Incolla dagli appunti**.
+6. Clicca **Togli i dati personali** e aspetta.
+7. Rileggi il riquadro "Testo da dare all'IA". Se vedi ancora un nome, o una frase che fa capire
+   di chi si parla, togli quel pezzo dal riquadro "Testo originale" e ripeti il passo 6.
+8. Clicca **Copia il testo pulito**.
+9. Incolla nell'IA e chiedi la correzione. Aggiungi: "Lascia invariate le parole fra parentesi
+   quadre".
+10. Non chiudere Campanella: ti servira' per rimettere i nomi (ricetta qui sotto).
+
+### Ho la risposta dell'IA e voglio rimettere i nomi veri
+
+1. Nell'IA seleziona tutta la risposta e copiala (Ctrl e C).
+2. In Campanella, passo **2  Testo per l'IA**, clicca nel riquadro "Risposta dell'IA (con i
+   segnaposto)" e premi Ctrl e V.
+3. Clicca **Rimetti i nomi veri**.
+4. Controlla il riquadro "Risposta con i nomi veri": cerca parole fra parentesi quadre rimaste.
+5. Clicca **Copia la risposta** e incollala nel tuo documento.
+6. Clicca **Svuota tutto**.
+
+? Funziona solo con la risposta all'ultimo testo che hai ripulito. Se devi far correggere due
+  relazioni, fai il giro completo per la prima, poi per la seconda.
+
+### Ho chiuso Campanella prima di rimettere i nomi
+
+Il dizionario non c'e' piu': Campanella non lo scrive mai sul disco, apposta. Hai due strade.
+
+1. Rimetti i nomi a mano: confronta la risposta con il testo originale, che hai ancora nel tuo
+   documento.
+2. Oppure rifai il giro: ripulisci di nuovo il testo originale e fai di nuovo la domanda all'IA.
+   Non riusare la risposta vecchia: i segnaposto del giro nuovo potrebbero non corrispondere a
+   quelli di prima.
+
+### Voglio ripulire un PDF prima di mandarlo
+
+1. Apri rizzo-pii.
+2. In Campanella vai in **Privacy**, passo **3  File da ripulire**.
+3. Trascina il PDF nel riquadro "Trascina qui i file", oppure usa **Sfoglia...**.
+4. Controlla la cartella in "Dove mettere le copie pulite".
+5. Clicca **Ripulisci i file** e aspetta "=== FINE ===".
+6. Clicca **Apri la cartella** e apri la copia.
+7. Controlla la copia pagina per pagina, soprattutto se nel riquadro c'era "ATTENZIONE".
+8. Controlla anche il nome del file (vedi "Che cosa NON viene tolto").
+9. Manda la copia, non l'originale.
+
+! Un PDF fatto con lo scanner e' una fotografia delle pagine: il testo dentro un'immagine puo'
+  non essere tolto. Controlla sempre la copia.
+
+### Voglio ripulire un documento Word
+
+Campanella non sa ripulire i file di Word (.docx o .doc): li salta con "formato non gestito".
+Prima trasforma il documento in PDF, poi ripulisci il PDF.
+
+1. Apri il documento in Word.
+2. Clicca **File**, poi **Salva con nome**.
+3. Nel tipo di file scegli **PDF** e salva. L'originale in Word resta com'era.
+4. Segui la ricetta "Voglio ripulire un PDF prima di mandarlo".
+
+? Se ti basta il testo senza impaginazione, puoi anche copiarlo e usare il passo 2: il risultato
+  lo copi con **Copia il testo pulito** e lo incolli in un documento nuovo.
+
+### Ho tanti file, o una cartella intera
+
+1. Apri rizzo-pii.
+2. Vai al passo **3  File da ripulire**.
+3. Clicca **Aggiungi una cartella...** e scegli la cartella. Oppure trascina la cartella nel
+   riquadro.
+4. Leggi la riga del riepilogo: quanti file sono in elenco e quanti verranno saltati.
+5. Se ci sono file che non vuoi, cliccali nell'elenco e clicca **Togli i selezionati**.
+6. Scegli una cartella delle copie fuori dalla cartella che stai ripulendo.
+7. Clicca **Ripulisci i file**. Con tanti file ci vuole tempo: lascia Campanella aperta.
+8. Alla fine leggi il riassunto e controlla le righe con "no" e con "ATTENZIONE".
+
+! Se provi a chiudere Campanella mentre lavora, ti chiede "Chiudere Campanella?". Rispondi
+  **No** per lasciarla finire. Con **Si'** si ferma a meta'; gli originali restano intatti.
+
+### Ho aggiunto un alunno o un collega nuovo
+
+Non devi aggiornare niente. La sezione Privacy non usa un elenco di nomi: rizzo-pii riconosce i
+nomi da solo, leggendo il testo. Anche l'elenco del personale che Campanella usa per la posta qui
+non serve.
+
+Un nome poco comune, o scritto in modo strano, puo' pero' sfuggire. Rileggi sempre il risultato.
+
+### Voglio un testo senza nomi, e non mi serve tornare indietro
+
+1. Vai al passo **2  Testo per l'IA**.
+2. Togli la spunta **Tieni il dizionario, cosi' posso ripristinare la risposta**.
+3. Incolla il testo e clicca **Togli i dati personali**.
+4. Sotto leggi "Nessun dizionario: l'operazione non e' reversibile."
+5. Clicca **Copia il testo pulito**.
+
+Ricorda di rimettere la spunta la prossima volta che ti serve rimettere i nomi.
+
+### Che cosa NON viene tolto: da controllare a occhio
+
+Nessun programma riconosce il 100% dei dati. Prima di dare un testo o mandare un file, controlla
+questi punti:
+
+- Le descrizioni che fanno capire di chi si parla senza dire il nome. "La collega di sostegno
+  della 3B" non ha nomi, ma identifica benissimo una persona.
+- Nomi rari, soprannomi, nomi scritti con errori o tutti attaccati.
+- Nei PDF, il testo dentro le immagini (pagine scannerizzate, foto, firme). Nel riquadro in
+  basso questi casi compaiono con "ATTENZIONE".
+- Il nome del file. La copia pulita ha lo stesso nome dell'originale: se si chiama
+  "Relazione Mario Rossi.pdf", rinomina la copia prima di mandarla.
+- I file che Campanella non sa leggere (Word, Excel, immagini): vengono saltati, non ripuliti.
+- Nel passo 2, i segnaposto che l'IA ha cambiato: non tornano ai nomi veri da soli.
+
+## Se qualcosa non va
+
+### "Non trovo rizzo-pii in ascolto"
+
+rizzo-pii non e' aperto. Apri l'applicazione Rizzo PII, aspetta qualche secondo e clicca
+**Controlla rizzo-pii**. Se non l'hai mai installato, segui "Installare rizzo-pii".
+
+### "rizzo-pii e' avviato ma sta ancora caricando il modello"
+
+Va tutto bene: sta ancora partendo. Aspetta una decina di secondi e riprova.
+
+### "L'indirizzo di rizzo-pii deve essere su questo computer"
+
+Nella casella "Indirizzo del servizio" delle **Impostazioni** c'e' un indirizzo sbagliato.
+Cancellalo e scrivi http://127.0.0.1:5005 (oppure lascia la casella vuota: vale come questo).
+
+### "Non ci sono riuscito"
+
+rizzo-pii ha risposto con un errore. Prova cosi':
+
+1. Clicca **Controlla rizzo-pii** e verifica che sia pronto.
+2. Se il testo e' molto lungo, ripuliscilo in pezzi piu' corti.
+3. Se il messaggio parla di "un protocollo diverso", la tua versione di rizzo-pii e' diversa da
+   quella con cui Campanella e' provata. In **Impostazioni**, accanto alla versione di
+   Campanella, leggi con quale versione di rizzo-pii e' provata.
+
+### Ho cliccato "Rimetti i nomi veri" ma i nomi non tornano
+
+- Se compare "Niente dizionario", leggi la ricetta "Ho chiuso Campanella prima di rimettere i
+  nomi".
+- Se alcuni segnaposto restano, l'IA li ha scritti in modo diverso. Correggili a mano, o la
+  prossima volta chiedi all'IA di lasciarli invariati.
+- Controlla di aver incollato la risposta nel riquadro di sinistra in basso, "Risposta dell'IA
+  (con i segnaposto)", e non in quello di destra.
+
+### Un file viene saltato con "formato non gestito"
+
+Campanella ripulisce solo PDF, TXT, MD, CSV, HTM e HTML. Per un documento Word segui la ricetta
+"Voglio ripulire un documento Word".
+
+### "Cartella da cambiare"
+
+Hai scelto come cartella delle copie quella in cui sta un file da ripulire. Clicca **Sfoglia...**
+accanto a "Dove mettere le copie pulite" e scegli un'altra cartella.
+
+### Il riquadro dice "ATTENZIONE" accanto a un file
+
+La copia c'e', ma qualche dato non e' stato tolto: di solito testo dentro un'immagine. Apri la
+copia e controllala. Se trovi ancora dati, non mandarla.
+
+### "Appunti occupati"
+
+Un altro programma stava usando gli appunti di Windows. Aspetta un attimo e clicca di nuovo il
+bottone per copiare.
+
+### Lo scarico di rizzo-pii non riesce
+
+Se leggi "Scarico non riuscito", controlla la connessione a internet e riprova: clicca di
+nuovo **Cerca aggiornamenti**. Puoi anche scaricarlo a mano: in **Impostazioni** clicca
+**Apri la pagina**.
+
+## Promemoria: che cosa fa e che cosa non fa Campanella con i dati
+
+- Testi e file vanno solo a rizzo-pii, che gira sul tuo computer. Un indirizzo fuori dal
+  computer viene rifiutato prima di mandare qualunque cosa.
+- Il dizionario dei nomi veri resta solo nella memoria del programma. Non viene salvato sul
+  disco e non va in rete. Sparisce con **Svuota tutto** o chiudendo Campanella.
+- Campanella non parla con l'IA: sei tu a incollare il testo pulito. Quello che incolli esce
+  dal computer, per questo va ripulito prima.
+- I file originali non vengono mai toccati. Le copie pulite restano nella cartella che hai
+  scelto finche' non le cancelli tu: se non ti servono piu', cancellale.
+- Quando Campanella copia un testo, chiede a Windows di non tenerlo nella cronologia degli
+  appunti e di non mandarlo agli altri tuoi dispositivi. Le copie che fai tu con Ctrl e C
+  seguono invece le regole normali di Windows.
+- Campanella va su internet solo quando clicchi **Cerca aggiornamenti** o lo scarico di
+  rizzo-pii.
+- Nessun programma toglie tutti i dati. Il controllo finale e' tuo.
+- I dati degli studenti piu' delicati (certificazioni, PDP, PEI, relazioni cliniche) non vanno
+  a un'IA, nemmeno ripuliti.
+- Quando hai un dubbio, chiedi al DPO della tua scuola. Questa guida e' un aiuto pratico, non un
+  parere legale.

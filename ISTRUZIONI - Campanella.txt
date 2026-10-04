@@ -128,6 +128,14 @@ nome sceglie la voce e basta, e una lettera salta alla voce che comincia
 cosi' senza cambiarle la spunta. Nell'elenco delle regole della Posta il
 doppio clic sul nome apre la regola in "Modifica".
 
+LE GUIDE PASSO PASSO
+Posta, Cartelle, Orari e Privacy hanno come ultimo passo "Guida passo
+passo": per chi usa il computer poco, dice un passo alla volta che cosa fare
+la prima volta, a che cosa serve ogni funzione degli script e che cosa fare
+nei casi che capitano (una regola cambiata, un orario nuovo, un errore da
+annullare...). "Vai a" salta a una sezione; "Salva in PDF..." la salva in un
+PDF da leggere con calma o da stampare.
+
 
 POSTA - riordinare la casella
 1) Passo 2: scrivi il dominio della scuola e, se li conosci, gli indirizzi
@@ -782,7 +790,8 @@ ORARI - le email a te e il calendario
    quello di riprendere da solo un lavoro lungo (i trigger): niente posta,
    niente email, niente Drive. Le funzioni del calendario hanno gli stessi
    nomi di Orari.gs, quindi quello che segue vale anche li'; li'
-   ORARI_1_anteprima scrive "Calendario.gs versione 1.6.0". Nel file
+   ORARI_1_anteprima scrive "Calendario.gs versione" e il numero (1.6.0
+   o piu' alto: quello di adesso e' 1.6.2). Nel file
    DatiOrari di quel progetto vanno i "Dati del tuo orario", non quelli di
    tutto il tabellone: con quelli (i colleghi, gli orari delle classi)
    Calendario.gs si ferma e te lo dice. Le email degli orari, se le vuoi,
@@ -850,14 +859,14 @@ ORARI - le email a te e il calendario
    DatiOrari.gs, incollalo ed esegui ORARI_4_calendario. Con Campanella
    1.6.0 reincolla anche il codice degli orari (il file Orari), se l'avevi
    incollato con una versione di prima: ORARI_1_anteprima deve scrivere
-   "Orari.gs versione 1.6.0". Quello di prima non conosce i giorni senza
+   "Orari.gs versione 1.6.0" o piu' alta. Quello di prima non conosce i giorni senza
    lezione, che finirebbero sul calendario come giorni di lezione, ne'
    ORARI_5_cambioOrario, ne' i colloqui. Se nello stesso progetto c'e'
    anche la Posta, reincolla anche il suo codice principale (pagina
    Posta, in Codice.gs): con quello di prima ANNULLA_automazione non
    ferma le riprese del calendario, dei colori e dei colloqui (la sua
    anteprima, PASSO_1_anteprima, deve scrivere "Versione dello
-   script: 1.6.0").
+   script: 1.6.0" o piu' alta).
    In "Colloqui con le famiglie", sotto i giorni senza lezione, scrivi i
    tuoi colloqui, una riga per voce: il ricevimento di ogni settimana
    (ogni giovedi 10:10-11:10 Ricevimento https://meet.google.com/..., anche

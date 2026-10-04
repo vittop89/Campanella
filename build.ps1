@@ -90,6 +90,11 @@ $risorse  = @(
     'Calendario_intestazione.txt'
     'Moduli.gs'
     'Pannello.gs'
+    # le guide passo passo, l'ultimo passo di ogni strumento (Guida.cs)
+    'Guida_Posta.txt'
+    'Guida_Cartelle.txt'
+    'Guida_Orari.txt'
+    'Guida_Privacy.txt'
 )
 $estensione = @('manifest.json', 'popup.html', 'popup.js')
 

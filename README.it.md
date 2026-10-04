@@ -10,8 +10,14 @@ runtime da installare.
 |-----------|---------|
 | **Posta** | riordina la casella Gmail in etichette (dirigenza, segreteria, circolari, colleghi, studenti…), sulla posta già ricevuta e su quella futura, con i colori che scegli; se vuoi, un'etichetta per ogni tua classe |
 | **Cartelle** | crea nel Drive la struttura del nuovo anno scolastico e ci copia i modelli; per i moduli Google, che dal PC non si possono copiare, scrive lo script che ogni anno dà al modulo il suo foglio delle risposte |
-| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar (quello dell'account della scuola, o quello di un altro account, come il tuo personale), senza lezioni nei giorni senza lezione che scrivi tu e, quando l'orario cambia, con quello nuovo da una data in poi, e i tuoi colloqui con le famiglie con il link del Meet (le prenotazioni restano nel registro elettronico) |
+| **Orari** | legge il tabellone da un file Excel, manda **a te stesso** una email per ogni docente e mette il tuo orario su Google Calendar (quello dell'account della scuola, o quello di un altro account, come il tuo personale), senza lezioni nei giorni senza lezione che scrivi tu e, quando l'orario cambia, con quello nuovo da una data in poi, e i tuoi colloqui con le famiglie con il link del Meet (le prenotazioni restano nel registro elettronico); titolo e colore di ogni lezione si scelgono ora per ora su un tabellone |
 | **Privacy** | le regole su dati della scuola e IA, gli strumenti per togliere i dati personali prima di darli a un assistente, e i documenti per dirigenza e DPO |
+
+Ogni strumento finisce con una **guida passo passo** pensata per chi col
+computer non ha dimestichezza: che cosa fare la prima volta, a che cosa serve
+ogni funzione degli script e come si esegue, e una ricetta per ogni caso che
+capita (una regola cambiata, un orario nuovo, un errore da annullare). Si
+legge nell'applicazione e si salva in **PDF** per stamparla.
 
 L'applicazione **non tocca mai la posta, il calendario né il Drive da sola**:
 prepara il codice di uno script Google Apps Script che l'utente incolla nel
@@ -116,12 +122,13 @@ src/
   PaginaImpostazioni.cs  impostazioni: tema, dati nel Drive, rizzo-pii, aggiornamenti, condizioni
   Tema.cs             tavolozza chiara/scura, fabbriche di controlli, CasellaTema
   Stato.cs            modello dati, salvataggio (impostazioni + dati nel Drive)
-  Dialoghi.cs         le finestrelle: incolla un elenco, mostra un testo, modifica una regola
-  PaginaPosta.cs      lo strumento Posta (7 passi)
+  Dialoghi.cs         le finestrelle: incolla un elenco, mostra un testo, modifica una regola, titoli e colori delle lezioni
+  Guida.cs            le guide passo passo (risorse/Guida_*.txt): lettura, pagina e PDF scritto senza librerie
+  PaginaPosta.cs      lo strumento Posta (8 passi)
   GeneratorePosta.cs  Configurazione.gs dello strumento Posta, senza finestre
-  PaginaCartelle.cs   lo strumento Cartelle (2 passi: cartelle, moduli Google)
+  PaginaCartelle.cs   lo strumento Cartelle (3 passi: cartelle, moduli Google, guida)
   GeneratoreAnno.cs   le cartelle dell'anno sul disco, senza finestre
-  PaginaOrari.cs      lo strumento Orari (4 passi)
+  PaginaOrari.cs      lo strumento Orari (5 passi)
   PaginaPrivacy.cs    lo strumento Privacy + documenti per DS e DPO
   Moduli.cs           gli script per i moduli Google: configurazione, istruzioni, manifest
   Anonimizzatore.cs   client HTTP di rizzo-pii (solo indirizzi di questo computer)
@@ -133,7 +140,7 @@ src/
   Calendario.cs       giorni senza lezione, feste nazionali, piano delle serie del calendario
   Colloqui.cs         colloqui con le famiglie: le righe del passo 4, l'import da .csv/.xlsx, il loro piano e la parte di DatiOrari.gs
   SoloCalendario.cs   Calendario.gs, Orari.gs solo calendario per un altro account Google
-  risorse/            i file .gs e .js incorporati nell'eseguibile
+  risorse/            i file .gs e .js e le guide incorporati nell'eseguibile
 src-installer/        l'installer in C#, per utente, senza UAC (solo compilazioni locali)
 installer/            script Inno Setup (l'installer pubblicato, it/en), condizioni, configurazione SignPath
 strumenti/firma.ps1   firma locale con un certificato autofirmato (-Firma, -Pubblica)
@@ -187,6 +194,7 @@ node test\invarianti_script.js    # script di posta e orari: niente posta ad alt
 .\test\prova_personale.ps1        # elenco del personale: formati da incollare, ruoli nelle cinque categorie
 .\test\prova_stato.ps1            # caricamento e salvataggio di impostazioni e dati nel Drive, in cartelle temporanee
 .\test\prova_guscio.ps1           # la finestra principale, senza mostrarla: errori, codice di stato, chiusura
+.\test\prova_guida.ps1            # le guide passo passo: formato, funzioni degli script nominate e spiegate, il PDF
 .\test\prova_disinstallazione.ps1 # cosa toglie il disinstallatore C#, su cartelle finte, e che Campanella.iss tolga le stesse impostazioni
 .\test\prova_posta.ps1            # il generatore vero di Configurazione.gs nel banco di Gmail
 .\test\prova_cartelle.ps1         # le cartelle dell'anno su un Drive finto

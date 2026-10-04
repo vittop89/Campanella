@@ -31,7 +31,8 @@ namespace Campanella
         static readonly string[] NomiPassi =
         {
             "1  Le cartelle dell'anno",
-            "2  I moduli Google"
+            "2  I moduli Google",
+            "3  Guida passo passo"
         };
 
         Panel[] pagine;
@@ -94,6 +95,7 @@ namespace Campanella
             pagine = new Panel[NomiPassi.Length];
             pagine[0] = PaginaStruttura();
             pagine[1] = PaginaModuli();
+            pagine[2] = PaginaGuida("Guida_Cartelle.txt", "Cartelle");
             foreach (Panel p in pagine)
             {
                 p.Dock = DockStyle.Fill;

@@ -26,7 +26,8 @@ namespace Campanella
         {
             "1  Le regole",
             "2  Testo per l'IA",
-            "3  File da ripulire"
+            "3  File da ripulire",
+            "4  Guida passo passo"
         };
 
         Panel[] pagine;
@@ -61,6 +62,7 @@ namespace Campanella
             pagine[0] = PaginaRegole();
             pagine[1] = PaginaTesto();
             pagine[2] = PaginaFile();
+            pagine[3] = PaginaGuida("Guida_Privacy.txt", "Privacy");
             foreach (Panel p in pagine)
             {
                 p.Dock = DockStyle.Fill;

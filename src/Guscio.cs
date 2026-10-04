@@ -242,6 +242,23 @@ namespace Campanella
             return p;
         }
 
+        /// <summary>
+        /// L'ultimo passo di uno strumento: la guida passo passo (PannelloGuida),
+        /// che prende tutto lo spazio sotto il titolo.
+        /// </summary>
+        protected Panel PaginaGuida(string risorsa, string strumento)
+        {
+            Panel p = NuovaPagina("Guida passo passo");
+            PannelloGuida g = new PannelloGuida(risorsa, strumento);
+            g.Location = new Point(0, 50);
+            p.Controls.Add(g);
+            p.Resize += delegate
+            {
+                g.Size = new Size(Math.Max(420, p.ClientSize.Width), Math.Max(240, p.ClientSize.Height - 50));
+            };
+            return p;
+        }
+
         // Molte pagine si riempiono dallo Stato solo in Entra: finche' non sono
         // state aperte i loro controlli sono vuoti, ed Esce() li scriverebbe
         // nello Stato al posto dei dati veri. Chiudendo Campanella senza passare

@@ -1,0 +1,576 @@
+# Guida alle Cartelle
+
+## A che cosa serve
+
+La sezione Cartelle prepara il nuovo anno scolastico nel tuo Google Drive. Crea la cartella
+dell'anno, per esempio "A.S. 2026-27", con una cartella per ogni classe, le materie, i recuperi e
+le cartelle che usi sempre, e ci copia i tuoi modelli. Per i moduli Google prepara uno script che
+ogni anno da' al modulo un foglio nuovo per le risposte e a fine anno lo chiude.
+
+Puoi stare tranquillo: non cancella e non sovrascrive mai niente. Aggiunge solo quello che manca,
+quindi la puoi usare tutte le volte che vuoi.
+
+## Le parole che servono
+
+- **Cartella**: un contenitore di file, come una cartellina di carta. Puo' contenerne altre.
+- **Google Drive**: lo spazio dove Google tiene i tuoi file, su internet. La cartella principale
+  si chiama "Il mio Drive".
+- **Drive per desktop**: il programma di Google che fa vedere il Drive sul computer come un disco
+  (per esempio H:\Il mio Drive). Tiene allineati i file fra computer e internet: questo si chiama
+  "sincronizzare".
+- **MODELLI**: una cartella che prepari tu in "Il mio Drive", con i documenti da copiare ogni
+  anno, divisi in sottocartelle (i "gruppi").
+- **Modulo Google**: un questionario di Google Moduli. Sul computer compare come un file .gform,
+  ma e' solo un segnaposto.
+- **Foglio Google**: una tabella di Google Fogli, simile a Excel. Il "foglio delle risposte" e'
+  quello dove arrivano le risposte di un modulo.
+- **Script**: un piccolo programma che lavora dentro il tuo account Google. Campanella lo scrive
+  per te: tu lo copi e lo incolli una volta sola.
+- **Apps Script** (o "editor"): la pagina di Google dove si incollano e si fanno partire gli
+  script.
+- **Funzione**: un comando dello script, con un nome come MODULO_2_prepara. "Eseguire" vuol dire
+  farla partire.
+- **Autorizzare**: dare allo script il permesso di lavorare sui tuoi moduli, fogli e Drive.
+- **Registro di esecuzione**: il riquadro in basso nell'editor dove lo script scrive cosa ha fatto.
+- **Copiare negli appunti e incollare**: Campanella copia un testo in una memoria del computer; tu
+  lo metti dove serve tenendo premuto Ctrl e premendo V (Ctrl+V).
+- **Il "?"**: il tondino con il punto di domanda accanto a un titolo. Cliccalo per una spiegazione.
+
+## Dove si trova
+
+Apri Campanella e nella colonna a sinistra clicca **Cartelle**. Sotto compaiono tre voci:
+**1 Le cartelle dell'anno** (lavora sul computer), **2 I moduli Google** (prepara lo script per i
+moduli) e **3 Guida passo passo**, cioe' questa guida. In basso a destra il bottone **Avanti**
+porta al passo dopo; la riga in basso a sinistra dice a che punto sei.
+
+## Prima volta, passo 1: le cartelle dell'anno
+
+Ti serve Drive per desktop acceso, con l'account della scuola. La cartella MODELLI non e'
+obbligatoria: senza, Campanella crea solo le cartelle.
+
+1. Clicca **Cartelle** e poi **1 Le cartelle dell'anno**.
+2. Guarda la casella **Anno scolastico**. Si aggiorna da sola il primo settembre: di solito non
+   la tocchi.
+3. Nella casella **Classi** scrivi una classe per riga, poi i due punti e le materie separate da
+   una virgola. C'e' gia' un esempio: sostituiscilo con le tue classi.
+4. Guarda la casella **Percorso di "Il mio Drive"**. Di solito Campanella l'ha gia' trovato. Se
+   e' vuota, clicca **Sfoglia...**, scegli la cartella "Il mio Drive" e premi OK.
+5. Se sotto compare "Qui dentro non c'e' MODELLI e non ci sono cartelle di anni scolastici",
+   clicca **Usa quello** per passare al Drive che Campanella ti propone.
+6. Nell'elenco **Modelli da includere** lascia la spunta ai gruppi di MODELLI da copiare.
+7. Nell'elenco **Cartelle dell'anno** lascia la spunta alle cartelle fisse che ti servono.
+8. Se vuoi altre cartelle, scrivile in **Cartelle in piu'**. Puoi lasciarla vuota.
+9. Clicca **Genera la struttura**.
+10. Una finestra chiede conferma e mostra dove creera' la cartella. Clicca **Si'**.
+11. Aspetta. Nel riquadro **Cosa sta succedendo** le righe compaiono una alla volta. Intanto la
+   pagina resta ferma: e' normale.
+12. Alla fine il riquadro scrive "=== FINE ===", quanti elementi ha creato e quanti c'erano gia'.
+   La riga in basso diventa verde: "Fatto: ... elementi creati, ... gia' presenti."
+13. Clicca **Apri la cartella dell'anno** per vederla in Esplora file.
+14. Aspetta che Drive per desktop carichi tutto: quando la cartella dell'anno ha il segno di spunta
+   verde, e' pronta.
+
+! Se chiudi Campanella mentre lavora, finisce il file che sta copiando e si ferma. Non succede
+  niente di male: rifai **Genera la struttura** e aggiunge quello che manca.
+
+### Come si scrivono le classi
+
+- **1A: Matematica, Fisica** crea la classe 1A con le cartelle Matematica e Fisica.
+- **2B-Ls: Matematica** crea la classe 2B-Ls con una sola materia.
+- **4Ar** crea solo la cartella della classe.
+
+Fra le materie va bene anche il punto e virgola, ma ogni classe va su una riga sua: una riga con
+due classi non viene creata e finisce fra i problemi. Per ogni classe Campanella crea anche
+RECUPERI\TRIMESTRE e RECUPERI\PENTAMESTRE, con le stesse materie.
+
+### Che cosa trovi nella cartella dell'anno
+
+- **CLASSI**, con una cartella per classe e, dentro, una per materia.
+- **RECUPERI\TRIMESTRE** e **RECUPERI\PENTAMESTRE**, con classi e materie.
+- Le cartelle fisse spuntate e quelle in piu'.
+- Una cartella per ogni gruppo di MODELLI scelto, con i file copiati.
+- Dentro ogni classe, i file di MODELLI\PER CLASSE con il nome della classe in coda.
+- Delle note "DUPLICA IN GOOGLE DOCS": i documenti Google non si copiano come file normali, e la
+  nota elenca quelli da copiare a mano (in Google Drive: tasto destro, **Crea una copia**). I
+  moduli Google invece non si copiano: restano in MODELLI e ricevono il foglio con il passo 2.
+
+? La nota "DUPLICA IN GOOGLE DOCS" e' l'unica cosa che Campanella riscrive, quando in MODELLI
+  cambiano i documenti. Se la modifichi tu, la lascia com'e'.
+
+### Cambiare le cartelle fisse: Modifica struttura...
+
+Le cartelle fisse stanno in un file, struttura.json, accanto al programma. Ogni cartella e' una
+riga come questa:
+
+{ "nome": "Dipartimento", "spuntata": true },
+
+1. Clicca **Modifica struttura...**. Il file si apre in un programma per scrivere testo e
+   Campanella mostra un messaggio con le regole: premi OK.
+2. Cambia il nome fra le virgolette, oppure copia una riga intera per aggiungere una cartella.
+   Con "spuntata": false la cartella parte senza spunta.
+3. Per una cartella dentro un'altra usa la barra: "RECUPERI/TRIMESTRE".
+4. Salva con Ctrl+S, chiudi e torna in Campanella: l'elenco si aggiorna da solo.
+
+! Se il file ha un errore, Campanella lo dice nel riquadro e in una finestra, e salta le voci
+  sbagliate. Se il file non si legge proprio, "Genera la struttura" si rifiuta finche' non lo
+  correggi, oppure finche' non lo cancelli: senza il file tornano le cartelle di partenza.
+
+## Prima volta, passo 2: i moduli Google
+
+Un modulo Google sul computer e' solo un segnaposto: copiarlo non si porta dietro il foglio delle
+risposte, che ogni anno andrebbe ricreato e ricollegato a mano. Lo script lo fa da dentro Google:
+crea il foglio dell'anno nella cartella giusta, ci collega il modulo, lo riapre, e a fine anno lo
+chiude lasciando il foglio com'e'. Si incolla una volta sola per ogni modulo.
+
+? Con molti moduli c'e' un'altra strada, il foglio di controllo (piu' avanti). Con uno o due
+  moduli conviene questa.
+
+### Scegli le impostazioni in Campanella
+
+1. Clicca **2 I moduli Google**.
+2. Nella tendina **Il modulo** scegli il modulo. Campanella li cerca in MODELLI e nella cartella
+   principale del Drive. Se non lo trova, scrivi tu il nome.
+3. **Cartella del foglio, dentro quella dell'anno**: spesso c'e' gia' una proposta. La riga
+   piccola sotto dice dove nascera' il foglio. Vuota vuol dire nella cartella dell'anno.
+4. **Nome del foglio delle risposte**: dove c'e' {anno} lo script mette l'anno, per esempio
+   "Risposte Recuperi - A.S. 2026-27".
+5. **A fine anno chiudi il modulo e scollega il foglio, finito il giorno** e' spuntata, con 31/08:
+   finito il 31 agosto il modulo non accetta piu' risposte. Se non la vuoi, togli la spunta.
+6. **Togli dal modulo le risposte degli anni scorsi** e' spenta. Se non sei sicuro, lasciala cosi':
+   non perdi niente, ma il foglio nuovo comincia con le risposte vecchie in cima.
+7. **Metti il foglio nella cartella dell'anno** e' spuntata: lasciala, a meno che la scuola blocchi
+   Drive agli script (vedi "Se qualcosa non va").
+8. Leggi il riepilogo in grassetto: nome del foglio, dove nasce, quando chiude il modulo. Se manca
+   qualcosa, il riepilogo lo dice e il codice non si copia finche' non lo correggi.
+9. Nella tendina sotto il riepilogo scegli **2. Cosa fare, passo per passo**: il riquadro grande
+   mostra le istruzioni preparate per il tuo modulo.
+
+### Copia il codice e incollalo nel modulo
+
+1. Controlla che la cartella dell'anno abbia gia' il segno di spunta verde in Esplora file.
+2. Usa una finestra del browser con il solo account della scuola (va bene anche in incognito):
+   con due account aperti insieme Apps Script si confonde.
+3. In Campanella scegli nella tendina **1. Il codice da incollare nel modulo** e clicca **Copia
+   negli appunti**. In basso compare "Codice copiato: incollalo nel modulo."
+4. Clicca **Apri Google Moduli** e apri il modulo per modificarlo (non il link degli studenti).
+5. In alto a destra clicca i tre puntini e poi **Apps Script** (in alcune versioni **Editor di
+   script**). L'editor si apre in una scheda nuova.
+6. Nel file Codice.gs clicca dentro il testo, premi Ctrl+A (seleziona tutto) e poi Ctrl+V.
+7. Premi Ctrl+S per salvare. In alto, al posto di "Progetto senza titolo", scrivi un nome, per
+   esempio "Campanella - Recuperi".
+
+? Se la voce Apps Script non c'e', la scuola l'ha spenta: serve l'amministratore.
+
+### Facoltativo, ma consigliato: il manifest
+
+Senza manifest Google chiede il permesso su tutti i tuoi moduli, anche se lo script apre solo
+questo. Con il manifest il permesso vale solo per questo modulo. Va messo prima della prima
+esecuzione.
+
+1. In Campanella scegli nella tendina **3. Il manifest, consigliato prima della prima esecuzione**
+   e clicca **Copia negli appunti**.
+2. Nell'editor clicca la rotellina (**Impostazioni progetto**) e metti la spunta a **Mostra il
+   file manifest appsscript.json**.
+3. Torna all'editor e apri il file appsscript.json. Premi Ctrl+A, Ctrl+V e poi Ctrl+S.
+
+! Se dopo il manifest compare un errore di permessi: lo script funziona anche senza, ma nel file
+  appsscript.json vanno tolte le righe di "oauthScopes". Se non te la senti, fatti aiutare.
+
+### Esegui l'anteprima e autorizza lo script
+
+1. Nella barra in alto dell'editor, nella tendina delle funzioni, scegli **MODULO_1_anteprima**.
+2. Clicca **Esegui**.
+3. La prima volta Google chiede l'autorizzazione: clicca **Rivedi autorizzazioni** e scegli
+   l'account della scuola.
+4. Se compare "Google non ha verificato questa app", clicca **Avanzate** (in basso a sinistra) e
+   poi **Apri ... (non sicura)**: al posto dei puntini c'e' il nome del tuo progetto.
+5. Google elenca i permessi: Moduli, Fogli, Drive (se hai lasciato quella spunta) e attivita'
+   programmate. Lascia tutte le spunte e clicca **Consenti**.
+6. In basso si apre il **Registro di esecuzione** con il messaggio dello script.
+
+? "Google non ha verificato questa app" non vuol dire pericolo: lo script e' tuo e Google non l'ha
+  esaminato. Il codice gira solo dentro il tuo account e nessun altro lo vede.
+
+! Lascia tutte le spunte. Se ne togli una, lo script scrive "MANCA QUALCHE PERMESSO" e "Non ho
+  fatto niente": riesegui e concedi tutto. La chiusura di fine anno lavora da sola, e senza un
+  permesso fallirebbe senza che nessuno se ne accorga.
+
+### Leggi l'anteprima e prepara davvero
+
+L'anteprima comincia con "ANTEPRIMA per l'anno scolastico" e "non modifico niente". Controlla
+l'anno, il titolo del modulo, la cartella ("trovata" o "da creare") e il nome del foglio. In fondo
+c'e' "Se ti convince: esegui MODULO_2_prepara".
+
+1. Nella tendina delle funzioni scegli **MODULO_2_prepara** e clicca **Esegui**.
+2. Nel registro, alla fine, leggi "FATTO." e la riga "Foglio:" con l'indirizzo del foglio nuovo.
+3. Controlla: nel modulo, scheda **Risposte**, **Visualizza in Fogli** apre il foglio nuovo.
+4. Dopo qualche minuto il foglio compare anche sul computer, e in Campanella il riepilogo del
+   passo 2 diventa verde: "Sul PC il foglio di quest'anno c'e' gia'".
+
+### Il menu Campanella dentro il modulo
+
+Da adesso, aprendo il modulo per modificarlo, dopo qualche secondo fra le icone in alto c'e'
+quella a forma di pezzo di puzzle (Componenti aggiuntivi), con dentro **Campanella**:
+
+- **Anteprima: cosa succederebbe** (come MODULO_1_anteprima);
+- **Prepara l'anno nuovo** (come MODULO_2_prepara, ma prima chiede conferma);
+- **Passa il comando al foglio di controllo** (come MODULO_PASSA_AL_FOGLIO);
+- **Annulla: togli chiusura e collegamento** (come MODULO_ANNULLA).
+
+Dal menu il risultato compare in una finestra "Campanella". Se il menu non c'e', ricarica la
+pagina.
+
+## Piu' moduli: il foglio di controllo
+
+Invece di uno script in ogni modulo, un foglio Google con una riga per modulo: da li' prepari
+l'anno per tutti insieme e vedi quali sono a posto.
+
+! Il foglio di controllo chiede sempre il permesso su tutti i moduli del tuo account, oltre che su
+  fogli e Drive. Con uno o due moduli conviene lo script dentro il modulo, con il manifest.
+
+1. Usa una finestra del browser con il solo account della scuola.
+2. In Campanella, passo 2, scegli nella tendina **5. Piu' moduli: cosa fare, passo per passo** e
+   tieni le istruzioni sotto gli occhi.
+3. Su drive.google.com crea un foglio Google nuovo, per esempio "Campanella - Moduli". Non
+   metterlo nella cartella dell'anno: serve tutti gli anni.
+4. Nel foglio: menu **Estensioni** e poi **Apps Script**.
+5. In Campanella scegli **4. Piu' moduli: il codice del foglio di controllo** e clicca **Copia
+   negli appunti**.
+6. Nell'editor, nel file Codice.gs, premi Ctrl+A, Ctrl+V e Ctrl+S. Dai un nome al progetto.
+7. Scegli **PANNELLO_1_preparaIlFoglio**, clicca **Esegui** e autorizza come prima, lasciando
+   tutte le spunte.
+8. Torna al foglio e ricaricalo: ci sono le schede "Moduli" e "Istruzioni", e in alto il menu
+   **Campanella**.
+9. Menu **Campanella**, **Trova i moduli nel Drive**: riempie i link dei moduli.
+10. Controlla ogni riga, poi menu **Campanella**, **Anteprima: cosa succederebbe**.
+11. Menu **Campanella**, **Prepara l'anno nuovo**, e rispondi **Si'**.
+
+Le colonne della scheda "Moduli" (ogni intestazione ha una nota, il triangolino nell'angolo):
+
+- **Modulo**: il nome, come in Google Moduli. **Link del modulo**: quello del modulo aperto per
+  modificarlo, che finisce con /edit (non quello degli studenti).
+- **Cartella del foglio** (vuota = nella cartella dell'anno; sottocartelle con la barra,
+  RECUPERI/TRIMESTRE) e **Nome del foglio** ({anno} diventa l'anno).
+- **Chiusura**: giorno/mese, per esempio 31/08; vuota = nessuna chiusura automatica.
+- **Svuota**: toglie le risposte vecchie, solo se le ritrova tutte in un foglio vecchio.
+  **Attivo**: senza spunta la riga viene saltata.
+- **Stato**, **Foglio dell'anno**, **Ultima esecuzione**: le scrive lo script.
+
+! La scheda "Istruzioni" la riscrive lo script ogni volta: non scriverci dentro. E il foglio non si
+  aggiorna da solo quando aggiungi o togli un modulo: le righe le cambi tu.
+
+## Le funzioni degli script, una per una
+
+Ogni funzione si esegue dall'editor (tendina delle funzioni, poi **Esegui**) e quasi tutte anche
+dal menu Campanella. Dall'editor il risultato si legge nel registro di esecuzione, dal menu in
+una finestra.
+
+### MODULO_1_anteprima
+
+Dice che cosa farebbe lo script per l'anno di adesso, senza toccare niente. Usala la prima volta,
+dopo aver reincollato il codice e per sapere quale versione sta girando (riga "Script:
+Campanella"). Nel menu: **Anteprima: cosa succederebbe**.
+
+1. Scegli **MODULO_1_anteprima** e clicca **Esegui**.
+2. Leggi il registro: anno, modulo, cartella, foglio, collegamento e chiusura.
+
+Se scrive "Non trovo il modulo", il codice non e' dentro il modulo (vedi "Se qualcosa non va").
+Se l'anno e' sbagliato, correggi la casella Anno scolastico al passo 1 e reincolla il codice.
+
+### MODULO_2_prepara
+
+Prepara l'anno: crea il foglio, lo mette nella cartella, ci collega il modulo, riapre il modulo se
+era chiuso e programma la chiusura. Usala la prima volta e poi ogni anno, dal primo settembre. Nel
+menu: **Prepara l'anno nuovo**.
+
+1. Controlla che la cartella dell'anno sia gia' sincronizzata (spunta verde).
+2. Scegli **MODULO_2_prepara** e clicca **Esegui**. Dal menu, alla domanda "Procedo?" clicca
+   **Si'**.
+3. Alla fine leggi "FATTO." e la riga "Foglio:" con l'indirizzo del foglio.
+
+Se va storto:
+
+- Si puo' rieseguire senza paura: se il foglio dell'anno, o uno con lo stesso nome nella cartella,
+  c'e' gia', usa quello e non crea doppioni.
+- "L'anno ... per questo modulo e' finito": la chiusura e' gia' scattata, non ricollega e non
+  riapre. L'anno nuovo si prepara dal primo settembre.
+- "Il modulo non e' pubblicato": pubblicalo tu da Google Moduli e riesegui.
+- "Il modulo e' chiuso e quest'anno era gia' pronto": l'ha chiuso qualcuno, e lo script non lo
+  riapre. Se va riaperto: Google Moduli, scheda Risposte, "Accetta risposte".
+
+### MODULO_ANNULLA
+
+Toglie la chiusura programmata e scollega il foglio dell'anno. Il foglio resta nel Drive con le
+risposte. Usala se hai preparato per sbaglio o non vuoi piu' lo script su questo modulo. Nel
+menu: **Annulla: togli chiusura e collegamento**.
+
+1. Scegli **MODULO_ANNULLA** e clicca **Esegui** (dal menu, rispondi **Si'**).
+2. Leggi "Chiusura programmata: tolta.", "Foglio dell'anno: scollegato" e "Non ho cancellato
+   niente".
+
+Se il modulo scrive in un foglio che non ha collegato lo script, lo script non lo tocca. Se cambi
+idea, riesegui **MODULO_2_prepara**: ricollega il foglio dell'anno e riprogramma la chiusura.
+
+### MODULO_PASSA_AL_FOGLIO
+
+Serve quando questo modulo passa sotto il foglio di controllo: toglie solo la chiusura
+programmata da qui, cosi' il modulo non viene chiuso due volte. Il foglio resta collegato e il
+modulo non cambia. Nel menu: **Passa il comando al foglio di controllo**.
+
+1. Esegui **MODULO_PASSA_AL_FOGLIO** (dal menu, rispondi **Si'**). Il registro dice "Chiusura
+   programmata da qui: tolta."
+2. Nel foglio di controllo scrivi la riga di questo modulo con la stessa cartella e lo stesso nome
+   del foglio usati qui.
+3. Nel foglio di controllo: **Campanella**, **Prepara l'anno nuovo**. Riconosce il foglio gia'
+   collegato e non ne crea un altro.
+
+Se cambi idea, rifai **Prepara l'anno nuovo** da questo modulo e togli la spunta "Attivo" alla sua
+riga nel foglio di controllo.
+
+### MODULO_chiusura e PANNELLO_chiusura
+
+Non si eseguono a mano: le fa partire Google da solo, finito il giorno di chiusura. Chiudono il
+modulo e scollegano il foglio, che resta fermo com'e'. MODULO_chiusura e' dello script dentro il
+modulo, PANNELLO_chiusura del foglio di controllo (che scrive "chiuso il" e la data nella colonna
+Stato). Se Google non riesce a chiudere un modulo, resta collegato al suo foglio (le risposte ci
+arrivano lo stesso) e lo script riprova fra un'ora. Il modulo si riapre con "Prepara l'anno
+nuovo", dal primo settembre.
+
+### PANNELLO_1_preparaIlFoglio
+
+Crea la scheda "Moduli" con le colonne e le righe di partenza, scrive la scheda "Istruzioni" e
+toglie la scheda vuota "Foglio1". Nel menu: **Prepara il foglio**. Usala la prima volta e dopo
+aver incollato un codice nuovo. Alla fine dice 'Scheda "Moduli" pronta'. Si puo' rieseguire: le
+righe dei moduli restano, e una scheda "Istruzioni" scritta da te non viene toccata.
+
+### PANNELLO_2_trovaIModuli
+
+Cerca nel Drive i moduli dal nome della colonna "Modulo" e riempie "Link del modulo". Nel menu:
+**Trova i moduli nel Drive**. Usala la prima volta e per ogni riga nuova.
+
+1. Scrivi il nome del modulo nella colonna "Modulo".
+2. Menu **Campanella**, **Trova i moduli nel Drive**. Alla fine: "Link riempiti:" e il numero.
+
+Se dice "non lo trovo nel Drive" o che ce ne sono piu' di uno con quel nome, incolla tu il link:
+apri il modulo per modificarlo e copia l'indirizzo dalla barra del browser.
+
+### PANNELLO_3_anteprima
+
+Dice che cosa farebbe "Prepara l'anno nuovo" per ogni riga attiva, senza fare niente, e quale
+versione dello script sta girando. Nel menu: **Anteprima: cosa succederebbe**. Una riga con
+"PROBLEMA: manca il link del modulo" ha bisogno del link; con "il link non e' quello giusto"
+serve quello del modulo aperto per modificarlo.
+
+### PANNELLO_4_preparaAnno
+
+Prepara l'anno per tutte le righe attive: fogli, collegamenti, riaperture e chiusure. Nel menu:
+**Prepara l'anno nuovo**. Usala la prima volta, ogni anno dal primo settembre, e quando aggiungi
+un modulo.
+
+1. Menu **Campanella**, **Prepara l'anno nuovo**, e rispondi **Si'**.
+2. Alla fine leggi "FATTO. Righe preparate:" e guarda la colonna Stato: "pronto per" e l'anno.
+
+Se va storto: ogni problema resta nella sua riga, in Stato, e le altre vengono preparate lo
+stesso. Con molti moduli puo' scrivere "NON HO FINITO" (Google ferma gli script dopo 6 minuti):
+riesegui, riparte dalle righe che mancano. Le righe gia' pronte quest'anno non vengono
+ricollegate, e un modulo gia' chiuso resta chiuso.
+
+### PANNELLO_5_controlla
+
+Rilegge da Google com'e' messo davvero ogni modulo e lo scrive in Stato e Ultima esecuzione.
+Legge e basta. Nel menu: **Controlla com'e' messo adesso**. Usala quando hai cambiato qualcosa a
+mano in Google Moduli. Alla fine: "Tutto a posto." oppure "Righe da guardare:". Una riga "non lo
+trovo" o "e' nel cestino del Drive" e' di un modulo cancellato: togli la sua spunta "Attivo".
+
+### PANNELLO_ANNULLA
+
+Toglie tutte le chiusure programmate e scollega i fogli di quest'anno, che restano nel Drive. Nel
+menu: **Annulla: togli chiusure e collegamenti** (rispondi **Si'**). Alla fine: "Non ho
+cancellato niente". Per rimettere tutto, rifai **Prepara l'anno nuovo**.
+
+## I casi, ricetta per ricetta
+
+### E' cominciato un nuovo anno scolastico
+
+1. Dal primo settembre apri **Cartelle**, **1 Le cartelle dell'anno**.
+2. La casella Anno scolastico dice gia' l'anno nuovo. Se dice ancora il vecchio, l'avevi scritto
+   a mano: svuota la casella.
+3. Aggiorna le classi e clicca **Genera la struttura**, poi **Si'**.
+4. Aspetta il segno di spunta verde sulla nuova cartella in Esplora file.
+5. Per ogni modulo: apri il modulo, pezzo di puzzle, **Campanella**, **Prepara l'anno nuovo**.
+   Con il foglio di controllo: apri il foglio, **Campanella**, **Prepara l'anno nuovo**.
+
+! Prima il punto 4, poi il punto 5. Se lo script gira prima che il computer abbia caricato la
+  cartella, te ne ritrovi due con lo stesso nome (sul computer la seconda ha "(1)" in coda).
+
+? Se il riepilogo del passo 2 diceva "Anno fisso", quello script non cambia anno da solo: svuota
+  la casella dell'anno, copia di nuovo il codice (voce 1, o voce 4 per il foglio di controllo) e
+  incollalo al posto del vecchio. Poi **Prepara l'anno nuovo**.
+
+### Ho una classe in piu'
+
+1. Al passo 1 aggiungi una riga per la classe nuova nella casella Classi.
+2. Clicca **Genera la struttura** e poi **Si'**. Viene aggiunta solo la classe nuova; il resto
+   resta com'e', con i tuoi file.
+
+### Ho una classe in meno
+
+1. Al passo 1 cancella la sua riga dalla casella Classi: cosi' non viene piu' creata.
+2. Campanella non cancella mai cartelle. Se quella cartella c'e' gia' e non ti serve, cancellala
+   tu da Esplora file, dopo aver controllato che dentro non ci sia niente di tuo.
+
+### Ho sbagliato e voglio rifare le cartelle
+
+1. Correggi classi, materie, anno o spunte.
+2. Clicca di nuovo **Genera la struttura**: aggiunge le cartelle giuste.
+3. Quelle sbagliate restano: cancellale tu da Esplora file, dopo aver controllato che siano
+   vuote.
+
+? Rifare non fa danni: i file che ci sono gia' non vengono mai sovrascritti.
+
+### Il Drive non c'e' o non e' sincronizzato
+
+1. Controlla che Drive per desktop sia acceso e collegato all'account della scuola.
+2. In Esplora file cerca "Il mio Drive". Se non c'e', il Drive non e' sul computer.
+3. In Campanella clicca **Sfoglia...** e scegli "Il mio Drive". "Percorso non trovato" vuol dire
+   che il percorso scritto e' sbagliato.
+4. "(non trovo la cartella MODELLI in ...)" vuol dire che in quel Drive non c'e' MODELLI: va bene
+   lo stesso, Campanella crea solo le cartelle.
+5. Prima di usare lo script dei moduli, aspetta la spunta verde sulla cartella dell'anno.
+
+? "Sul PC il foglio di quest'anno non c'e' ancora", subito dopo lo script, vuol dire che Drive
+  deve ancora scaricarlo: aspetta qualche minuto.
+
+### Sul computer ci sono due Drive, quello della scuola e quello personale
+
+1. Al passo 1 leggi sotto il percorso di quale account e' il Drive scelto e quali altri ci sono.
+2. Se compare **Usa quello** e propone il Drive della scuola, cliccalo.
+3. Nel browser, per gli script, usa una finestra con il solo account della scuola.
+
+### Voglio aggiungere un nuovo modulo
+
+1. Con lo script dentro il modulo: al passo 2 scegli il modulo nuovo nella tendina **Il modulo**
+   e rifai tutta la "Prima volta" del passo 2 per lui. Ogni modulo ha il suo script.
+2. Con il foglio di controllo: aggiungi una riga con il nome (e il giorno in "Chiusura", se deve
+   chiudersi da solo), poi **Trova i moduli nel Drive** e **Prepara l'anno nuovo**.
+
+### Un modulo non mi serve piu'
+
+- Con lo script dentro il modulo: **MODULO_ANNULLA**. Il foglio resta nel Drive.
+- Con il foglio di controllo: togli la spunta "Attivo" alla sua riga. Resta come promemoria e
+  viene saltata.
+
+### Voglio cominciare l'anno con il foglio delle risposte vuoto
+
+1. Al passo 2 metti la spunta **Togli dal modulo le risposte degli anni scorsi**.
+2. Copia di nuovo il codice (voce 1), incollalo nel modulo al posto del vecchio e salva.
+3. Fai **Prepara l'anno nuovo**.
+
+Con il foglio di controllo basta la spunta nella colonna "Svuota".
+
+! Lo script toglie le risposte solo se le ritrova tutte, una per una, in un foglio degli anni
+  scorsi; se ne manca una non tocca niente e te lo dice. Toglierle dal modulo non si annulla, ma
+  nei fogli vecchi restano.
+
+### Voglio passare un modulo al foglio di controllo
+
+1. Nel modulo: pezzo di puzzle, **Campanella**, **Passa il comando al foglio di controllo**, e
+   rispondi **Si'**.
+2. Nel foglio di controllo aggiungi la sua riga, con la stessa cartella e lo stesso nome del
+   foglio.
+3. Nel foglio di controllo: **Campanella**, **Prepara l'anno nuovo**.
+
+### Ho cancellato lo script da un modulo e Google mi manda email di errore
+
+Cancellare il codice non toglie la chiusura gia' programmata: quando scatta non trova la funzione e
+Google manda una email. Non fa danni, ma si toglie cosi':
+
+1. Apri il modulo, tre puntini, **Apps Script**.
+2. Nella colonna di sinistra clicca l'icona dell'orologio (**Attivazioni**).
+3. Cancella la riga di **MODULO_chiusura**.
+
+! L'orologio mostra solo le attivazioni del progetto che stai guardando. Guarda il nome prima di
+  cancellare: PANNELLO_chiusura e' del foglio di controllo, e senza di lei le chiusure di fine
+  anno non scattano.
+
+### E' arrivata una nuova versione di Campanella
+
+Aggiornare Campanella non cambia gli script gia' incollati. Le note di ogni versione, sulla
+pagina dei rilasci, dicono quali script reincollare ("Scripts to paste again").
+
+1. Esegui l'anteprima: la riga "Script: Campanella" dice la versione che sta girando.
+2. Se va reincollato: al passo 2 scegli lo stesso modulo, con le stesse scelte, voce **1. Il
+   codice da incollare nel modulo**, **Copia negli appunti**.
+3. Apri il modulo, tre puntini, **Apps Script**. In Codice.gs premi Ctrl+A, Ctrl+V e Ctrl+S.
+4. Esegui **MODULO_1_anteprima** e controlla il numero della versione.
+5. Per il foglio di controllo: voce 4, incollala allo stesso modo nel suo editor, salva, poi menu
+   **Campanella**, **Prepara il foglio**. Le righe dei moduli restano.
+
+? Nel dubbio, reincollare lo script rigenerato con le stesse scelte non fa danni.
+
+### Ho cambiato il nome della cartella o del foglio
+
+1. Al passo 2 scrivi la cartella o il nome nuovo.
+2. Copia di nuovo il codice (voce 1), incollalo al posto del vecchio e salva.
+3. Esegui **MODULO_1_anteprima** per controllare.
+
+Con il foglio di controllo basta cambiare le celle della riga.
+
+## Se qualcosa non va
+
+### Nel passo 1
+
+- **Un errore di struttura.json** e "Non genero niente": correggi il file con **Modifica
+  struttura...**, oppure cancellalo per tornare alle cartelle di partenza.
+- **L'anno "non va bene per una cartella"**: scrivilo come 2026-27, o svuota la casella.
+- **"Classe non valida"**: una riga con due classi, o un carattere che Windows non accetta nei
+  nomi ( \ / : * ? " < > | ). Una classe per riga, le materie dopo i due punti.
+- **"Scrivi almeno una classe"**: la casella Classi e' vuota.
+- **"Niente da aprire"**: la cartella dell'anno non c'e' ancora. Prima **Genera la struttura**.
+- **Due cartelle uguali, una con "(1)" in coda**: lo script e' partito prima che il computer
+  caricasse la sua. Sposta il foglio in quella giusta e butta quella vuota.
+
+### Nel passo 2, in Campanella
+
+- **"Manca qualcosa" quando copi il codice**: di solito manca il nome del foglio, o il giorno di
+  chiusura e' scritto male. Si scrive giorno/mese, per esempio 31/08; il 29/02 non va bene.
+- **"Nessun modulo (.gform)"**: controlla il percorso del Drive al passo 1, oppure scrivi tu il
+  nome del modulo.
+
+### Nell'editor di Apps Script
+
+- **"Non trovo il modulo. Questo script va incollato DENTRO il modulo"**: hai incollato il codice
+  in un progetto a parte. Apri il modulo, tre puntini, **Apps Script**, e incollalo li'.
+- **"MANCA QUALCHE PERMESSO"**: riesegui e lascia tutte le spunte.
+- **"Questa app e' bloccata"** o **"Accesso bloccato"**: la scuola limita gli script. Serve chi
+  amministra Google per la scuola.
+- **"Access denied: DriveApp"** o un messaggio sulle app di Drive disattivate: la scuola ha spento
+  Drive agli script. Togli la spunta **Metti il foglio nella cartella dell'anno**, copia di nuovo
+  il codice e reincollalo. Il foglio nascera' in "Il mio Drive": spostalo tu nella cartella
+  dell'anno. Spostarlo non rompe il collegamento con il modulo.
+- **L'editor non si apre o i permessi girano a vuoto**: due account nello stesso browser. Usa una
+  finestra in incognito con il solo account della scuola.
+- **"Un'altra esecuzione e' ancora in corso"**: aspetta qualche minuto e riprova.
+- **"ATTENZIONE: ci sono 2 cartelle"** con lo stesso nome: lo script usa la piu' vecchia.
+  Controlla le altre e butta quelle vuote.
+
+### Nel modulo e nel foglio di controllo
+
+- **Il menu Campanella non compare**: aspetta qualche secondo e ricarica la pagina.
+- **Il modulo non e' pubblicato**: lo script non lo pubblica al posto tuo. Pubblicalo tu, poi
+  rifai **Prepara l'anno nuovo**.
+- **Il foglio nuovo comincia con le risposte vecchie**: e' normale se non hai chiesto di svuotare
+  il modulo (vedi il caso del foglio vuoto).
+- **"Non trovo la scheda Moduli"**: nel foglio di controllo esegui prima **Prepara il foglio**.
+- **Una riga dice "manca il link del modulo"**: usa **Trova i moduli nel Drive** o incolla il link
+  del modulo aperto per modificarlo.
+- **La colonna Stato sembra vecchia**: dice com'e' andata l'ultima volta. Usa **Controlla com'e'
+  messo adesso**.
+- **Un collega non vede il foglio delle risposte**: il foglio e' tuo. Se deve vederlo, condividilo
+  tu.
+
+! Lo script lo esegue sempre la stessa persona: chiusura e foglio appartengono a chi l'ha
+  eseguito. Se il menu lo usa un collega, foglio e cartelle nascono nel suo Drive.
+
+? Ricorda: niente in questa sezione cancella file, cartelle o fogli delle risposte. L'unica cosa
+  che puo' togliere sono le risposte vecchie dal modulo, e solo se lo chiedi tu.
