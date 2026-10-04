@@ -1564,20 +1564,28 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
         Verifica "  ...ma l'anteprima non li scrive nelle impostazioni" (
             $s.CalColori.Count -eq 0 -and $s.CalColoriScritti.Count -eq 0)
         Verifica "rigenerato, DatiOrari.gs ha gli stessi colori" ((ColoriGenerati $oc $s) -eq $partenza)
-        # il titolo sul calendario di una classe (Stato.CalTitoli): in titoli, e
-        # il colore vale con tutti e due i nomi; un titolo vuoto non conta
-        $s.CalTitoli['2B'] = '2B - Fisica'
-        $s.CalTitoli['1A'] = '   '
+        # il titolo sul calendario di un'ora (Stato.CalTitoliOre, giorno|ora|classe):
+        # in titoliOre, solo se a quell'ora c'e' ancora quella classe; il titolo e'
+        # una voce dei colori, con un colore suo; le ore consecutive si uniscono
+        # solo con lo stesso titolo
+        $g0 = $oc.Giorni[0]
+        $s.CalTitoliOre["$g0|2|2B"] = '2B - FIS'
+        $s.CalTitoliOre["$g0|3|2B"] = 'non vale: a quell''ora c''e'' la 10A'
+        $s.CalTitoliOre["$g0|1|2B"] = '   '
         $fT = Join-Path $tmp 'DatiOrari_titoli.gs'
         [System.IO.File]::WriteAllText($fT, (GeneraDati $oc $s $false), $utf8)
-        $esitoT = & node -e "const vm=require('vm'),fs=require('fs');const c=vm.createContext({});vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);const k=c.ORARI.calendario;console.log(JSON.stringify({t:k.titoli||null,c:k.colori}))" $fT
+        $esitoT = & node -e "const vm=require('vm'),fs=require('fs');const c=vm.createContext({});vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);const k=c.ORARI.calendario;console.log(JSON.stringify({t:k.titoliOre||null,c:k.colori,g:c.ORARI.giorni}))" $fT
         $jT = ($esitoT | Select-Object -Last 1) | ConvertFrom-Json
-        Verifica "il titolo scelto per 2B va in titoli, solo lui, e il colore vale anche con il titolo ($esitoT)" (
-            $null -ne $jT -and $null -ne $jT.t -and @($jT.t.PSObject.Properties).Count -eq 1 -and $jT.t.'2B' -eq '2B - Fisica' -and
-            $jT.c.'2B' -eq '10' -and $jT.c.'2B - Fisica' -eq '10' -and $null -eq $jT.c.'   ')
-        $s.CalTitoli.Clear()
+        Verifica "il titolo di LUN 2a (2B) va in titoliOre, solo lui, ed e' una voce dei colori con un colore suo ($esitoT)" (
+            $null -ne $jT -and $null -ne $jT.t -and @($jT.t.PSObject.Properties).Count -eq 1 -and $jT.t."$g0|2|2B" -eq '2B - FIS' -and
+            $jT.c.'2B' -match '^\d+$' -and $jT.c.'2B - FIS' -match '^\d+$' -and $jT.c.'2B' -ne $jT.c.'2B - FIS')
+        $bl = $tAn.GetMethod('Blocchi', $FS, $null, [Type[]]@([string[,]], $oc.GetType(), $s.GetType()), $null).Invoke($null,
+              [object[]]@($oc.GrigliaDocente('ROSSI'), $oc.PSObject.BaseObject, $s.PSObject.BaseObject))
+        $lun = @($bl | Where-Object { $_.Giorno -eq 0 } | ForEach-Object { "$($_.OraDa)-$($_.OraA) $($_.Testo)" }) -join ', '
+        Verifica "  ...e nell'anteprima il lunedi' la 2B di due ore diventa due lezioni ($lun)" ($lun -eq '1-1 2B, 2-2 2B - FIS, 3-3 10A')
+        $s.CalTitoliOre.Clear()
         Verifica "  ...e senza titoli DatiOrari.gs e' quello di prima" ((ColoriGenerati $oc $s) -eq $partenza -and
-            -not ((GeneraDati $oc $s $false) -match 'titoli:'))
+            -not ((GeneraDati $oc $s $false) -match 'titoliOre:'))
         Uscito $oc $s
         Verifica "copiato o salvato, i suoi colori restano nelle impostazioni, nessuno scelto a mano, e sono quelli sul calendario ($(Elenco $s.CalColoriScritti))" (
             $s.CalColori.Count -eq 6 -and $s.CalColori['10A'] -eq '3' -and $s.CalColoriAMano.Count -eq 0 -and
@@ -1820,7 +1828,7 @@ console.log(fs.readFileSync(process.argv[3], 'utf8').split('\n').filter(x => x).
     $a = New-Object 'object[]' 2
     $a[0] = $o.GrigliaDocente($s.CalDocente)
     $a[1] = $o.PSObject.BaseObject
-    $nCs = $tAn.GetMethod('Blocchi', $FS).Invoke($null, $a).Count
+    $nCs = $tAn.GetMethod('Blocchi', $FS, $null, [Type[]]@([string[,]], $asm.GetType('Campanella.RisultatoOrario')), $null).Invoke($null, $a).Count
     Verifica "i blocchi del calendario sono gli stessi qui e in Orari.gs ($nCs e $nBlocchiJs)" ($nCs -eq $nBlocchiJs)
     if ($null -ne $tCal) {
         $sospCs = LeggiRighe $s.CalSospensioni $s.CalInizio

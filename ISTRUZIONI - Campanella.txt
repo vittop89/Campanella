@@ -945,14 +945,20 @@ ORARI - le email a te e il calendario
    classe del tuo orario ne ha uno diverso, e da quando copi o salvi
    DatiOrari.gs lo tiene: una classe che arriva dopo (anche una che aveva
    un colore un altro anno) ne prende uno che le altre non hanno. Le ore a
-   disposizione sono grigie (Grafite). "Colori e titoli delle classi..."
-   li mostra e te li fa cambiare, e per ogni classe del tabellone (come
-   "3B - FIS") ti fa scrivere il titolo delle sue lezioni sul calendario
-   (per esempio "3B - Fisica"; vuoto, resta il nome del tabellone): le
-   lezioni che lo script mette da quel momento lo prendono, e il colore
-   vale con tutti e due i nomi. Per dare i titoli nuovi alle lezioni gia'
-   sul calendario: ORARI_ANNULLA_calendario e poi ORARI_4_calendario
-   (oppure ORARI_5_cambioOrario, da una data). Per i colori: un colore scelto da te resta (se e' quello di
+   disposizione sono grigie (Grafite). "Titoli e colori delle lezioni..."
+   ha una riga per ogni ora del tuo orario (LUN 2a, S2 B): ci scrivi il
+   titolo della lezione sul calendario (per esempio "2B - MAT" il lunedi'
+   e "2B - FIS" il giovedi'; vuoto, resta la classe del tabellone) e
+   scegli il colore. Il colore va con il titolo: le ore con lo stesso
+   titolo hanno lo stesso colore, e cambiato in una riga cambia anche
+   nelle altre; ogni titolo nuovo ne prende uno che gli altri non usano.
+   Le ore una dopo l'altra con lo stesso titolo diventano un evento solo
+   (MAT alla 2a e FIS alla 3a sono due eventi). Il titolo vale per quel
+   giorno, quell'ora e quella classe: con un orario nuovo che li' ha
+   un'altra classe non vale piu'. Le lezioni che lo script mette da quel
+   momento prendono i titoli; per darli a quelle gia' sul calendario:
+   ORARI_ANNULLA_calendario e poi ORARI_4_calendario (oppure
+   ORARI_5_cambioOrario, da una data). Per i colori: un colore scelto da te resta (se e' quello di
    un'altra classe, lei ne prende subito un altro, e la finestra te lo
    mostra: se le vuoi uguali, sceglilo anche per lei), "colore del
    calendario" lascia a quella classe il colore del calendario, "Colori di

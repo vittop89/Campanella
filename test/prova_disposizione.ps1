@@ -1177,10 +1177,10 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
     $campoRiepColori = $tPO.GetField('riepilogoColori', $FIp)
     $btnColori = if ($null -ne $campoBtnColori) { $campoBtnColori.GetValue($orari) } else { $null }
     $riepColori = if ($null -ne $campoRiepColori) { $campoRiepColori.GetValue($orari) } else { $null }
-    $classiRossi = @($tA.GetMethod('ClassiDelCalendario', $FS).Invoke($null, @($tPO.GetField('orario', $FIp).GetValue($orari), [string]'ROSSI')))
+    $classiRossi = @($tA.GetMethod('ClassiDelCalendario', $FS, $null, [Type[]]@($asm.GetType('Campanella.RisultatoOrario'), [string]), $null).Invoke($null, @($tPO.GetField('orario', $FIp).GetValue($orari), [string]'ROSSI')))
     $senzaColore = @($classiRossi | Where-Object { $null -ne $riepColori -and $riepColori.Text -notlike "*$_ *" })
-    Verifica "accanto a 'Colori e titoli delle classi...' ci sono le $($classiRossi.Count) classi di ROSSI con il loro colore, tutte visibili ($(if ($riepColori) { $riepColori.Text }))" (
-        $null -ne $btnColori -and $btnColori.Visible -and $btnColori.Text -eq 'Colori e titoli delle classi...' -and
+    Verifica "accanto a 'Titoli e colori delle lezioni...' ci sono le $($classiRossi.Count) classi di ROSSI con il loro colore, tutte visibili ($(if ($riepColori) { $riepColori.Text }))" (
+        $null -ne $btnColori -and $btnColori.Visible -and $btnColori.Text -eq 'Titoli e colori delle lezioni...' -and
         $null -ne $riepColori -and $riepColori.Visible -and $classiRossi.Count -gt 1 -and $riepColori.Text -like 'Colori: *' -and
         $senzaColore.Count -eq 0 -and $riepColori.Visibili -eq $classiRossi.Count -and
         $riepColori.Bottom -le $txtSosp.Top -and $riepColori.Left -gt $btnColori.Right)
@@ -1423,78 +1423,107 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
 # di partenza". Con tante classi le righe scorrono.
 Write-Host "`nORARI, PASSO 4: LA FINESTRA DEI COLORI DELLE CLASSI" -ForegroundColor Cyan
 $tFCC = $asm.GetType('Campanella.FormColoriClassi')
-Verifica "c'e' la finestra dei colori delle classi" ($null -ne $tFCC)
-if ($null -ne $tFCC) {
+$tOra = $asm.GetType('Campanella.OraDelCalendario')
+Verifica "c'e' la finestra dei titoli e dei colori delle lezioni" ($null -ne $tFCC -and $null -ne $tOra)
+if ($null -ne $tFCC -and $null -ne $tOra) {
     $FIf = [System.Reflection.BindingFlags]'NonPublic,Instance'
-    function FinestraColori([string[]]$classi, $colori, [string[]]$aMano, $scritti = @{}) {
-        $lc = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($k in $classi) { $lc.Add($k) }
+    # una riga per ora: qui un'ora per classe, il lunedi', nell'ordine scritto;
+    # "Colloqui" fra le classi vuol dire che ci sono i colloqui (la loro riga)
+    function FinestraColori([string[]]$classi, $colori, [string[]]$aMano, $scritti = @{}, $titoli = @{}) {
+        $lo = [Activator]::CreateInstance([System.Collections.Generic.List`1].MakeGenericType($tOra))
+        $i = 0
+        foreach ($k in $classi) {
+            if ($k -eq 'Colloqui') { continue }
+            $i++
+            $o = [Activator]::CreateInstance($tOra); $o.Giorno = 'LUN'; $o.Ora = $i; $o.Classe = $k
+            $lo.Add($o)
+        }
         $dc = New-Object 'System.Collections.Generic.Dictionary[string,string]'
         foreach ($k in $colori.Keys) { $dc[$k] = $colori[$k] }
         $la = New-Object 'System.Collections.Generic.List[string]'
         foreach ($k in $aMano) { $la.Add($k) }
         $ds = New-Object 'System.Collections.Generic.Dictionary[string,string]'
         foreach ($k in $scritti.Keys) { $ds[$k] = $scritti[$k] }
-        $f = [Activator]::CreateInstance($tFCC, @($lc.PSObject.BaseObject, $dc.PSObject.BaseObject, $la.PSObject.BaseObject,
-                                                  $ds.PSObject.BaseObject))
+        $dt = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+        foreach ($k in $titoli.Keys) { $dt[$k] = $titoli[$k] }
+        $a = New-Object 'object[]' 6
+        $a[0] = $lo.PSObject.BaseObject; $a[1] = [bool]($classi -contains 'Colloqui'); $a[2] = $dc.PSObject.BaseObject
+        $a[3] = $la.PSObject.BaseObject; $a[4] = $ds.PSObject.BaseObject; $a[5] = $dt.PSObject.BaseObject
+        $f = [Activator]::CreateInstance($tFCC, $a)
         $f.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
         $f.Location = New-Object System.Drawing.Point(-4000, -4000)
         $f.Show()
         [System.Windows.Forms.Application]::DoEvents()
         return $f
     }
+    # la chiave della riga di una classe (la sua ora del lunedi')
+    function Riga($f, [string]$classe) {
+        if ($classe -eq 'Colloqui') { return 'Colloqui' }
+        @($f.Ore | Where-Object { $_.Classe -eq $classe } | ForEach-Object { $_.Chiave() })[0]
+    }
     $fc = FinestraColori @('3B LSA', '1A', '2B', 'A disposizione', '10A') @{ '2B' = '5' } @('2B')
-    ControllaPannello $fc 'Colori delle classi'
-    ControllaPannello $fc.Righe 'Colori delle classi, le righe'
-    # il titolo sul calendario: una casella per classe; scritto, va in Titoli;
-    # vuoto o uguale alla classe, no
-    $caselleT = $tFCC.GetField('caselleTitolo', $FIf).GetValue($fc)
-    Verifica "ogni classe ha la sua casella del titolo sul calendario ($($caselleT.Count))" (
-        $caselleT.Count -eq 5 -and @($caselleT.Values | Where-Object { -not $_.Visible }).Count -eq 0)
-    $caselleT['2B'].Text = '2B - Fisica'
-    $caselleT['1A'].Text = '1A'
-    Verifica "scritto un titolo, la finestra lo tiene; uguale alla classe, no ($(@($fc.Titoli.Keys) -join ','))" (
-        $fc.Titoli.Count -eq 1 -and $fc.Titoli['2B'] -eq '2B - Fisica')
-    $caselleT['2B'].Text = ''
-    Verifica "  ...e cancellato, nemmeno" ($fc.Titoli.Count -eq 0)
+    ControllaPannello $fc 'Titoli e colori delle lezioni'
+    ControllaPannello $fc.Righe 'Titoli e colori delle lezioni, le righe'
     $tendine = $tFCC.GetField('tendine', $FIf).GetValue($fc)
     $quadrati = $tFCC.GetField('quadrati', $FIf).GetValue($fc)
     $note = $tFCC.GetField('note', $FIf).GetValue($fc)
+    $caselleT = $tFCC.GetField('caselleTitolo', $FIf).GetValue($fc)
     function ColoriDi($f) { ($f.Classi | ForEach-Object { "$_=$($f.Colori[$_])" }) -join ',' }
-    Verifica "una riga per classe, in ordine, con 11 colori e 'colore del calendario' nella tendina ($(ColoriDi $fc))" (
-        ($fc.Classi -join ',') -eq '1A,2B,3B LSA,10A,A disposizione' -and $tendine.Count -eq 5 -and
-        $tendine['1A'].Items.Count -eq 12 -and $tendine['1A'].Items[0].ToString() -eq 'colore del calendario' -and
-        $tendine['1A'].Items[1].ToString() -eq 'Pomodoro')
+    function Tendina($classe) { $tendine[(Riga $fc $classe)] }
+    function Quadrato($classe) { $quadrati[(Riga $fc $classe)] }
+    function Nota($classe) { $note[(Riga $fc $classe)] }
+    Verifica "una riga per ora, con la casella del titolo, 11 colori e 'colore del calendario' nella tendina; i titoli in ordine ($(ColoriDi $fc))" (
+        ($fc.Classi -join ',') -eq '1A,2B,3B LSA,10A,A disposizione' -and $tendine.Count -eq 5 -and $caselleT.Count -eq 5 -and
+        (Tendina '1A').Items.Count -eq 12 -and (Tendina '1A').Items[0].ToString() -eq 'colore del calendario' -and
+        (Tendina '1A').Items[1].ToString() -eq 'Pomodoro')
     Verifica "2B, scelto a mano, resta Banana; le altre hanno i colori di partenza, le ore a disposizione Grafite" (
-        (ColoriDi $fc) -eq '1A=11,2B=5,3B LSA=9,10A=10,A disposizione=8' -and $note['2B'].Text -eq 'scelto da te' -and
-        $note['1A'].Text -eq '' -and $quadrati['2B'].Valore -eq '5' -and $tendine['2B'].SelectedItem.ToString() -eq 'Banana')
-    $tendine['3B LSA'].SelectedIndex = 1
+        (ColoriDi $fc) -eq '1A=11,2B=5,3B LSA=9,10A=10,A disposizione=8' -and (Nota '2B').Text -eq 'scelto da te' -and
+        (Nota '1A').Text -eq '' -and (Quadrato '2B').Valore -eq '5' -and (Tendina '2B').SelectedItem.ToString() -eq 'Banana')
+    (Tendina '3B LSA').SelectedIndex = 1
     [System.Windows.Forms.Application]::DoEvents()
     Verifica "scelto Pomodoro dalla tendina di 3B LSA: e' suo, scelto a mano, e il quadratino lo mostra" (
-        $fc.Colori['3B LSA'] -eq '11' -and $fc.AMano.Contains('3B LSA') -and $quadrati['3B LSA'].Valore -eq '11' -and
-        $note['3B LSA'].Text -eq 'scelto da te')
+        $fc.Colori['3B LSA'] -eq '11' -and $fc.AMano.Contains('3B LSA') -and (Quadrato '3B LSA').Valore -eq '11' -and
+        (Nota '3B LSA').Text -eq 'scelto da te')
     Verifica "  ...e la 1A, che aveva Pomodoro da Campanella, ne ha subito un altro, e la finestra lo mostra ($(ColoriDi $fc))" (
-        $fc.Colori['1A'] -ne '11' -and $fc.Colori['1A'] -ne '' -and $quadrati['1A'].Valore -eq $fc.Colori['1A'] -and
-        $tendine['1A'].SelectedItem.ToString() -ne 'Pomodoro' -and $note['1A'].Text -eq '')
+        $fc.Colori['1A'] -ne '11' -and $fc.Colori['1A'] -ne '' -and (Quadrato '1A').Valore -eq $fc.Colori['1A'] -and
+        (Tendina '1A').SelectedItem.ToString() -ne 'Pomodoro' -and (Nota '1A').Text -eq '')
     $fc.Scegli('1A', '')
     Verifica "'colore del calendario' per 1A si ricorda come scelta" (
-        $fc.Colori['1A'] -eq '' -and $fc.AMano.Contains('1A') -and $quadrati['1A'].Valore -eq '' -and
-        $tendine['1A'].SelectedIndex -eq 0)
-    ControllaPannello $fc.Righe 'Colori delle classi, con le scelte'
+        $fc.Colori['1A'] -eq '' -and $fc.AMano.Contains('1A') -and (Quadrato '1A').Valore -eq '' -and
+        (Tendina '1A').SelectedIndex -eq 0)
+    ControllaPannello $fc.Righe 'Titoli e colori delle lezioni, con le scelte'
     $fc.DiPartenza()
     Verifica "'Colori di partenza' dimentica le scelte e rifa' i colori di partenza ($(ColoriDi $fc))" (
         $fc.AMano.Count -eq 0 -and (ColoriDi $fc) -eq '1A=11,2B=9,3B LSA=10,10A=6,A disposizione=8' -and
-        $note['2B'].Text -eq '')
+        (Nota '2B').Text -eq '')
+    # il titolo di un'ora: scritto, la riga prende il colore del titolo; due ore
+    # con lo stesso titolo hanno lo stesso colore; uguale alla classe, nessun titolo
+    $caselleT[(Riga $fc '10A')].Text = '2B'
+    $caselleT[(Riga $fc '1A')].Text = '1A - MAT'
+    $caselleT[(Riga $fc '3B LSA')].Text = '3B LSA'
+    $fc.Rifai()
+    Verifica "scritti i titoli, la finestra li tiene ($(@($fc.TitoliOre.Keys | ForEach-Object { $_ + '=' + $fc.TitoliOre[$_] }) -join '; ')), e i titoli sono le voci dei colori ($(ColoriDi $fc))" (
+        $fc.TitoliOre.Count -eq 2 -and $fc.TitoliOre[(Riga $fc '1A')] -eq '1A - MAT' -and
+        ($fc.Classi -join ',') -eq '1A - MAT,2B,3B LSA,A disposizione' -and $fc.Colori['1A - MAT'] -ne '' -and
+        (Quadrato '10A').Valore -eq $fc.Colori['2B'] -and (Quadrato '1A').Valore -eq $fc.Colori['1A - MAT'])
+    (Tendina '10A').SelectedIndex = 3
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "  ...e il colore scelto in una riga va a tutte le ore con lo stesso titolo (2B e 10A con il titolo 2B)" (
+        $fc.Colori['2B'] -eq $tendine[(Riga $fc '10A')].SelectedItem.Valore -and (Quadrato '2B').Valore -eq (Quadrato '10A').Valore)
+    $caselleT[(Riga $fc '1A')].Text = '1A - FIS'
+    $fc.Conferma()
+    Verifica "confermato, restano i colori dei titoli di adesso, non di quelli scritti a meta' ($(@($fc.Colori.Keys) -join ','))" (
+        -not $fc.Colori.ContainsKey('1A - MAT') -and $fc.Colori.ContainsKey('1A - FIS') -and $fc.Colori.ContainsKey('2B'))
     if ($Immagini) {
         $bmp = New-Object System.Drawing.Bitmap($fc.Width, $fc.Height)
         $fc.DrawToBitmap($bmp, (New-Object System.Drawing.Rectangle(0, 0, $fc.Width, $fc.Height)))
-        $bmp.Save((Join-Path $cartella '36-Orari-4-colori-delle-classi.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Save((Join-Path $cartella '36-Orari-4-titoli-e-colori.png'), [System.Drawing.Imaging.ImageFormat]::Png)
         $bmp.Dispose()
     }
     $fc.Close(); $fc.Dispose()
-    # un colore scelto uguale a quello che un'altra classe ha da Campanella:
-    # quella ne prende subito un altro, e la finestra mostra gia' i colori che
-    # "Usa questi colori" dara' (rifatti, non cambiano piu')
+    # un colore scelto uguale a quello che un altro titolo ha da Campanella:
+    # quello ne prende subito un altro, e la finestra mostra gia' i colori che
+    # "Usa questi titoli e colori" dara' (rifatti, non cambiano piu')
     $fsc = FinestraColori @('1A', '2A', '3A') @{ '1A' = '11'; '2A' = '9'; '3A' = '10' } @() @{ '1A' = '11'; '2A' = '9'; '3A' = '10' }
     $qsc = $tFCC.GetField('quadrati', $FIf).GetValue($fsc)
     $tsc = $tFCC.GetField('tendine', $FIf).GetValue($fsc)
@@ -1505,29 +1534,31 @@ if ($null -ne $tFCC) {
     $cambiaAncora = $asm.GetType('Campanella.ColoriLezioni').GetMethod('Completa', $FS).Invoke($null,
         @($rifatti.PSObject.BaseObject, $fsc.AMano, $fsc.Classi, $vuotiS.PSObject.BaseObject))
     Verifica "scelto per la 2A il Pomodoro della 1A: la finestra mostra subito la 1A con un altro colore ($(ColoriDi $fsc)), e sono quelli che restano" (
-        (ColoriDi $fsc) -eq '1A=9,2A=11,3A=10' -and $qsc['1A'].Valore -eq '9' -and $tsc['1A'].SelectedItem.ToString() -eq 'Mirtillo' -and
-        $qsc['2A'].Valore -eq '11' -and @($fsc.AMano).Count -eq 1 -and -not $cambiaAncora)
+        (ColoriDi $fsc) -eq '1A=9,2A=11,3A=10' -and $qsc[(Riga $fsc '1A')].Valore -eq '9' -and
+        $tsc[(Riga $fsc '1A')].SelectedItem.ToString() -eq 'Mirtillo' -and
+        $qsc[(Riga $fsc '2A')].Valore -eq '11' -and @($fsc.AMano).Count -eq 1 -and -not $cambiaAncora)
     $fsc.Scegli('1A', '11')
     Verifica "  ...e scelto Pomodoro anche per la 1A, tutte e due restano Pomodoro ($(ColoriDi $fsc))" (
-        (ColoriDi $fsc) -eq '1A=11,2A=11,3A=10' -and $qsc['1A'].Valore -eq '11')
+        (ColoriDi $fsc) -eq '1A=11,2A=11,3A=10' -and $qsc[(Riga $fsc '1A')].Valore -eq '11')
     $fsc.Close(); $fsc.Dispose()
-    # con i colloqui: la riga Colloqui dopo tutte le classi, di partenza con un
-    # colore che le classi non usano, e la spiegazione lo dice
+    # con i colloqui: la loro riga dopo tutte le ore, di partenza con un colore
+    # che le lezioni non usano, e la spiegazione lo dice
     $fk = FinestraColori @('Colloqui', '2B', 'A disposizione', '1A') @{} @()
-    $spiegaK = @($fk.Controls | Where-Object { $_ -is [System.Windows.Forms.Label] -and $_.Text -match 'riga Colloqui' })
+    $spiegaK = @($fk.Controls | Where-Object { $_ -is [System.Windows.Forms.Label] -and $_.Text -match 'colloqui con le famiglie' })
     $coloriClassiK = @($fk.Classi | Where-Object { $_ -ne 'Colloqui' } | ForEach-Object { $fk.Colori[$_] })
-    Verifica "con i colloqui la finestra ha la riga Colloqui dopo tutte, con un colore che le classi non usano, e lo spiega ($(ColoriDi $fk))" (
+    Verifica "con i colloqui la finestra ha la loro riga dopo tutte, con un colore che le lezioni non usano, e lo spiega ($(ColoriDi $fk))" (
         ($fk.Classi -join ',') -eq '1A,2B,A disposizione,Colloqui' -and $fk.Colori['Colloqui'] -ne '' -and
-        $coloriClassiK -notcontains $fk.Colori['Colloqui'] -and $spiegaK.Count -eq 1)
-    ControllaPannello $fk 'Colori delle classi, con i colloqui'
-    ControllaPannello $fk.Righe 'Colori delle classi, con i colloqui, le righe'
+        $coloriClassiK -notcontains $fk.Colori['Colloqui'] -and $spiegaK.Count -eq 1 -and
+        $tFCC.GetField('tendine', $FIf).GetValue($fk).ContainsKey('Colloqui'))
+    ControllaPannello $fk 'Titoli e colori delle lezioni, con i colloqui'
+    ControllaPannello $fk.Righe 'Titoli e colori delle lezioni, con i colloqui, le righe'
     $fk.Close(); $fk.Dispose()
-    # tante classi: le righe scorrono, la finestra resta alta uguale
+    # tante ore: le righe scorrono, la finestra resta alta uguale
     $molte = @(1..16 | ForEach-Object { "$($_)A" })
     $fm = FinestraColori $molte @{} @()
-    ControllaPannello $fm 'Colori delle classi, 16 classi'
-    ControllaPannello $fm.Righe 'Colori delle classi, 16 classi, le righe'
-    Verifica "con 16 classi le righe scorrono e la finestra resta dentro lo schermo (alta $($fm.Height))" (
+    ControllaPannello $fm 'Titoli e colori delle lezioni, 16 ore'
+    ControllaPannello $fm.Righe 'Titoli e colori delle lezioni, 16 ore, le righe'
+    Verifica "con 16 ore le righe scorrono e la finestra resta dentro lo schermo (alta $($fm.Height))" (
         $fm.Righe.AutoScroll -and $fm.Righe.Height -eq 12 * 34 -and $fm.Height -lt 800 -and
         @($fm.Classi | ForEach-Object { $fm.Colori[$_] } | Sort-Object -Unique).Count -eq 11)
     $fm.Close(); $fm.Dispose()

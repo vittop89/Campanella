@@ -119,16 +119,22 @@ step 2).
   marks the labels of filters chosen for removal in the list of the other
   labels, and says to check Campanella before deleting them.
 
-**Orari: the title of the lessons on the calendar**
+**Orari: title and colour hour by hour**
 
-- "Colori e titoli delle classi..." (step 4, it was "Colori delle classi...")
-  has, for every class of the timetable ("3B - FIS"), a box for the title
-  of its lessons on Google Calendar ("3B - Fisica"); empty, the name of the
-  timetable stays. It goes into DatiOrari.gs (`calendario.titoli`) and the
-  colour of the class is written with both names, so the lessons already on
-  the calendar keep theirs. ORARI_4_calendario and ORARI_5_cambioOrario give
-  the new titles to the lessons they create; for those already there:
-  ORARI_ANNULLA_calendario, then ORARI_4_calendario. Orari.gs 1.6.2.
+- "Titoli e colori delle lezioni..." (step 4, it was "Colori delle
+  classi...") has a row for every hour of the teacher's timetable (LUN 2a,
+  S2 B), with the title of that lesson on Google Calendar ("2B - MAT" on
+  Monday, "2B - FIS" on Thursday; empty, the class of the timetable stays)
+  and its colour. The colour goes with the title: hours with the same title
+  share it, and changed in one row it changes in the others; every new title
+  gets one the others do not use. Consecutive hours become one event only
+  with the same title. A title belongs to that day, hour and class
+  (`Stato.CalTitoliOre`, key day|hour|class): with a new timetable that has
+  another class there it no longer applies. It goes into DatiOrari.gs
+  (`calendario.titoliOre`); Orari.gs (1.6.2) and the preview of Campanella
+  split the lessons the same way. ORARI_4_calendario and ORARI_5_cambioOrario
+  give the titles to the lessons they create; for those already there:
+  ORARI_ANNULLA_calendario, then ORARI_4_calendario.
 - The button with no classes (the name written in "Il tuo nome" is not in
   the timetable) says so in a window, not only in the bottom line, where it
   looked like it did nothing; and the calendar name follows the teacher's

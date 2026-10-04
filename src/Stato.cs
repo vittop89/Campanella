@@ -498,10 +498,12 @@ namespace Campanella
         // classi con lo stesso colore dato da Campanella lo tiene quella che e'
         // qui (ColoriLezioni.Completa)
         public Dictionary<string, string> CalColoriScritti = new Dictionary<string, string>();
-        // il titolo sul calendario delle lezioni di una classe del tabellone
-        // ("3B - FIS" -> "3B - Fisica"); senza, il titolo e' la classe com'e'.
-        // Solo nomi di classi e materie: sta nelle impostazioni
-        public Dictionary<string, string> CalTitoli = new Dictionary<string, string>();
+        // il titolo sul calendario della lezione di un'ora: chiave giorno del
+        // tabellone|ora|classe (AnalisiOrario.ChiaveOra), valore il titolo
+        // ("2B - MAT"); senza, il titolo e' la classe com'e'. Solo giorni, ore,
+        // classi e materie: sta nelle impostazioni. I colori vanno con il
+        // titolo (CalColori)
+        public Dictionary<string, string> CalTitoliOre = new Dictionary<string, string>();
         // vero = l'avviso dell'avvio sul fuso dei calendari messi con la 1.5 o
         // prima e' gia' stato dato (o non serviva): non si ripete
         public bool AvvisoFusoCalendarioDato = false;
@@ -1161,10 +1163,10 @@ namespace Campanella
                 foreach (KeyValuePair<string, string> kv in CalColoriScritti) scritti[kv.Key] = kv.Value ?? "";
             r["calColoriScritti"] = scritti;
             Dictionary<string, object> titoli = new Dictionary<string, object>();
-            if (CalTitoli != null)
-                foreach (KeyValuePair<string, string> kv in CalTitoli)
+            if (CalTitoliOre != null)
+                foreach (KeyValuePair<string, string> kv in CalTitoliOre)
                     if ((kv.Value ?? "").Trim() != "") titoli[kv.Key] = kv.Value.Trim();
-            r["calTitoli"] = titoli;
+            r["calTitoliOre"] = titoli;
             r["avvisoFusoCalendario"] = AvvisoFusoCalendarioDato;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
@@ -1355,14 +1357,14 @@ namespace Campanella
                 foreach (string k in Lista(r, "calColoriAMano"))
                     if (s.CalColori.ContainsKey(k) && !s.CalColoriAMano.Contains(k)) s.CalColoriAMano.Add(k);
                 s.CalColoriScritti = ColoriLezioni.Letti(r, "calColoriScritti");
-                s.CalTitoli = new Dictionary<string, string>();
-                Dictionary<string, object> titoliLetti = r.ContainsKey("calTitoli") ? r["calTitoli"] as Dictionary<string, object> : null;
+                s.CalTitoliOre = new Dictionary<string, string>();
+                Dictionary<string, object> titoliLetti = r.ContainsKey("calTitoliOre") ? r["calTitoliOre"] as Dictionary<string, object> : null;
                 if (titoliLetti != null)
                     foreach (KeyValuePair<string, object> kv in titoliLetti)
                     {
-                        string classe = (kv.Key ?? "").Trim();
+                        string ora = (kv.Key ?? "").Trim();
                         string titolo = (kv.Value == null) ? "" : Convert.ToString(kv.Value, CultureInfo.InvariantCulture).Trim();
-                        if (classe != "" && titolo != "") s.CalTitoli[classe] = titolo;
+                        if (ora != "" && titolo != "") s.CalTitoliOre[ora] = titolo;
                     }
                 s.AvvisoFusoCalendarioDato = Bool(r, "avvisoFusoCalendario", false);
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);

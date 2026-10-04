@@ -2680,28 +2680,32 @@ if (conCalendario) {
   verifica('senza colori, la riga dice che tutte le lezioni hanno il colore del calendario',
     /Colori delle classi: nessuno, tutte le lezioni hanno il colore del calendario/.test(contesto.ORARI_1_anteprima()));
 
-  // i titoli sul calendario scelti in Campanella (calendario.titoli): le
-  // lezioni nuove li prendono, e il colore vale con il titolo, come lo scrive
-  // Campanella (con tutti e due i nomi)
+  // i titoli scelti in Campanella ora per ora (calendario.titoliOre, chiave
+  // "giorno|ora|classe"): le lezioni nuove li prendono, un blocco di due ore
+  // con titoli diversi diventa due lezioni, e il colore va con il titolo
   {
-    const classeT = colorate[0];
-    const titoloT = classeT + ' - Titolo scelto';
+    const lungo = piano.tratti.find(tr => tr.blocco.oraA > tr.blocco.oraDa) || piano.tratti[0];
+    const b = lungo.blocco, giorno = contesto.ORARI.giorni[b.giorno];
+    const titoloT = b.testo + ' - seconda ora';
+    const chiave = giorno + '|' + (b.oraDa + 1) + '|' + b.testo;
+    const tratti = piano.tratti.filter(tr => tr.blocco.giorno === b.giorno && tr.blocco.oraDa === b.oraDa &&
+                                             tr.blocco.testo === b.testo);
     contesto.ORARI.calendario = Object.assign({}, calendarioDati, {
-      colori: Object.assign({}, coloriProva, { [titoloT]: coloriProva[classeT] }),
-      titoli: { [classeT]: titoloT, 'CLASSE CHE NON C\'E\'': 'Niente', [colorate[1]]: '   ' } });
+      colori: Object.assign({}, coloriProva, { [titoloT]: '3' }),
+      titoliOre: { [chiave]: titoloT, 'XXX|1|NESSUNA': 'Niente', [giorno + '|' + b.oraDa + '|' + b.testo]: '   ' } });
     azzeraCalendario();
     contesto.ORARI_4_calendario();
     const calT = calendari[0];
     const conTitolo = vive(calT).filter(s => s.titolo === titoloT);
-    verifica('ORARI_4_calendario da\' alle lezioni di ' + classeT + ' il titolo scelto (' + conTitolo.length + ' serie), ' +
-             'con il loro colore; un titolo vuoto lascia la classe com\'e\'',
-      conTitolo.length > 0 && conTitolo.length === piano.tratti.filter(tr => tr.blocco.testo === classeT).length &&
-      vive(calT).every(s => s.titolo !== classeT) &&
-      conTitolo.every(s => s.getColor() === colorabile(coloriProva[classeT])) &&
-      vive(calT).some(s => s.titolo === colorate[1]) && vive(calT).length === piano.tratti.length);
-    verifica('una classe scritta con altre maiuscole o altri spazi prende lo stesso titolo',
-      contesto._orariTitolo_({ [' ' + classeT.toLowerCase() + ' ']: 'X' }, classeT) === 'X' &&
-      contesto._orariTitolo_({}, classeT) === classeT);
+    verifica('ORARI_4_calendario da\' all\'ora scelta il suo titolo e il suo colore, e il blocco di ' + b.testo +
+             ' (ore ' + b.oraDa + '-' + b.oraA + ') diventa due lezioni (' + conTitolo.length + ' serie con il titolo)',
+      b.oraA > b.oraDa && conTitolo.length === tratti.length && conTitolo.every(s => s.getColor() === '3') &&
+      vive(calT).length === piano.tratti.length + tratti.length &&
+      vive(calT).filter(s => s.titolo === b.testo).length >= tratti.length);
+    verifica('un titolo vuoto, o di un\'ora con un\'altra classe, non conta',
+      contesto._orariTitoloDellOra_({ [chiave]: '  ' }, giorno, b.oraDa + 1, b.testo) === b.testo &&
+      contesto._orariTitoloDellOra_({ [chiave]: 'X' }, giorno, b.oraDa + 1, 'ALTRA') === 'ALTRA' &&
+      contesto._orariTitoloDellOra_({ [chiave]: 'X' }, giorno, b.oraDa + 1, b.testo) === 'X');
     conColori(coloriProva);
   }
 

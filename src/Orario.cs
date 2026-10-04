@@ -500,6 +500,60 @@ namespace Campanella
         /// <summary>Le ore consecutive della stessa classe diventano un blocco solo.</summary>
         public static List<BloccoOrario> Blocchi(string[,] griglia, RisultatoOrario o)
         {
+            return Blocchi(griglia, o, null);
+        }
+
+        /// <summary>
+        /// La chiave del titolo di un'ora (Stato.CalTitoliOre): il giorno come
+        /// nella colonna del tabellone, l'ora (da 1) e la classe ("A
+        /// disposizione" per le ore D). Lo script la scrive allo stesso modo.
+        /// </summary>
+        public static string ChiaveOra(string giorno, int ora, string classe)
+        {
+            return (giorno ?? "").Trim() + "|" + ora + "|" + (classe ?? "").Trim();
+        }
+
+        /// <summary>Il titolo sul calendario della lezione di un'ora: quello scelto (Stato.CalTitoliOre), o la classe com'e'.</summary>
+        public static string TitoloDellOra(Stato s, string giorno, int ora, string classe)
+        {
+            string t;
+            if (s != null && s.CalTitoliOre != null && s.CalTitoliOre.TryGetValue(ChiaveOra(giorno, ora, classe), out t) &&
+                (t ?? "").Trim() != "")
+                return t.Trim();
+            return classe ?? "";
+        }
+
+        /// <summary>
+        /// Le ore dell'orario del docente, giorno per giorno (nell'ordine delle
+        /// colonne) e ora per ora: quelle con una classe, "A disposizione" per le D.
+        /// </summary>
+        public static List<OraDelCalendario> OreDelDocente(RisultatoOrario o, string docente)
+        {
+            List<OraDelCalendario> fuori = new List<OraDelCalendario>();
+            if (o == null || string.IsNullOrEmpty(docente)) return fuori;
+            string[,] g = o.GrigliaDocente(docente);
+            for (int d = 0; d < g.GetLength(1) && d < o.Giorni.Count; d++)
+                for (int h = 0; h < g.GetLength(0); h++)
+                {
+                    string v = (g[h, d] ?? "").Trim();
+                    if (v == "") continue;
+                    OraDelCalendario x = new OraDelCalendario();
+                    x.Giorno = o.Giorni[d];
+                    x.Ora = h + 1;
+                    x.Classe = o.EDisposizione(v) ? "A disposizione" : v;
+                    fuori.Add(x);
+                }
+            return fuori;
+        }
+
+        /// <summary>
+        /// Con lo Stato, il testo di ogni blocco e' il titolo sul calendario
+        /// delle sue ore (TitoloDellOra), e le ore consecutive diventano un
+        /// blocco solo se hanno lo stesso titolo: "2B - MAT" e poi "2B - FIS"
+        /// sono due lezioni. Come fa lo script (_orariBlocchi_).
+        /// </summary>
+        public static List<BloccoOrario> Blocchi(string[,] griglia, RisultatoOrario o, Stato s)
+        {
             List<BloccoOrario> fuori = new List<BloccoOrario>();
             int ore = griglia.GetLength(0), giorni = griglia.GetLength(1);
             for (int d = 0; d < giorni; d++)
@@ -509,6 +563,7 @@ namespace Campanella
                 {
                     string v = (griglia[h, d] ?? "").Trim();
                     string testo = (v == "") ? "" : (o.EDisposizione(v) ? "A disposizione" : v);
+                    if (s != null && testo != "" && d < o.Giorni.Count) testo = TitoloDellOra(s, o.Giorni[d], h + 1, testo);
                     if (aperto != null && testo != "" && testo == aperto.Testo && aperto.OraA == h)
                     {
                         aperto.OraA = h + 1;
@@ -530,9 +585,15 @@ namespace Campanella
         /// </summary>
         public static List<string> ClassiDelCalendario(RisultatoOrario o, string docente)
         {
+            return ClassiDelCalendario(o, docente, null);
+        }
+
+        /// <summary>Con lo Stato: i titoli delle lezioni sul calendario (Blocchi con i titoli delle ore).</summary>
+        public static List<string> ClassiDelCalendario(RisultatoOrario o, string docente, Stato s)
+        {
             List<string> fuori = new List<string>();
             if (o == null || string.IsNullOrEmpty(docente)) return fuori;
-            foreach (BloccoOrario b in Blocchi(o.GrigliaDocente(docente), o))
+            foreach (BloccoOrario b in Blocchi(o.GrigliaDocente(docente), o, s))
                 if (!fuori.Contains(b.Testo)) fuori.Add(b.Testo);
             return ColoriLezioni.Ordinate(fuori);
         }
@@ -545,7 +606,7 @@ namespace Campanella
         /// </summary>
         public static List<string> VociDeiColori(RisultatoOrario o, Stato s, string docente)
         {
-            List<string> fuori = ClassiDelCalendario(o, docente);
+            List<string> fuori = ClassiDelCalendario(o, docente, s);
             if (fuori.Count == 0 || s == null) return fuori;
             if (Colloqui.CeNe(s.CalColloqui, InizioDelPeriodo(s))) fuori.Add(ColoriLezioni.Colloqui);
             return ColoriLezioni.Ordinate(fuori);
@@ -737,31 +798,31 @@ namespace Campanella
             // (i colloqui, se ci sono, prendono il loro con le classi: VociDeiColori)
             List<string> classiCal = VociDeiColori(o, s, docenteCal);
             Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
-            StringBuilder colori = new StringBuilder(), titoli = new StringBuilder();
-            List<string> chiaviColori = new List<string>();
+            // (le voci sono i titoli delle lezioni: la classe com'e', o il titolo
+            // scelto per le sue ore, Stato.CalTitoliOre)
+            StringBuilder colori = new StringBuilder(), titoliOre = new StringBuilder();
             foreach (string k in classiCal)
             {
                 string v;
                 if (k == ColoriLezioni.Colloqui) continue;
-                // il titolo scelto per la classe (Stato.CalTitoli): le lezioni nuove
-                // lo prendono, e il colore vale con tutti e due i nomi, cosi' anche
-                // quelle gia' sul calendario con il nome di prima hanno il loro
-                string titolo = TitoloSulCalendario(s, k);
-                if (titolo != k)
-                    titoli.Append((titoli.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(titolo) + "\"");
                 if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
-                foreach (string nome in new string[] { k, titolo })
-                {
-                    if (chiaviColori.Contains(nome)) continue;
-                    chiaviColori.Add(nome);
-                    colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(nome) + "\": \"" + Js(v) + "\"");
-                }
+                colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
             }
             sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
-                          "// il colore delle lezioni di ogni classe (Google Calendar, da 1 a 11); le altre, quello del calendario");
-            if (titoli.Length > 0)
-                sb.AppendLine("    titoli:    {" + titoli + " },   " +
-                              "// il titolo sul calendario delle lezioni di una classe; le altre, la classe com'e'");
+                          "// il colore delle lezioni di ogni titolo (Google Calendar, da 1 a 11); le altre, quello del calendario");
+            // i titoli scelti per le ore che ci sono ancora (la stessa classe a quell'ora)
+            foreach (OraDelCalendario ora in OreDelDocente(o, docenteCal))
+            {
+                string titolo = TitoloDellOra(s, ora.Giorno, ora.Ora, ora.Classe);
+                if (titolo == ora.Classe) continue;
+                titoliOre.Append((titoliOre.Length > 0 ? "," : "") + Environment.NewLine + "      \"" + Js(ora.Chiave()) +
+                                 "\": \"" + Js(titolo) + "\"");
+            }
+            if (titoliOre.Length > 0)
+            {
+                sb.AppendLine("    // il titolo sul calendario della lezione di un'ora (giorno|ora|classe); le altre, la classe com'e'");
+                sb.AppendLine("    titoliOre: {" + titoliOre + Environment.NewLine + "    },");
+            }
 
             // i giorni senza lezione: solo le righe capite, con le date
             // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)
@@ -797,20 +858,6 @@ namespace Campanella
                                                    DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
             sb.AppendLine("    validoDal: \"" + cambio + "\"   // l'orario cambiato vale da qui (ORARI_5_cambioOrario); vuoto = nessun cambio");
             sb.AppendLine("  }");
-        }
-
-        /// <summary>
-        /// Il titolo sul calendario delle lezioni di una classe del tabellone:
-        /// quello scelto in "Colori e titoli delle classi..." (Stato.CalTitoli),
-        /// o la classe com'e'.
-        /// </summary>
-        public static string TitoloSulCalendario(Stato s, string classe)
-        {
-            string t;
-            if (s != null && s.CalTitoli != null && classe != null && s.CalTitoli.TryGetValue(classe, out t) &&
-                (t ?? "").Trim() != "")
-                return t.Trim();
-            return classe ?? "";
         }
 
         /// <summary>

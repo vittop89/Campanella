@@ -2717,25 +2717,49 @@ namespace Campanella
     }
 
     /// <summary>
-    /// "Colori e titoli delle classi..." (Orari, passo 4): una riga per ogni classe
-    /// dell'orario del docente, con il quadratino del colore e la tendina dei
-    /// colori degli eventi di Google Calendar, piu' "colore del calendario".
-    /// Un colore cambiato qui e' scelto a mano, e resta; "Colori di partenza"
-    /// rimette quelli che Campanella da' da sola. Lavora su una copia: con
-    /// Annulla non cambia niente.
+    /// Un'ora dell'orario del docente sul calendario: il giorno come nella
+    /// colonna del tabellone, l'ora (da 1) e la classe ("A disposizione" per le
+    /// ore D). La chiave (AnalisiOrario.ChiaveOra) lega il titolo scelto a
+    /// quell'ora di quella classe: con un orario nuovo che li' ha un'altra
+    /// classe non vale piu'.
+    /// </summary>
+    class OraDelCalendario
+    {
+        public string Giorno = "";
+        public int Ora = 1;
+        public string Classe = "";
+        public string Chiave() { return AnalisiOrario.ChiaveOra(Giorno, Ora, Classe); }
+    }
+
+    /// <summary>
+    /// "Titoli e colori delle lezioni..." (Orari, passo 4): una riga per ogni
+    /// ora dell'orario del docente, con il titolo che la lezione avra' sul
+    /// calendario (vuoto: la classe com'e', come "S2 B") e il colore, scelto
+    /// fra quelli degli eventi di Google Calendar, piu' "colore del
+    /// calendario". Il colore e' del titolo: tutte le ore "2B - MAT" hanno lo
+    /// stesso, e cambiato in una riga cambia anche nelle altre. Ogni titolo
+    /// nuovo ne prende uno che gli altri non usano (ColoriLezioni.Completa);
+    /// uno scelto qui e' scelto a mano, e resta; "Colori di partenza" rimette
+    /// quelli che Campanella da' da sola. Con i colloqui c'e' anche la loro
+    /// riga, per il colore. Lavora su una copia: con Annulla non cambia niente.
     /// </summary>
     class FormColoriClassi : Form
     {
-        /// <summary>I colori delle classi (una copia), con quelli scelti qui.</summary>
+        /// <summary>I colori dei titoli (una copia), con quelli scelti qui.</summary>
         public readonly Dictionary<string, string> Colori;
-        /// <summary>Le classi con il colore scelto a mano (una copia).</summary>
+        /// <summary>I titoli con il colore scelto a mano (una copia).</summary>
         public readonly List<string> AMano;
-        /// <summary>Le classi della finestra, in ordine.</summary>
-        public readonly List<string> Classi;
-        /// <summary>Il titolo sul calendario di ogni classe che ne ha uno diverso dal suo nome (una copia).</summary>
-        public readonly Dictionary<string, string> Titoli = new Dictionary<string, string>();
-        readonly Dictionary<string, TextBox> caselleTitolo = new Dictionary<string, TextBox>();
+        /// <summary>I titoli delle lezioni della finestra, una volta sola, in ordine (con Colloqui, se ci sono).</summary>
+        public readonly List<string> Classi = new List<string>();
+        /// <summary>Il titolo scelto per un'ora (chiave AnalisiOrario.ChiaveOra), quando non e' la classe com'e'.</summary>
+        public readonly Dictionary<string, string> TitoliOre = new Dictionary<string, string>();
+        /// <summary>Le ore della finestra, in ordine.</summary>
+        public readonly List<OraDelCalendario> Ore;
 
+        readonly bool conColloqui;
+        readonly List<string> chiaviDiPrima;
+        readonly Dictionary<string, OraDelCalendario> perChiave = new Dictionary<string, OraDelCalendario>();
+        readonly Dictionary<string, TextBox> caselleTitolo = new Dictionary<string, TextBox>();
         readonly Dictionary<string, ComboBox> tendine = new Dictionary<string, ComboBox>();
         readonly Dictionary<string, QuadratoColore> quadrati = new Dictionary<string, QuadratoColore>();
         readonly Dictionary<string, Label> note = new Dictionary<string, Label>();
@@ -2754,22 +2778,30 @@ namespace Campanella
             public override string ToString() { return ColoriLezioni.Nome(Valore); }
         }
 
-        /// <param name="scritti">i colori delle classi nell'ultimo DatiOrari.gs uscito (Stato.CalColoriScritti), anche null</param>
-        public FormColoriClassi(List<string> classi, Dictionary<string, string> colori, List<string> aMano,
-                                Dictionary<string, string> scritti)
-            : this(classi, colori, aMano, scritti, null) { }
-
-        /// <param name="titoli">i titoli sul calendario scelti prima (Stato.CalTitoli), anche null</param>
-        public FormColoriClassi(List<string> classi, Dictionary<string, string> colori, List<string> aMano,
-                                Dictionary<string, string> scritti, Dictionary<string, string> titoli)
+        /// <param name="ore">le ore dell'orario del docente (AnalisiOrario.OreDelDocente)</param>
+        /// <param name="colloqui">vero se ci sono colloqui che vanno sul calendario: hanno la loro riga</param>
+        /// <param name="scritti">i colori nell'ultimo DatiOrari.gs uscito (Stato.CalColoriScritti), anche null</param>
+        /// <param name="titoliOre">i titoli scelti prima (Stato.CalTitoliOre), anche null</param>
+        public FormColoriClassi(List<OraDelCalendario> ore, bool colloqui, Dictionary<string, string> colori,
+                                List<string> aMano, Dictionary<string, string> scritti, Dictionary<string, string> titoliOre)
         {
-            Classi = ColoriLezioni.Ordinate(classi);
+            Ore = new List<OraDelCalendario>(ore ?? new List<OraDelCalendario>());
+            conColloqui = colloqui;
             Colori = new Dictionary<string, string>(colori ?? new Dictionary<string, string>());
+            chiaviDiPrima = new List<string>(Colori.Keys);
             AMano = new List<string>(aMano ?? new List<string>());
             this.scritti = new Dictionary<string, string>(scritti ?? new Dictionary<string, string>());
+            foreach (OraDelCalendario o in Ore)
+            {
+                string k = o.Chiave(), t;
+                perChiave[k] = o;
+                if (titoliOre != null && titoliOre.TryGetValue(k, out t) && (t ?? "").Trim() != "" && t.Trim() != o.Classe)
+                    TitoliOre[k] = t.Trim();
+            }
+            RifaiClassi();
             ColoriLezioni.Completa(Colori, AMano, Classi, this.scritti);
 
-            Text = "Colori e titoli delle classi";
+            Text = "Titoli e colori delle lezioni";
             StartPosition = FormStartPosition.CenterParent;
             Font = Tema.Normale;
             MinimizeBox = false;
@@ -2779,102 +2811,68 @@ namespace Campanella
 
             int y = 14;
             Label spiega = Tema.Testo1(
-                "Ogni lezione sul calendario prende il colore della sua classe, nello stesso calendario. Sono i " +
-                "colori degli eventi di Google Calendar, con i loro nomi. Di partenza ogni classe ne ha uno diverso, " +
-                "sempre lo stesso; \"colore del calendario\" lascia alle sue lezioni quello del calendario. Nel " +
-                "titolo scrivi come vuoi che si chiamino le sue lezioni sul calendario (per esempio \"3B - Fisica\"); " +
-                "vuoto, resta il nome del tabellone." +
-                (Classi.Contains(ColoriLezioni.Colloqui)
-                    ? " I colloqui con le famiglie hanno il loro, nella riga Colloqui: di partenza uno che le classi " +
-                      "non usano."
+                "Una riga per ogni ora del tuo orario. Il titolo e' come la lezione si chiamera' sul calendario (per " +
+                "esempio \"2B - MAT\"); vuoto, resta la classe del tabellone. Il colore e' quello degli eventi di " +
+                "Google Calendar: va con il titolo, quindi le ore con lo stesso titolo hanno lo stesso colore, e di " +
+                "partenza ogni titolo ne ha uno diverso. \"colore del calendario\" lascia alle sue lezioni quello del " +
+                "calendario. Le ore una dopo l'altra con lo stesso titolo diventano un evento solo." +
+                (conColloqui
+                    ? " I colloqui con le famiglie hanno il loro colore, nell'ultima riga: di partenza uno che le " +
+                      "lezioni non usano."
                     : ""),
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(spiega);
             y += spiega.Height + 10;
-            // le intestazioni delle colonne
-            Controls.Add(Tema.Testo1("Classe nel tabellone", 16 + 28, y, 150, Tema.Piccolo, Ruolo.Tenue));
-            Controls.Add(Tema.Testo1("Titolo sul calendario", 16 + 186, y, 200, Tema.Piccolo, Ruolo.Tenue));
-            Controls.Add(Tema.Testo1("Colore", 16 + 394, y, 200, Tema.Piccolo, Ruolo.Tenue));
+            Controls.Add(Tema.Testo1("Ora", 16 + 28, y, 70, Tema.Piccolo, Ruolo.Tenue));
+            Controls.Add(Tema.Testo1("Classe nel tabellone", 16 + 102, y, 112, Tema.Piccolo, Ruolo.Tenue));
+            Controls.Add(Tema.Testo1("Titolo sul calendario", 16 + 220, y, 200, Tema.Piccolo, Ruolo.Tenue));
+            Controls.Add(Tema.Testo1("Colore", 16 + 428, y, 200, Tema.Piccolo, Ruolo.Tenue));
             y += 20;
 
-            // le righe stanno in un riquadro, che scorre se le classi sono tante
+            // le righe stanno in un riquadro, che scorre se le ore sono tante
+            int quanteRighe = Ore.Count + (conColloqui ? 1 : 0);
             righe = new Panel();
             righe.Location = new Point(16, y);
-            righe.Size = new Size(Larga, Math.Max(1, Math.Min(Classi.Count, MassimoRighe)) * AltaRiga);
-            righe.AutoScroll = Classi.Count > MassimoRighe;
+            righe.Size = new Size(Larga, Math.Max(1, Math.Min(quanteRighe, MassimoRighe)) * AltaRiga);
+            righe.AutoScroll = quanteRighe > MassimoRighe;
             Controls.Add(righe);
-            int larghezzaNota = Larga - 618 - (righe.AutoScroll ? SystemInformation.VerticalScrollBarWidth + 4 : 0);
+            int larghezzaNota = Larga - 648 - (righe.AutoScroll ? SystemInformation.VerticalScrollBarWidth + 4 : 0);
             int yr = 0;
-            foreach (string k in Classi)
+            foreach (OraDelCalendario o in Ore)
             {
-                QuadratoColore q = new QuadratoColore(0, yr + 8, 18);
-                righe.Controls.Add(q);
-                Label nome = Tema.Testo1(k, 28, yr + 7, 150, Tema.Grassetto, Ruolo.Normale);
-                nome.AutoEllipsis = true;
-                nome.Height = Math.Min(nome.Height, AltaRiga - 8);
-                righe.Controls.Add(nome);
-                // il titolo delle sue lezioni sul calendario (non per i colloqui,
-                // che hanno il nome scritto nella loro riga)
-                if (k != ColoriLezioni.Colloqui)
+                string k = o.Chiave();
+                AggiungiRiga(k, (o.Giorno + " " + o.Ora + "a").Trim(), o.Classe, yr, larghezzaNota);
+                TextBox tt = Tema.Casella(220, yr + 4, 200, o.Classe);
+                string t;
+                if (TitoliOre.TryGetValue(k, out t)) tt.Text = t;
+                string chiave = k, classe = o.Classe;
+                tt.TextChanged += delegate
                 {
-                    TextBox tt = Tema.Casella(186, yr + 4, 200, k);
-                    string scelto;
-                    if (titoli != null && titoli.TryGetValue(k, out scelto) && (scelto ?? "").Trim() != "")
-                    {
-                        tt.Text = scelto.Trim();
-                        if (tt.Text != k) Titoli[k] = tt.Text;
-                    }
-                    string classeT = k;
-                    tt.TextChanged += delegate
-                    {
-                        string v = tt.Text.Trim();
-                        if (v == "" || v == classeT) Titoli.Remove(classeT); else Titoli[classeT] = v;
-                    };
-                    tt.AccessibleName = "Titolo sul calendario di " + k;
-                    righe.Controls.Add(tt);
-                    caselleTitolo[k] = tt;
-                }
-                ComboBox cb = new ComboBox();
-                cb.Location = new Point(394, yr + 3);
-                cb.Width = 212;
-                cb.DropDownStyle = ComboBoxStyle.DropDownList;
-                cb.DrawMode = DrawMode.OwnerDrawFixed;
-                cb.Font = Tema.Normale;
-                cb.ItemHeight = Tema.Normale.Height + 5;
-                cb.MaxDropDownItems = 12;
-                cb.Items.Add(new VoceColore());
-                for (int i = 0; i < ColoriLezioni.Tavolozza.GetLength(0); i++)
-                {
-                    VoceColore v = new VoceColore();
-                    v.Valore = ColoriLezioni.Tavolozza[i, 0];
-                    cb.Items.Add(v);
-                }
-                cb.DrawItem += DisegnaVoce;
-                string classe = k;
-                cb.SelectedIndexChanged += delegate { if (!riempiendo) Scegli(classe, ValoreDi(cb)); };
-                cb.AccessibleName = "Colore di " + k;
-                righe.Controls.Add(cb);
-                Label nota = Tema.Testo1("", 618, yr + 9, larghezzaNota, Tema.Piccolo, Ruolo.Tenue);
-                nota.Height = Tema.AltezzaTesto("scelto da te", Tema.Piccolo, larghezzaNota);
-                righe.Controls.Add(nota);
-                quadrati[k] = q;
-                tendine[k] = cb;
-                note[k] = nota;
+                    string v = tt.Text.Trim();
+                    if (v == "" || v == classe) TitoliOre.Remove(chiave); else TitoliOre[chiave] = v;
+                };
+                // finito di scrivere: il titolo nuovo prende il suo colore
+                tt.Leave += delegate { Rifai(); };
+                tt.AccessibleName = "Titolo sul calendario di " + o.Giorno + " " + o.Ora + "a ora, " + o.Classe;
+                righe.Controls.Add(tt);
+                caselleTitolo[k] = tt;
                 yr += AltaRiga;
             }
+            if (conColloqui) AggiungiRiga(ColoriLezioni.Colloqui, ColoriLezioni.Colloqui, "", yr, larghezzaNota);
             y += righe.Height + 10;
 
             Label dopo = Tema.Testo1(
-                "Poi rigenera DatiOrari.gs e incollalo: ORARI_4_calendario e ORARI_5_cambioOrario danno colori e " +
-                "titoli alle lezioni che mettono, ORARI_6_coloraLezioni i colori a quelle gia' sul calendario. Per " +
+                "Poi rigenera DatiOrari.gs e incollalo: ORARI_4_calendario e ORARI_5_cambioOrario danno titoli e " +
+                "colori alle lezioni che mettono, ORARI_6_coloraLezioni i colori a quelle gia' sul calendario. Per " +
                 "dare i titoli nuovi anche a quelle: ORARI_ANNULLA_calendario e poi ORARI_4_calendario.",
                 16, y, Larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(dopo);
             y += dopo.Height + 12;
 
             Controls.Add(Tema.Bottone("Colori di partenza", 16, y + 2, 170, delegate { DiPartenza(); }));
-            Button ok = Tema.BottonePrincipale("Usa questi colori e titoli", 16 + Larga - 230, y, 230, null);
+            Button ok = Tema.BottonePrincipale("Usa questi titoli e colori", 16 + Larga - 230, y, 230, null);
             ok.DialogResult = DialogResult.OK;
+            ok.Click += delegate { Conferma(); };
             Controls.Add(ok);
             Button ann = Tema.Bottone("Annulla", 16 + Larga - 230 - 98, y + 2, 90, null);
             ann.DialogResult = DialogResult.Cancel;
@@ -2886,8 +2884,97 @@ namespace Campanella
             Tema.Applica(this);
         }
 
+        /// <summary>Una riga: il quadratino, l'ora (o Colloqui), la classe, la tendina del colore e la nota.</summary>
+        void AggiungiRiga(string k, string ora, string classe, int yr, int larghezzaNota)
+        {
+            QuadratoColore q = new QuadratoColore(0, yr + 8, 18);
+            righe.Controls.Add(q);
+            Label lOra = Tema.Testo1(ora, 28, yr + 7, 70, Tema.Grassetto, Ruolo.Normale);
+            lOra.AutoEllipsis = true;
+            lOra.Height = Math.Min(lOra.Height, AltaRiga - 8);
+            righe.Controls.Add(lOra);
+            if (classe != "")
+            {
+                Label lClasse = Tema.Testo1(classe, 102, yr + 7, 112, Tema.Normale, Ruolo.Normale);
+                lClasse.AutoEllipsis = true;
+                lClasse.Height = Math.Min(lClasse.Height, AltaRiga - 8);
+                righe.Controls.Add(lClasse);
+            }
+            ComboBox cb = new ComboBox();
+            cb.Location = new Point(428, yr + 3);
+            cb.Width = 212;
+            cb.DropDownStyle = ComboBoxStyle.DropDownList;
+            cb.DrawMode = DrawMode.OwnerDrawFixed;
+            cb.Font = Tema.Normale;
+            cb.ItemHeight = Tema.Normale.Height + 5;
+            cb.MaxDropDownItems = 12;
+            cb.Items.Add(new VoceColore());
+            for (int i = 0; i < ColoriLezioni.Tavolozza.GetLength(0); i++)
+            {
+                VoceColore v = new VoceColore();
+                v.Valore = ColoriLezioni.Tavolozza[i, 0];
+                cb.Items.Add(v);
+            }
+            cb.DrawItem += DisegnaVoce;
+            string chiave = k;
+            cb.SelectedIndexChanged += delegate { if (!riempiendo) Scegli(TitoloDi(chiave), ValoreDi(cb)); };
+            cb.AccessibleName = "Colore di " + ora + (classe != "" ? ", " + classe : "");
+            righe.Controls.Add(cb);
+            Label nota = Tema.Testo1("", 648, yr + 9, larghezzaNota, Tema.Piccolo, Ruolo.Tenue);
+            nota.Height = Tema.AltezzaTesto("scelto da te", Tema.Piccolo, larghezzaNota);
+            righe.Controls.Add(nota);
+            quadrati[k] = q;
+            tendine[k] = cb;
+            note[k] = nota;
+        }
+
         /// <summary>Il riquadro delle righe (per le prove).</summary>
         public Panel Righe { get { return righe; } }
+
+        /// <summary>Il titolo della lezione di una riga (la chiave dell'ora): quello scelto, o la classe com'e'; per i colloqui, Colloqui.</summary>
+        public string TitoloDi(string chiave)
+        {
+            if (chiave == ColoriLezioni.Colloqui) return ColoriLezioni.Colloqui;
+            string t;
+            if (TitoliOre.TryGetValue(chiave, out t)) return t;
+            OraDelCalendario o;
+            return perChiave.TryGetValue(chiave, out o) ? o.Classe : chiave;
+        }
+
+        /// <summary>I titoli delle ore, una volta sola, in ordine, e Colloqui in fondo se ci sono.</summary>
+        void RifaiClassi()
+        {
+            List<string> titoli = new List<string>();
+            foreach (OraDelCalendario o in Ore)
+            {
+                string t = TitoloDi(o.Chiave());
+                if (!titoli.Contains(t)) titoli.Add(t);
+            }
+            if (conColloqui) titoli.Add(ColoriLezioni.Colloqui);
+            Classi.Clear();
+            Classi.AddRange(ColoriLezioni.Ordinate(titoli));
+        }
+
+        /// <summary>Dopo un titolo cambiato: i titoli di adesso, e un colore a quelli nuovi.</summary>
+        public void Rifai()
+        {
+            RifaiClassi();
+            ColoriLezioni.Completa(Colori, AMano, Classi, scritti);
+            Aggiorna();
+        }
+
+        /// <summary>
+        /// "Usa questi titoli e colori": i titoli di adesso, e via i colori dei
+        /// titoli scritti a meta' qui dentro, che nessuna ora ha piu' (quelli
+        /// che c'erano gia' restano: possono essere di un altro orario).
+        /// </summary>
+        public void Conferma()
+        {
+            Rifai();
+            foreach (string k in new List<string>(Colori.Keys))
+                if (!Classi.Contains(k) && !chiaviDiPrima.Contains(k)) Colori.Remove(k);
+            AMano.RemoveAll(delegate(string k) { return !Classi.Contains(k) && !chiaviDiPrima.Contains(k); });
+        }
 
         static string ValoreDi(ComboBox cb)
         {
@@ -2896,25 +2983,27 @@ namespace Campanella
         }
 
         /// <summary>
-        /// Sceglie a mano il colore di una classe ("" = il colore del
-        /// calendario). Una classe che aveva lo stesso colore da Campanella ne
-        /// prende subito un altro, se ce n'e' uno libero (ColoriLezioni.Completa):
-        /// la finestra mostra gia' i colori che "Usa questi colori" dara', e chi
-        /// le vuole uguali sceglie a mano anche l'altra.
+        /// Sceglie a mano il colore di un titolo ("" = il colore del
+        /// calendario): tutte le sue ore lo prendono. Un titolo che aveva lo
+        /// stesso colore da Campanella ne prende subito un altro, se ce n'e' uno
+        /// libero (ColoriLezioni.Completa): la finestra mostra gia' i colori che
+        /// "Usa questi titoli e colori" dara', e chi li vuole uguali sceglie a
+        /// mano anche l'altro.
         /// </summary>
-        public void Scegli(string classe, string valore)
+        public void Scegli(string titolo, string valore)
         {
             string v = valore ?? "";
-            if (!Classi.Contains(classe) || !ColoriLezioni.Valido(v)) return;
-            Colori[classe] = v;
-            if (!AMano.Contains(classe)) AMano.Add(classe);
+            if (!Classi.Contains(titolo) || !ColoriLezioni.Valido(v)) return;
+            Colori[titolo] = v;
+            if (!AMano.Contains(titolo)) AMano.Add(titolo);
             ColoriLezioni.Completa(Colori, AMano, Classi, scritti);
             Aggiorna();
         }
 
-        /// <summary>"Colori di partenza": tutte le classi tornano ai colori che Campanella da' da sola.</summary>
+        /// <summary>"Colori di partenza": tutti i titoli tornano ai colori che Campanella da' da sola.</summary>
         public void DiPartenza()
         {
+            RifaiClassi();
             ColoriLezioni.DiPartenza(Colori, AMano, Classi);
             Aggiorna();
         }
@@ -2924,15 +3013,15 @@ namespace Campanella
             riempiendo = true;
             try
             {
-                foreach (string k in Classi)
+                foreach (string k in tendine.Keys)
                 {
-                    string v;
-                    if (!Colori.TryGetValue(k, out v)) v = "";
+                    string titolo = TitoloDi(k), v;
+                    if (!Colori.TryGetValue(titolo, out v)) v = "";
                     quadrati[k].Valore = v;
                     ComboBox cb = tendine[k];
                     for (int i = 0; i < cb.Items.Count; i++)
                         if (((VoceColore)cb.Items[i]).Valore == v) { cb.SelectedIndex = i; break; }
-                    note[k].Text = AMano.Contains(k) ? "scelto da te" : "";
+                    note[k].Text = AMano.Contains(titolo) ? "scelto da te" : "";
                 }
             }
             finally { riempiendo = false; }

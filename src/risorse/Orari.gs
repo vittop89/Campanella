@@ -2133,7 +2133,7 @@ function _orariFineColori_(c, stato, conti) {
          ': ' + stato.esempiNonMessi.join('; ') + (n > stato.esempiNonMessi.length ? '; ...' : '') + '. Riesegui ' +
          'ORARI_6_coloraLezioni piu\' tardi.\n' : '') +
     '\nLe lezioni non le ho rifatte ne\' spostate: ho cambiato solo il colore. I colori li scegli in Campanella ' +
-    '(Orari, passo 4, "Colori e titoli delle classi..."): per cambiarli rigenera DatiOrari.gs, incollalo e riesegui ' +
+    '(Orari, passo 4, "Titoli e colori delle lezioni..."): per cambiarli rigenera DatiOrari.gs, incollalo e riesegui ' +
     'ORARI_6_coloraLezioni.';
 }
 
@@ -2643,10 +2643,6 @@ function _orariValidoDal_(c, periodo) {
  */
 function _orariPiano_(d, doc, periodo, dal) {
   var blocchi = _orariBlocchi_(doc.celle, d);
-  // il titolo sul calendario: quello scelto in Campanella per la classe, o la
-  // classe com'e' (le ore consecutive della stessa classe restano un blocco)
-  var titoli = (d.calendario && d.calendario.titoli && typeof d.calendario.titoli === 'object') ? d.calendario.titoli : {};
-  for (var t = 0; t < blocchi.length; t++) blocchi[t].testo = _orariTitolo_(titoli, blocchi[t].testo);
   var piano = { serie: [], lezioni: 0, saltate: 0, blocchiFuori: 0 };
   for (var b = 0; b < blocchi.length; b++) {
     var blocco = blocchi[b];
@@ -3241,31 +3237,37 @@ function _mostraCella_(v) {
 }
 
 /**
- * Il titolo sul calendario delle lezioni di una classe del tabellone: quello
- * scelto in Campanella (calendario.titoli, "3B - FIS": "3B - Fisica"; la
- * classe scritta con altre maiuscole o altri spazi e' la stessa), o la classe
- * com'e'. Un titolo vuoto non conta.
+ * Il titolo sul calendario della lezione di un'ora: quello scelto in
+ * Campanella (calendario.titoliOre, con la chiave "giorno del tabellone|ora|
+ * classe": "LUN|2|S2 B": "2B - MAT"), o la classe com'e'. La classe nella
+ * chiave fa si' che con un orario nuovo, che a quell'ora ha un'altra classe,
+ * il titolo non valga piu'. Un titolo vuoto non conta.
  */
-function _orariTitolo_(titoli, testo) {
-  var classe = String(testo == null ? '' : testo), chiave = _orariChiave_(classe), trovato = '';
-  for (var k in titoli) {
-    if (k !== classe && (!chiave || _orariChiave_(k) !== chiave)) continue;
-    var v = (typeof titoli[k] === 'string') ? titoli[k].trim() : '';
-    if (!v) continue;
-    trovato = v;
-    if (k === classe) break;
+function _orariTitoloDellOra_(titoliOre, giorno, ora, classe) {
+  var chiave = String(giorno == null ? '' : giorno).trim() + '|' + ora + '|' + String(classe).trim();
+  var v = '';
+  for (var k in titoliOre) {
+    if (k !== chiave) continue;
+    v = (typeof titoliOre[k] === 'string') ? titoliOre[k].trim() : '';
   }
-  return trovato || classe;
+  return v || classe;
 }
 
-/** Ore consecutive della stessa classe nello stesso giorno: un blocco solo. */
+/**
+ * Ore consecutive con lo stesso titolo nello stesso giorno: un blocco solo.
+ * Il titolo e' la classe, o quello scelto in Campanella per quell'ora
+ * (_orariTitoloDellOra_): "2B - MAT" e poi "2B - FIS" sono due lezioni.
+ */
 function _orariBlocchi_(celle, d) {
+  var titoliOre = (d.calendario && d.calendario.titoliOre && typeof d.calendario.titoliOre === 'object')
+    ? d.calendario.titoliOre : {};
   var blocchi = [];
   for (var g = 0; g < d.giorni.length; g++) {
     var aperto = null;
     for (var o = 0; o < d.ore; o++) {
       var v = _mostraCella_(_cella_(celle, d, g, o));
       if (v === 'a disposizione') v = 'A disposizione';
+      if (v) v = _orariTitoloDellOra_(titoliOre, d.giorni[g], o + 1, v);
       if (aperto && v && v === aperto.testo && aperto.oraA === o) { aperto.oraA = o + 1; continue; }
       if (!v) { aperto = null; continue; }
       aperto = { giorno: g, oraDa: o + 1, oraA: o + 1, testo: v };

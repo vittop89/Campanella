@@ -83,7 +83,7 @@ namespace Campanella
         CheckBox chkValidoDal;
         NumericUpDown numMinuti;
         Label lblCalRiepilogo;
-        Button btnColori;                 // "Colori e titoli delle classi..."
+        Button btnColori;                 // "Titoli e colori delle lezioni..."
         RiepilogoColori riepilogoColori;  // accanto, i colori di ogni classe
         // quello che sta sotto il riepilogo, che cambia altezza: si sposta con
         // lui, alla stessa distanza dal suo fondo
@@ -641,7 +641,7 @@ namespace Campanella
                 "Gli eventi portano un contrassegno, cosi' si tolgono in un colpo solo con " +
                 "ORARI_ANNULLA_calendario, senza toccare il resto del calendario, e " +
                 "ORARI_5_cambioOrario puo' cambiare l'orario da una data in poi.\r\n\r\n" +
-                "Ogni classe ha il suo colore: lo scegli con \"Colori e titoli delle classi...\".\r\n\r\n" +
+                "Ogni classe ha il suo colore: lo scegli con \"Titoli e colori delle lezioni...\".\r\n\r\n" +
                 "Con l'orario mette anche i tuoi colloqui con le famiglie (\"Colloqui con le famiglie\", qui " +
                 "sotto), con il link del Meet.");
             y += 40;
@@ -749,7 +749,7 @@ namespace Campanella
             y += 78;
 
             // --- i colori delle classi ------------------------------------------
-            btnColori = Tema.Bottone("Colori e titoli delle classi...", 0, y, 240, delegate { ScegliColori(); });
+            btnColori = Tema.Bottone("Titoli e colori delle lezioni...", 0, y, 240, delegate { ScegliColori(); });
             p.Controls.Add(btnColori);
             p.Controls.Add(Tema.Aiuto(248, y + 7, "I colori e i titoli delle classi",
                 "Ogni lezione sul calendario prende il colore della sua classe: la 2B di un colore, la 3B di un " +
@@ -766,10 +766,12 @@ namespace Campanella
                 "classe a cui togli il colore restano come sono: il colore lo togli da Google Calendar.\r\n\r\n" +
                 "Se hai scritto dei colloqui con le famiglie, anche loro hanno un colore: la riga Colloqui, dopo le " +
                 "classi. Di partenza e' uno che le classi non usano.\r\n\r\n" +
-                "Nella stessa finestra scrivi il titolo delle lezioni di ogni classe sul calendario (per esempio " +
-                "\"3B - Fisica\" al posto di \"3B - FIS\"); vuoto, resta il nome del tabellone. Le lezioni che lo " +
-                "script mette da quel momento lo prendono; per quelle gia' sul calendario: ORARI_ANNULLA_calendario " +
-                "e poi ORARI_4_calendario."));
+                "La finestra ha una riga per ogni ora del tuo orario: per ognuna scrivi il titolo della lezione sul " +
+                "calendario (per esempio \"2B - MAT\" o \"2B - FIS\"; vuoto, resta la classe del tabellone) e scegli " +
+                "il colore, che va con il titolo: le ore con lo stesso titolo hanno lo stesso colore. Le ore una " +
+                "dopo l'altra con lo stesso titolo diventano un evento solo. Le lezioni che lo script mette da quel " +
+                "momento prendono i titoli; per quelle gia' sul calendario: ORARI_ANNULLA_calendario e poi " +
+                "ORARI_4_calendario."));
             riepilogoColori = new RiepilogoColori(278, y + 5, 602, 2 * (Tema.Normale.Height + 4));
             p.Controls.Add(riepilogoColori);
             y += 52;
@@ -874,7 +876,7 @@ namespace Campanella
                 "Meet (vale lo stesso).\r\n\r\n" +
                 "I colloqui vanno sul calendario con ORARI_4_calendario, insieme all'orario; se cambiano solo loro, " +
                 "ORARI_7_colloqui li aggiorna da oggi in poi, senza toccare le lezioni. Hanno un colore loro: la riga " +
-                "Colloqui in \"Colori e titoli delle classi...\".\r\n\r\n" +
+                "Colloqui in \"Titoli e colori delle lezioni...\".\r\n\r\n" +
                 "I link del Meet aprono le tue stanze: stanno con i dati personali, e vanno solo nel tuo calendario. " +
                 "Le prenotazioni dei genitori restano nel registro elettronico: Campanella non le tocca.");
             txtColloqui = Tema.CasellaMulti(0, y + 24, 620, 90,
@@ -1433,7 +1435,7 @@ namespace Campanella
             else
             {
                 DateTime inizio = dtInizio.Value.Date, fine = dtFine.Value.Date;
-                List<BloccoOrario> blocchi = AnalisiOrario.Blocchi(orario.GrigliaDocente(docente), orario);
+                List<BloccoOrario> blocchi = AnalisiOrario.Blocchi(orario.GrigliaDocente(docente), orario, S);
                 List<string> inizi = AnalisiOrario.InizioOre(S.CalOreInizio, S.CalPrimaOra, S.CalMinutiOra,
                                                              orario.OrePerGiorno);
                 List<string> nonCapite;
@@ -1548,7 +1550,7 @@ namespace Campanella
                 : "Scegli il tuo nome: ogni classe del tuo orario avra' il suo colore.");
         }
 
-        /// <summary>"Colori e titoli delle classi...": la finestra con un colore per classe.</summary>
+        /// <summary>"Titoli e colori delle lezioni...": la finestra con un colore per classe.</summary>
         void ScegliColori()
         {
             RaccogliCalendario();
@@ -1573,20 +1575,22 @@ namespace Campanella
                 if (orario.Lezioni.Count > 0 && cmbDocente != null) cmbDocente.Focus();
                 return;
             }
-            using (FormColoriClassi f = new FormColoriClassi(classi, S.CalColori, S.CalColoriAMano, S.CalColoriScritti,
-                                                             S.CalTitoli))
+            string docenteC = orario.TrovaDocente(S.CalDocente);
+            using (FormColoriClassi f = new FormColoriClassi(AnalisiOrario.OreDelDocente(orario, docenteC),
+                                                             classi.Contains(ColoriLezioni.Colloqui), S.CalColori,
+                                                             S.CalColoriAMano, S.CalColoriScritti, S.CalTitoliOre))
             {
                 if (f.ShowDialog(this) != DialogResult.OK) return;
                 S.CalColori = new Dictionary<string, string>(f.Colori);
                 S.CalColoriAMano = new List<string>(f.AMano);
-                // i titoli delle classi di questa finestra; quelli di classi che qui
-                // non ci sono (un altro orario) restano
-                if (S.CalTitoli == null) S.CalTitoli = new Dictionary<string, string>();
-                foreach (string k in f.Classi) S.CalTitoli.Remove(k);
-                foreach (KeyValuePair<string, string> kv in f.Titoli) S.CalTitoli[kv.Key] = kv.Value;
+                // i titoli delle ore di questa finestra; quelli di ore che qui non
+                // ci sono (un altro orario) restano
+                if (S.CalTitoliOre == null) S.CalTitoliOre = new Dictionary<string, string>();
+                foreach (OraDelCalendario o in f.Ore) S.CalTitoliOre.Remove(o.Chiave());
+                foreach (KeyValuePair<string, string> kv in f.TitoliOre) S.CalTitoliOre[kv.Key] = kv.Value;
             }
             AggiornaCalendario();
-            Guscio.Stato1("Colori e titoli scelti: rigenera DatiOrari.gs e incollalo. Per i colori delle lezioni gia' sul " +
+            Guscio.Stato1("Titoli e colori scelti: rigenera DatiOrari.gs e incollalo. Per i colori delle lezioni gia' sul " +
                           "calendario esegui ORARI_6_coloraLezioni; per i titoli, ORARI_ANNULLA_calendario e ORARI_4_calendario.");
         }
 
@@ -1768,7 +1772,7 @@ namespace Campanella
             sb.AppendLine("di un altro), sempre nello stesso calendario: sono i colori degli eventi");
             sb.AppendLine("di Google Calendar. Di partenza ogni classe del tuo orario ne ha uno");
             sb.AppendLine("diverso, e poi lo tiene; le ore a disposizione sono grigie (Grafite).");
-            sb.AppendLine("Per cambiarli c'e' \"Colori e titoli delle classi...\" qui sopra: un colore scelto");
+            sb.AppendLine("Per cambiarli c'e' \"Titoli e colori delle lezioni...\" qui sopra: un colore scelto");
             sb.AppendLine("da te resta, e \"colore del calendario\" lascia a quella classe il colore");
             sb.AppendLine("del calendario. ORARI_4_calendario e ORARI_5_cambioOrario danno i colori");
             sb.AppendLine("alle lezioni che mettono. Per quelle gia' sul calendario rigenera e");
@@ -1798,7 +1802,7 @@ namespace Campanella
             sb.AppendLine("settimana come le lezioni (niente nei giorni senza lezione e in quelli");
             sb.AppendLine("senza colloqui), le giornate come eventi singoli. Il titolo e' il nome,");
             sb.AppendLine("il luogo il link del Meet, e hanno il colore dei colloqui (la riga");
-            sb.AppendLine("Colloqui in \"Colori e titoli delle classi...\"). Se cambiano solo i colloqui,");
+            sb.AppendLine("Colloqui in \"Titoli e colori delle lezioni...\"). Se cambiano solo i colloqui,");
             sb.AppendLine("rigenera e incolla DatiOrari.gs ed esegui  ORARI_7_colloqui: li aggiorna");
             sb.AppendLine("da oggi in poi, senza toccare le lezioni; quelli passati restano come");
             sb.AppendLine("sono. ORARI_5_cambioOrario li tratta come le lezioni, e");
