@@ -263,7 +263,9 @@ found, by its arrival time, in an earlier sheet.
   so it can be made again by hand. `EXTRA_unisciEtichette` only adds a rule's
   label to the messages of a label left by a filter merged into that rule:
   the script never deletes a label, you delete the old one yourself if you
-  want.
+  want. After you change a rule, `EXTRA_ripulisciEtichette` removes its
+  label from the conversations the rule no longer matches, and nothing
+  else (in trial mode it only counts).
 - The first run of the mail sorting always starts in trial mode, and in trial
   mode it does not even create the labels.
 - The optional class labels also use the email addresses of your students,

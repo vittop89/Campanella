@@ -399,7 +399,13 @@ eseguendo lo script il [data].]*
   anche quelle c'è `ANNULLA_etichettaturaCompleta`, che toglie dai messaggi
   le etichette di tutte le regole attive, comprese quelle con lo stesso nome
   messe a mano dal docente. I messaggi archiviati restano in «Tutti i
-  messaggi». Due cose le funzioni `ANNULLA_` non le annullano: i filtri
+  messaggi». Dopo che il docente ha cambiato una regola,
+  `EXTRA_ripulisciEtichette` toglie l'etichetta di ogni regola accesa dalle
+  conversazioni che la regola non prende più: come le `ANNULLA_` toglie
+  soltanto etichette dai messaggi (anche quelle messe a mano a un messaggio
+  che la regola non prende), non cancella messaggi né etichette, salta le
+  regole spente e quelle di cui non conosce tutti i mittenti, e in prova
+  conta soltanto. Due cose le funzioni `ANNULLA_` non le annullano: i filtri
   nativi di Gmail, se il docente li ha creati, si tolgono a mano dalle
   impostazioni di Gmail oppure con `EXTRA_togliFiltri`, dopo averli scelti
   in Campanella; i messaggi che una regola ha segnato come letti restano

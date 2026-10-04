@@ -58,6 +58,23 @@ Configurazione.gs (Posta, step 5).
   before deleting anything, and not to delete the ones to check.
 - Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
 
+**Posta: cleaning the labels after a rule changes**
+
+- New script function EXTRA_ripulisciEtichette: after you change a rule in
+  Campanella (a word of the subject removed, a sender removed, an
+  exclusion added) and paste the configuration again, it removes the
+  rule's label from the conversations that the rule, as it is now, no
+  longer matches, and nothing else: messages, labels in Gmail, archiving
+  and read state stay as they are. The rule's search ignores the period,
+  the inbox and the sent mail (what sorting did not look at is not
+  something the rule does not match); two active rules with the same label
+  keep what either matches. It skips the rules switched off, those whose
+  senders it cannot know in full (a missing role group, the missing file of
+  a class, an empty staff list) and those whose search Gmail rejects: in
+  doubt the label stays. Like ANNULLA_etichettaturaCompleta, it also
+  removes a label put by hand on a message the rule does not match. In
+  trial mode it only counts; when the time runs out, run it again.
+
 **Posta: only the role sub-label**
 
 - Step 3 has a new tick next to "In Gmail dividi i colleghi per ruolo":

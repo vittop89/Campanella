@@ -42,7 +42,8 @@
  *    come spam. Applica etichette e, se richiesto, archivia: l'archiviazione
  *    toglie dalla Posta in arrivo ma il messaggio resta in "Tutti i messaggi".
  *    Toglie soltanto quello che chiedi tu: le etichette dai messaggi (le
- *    funzioni ANNULLA_) e i filtri di Gmail che hai scelto in Campanella
+ *    funzioni ANNULLA_, e EXTRA_ripulisciEtichette da quelli che una regola
+ *    non prende piu') e i filtri di Gmail che hai scelto in Campanella
  *    (EXTRA_togliFiltri, dopo averne scritto una copia nel registro).
  *
  *  FUNZIONI DA ESEGUIRE, NELL'ORDINE
@@ -68,6 +69,9 @@
  *                                    e che hai scelto in Campanella (Posta,
  *                                    passo 4), dopo averne scritto una copia
  *                                    nel registro (facoltativo)
+ *    EXTRA_ripulisciEtichette ...... dopo aver cambiato una regola, toglie
+ *                                    la sua etichetta dalle conversazioni
+ *                                    che non prende piu' (facoltativo)
  *    EXTRA_unisciEtichette ......... mette l'etichetta della regola ai
  *                                    messaggi delle etichette rimaste dai
  *                                    filtri uniti a una regola, e dice quali
@@ -1650,6 +1654,175 @@ function _rientra_(testo, prima, dopo) {
 
 
 // ===========================================================================
+//  EXTRA - RIPULIRE LE ETICHETTE DELLE REGOLE (facoltativo)
+//  Dopo aver cambiato una regola in Campanella (un'esclusione, una parola
+//  dell'oggetto in meno, un mittente tolto) e copiato di nuovo la
+//  configurazione: toglie l'etichetta di ogni regola accesa dalle
+//  conversazioni che la regola, com'e' adesso, non prende piu'. Le
+//  etichette si tolgono e basta: i messaggi, le etichette in Gmail,
+//  l'archiviazione e il "letto" restano come sono. Non tocca le regole
+//  spente, ne' quelle di cui non sa tutti i mittenti (un gruppo o il file di
+//  una classe che manca) o la cui ricerca Gmail rifiuta: nel dubbio
+//  l'etichetta resta. Come ANNULLA_etichettaturaCompleta non distingue i
+//  messaggi etichettati a mano. In prova conta soltanto.
+// ===========================================================================
+function EXTRA_ripulisciEtichette() {
+  var cfg = _config_();
+  var prova = !!cfg.provaSenzaModifiche;
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto. ' +
+                   'Non ho tolto nessuna etichetta.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var esito;
+  try {
+    esito = _ripulisciEtichette_(cfg, prova, Date.now() + _MAX_SECONDI_ESECUZIONE * 1000);
+  } finally {
+    lock.releaseLock();
+  }
+  var testo = _righeRipulisci_(esito, prova).join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
+/**
+ * Il lavoro di EXTRA_ripulisciEtichette, regola per regola, nell'ordine
+ * della configurazione (chi esclude altre etichette dopo di loro, come il
+ * riordino). Per ogni regola: le conversazioni con la sua etichetta che le
+ * sue ricerche prendono ancora restano; le altre la perdono (in prova si
+ * contano). Tornano le etichette ripulite ({ nome, tolte }), quelle saltate
+ * ({ nome, perche }) e se il tempo e' finito.
+ */
+function _ripulisciEtichette_(cfg, prova, scadenza) {
+  var esito = { ripulite: [], saltate: [], finito: true };
+  var regole = _regoleAttive_(cfg), fatte = {};
+  for (var i = 0; i < regole.length; i++) {
+    if (Date.now() >= scadenza) { esito.finito = false; break; }
+    var regola = regole[i], nome = _etichettaCompleta_(cfg, regola);
+    if (fatte[nome.toLowerCase()]) continue;
+    var etichetta = GmailApp.getUserLabelByName(nome);
+    if (!etichetta) continue;
+    // una regola di cui non so tutti i mittenti non dice che cosa non prende
+    var manca = _mittentiMancanti_(cfg, regola);
+    if (manca) { esito.saltate.push({ nome: nome, perche: manca }); continue; }
+    var queries = _queryDellaRegola_(cfg, regola, null, true);
+    if (!queries.length) { esito.saltate.push({ nome: nome, perche: 'non cerca niente' }); continue; }
+    // altre regole con la stessa etichetta: una conversazione resta se una
+    // qualunque la prende
+    for (var j = i + 1; j < regole.length; j++) {
+      if (_etichettaCompleta_(cfg, regole[j]).toLowerCase() !== nome.toLowerCase()) continue;
+      if (_mittentiMancanti_(cfg, regole[j])) { queries = null; break; }
+      var altre = _queryDellaRegola_(cfg, regole[j], null, true);
+      if (!altre.length) { queries = null; break; }
+      queries = queries.concat(altre);
+    }
+    fatte[nome.toLowerCase()] = true;
+    if (!queries) { esito.saltate.push({ nome: nome, perche: 'un\'altra regola con la stessa etichetta non si sa che cosa prende' }); continue; }
+
+    var prese = {}, rifiutata = false;
+    for (var q = 0; q < queries.length && !rifiutata; q++) {
+      for (var inizio = 0; ; inizio += 500) {
+        if (Date.now() >= scadenza) { esito.finito = false; break; }
+        var trovate;
+        try { trovate = GmailApp.search(queries[q], inizio, 500); }
+        catch (errore) { rifiutata = true; break; }
+        for (var k = 0; k < trovate.length; k++) prese[trovate[k].getId()] = true;
+        if (trovate.length < 500) break;
+      }
+      if (!esito.finito) break;
+    }
+    if (!esito.finito) break;
+    if (rifiutata) { esito.saltate.push({ nome: nome, perche: 'Gmail non ha accettato la sua ricerca' }); continue; }
+
+    // le conversazioni con l'etichetta che nessuna ricerca prende piu'
+    var fuori = [];
+    for (var da = 0; ; da += 500) {
+      if (Date.now() >= scadenza) { esito.finito = false; break; }
+      var conEtichetta = GmailApp.search('label:' + _virgolette_(nome) + ' -in:chats', da, 500);
+      for (var c = 0; c < conEtichetta.length; c++) {
+        if (!prese[conEtichetta[c].getId()]) fuori.push(conEtichetta[c]);
+      }
+      if (conEtichetta.length < 500) break;
+    }
+    if (!esito.finito) break;
+    var tolte = 0;
+    for (var b = 0; b < fuori.length; b += _THREAD_PER_BLOCCO) {
+      if (Date.now() >= scadenza) { esito.finito = false; break; }
+      var blocco = fuori.slice(b, b + _THREAD_PER_BLOCCO);
+      if (!prova) etichetta.removeFromThreads(blocco);
+      tolte += blocco.length;
+    }
+    if (tolte) esito.ripulite.push({ nome: nome, tolte: tolte });
+    if (!esito.finito) break;
+  }
+  return esito;
+}
+
+/**
+ * Il perche' per cui non si sa tutti i mittenti della regola, o "": un
+ * gruppo dei ruoli che non c'e', o una classe senza il suo file (gli
+ * studenti), o l'elenco del personale vuoto. Allora la pulizia la salta.
+ */
+function _mittentiMancanti_(cfg, regola) {
+  var da = regola.da || [];
+  for (var i = 0; i < da.length; i++) {
+    var v = String(da[i] || '').trim();
+    if (!/^@.+@$/.test(v) || v === '@DOMINIO@') continue;
+    if (!_espandi_(cfg, [v], regola).length) {
+      if (_nomeClasse_(v) !== null) return 'manca il file degli studenti della ' + _nomeClasse_(v);
+      return 'nessun indirizzo per ' + v;
+    }
+  }
+  return '';
+}
+
+/** Quello che EXTRA_ripulisciEtichette dice, in righe. */
+function _righeRipulisci_(esito, prova) {
+  var righe = [], totale = 0;
+  if (prova) {
+    righe = righe.concat(_aCapo_('MODALITA\' PROVA: non ho tolto nessuna etichetta, dico soltanto da quante ' +
+      'conversazioni la toglierei.', '', ''));
+  }
+  for (var i = 0; i < esito.ripulite.length; i++) totale += esito.ripulite[i].tolte;
+  if (!esito.ripulite.length) {
+    righe = righe.concat(_aCapo_(esito.finito
+      ? 'Niente da ripulire: ogni regola accesa prende ancora tutte le conversazioni che hanno la sua etichetta.'
+      : 'Non ho ancora trovato niente da ripulire.', '', ''));
+  } else {
+    righe.push((prova ? 'Etichette che toglierei' : 'Etichette tolte') +
+               ' dalle conversazioni che la loro regola non prende piu\':');
+    for (var r = 0; r < esito.ripulite.length; r++) {
+      var x = esito.ripulite[r];
+      righe = righe.concat(_aCapo_(x.nome + ': ' + x.tolte + (x.tolte === 1 ? ' conversazione' : ' conversazioni'),
+                                   '  - ', '    '));
+    }
+  }
+  if (esito.saltate.length) {
+    righe.push('');
+    righe.push('Regole non ripulite, nel dubbio:');
+    for (var s = 0; s < esito.saltate.length; s++) {
+      righe = righe.concat(_aCapo_(esito.saltate[s].nome + ': ' + esito.saltate[s].perche, '  - ', '    '));
+    }
+  }
+  righe.push('');
+  if (!esito.finito) {
+    righe = righe.concat(_aCapo_('TEMPO FINITO: esegui di nuovo questa funzione, finche\' non lo dice piu\'. ' +
+      'Riprende da dove serve: quello che ha gia\' tolto resta tolto.', '', ''));
+  }
+  righe = righe.concat(_aCapo_(prova
+    ? 'Per toglierle davvero: in Configurazione.gs metti provaSenzaModifiche: false ed esegui di nuovo ' +
+      'EXTRA_ripulisciEtichette.'
+    : 'Ho tolto solo etichette delle regole accese: i messaggi restano, e anche le etichette in Gmail, ' +
+      'l\'archiviazione e il "letto". Un\'etichetta messa a mano a un messaggio che la regola non prende ' +
+      'e\' andata via anche lei. Le regole spente non le ho toccate.', '', ''));
+  return righe;
+}
+
+
+// ===========================================================================
 //  EXTRA - LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA (facoltativo)
 //  Un filtro di Gmail che in Campanella hai unito a una regola con un'altra
 //  etichetta (Famiglie a Genitori, la casella della scuola a Segreteria),
@@ -2409,7 +2582,7 @@ function _bastaUno_(regola) {
  * Chi unisce i risultati conta le conversazioni per id: una che torna da
  * due ricerche resta una.
  */
-function _queryDellaRegola_(cfg, regola, periodoExtra) {
+function _queryDellaRegola_(cfg, regola, periodoExtra, perPulizia) {
   var testo = [], comune = [];
   // destinatari previsti ma nessuno dopo l'espansione: come per i mittenti
   // (qui sotto), niente ricerca. "to:()" non vuol dire niente.
@@ -2422,8 +2595,9 @@ function _queryDellaRegola_(cfg, regola, periodoExtra) {
   if (regola.haAllegato)                         comune.push('has:attachment');
   if (regola.queryLibera)                        comune.push('(' + regola.queryLibera + ')');
 
-  // non riprocessare cio' che ha gia' l'etichetta
-  comune.push('-label:' + _virgolette_(_etichettaCompleta_(cfg, regola)));
+  // non riprocessare cio' che ha gia' l'etichetta; per la pulizia invece solo
+  // quelle che ce l'hanno (EXTRA_ripulisciEtichette)
+  comune.push((perPulizia ? 'label:' : '-label:') + _virgolette_(_etichettaCompleta_(cfg, regola)));
 
   // etichette da escludere: e' cosi' che "Studenti" evita chi e' gia' "Colleghi"
   var escludi = regola.escludiEtichette || [];
@@ -2435,11 +2609,14 @@ function _queryDellaRegola_(cfg, regola, periodoExtra) {
   }
 
   comune.push('-in:chats');
-  if (cfg.escludiPostaInviata !== false) comune.push('-in:sent');
-  if (cfg.escludiGiaArchiviati)          comune.push('in:inbox');
-
-  if (periodoExtra) comune.push(periodoExtra);
-  else if (cfg.soloUltimiMesi > 0) comune.push('newer_than:' + cfg.soloUltimiMesi + 'm');
+  // per la pulizia ne' periodo ne' posta in arrivo ne' posta inviata: quello
+  // che il riordino non guardava non e' un messaggio che la regola non prende
+  if (!perPulizia) {
+    if (cfg.escludiPostaInviata !== false) comune.push('-in:sent');
+    if (cfg.escludiGiaArchiviati)          comune.push('in:inbox');
+    if (periodoExtra) comune.push(periodoExtra);
+    else if (cfg.soloUltimiMesi > 0) comune.push('newer_than:' + cfg.soloUltimiMesi + 'm');
+  }
 
   var base = testo.concat(comune).join(' ');
 

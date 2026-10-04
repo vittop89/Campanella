@@ -3026,6 +3026,96 @@ intestazione('SOLO LE SOTTOETICHETTE DEI RUOLI (@SENZAGRUPPO@)');
   contesto.CONFIG = prima;
 }
 
+intestazione('EXTRA_ripulisciEtichette: VIA LE ETICHETTE CHE LA REGOLA NON PRENDE PIU\'');
+{
+  // Una regola cambiata (una parola dell'oggetto in meno, un'esclusione in
+  // piu'): l'etichetta va via dalle conversazioni che non prende piu', e
+  // basta. Non tocca le regole spente, ne' quelle di cui non sa i mittenti
+  const S = 'scuola.example';
+  const prima = contesto.CONFIG;
+  casella.length = 0;
+  etichette.clear();
+  proprieta.clear();
+  trigger.length = 0;
+  orologio = 0;
+  sogliaInterruzione = Infinity;
+  delete contesto.Gmail;
+  const formazione = GmailApp.createLabel('Formazione e corsi');
+  const studenti = GmailApp.createLabel('Studenti');
+  const colleghi = GmailApp.createLabel('Colleghi');
+  const tecnici = GmailApp.createLabel('Colleghi/Tecnici');
+  const vecchia = GmailApp.createLabel('Vecchia regola');
+  const corso = aggiungi('ente@formazione.example', 'Corso di fisica moderna', '', { unread: false });
+  const aggiornamento = aggiungi('it@software.example', 'Aggiornamento del programma', '', { inInbox: false });
+  const vecchio = aggiungi('ente@formazione.example', 'Seminario di storia', '', { giorniFa: 900 });
+  formazione.addToThreads([corso, aggiornamento, vecchio]);
+  const docente = aggiungi('docente@' + S, 'Verifica', '');
+  const ragazzo = aggiungi('studente@' + S, 'Domanda', '');
+  studenti.addToThreads([docente, ragazzo]);
+  colleghi.addToThreads([docente]);
+  const dalTecnico = aggiungi('tecnico@' + S, 'Laboratorio', '');
+  tecnici.addToThreads([dalTecnico]);
+  const spenta = aggiungi('chi@altro.example', 'Qualcosa', '');
+  vecchia.addToThreads([spenta]);
+  contesto.CONFIG = {
+    impronta: 'A1B2C3D4', dominioScuola: S, prefissoEtichette: '', provaSenzaModifiche: true,
+    soloUltimiMesi: 1, escludiPostaInviata: true, escludiGiaArchiviati: true, inviaReport: false,
+    personale: ['docente@' + S], gruppi: {},
+    regole: [
+      { attiva: true, etichetta: 'Colleghi', da: ['@PERSONALE@'] },
+      { attiva: true, etichetta: 'Colleghi/Tecnici', da: ['@GRUPPO:Tecnici@'] },
+      { attiva: true, etichetta: 'Studenti', da: ['@DOMINIO@'], escludiEtichette: ['Colleghi'] },
+      { attiva: true, etichetta: 'Formazione e corsi', oggetto: ['corso', 'formazione', 'seminario'] },
+      { attiva: false, etichetta: 'Vecchia regola', oggetto: ['niente'] }
+    ]
+  };
+  const foto = () => JSON.stringify(casella.map(x => [x.id, [...x.labels].sort(), x.inInbox, x.unread]));
+  const fotoEtichetteR = () => JSON.stringify([...etichette.values()].map(l => l.nome).sort());
+  const postaPrima = foto(), etichettePrima = fotoEtichetteR();
+  let t = contesto.EXTRA_ripulisciEtichette();
+  console.log(t);
+  let piatto = t.replace(/\s+/g, ' ');
+  verifica('in prova non toglie niente e dice da quante conversazioni toglierebbe ogni etichetta',
+    foto() === postaPrima && t.indexOf('MODALITA\' PROVA') === 0 &&
+    piatto.indexOf('Etichette che toglierei dalle conversazioni che la loro regola non prende piu\': ' +
+                   '- Studenti: 1 conversazione - Formazione e corsi: 1 conversazione') >= 0);
+  verifica('una regola di cui manca un gruppo non la ripulisce, e lo dice',
+    piatto.indexOf('Regole non ripulite, nel dubbio: - Colleghi/Tecnici: nessun indirizzo per @GRUPPO:Tecnici@') >= 0);
+  contesto.CONFIG.provaSenzaModifiche = false;
+  t = contesto.EXTRA_ripulisciEtichette();
+  console.log(t);
+  verifica('davvero: via Formazione e corsi dal messaggio che non prende piu\' (Aggiornamento), via Studenti dal docente ' +
+           '(ha Colleghi, che Studenti esclude); tutto il resto uguale',
+    !aggiornamento.labels.has('Formazione e corsi') && corso.labels.has('Formazione e corsi') &&
+    !docente.labels.has('Studenti') && docente.labels.has('Colleghi') && ragazzo.labels.has('Studenti'));
+  verifica('non guarda il periodo ne\' la posta in arrivo del riordino: il messaggio vecchio tiene la sua etichetta',
+    vecchio.labels.has('Formazione e corsi'));
+  verifica('non tocca le regole spente ne\' quelle di cui manca un gruppo, non archivia, non segna come letto, non ' +
+           'crea ne\' cancella etichette',
+    spenta.labels.has('Vecchia regola') && dalTecnico.labels.has('Colleghi/Tecnici') &&
+    aggiornamento.inInbox === false && corso.unread === false && docente.unread === true &&
+    fotoEtichetteR() === etichettePrima);
+  verifica('nessuna riga del riepilogo supera i 100 caratteri', t.split('\n').every(r => r.length <= 100));
+  t = contesto.EXTRA_ripulisciEtichette();
+  verifica('rieseguita non trova piu\' niente', t.indexOf('Niente da ripulire') === 0);
+  // con un'altra regola con la stessa etichetta resta quello che prende una delle due
+  formazione.addToThreads([aggiornamento]);
+  contesto.CONFIG.regole.push({ attiva: true, etichetta: 'Formazione e corsi', oggetto: ['aggiornamento'] });
+  t = contesto.EXTRA_ripulisciEtichette();
+  verifica('con due regole con la stessa etichetta resta quello che una delle due prende',
+    aggiornamento.labels.has('Formazione e corsi') && t.indexOf('Niente da ripulire') === 0);
+  // il blocco preso: niente
+  const bloccoVero = LockService.getUserLock;
+  LockService.getUserLock = () => ({ tryLock: () => false, releaseLock: () => {} });
+  contesto.CONFIG.regole.pop();
+  const primaDelBlocco = foto();
+  t = contesto.EXTRA_ripulisciEtichette();
+  LockService.getUserLock = bloccoVero;
+  verifica('con un\'altra esecuzione in corso non toglie niente, e dice di riprovare',
+    foto() === primaDelBlocco && t.indexOf('riprova fra un minuto') > 0);
+  contesto.CONFIG = prima;
+}
+
 intestazione('RISULTATO');
 if (fallimenti === 0) {
   console.log('  Tutte le prove superate.');

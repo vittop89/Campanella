@@ -1090,8 +1090,11 @@ namespace Campanella
                 "(Impostazioni -> Filtri), oppure scegliendolo al passo 4. Dopo EXTRA_togliFiltri, se al " +
                 "passo 4 ci sono etichette rimaste dai filtri uniti a una regola, esegui  EXTRA_unisciEtichette " +
                 "(va anche senza il servizio): mette ai loro messaggi l'etichetta della regola e dice quali " +
-                "cancellare tu da Gmail. Con la modalita' prova accesa queste funzioni non cambiano niente; " +
-                "quelle dei colori, EXTRA_togliFiltri ed EXTRA_unisciEtichette dicono che cosa farebbero.",
+                "cancellare tu da Gmail. Se cambi una regola (una parola dell'oggetto, un mittente, " +
+                "un'esclusione) e copi di nuovo la configurazione, esegui  EXTRA_ripulisciEtichette: toglie la " +
+                "sua etichetta dalle conversazioni che la regola non prende piu', e basta. Con la modalita' prova " +
+                "accesa queste funzioni non cambiano niente; quelle dei colori, EXTRA_togliFiltri, " +
+                "EXTRA_unisciEtichette ed EXTRA_ripulisciEtichette dicono che cosa farebbero.",
                 new string[] { }, new EventHandler[] { });
 
             return p;

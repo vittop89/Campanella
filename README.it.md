@@ -268,7 +268,9 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   registro per rifarli a mano. `EXTRA_unisciEtichette` aggiunge soltanto
   l'etichetta di una regola ai messaggi di un'etichetta rimasta da un filtro
   unito a quella regola: lo script non cancella mai un'etichetta, quella
-  rimasta la cancelli tu, se vuoi.
+  rimasta la cancelli tu, se vuoi. Dopo che hai cambiato una regola,
+  `EXTRA_ripulisciEtichette` toglie la sua etichetta dalle conversazioni che
+  la regola non prende più, e nient'altro (in prova conta soltanto).
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
   non crea nemmeno le etichette.
 - Le etichette delle classi, facoltative, usano anche gli indirizzi email dei
