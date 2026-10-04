@@ -261,9 +261,11 @@ found, by its arrival time, in an earlier sheet.
   you already had and chose to remove in step 4 (also those turned into
   Campanella rules), only those, after writing a copy of each one to the log
   so it can be made again by hand. `EXTRA_unisciEtichette` only adds a rule's
-  label to the messages of a label left by a filter merged into that rule:
-  the script never deletes a label, you delete the old one yourself if you
-  want. After you change a rule, `EXTRA_ripulisciEtichette` removes its
+  label to the messages of a label left by a filter merged into that rule.
+  Labels are deleted only by `EXTRA_cancellaEtichette`, when you run it with
+  the Gmail API service: the labels left by merged filters whose
+  conversations already all have the rule's label, and the empty labels no
+  rule or filter uses; never a rule's label or one holding other messages. After you change a rule, `EXTRA_ripulisciEtichette` removes its
   label from the conversations the rule no longer matches, and nothing
   else (in trial mode it only counts).
 - The first run of the mail sorting always starts in trial mode, and in trial

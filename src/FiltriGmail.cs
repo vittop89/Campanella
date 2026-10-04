@@ -2788,6 +2788,10 @@ namespace Campanella
                 bool stessa = false;
                 foreach (FiltroDaTogliere g in inGmail) if (Pulita(g.Etichetta) == Pulita(v.Etichetta)) stessa = true;
                 if (stessa || conFile.Contains(chiaveDi.ContainsKey(v) ? chiaveDi[v] : v.Chiave())) v.StessaEtichettaInGmail = stessa;
+                // un filtro scelto adesso, che prima non c'era, con un'etichetta
+                // gia' cancellata: quell'etichetta torna fra le rimaste
+                if (!salvati.Contains(chiaveDi.ContainsKey(v) ? chiaveDi[v] : v.Chiave()) && s.EtichetteGiaCancellate != null)
+                    s.EtichetteGiaCancellate.RemoveAll(delegate(string g) { return Pulita(g) == Pulita(v.Etichetta); });
                 if (v.Accanto == null) v.Accanto = new List<FiltroDaTogliere>();
                 foreach (FiltroDaTogliere g in FiltriAccanto(v, inGmail, s))
                 {
@@ -3305,7 +3309,7 @@ namespace Campanella
             {
                 if (v0 == null) continue;
                 string chiave = Pulita(v0.Etichetta);
-                if (chiave == "" || viste.Contains(chiave)) continue;
+                if (chiave == "" || viste.Contains(chiave) || GiaCancellata(s, chiave)) continue;
                 viste.Add(chiave);
                 string da = (v0.Etichetta ?? "").Trim().Trim('/').Trim();
                 if (restano.Contains(chiave) || EtichettaGestita(s, da)) continue;
@@ -3361,6 +3365,14 @@ namespace Campanella
             foreach (CoppiaEtichette c in EtichetteRimaste(s))
                 if (c.DaControllare && !DaNonUnire(s, c.Da)) fuori.Add(c);
             return fuori;
+        }
+
+        /// <summary>Vero se il docente ha gia' cancellato da Gmail quell'etichetta rimasta (Stato.EtichetteGiaCancellate).</summary>
+        public static bool GiaCancellata(Stato s, string etichetta)
+        {
+            if (s == null || s.EtichetteGiaCancellate == null) return false;
+            foreach (string e in s.EtichetteGiaCancellate) if (Pulita(e) == Pulita(etichetta)) return true;
+            return false;
         }
 
         /// <summary>Vero se il docente non vuole unire quell'etichetta rimasta (Stato.EtichetteDaNonUnire), maiuscole a parte.</summary>

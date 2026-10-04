@@ -828,6 +828,20 @@ if ($null -ne $tFF -and $null -ne $tFG -and $null -ne $tDT) {
     Verifica "tolta la spunta, il docente non la vuole unire" (@($nonUnire) -contains 'Famiglie')
     $clbEt.SetItemChecked(0, $true)
     Verifica "rimessa, si unisce di nuovo" (-not (@($nonUnire) -contains 'Famiglie'))
+    # "Gia' cancellata": spento finche' non selezioni una coppia; premuto, la
+    # coppia sparisce (Stato.EtichetteGiaCancellate)
+    $btnGia = $posta.GetType().GetField('btnGiaCancellata', $FIp).GetValue($posta)
+    Verifica "c'e' il bottone 'Gia'' cancellata', spento finche' non selezioni una coppia" ($null -ne $btnGia -and -not $btnGia.Enabled)
+    $clbEt.SelectedIndex = 0
+    Verifica "selezionata la coppia, si accende" ($btnGia.Enabled)
+    $btnGia.PerformClick()
+    [System.Windows.Forms.Application]::DoEvents()
+    $giaC = $tStato.GetField('EtichetteGiaCancellate', $FI).GetValue($stato)
+    Verifica "premuto: la coppia sparisce, e senza coppie anche il riquadro ($(@($giaC) -join ','))" (
+        @($giaC) -contains 'Famiglie' -and $clbEt.Items.Count -eq 0 -and -not $clbEt.Parent.Visible)
+    $giaC.Clear()
+    $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null
+    [System.Windows.Forms.Application]::DoEvents()
     # scelto prima della 1.6.2: da controllare, senza spunta, e non si spunta
     $sceltoF.StessaEtichettaInGmail = $null
     $posta.GetType().GetMethod('AggiornaFiltriDaTogliere', $FIp).Invoke($posta, @()) | Out-Null

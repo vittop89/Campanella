@@ -531,8 +531,7 @@ POSTA - riordinare la casella
    anche senza il servizio Gmail API): mette l'etichetta della regola alle
    conversazioni di quella rimasta che non ce l'hanno ancora, anche nel
    cestino e nello spam, e basta. Non archivia, non segna come letto, non
-   toglie etichette e non cancella niente: lo script non cancella mai
-   un'etichetta. Un'etichetta che un filtro di Gmail mette ancora non la
+   toglie etichette e non cancella niente. Un'etichetta che un filtro di Gmail mette ancora non la
    unisce (con il servizio Gmail API lo controlla): e' ancora in uso. Poi
    ti dice quali etichette rimaste puoi cancellare tu da Gmail (nel menu a
    sinistra, i tre puntini accanto all'etichetta -> Rimuovi etichetta: i
@@ -1094,6 +1093,12 @@ COSE CHE NON SUCCEDONO MAI
   Messaggi ed etichette restano. EXTRA_unisciEtichette mette soltanto
   l'etichetta di una regola ai messaggi di un'etichetta rimasta da un
   filtro unito: le etichette rimaste le cancelli tu, se vuoi.
+  EXTRA_cancellaEtichette, l'unica che cancella delle etichette, e solo
+  se la esegui tu con il servizio Gmail API: quelle rimaste dai filtri
+  uniti le cui conversazioni hanno gia' tutte l'etichetta della regola, e
+  quelle vuote che nessuna regola, anche spenta, ne' un filtro usa. Mai
+  un'etichetta delle regole, degli orari, con sottoetichette o con dei
+  messaggi che non e' una rimasta gia' unita. In prova elenca soltanto.
   EXTRA_ripulisciEtichette, dopo che hai cambiato una regola, toglie la sua
   etichetta dalle conversazioni che la regola non prende piu': non
   cancella messaggi ne' etichette, e salta le regole spente e quelle di cui

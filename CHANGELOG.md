@@ -34,7 +34,7 @@ Configurazione.gs (Posta, step 5).
   rule's label to the conversations of the label left behind that do not
   have it yet, also in trash and spam, in blocks of 100, and nothing else:
   it does not archive, does not mark as read, does not remove labels and
-  deletes nothing (the script still never deletes a label). A label that a
+  deletes nothing. A label that a
   Gmail filter still applies is not merged (with the Gmail API service it
   checks): it is still in use. It then says which labels left behind you can delete yourself in
   Gmail (left menu, the three dots next to the label → Remove label: the
@@ -57,6 +57,19 @@ Configurazione.gs (Posta, step 5).
   EXTRA_togliFiltri, when there are some, says to run EXTRA_unisciEtichette
   before deleting anything, and not to delete the ones to check.
 - Data file format 5 (`etichetteDaNonUnire`): 1.6.1 does not overwrite it.
+
+**Posta: deleting the labels no longer needed**
+
+- New script function EXTRA_cancellaEtichette, the only one that deletes
+  labels, and only when you run it (never messages): with the Gmail API
+  service, to see the filters, it deletes the labels left by merged filters
+  whose conversations already all have the rule's label (the messages stay,
+  with it), and the empty labels (also in trash and spam) that no rule,
+  even switched off, and no Gmail filter uses, sub-labels first. Never a
+  rule's label, the label group, the timetable label, a label with
+  sub-labels, one a filter applies or one holding other messages. In trial
+  mode it only lists. `test/invarianti_script.js` allows `deleteLabel` only
+  inside it, and checks that no other function or trigger calls it.
 
 **Posta: cleaning the labels after a rule changes**
 

@@ -128,9 +128,16 @@ Quattro funzioni, tutte facoltative e indipendenti:
   conversazioni di quell'etichetta rimasta, per le coppie che il docente ha
   lasciato spuntate in Campanella: aggiunge soltanto, come il riordino, e
   non archivia, non segna come letto, non toglie e non cancella niente.
-  L'etichetta rimasta la cancella il docente da Gmail, se vuole: lo script
-  dice quali si possono cancellare, e ne elenca altre che nessuna regola
-  mette, senza toccarle.
+  L'etichetta rimasta la cancella il docente, se vuole: da Gmail, oppure
+  eseguendo `EXTRA_cancellaEtichette`, l'unica funzione che cancella delle
+  etichette (mai messaggi). Con il servizio Gmail API, per vedere i filtri,
+  cancella solo le etichette rimaste le cui conversazioni hanno già tutte
+  l'etichetta della regola (i messaggi restano, con quella) e le etichette
+  vuote, anche nel cestino e nello spam, che nessuna regola, anche spenta,
+  né un filtro usa; mai un'etichetta delle regole, del gruppo o degli
+  orari, una con sottoetichette o una con altri messaggi. In prova elenca
+  soltanto. Le altre etichette che nessuna regola mette lo script le elenca,
+  senza toccarle.
   Il programma sul computer cancella soltanto il proprio file dei dati
   (`campanella-dati.json`): quando il docente, dalle Impostazioni e dopo una
   conferma, sposta i dati in un'altra cartella del Drive o di nuovo sul

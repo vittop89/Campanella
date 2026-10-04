@@ -584,6 +584,10 @@ const REGOLE = {
     // pubblica (senza "_" in fondo) la esegue solo il docente: nessuna
     // funzione la chiama. Quelle interne le chiama solo quella pubblica.
     gmailApiSoloIn: { 'Gmail.Users.Settings.Filters.remove': ['EXTRA_togliFiltri', '_togliFiltri_'] },
+    // cancellare un'etichetta (GmailApp, deleteLabel): solo dentro queste
+    // funzioni, che cancellano le rimaste gia' unite e le vuote che nessuna
+    // regola usa. Come per i filtri, quella pubblica la esegue solo il docente
+    cancellazioniSoloIn: { deleteLabel: ['EXTRA_cancellaEtichette', '_cancellaEtichette_'] },
     // la tabella dei testi delle azioni di Gmail per la copia di un filtro:
     // solo testi, letti per chiave e solo dentro _copiaFiltro_
     tabellaDiTesti: { nome: '_AZIONI_A_PAROLE', gruppi: ['aggiunge', 'toglie', 'altro'], soloIn: '_copiaFiltro_' },
@@ -1230,9 +1234,12 @@ function controlla(nomeFile, sorgenteIntero) {
     }
     fuori.push('servizio Gmail non ammesso: ' + nome + ' (riga ' + riga(m.index) + ')');
   }
+  // le funzioni ammesse per le chiamate del servizio Gmail e per le
+  // cancellazioni che stanno solo in certe funzioni (deleteLabel)
+  const soloInTutte = Object.assign({}, soloIn, regole.cancellazioniSoloIn || {});
   // una seconda funzione con lo stesso nome prenderebbe il posto di quella vera
-  for (const nome of Object.keys(soloIn)) {
-    for (const f of soloIn[nome]) {
+  for (const nome of Object.keys(soloInTutte)) {
+    for (const f of soloInTutte[nome]) {
       if ((corpi[f] || []).length > 1) fuori.push('la funzione ' + f + ' e\' dichiarata ' + corpi[f].length + ' volte');
     }
   }
@@ -1242,9 +1249,9 @@ function controlla(nomeFile, sorgenteIntero) {
   // Quelle interne (_togliFiltri_) si chiamano solo dentro quella pubblica,
   // e non si prendono come valore. Il loro nome non si scrive nemmeno fra
   // virgolette da solo: ScriptApp.newTrigger('EXTRA_togliFiltri').
-  for (const nome of Object.keys(soloIn)) {
-    const pubbliche = soloIn[nome].filter(f => !/_$/.test(f));
-    for (const f of soloIn[nome]) {
+  for (const nome of Object.keys(soloInTutte)) {
+    const pubbliche = soloInTutte[nome].filter(f => !/_$/.test(f));
+    for (const f of soloInTutte[nome]) {
       const pubblica = pubbliche.indexOf(f) >= 0;
       const uso = new RegExp('\\b' + f + '\\b', 'g');
       let u;
@@ -1344,7 +1351,10 @@ function controlla(nomeFile, sorgenteIntero) {
     const nome = m[1];
     if (/delete|remove|trash|purge|clear|empty|destroy/i.test(nome) &&
         regole.cancellazioni.indexOf(nome) < 0 && !alSuoPosto.has(m.index)) {
-      fuori.push('cancellazione non ammessa: ' + nome + ' (riga ' + riga(m.index) + ')');
+      const dove = (regole.cancellazioniSoloIn || {})[nome];
+      if (dove && dentroA(corpi, dove, m.index)) continue;
+      fuori.push('cancellazione non ammessa: ' + nome + ' (riga ' + riga(m.index) + ')' +
+                 (dove ? ', fuori da ' + dove.join(' e ') : ''));
     }
   }
 
@@ -1514,6 +1524,24 @@ function provaDellaProva() {
   deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata con GmailApp (deleteLabel) viene trovata',
     inserisci(posta, INIZIO, '\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();'),
     'cancellazione non ammessa: deleteLabel');
+
+  // cancellare un'etichetta si', ma solo dentro EXTRA_cancellaEtichette
+  const CANCELLA = '.deleteLabel(';
+  const cancellaDiOggi = smonta(posta).codice.split(CANCELLA).length - 1;
+  verifica('il motore di oggi cancella etichette (' + cancellaDiOggi + ' chiamata), e il controllo lo lascia fare ' +
+    'solo li\'', cancellaDiOggi === 1 && controlla('Organizzazione_Gmail.gs', posta).length === 0);
+  deveFallire('Organizzazione_Gmail.gs', 'un\'etichetta cancellata in una funzione nuova con un nome quasi uguale',
+    posta + '\nfunction EXTRA_cancellaEtichetteTutte() {\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();\n}\n',
+    'cancellazione non ammessa: deleteLabel');
+  deveFallire('Organizzazione_Gmail.gs', 'o in una seconda _cancellaEtichette_, che prenderebbe il posto di quella vera',
+    posta + '\nfunction _cancellaEtichette_() {\n  GmailApp.getUserLabelByName(\'Colleghi\').deleteLabel();\n}\n',
+    'la funzione _cancellaEtichette_ e\' dichiarata 2 volte');
+  deveFallire('Organizzazione_Gmail.gs', '_cancellaEtichette_ chiamata dallo smistamento di ogni ora viene trovata',
+    inserisci(posta, 'function smistaNuoviMessaggi() {', '\n  _cancellaEtichette_(_config_(), false, 0);'),
+    '_cancellaEtichette_ usata fuori da EXTRA_cancellaEtichette');
+  deveFallire('Organizzazione_Gmail.gs', 'EXTRA_cancellaEtichette con un trigger viene trovata',
+    inserisci(posta, INIZIO, '\n  ScriptApp.newTrigger(\'EXTRA_cancellaEtichette\').timeBased().everyHours(1).create();'),
+    'il nome EXTRA_cancellaEtichette da solo fra virgolette');
 
   // togliere un filtro si', ma solo i filtri scelti, dentro EXTRA_togliFiltri
   const TOGLI = 'Gmail.Users.Settings.Filters.remove(';

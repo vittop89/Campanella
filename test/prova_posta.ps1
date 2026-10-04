@@ -2550,6 +2550,24 @@ process.stdout.write(JSON.stringify({ tolti, restano: filtri.map(f => f.id),
     Verifica "con un altro filtro Famiglie tolto e basta la coppia non c'e' ($($xTolto.scelte -join '; '))" (
         (Leggi $sTolto 'FiltriDaTogliere').Count -eq 2 -and (Coppie ($mRimaste.Invoke($null, @($sTolto.PSObject.BaseObject)))) -eq '')
 
+    # --- "Gia' cancellata": la coppia sparisce, finche' il filtro non si sceglie di nuovo ---
+    $sGia = StatoRiorganizza
+    Imposta $sGia 'EtichetteDaNonUnire' (New-Object 'System.Collections.Generic.List[string]')
+    $giaL = New-Object 'System.Collections.Generic.List[string]'
+    $giaL.Add('Famiglie')
+    Imposta $sGia 'EtichetteGiaCancellate' $giaL
+    [void](FinestraEScelta $sGia $filtroUno $null)
+    Verifica "un filtro scelto adesso con un'etichetta gia' cancellata la fa tornare fra le rimaste ($(Coppie ($mRimaste.Invoke($null, @($sGia.PSObject.BaseObject)))))" (
+        (Leggi $sGia 'EtichetteGiaCancellate').Count -eq 0 -and
+        (Coppie ($mRimaste.Invoke($null, @($sGia.PSObject.BaseObject)))) -eq 'Famiglie>Genitori')
+    (Leggi $sGia 'EtichetteGiaCancellate').Add('famiglie')
+    Verifica "segnata gia' cancellata (maiuscole a parte) non c'e' piu' ne' nel riquadro ne' nella configurazione" (
+        (Coppie ($mRimaste.Invoke($null, @($sGia.PSObject.BaseObject)))) -eq '' -and
+        (CoppieNellaConfigurazione $sGia 'gia_1') -eq '' -and (CoppieNellaConfigurazione $sGia 'gia_1c' 'etichetteDaControllare') -eq '')
+    [void](FinestraEScelta $sGia $filtroUno $null)
+    Verifica "riaperto lo stesso file, con lo stesso filtro scelto prima, resta cancellata" (
+        (Leggi $sGia 'EtichetteGiaCancellate').Count -eq 1 -and (Coppie ($mRimaste.Invoke($null, @($sGia.PSObject.BaseObject)))) -eq '')
+
     # --- solo la sottoetichetta del ruolo, non anche Colleghi -----------------
     # Colleghi diventa @SENZAGRUPPO@ (chi non ha un ruolo), chi esclude Colleghi
     # esclude anche le sottoetichette; la regola salvata non cambia, e nel

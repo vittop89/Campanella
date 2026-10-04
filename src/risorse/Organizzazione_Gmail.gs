@@ -17,7 +17,7 @@
  *
  *  Usa soltanto Gmail: non scrive nel Drive, non chiama servizi esterni
  *  (nessun UrlFetchApp) e le uniche email che manda sono i riepiloghi a te
- *  stesso. Non cancella messaggi ne' etichette.
+ *  stesso. Non cancella messaggi; un'etichetta solo con EXTRA_cancellaEtichette.
  *
  *  COSA FA
  *    1. crea le etichette in Gmail;
@@ -38,7 +38,9 @@
  *    il 7 lo usa, se c'e', per vedere se un filtro mette ancora un'etichetta.
  *
  *  COSA NON FA
- *    Non cancella messaggi ne' etichette. Non svuota il cestino. Non segnala
+ *    Non cancella messaggi. Non cancella etichette, tranne EXTRA_cancellaEtichette
+ *    quando la esegui tu: solo quelle rimaste dai filtri uniti, gia' unite, e
+ *    quelle vuote che nessuna regola usa. Non svuota il cestino. Non segnala
  *    come spam. Applica etichette e, se richiesto, archivia: l'archiviazione
  *    toglie dalla Posta in arrivo ma il messaggio resta in "Tutti i messaggi".
  *    Toglie soltanto quello che chiedi tu: le etichette dai messaggi (le
@@ -69,6 +71,9 @@
  *                                    e che hai scelto in Campanella (Posta,
  *                                    passo 4), dopo averne scritto una copia
  *                                    nel registro (facoltativo)
+ *    EXTRA_cancellaEtichette ....... cancella le etichette rimaste dai filtri
+ *                                    uniti, gia' unite, e quelle vuote che
+ *                                    nessuna regola usa (facoltativo)
  *    EXTRA_ripulisciEtichette ...... dopo aver cambiato una regola, toglie
  *                                    la sua etichetta dalle conversazioni
  *                                    che non prende piu' (facoltativo)
@@ -1654,6 +1659,160 @@ function _rientra_(testo, prima, dopo) {
 
 
 // ===========================================================================
+//  EXTRA - CANCELLARE LE ETICHETTE CHE NON SERVONO PIU' (facoltativo)
+//  L'unica funzione che cancella delle etichette, e solo quando la esegui tu.
+//  Cancella soltanto:
+//   - le etichette rimaste dai filtri uniti (etichetteDaUnire) le cui
+//     conversazioni hanno gia' tutte l'etichetta della regola (dopo
+//     EXTRA_unisciEtichette): i messaggi restano, con quella della regola;
+//   - le etichette vuote (nessuna conversazione, nemmeno nel cestino o nello
+//     spam) che nessuna regola, anche spenta, usa.
+//  Mai un'etichetta delle regole, del gruppo o degli orari, una con delle
+//  sottoetichette, una che un filtro di Gmail mette ancora, ne' una con dei
+//  messaggi che non e' una rimasta da unire. Vuole il servizio Gmail API,
+//  per vedere i filtri: senza, non cancella niente. In prova elenca soltanto.
+// ===========================================================================
+function EXTRA_cancellaEtichette() {
+  var cfg = _config_();
+  var prova = !!cfg.provaSenzaModifiche;
+  if (!_servizioFiltri_()) {
+    var senza = 'SERVIZIO "Gmail API" NON ATTIVO: non ho cancellato niente.\n' +
+      'Serve per vedere quali etichette mettono ancora i filtri di Gmail. Nell\'editor, colonna di sinistra: ' +
+      'Servizi -> "+" -> scegli "Gmail API" -> Aggiungi. Poi esegui di nuovo EXTRA_cancellaEtichette.';
+    Logger.log(senza);
+    return senza;
+  }
+  var lock = LockService.getUserLock();
+  if (!lock.tryLock(30000)) {
+    var occupato = 'Un\'altra esecuzione (il riordino della posta, lo smistamento, un invio degli ' +
+                   'orari o il loro calendario) sta lavorando proprio adesso: riprova fra un minuto. ' +
+                   'Non ho cancellato niente.';
+    Logger.log(occupato);
+    return occupato;
+  }
+  var esito;
+  try {
+    esito = _cancellaEtichette_(cfg, prova, Date.now() + _MAX_SECONDI_ESECUZIONE * 1000);
+  } finally {
+    lock.releaseLock();
+  }
+  var testo = _righeCancella_(esito, prova).join('\n');
+  Logger.log(testo);
+  return testo;
+}
+
+/**
+ * Il lavoro di EXTRA_cancellaEtichette: prima le rimaste dai filtri uniti,
+ * poi le vuote, dalle sottoetichette in giu' (una madre che resta senza
+ * figlie si puo' cancellare nello stesso giro). Torna le cancellate
+ * ({ nome, perche }), le rimaste da unire tenute ({ nome, perche }), se i
+ * filtri non si sono potuti leggere e se il tempo e' finito.
+ */
+function _cancellaEtichette_(cfg, prova, scadenza) {
+  var esito = { cancellate: [], tenute: [], senzaFiltri: false, finito: true };
+  var deiFiltri = _etichetteDeiFiltri_();
+  if (!deiFiltri) { esito.senzaFiltri = true; return esito; }
+  var gestite = _nomiGestiti_(cfg);
+  var prefisso = String(cfg.prefissoEtichette || '').replace(/\/+$/, '');
+  // l'etichetta degli orari la usa Orari.gs per i messaggi che ti manda, se c'e'
+  gestite[((prefisso ? prefisso + '/' : '') + 'Orari').toLowerCase()] = true;
+  var nomi = [], tutte = GmailApp.getUserLabels();
+  for (var i = 0; i < tutte.length; i++) nomi.push(String(tutte[i].getName()));
+  var via = {};
+  function cancella(etichetta, nome, perche) {
+    if (!prova) etichetta.deleteLabel();
+    via[nome.toLowerCase()] = true;
+    esito.cancellate.push({ nome: nome, perche: perche });
+  }
+  function figlie(nome) {
+    var vive = [];
+    var tutteFiglie = _sottoetichette_(nome, nomi);
+    for (var f = 0; f < tutteFiglie.length; f++) if (!via[tutteFiglie[f].toLowerCase()]) vive.push(tutteFiglie[f]);
+    return vive;
+  }
+
+  // le rimaste dai filtri uniti: quando hanno tutte l'etichetta della regola
+  var coppie = _coppieEtichette_(cfg).buone;
+  for (var c = 0; c < coppie.length; c++) {
+    if (Date.now() >= scadenza) { esito.finito = false; return esito; }
+    var da = coppie[c].da, a = coppie[c].a;
+    var rimasta = GmailApp.getUserLabelByName(da);
+    if (!rimasta) continue;
+    var perche = '';
+    if (figlie(da).length) perche = 'ha delle sottoetichette';
+    else if (deiFiltri[da.toLowerCase()]) perche = 'la mette ancora un filtro di Gmail: esegui prima EXTRA_togliFiltri';
+    else if (!GmailApp.getUserLabelByName(a)) perche = a + ' non c\'e\' in Gmail';
+    else if (/"/.test(da) || /"/.test(a) || _nomeAmbiguo_(da, nomi) || _nomeAmbiguo_(a, nomi) ||
+             _chiaveRicerca_(da) === _chiaveRicerca_(a)) {
+      perche = 'la ricerca di Gmail non distingue il suo nome da un altro: cancellala tu da Gmail';
+    } else if (GmailApp.search('label:' + _virgolette_(da) + ' -label:' + _virgolette_(a) + ' in:anywhere', 0, 1).length) {
+      perche = 'ha conversazioni senza ' + a + ': esegui prima EXTRA_unisciEtichette';
+    }
+    if (perche) { esito.tenute.push({ nome: da, perche: perche }); continue; }
+    cancella(rimasta, da, 'unita a ' + a);
+  }
+
+  // le vuote che nessuna regola usa, dalle piu' profonde
+  var ordine = tutte.slice().sort(function (x, y) {
+    return String(y.getName()).split('/').length - String(x.getName()).split('/').length;
+  });
+  for (var v = 0; v < ordine.length; v++) {
+    if (Date.now() >= scadenza) { esito.finito = false; return esito; }
+    var nome = String(ordine[v].getName()), basso = nome.toLowerCase();
+    if (via[basso] || gestite[basso] || deiFiltri[basso] || figlie(nome).length || /"/.test(nome)) continue;
+    if (ordine[v].getThreads(0, 1).length) continue;
+    if (GmailApp.search('label:' + _virgolette_(nome) + ' in:anywhere', 0, 1).length) continue;
+    cancella(ordine[v], nome, 'vuota');
+  }
+  return esito;
+}
+
+/** Quello che EXTRA_cancellaEtichette dice, in righe. */
+function _righeCancella_(esito, prova) {
+  var righe = [];
+  if (esito.senzaFiltri) {
+    return _aCapo_('Non ho potuto leggere i filtri di Gmail: non so quali etichette mettono ancora, e non ho ' +
+      'cancellato niente. Riprova fra qualche minuto.', '', '');
+  }
+  if (prova) {
+    righe = righe.concat(_aCapo_('MODALITA\' PROVA: non ho cancellato niente, dico soltanto che cosa ' +
+      'cancellerei.', '', ''));
+  }
+  if (!esito.cancellate.length) {
+    righe.push(esito.finito ? 'Niente da cancellare.' : 'Non ho ancora trovato niente da cancellare.');
+  } else {
+    righe.push((prova ? 'Etichette che cancellerei: ' : 'Etichette cancellate: ') + esito.cancellate.length);
+    for (var i = 0; i < esito.cancellate.length; i++) {
+      var x = esito.cancellate[i];
+      righe = righe.concat(_aCapo_(x.nome + ' (' + x.perche + ')', '  - ', '    '));
+    }
+  }
+  if (esito.tenute.length) {
+    righe.push('');
+    righe.push('Etichette rimaste dai filtri uniti che tengo: ' + esito.tenute.length);
+    for (var k = 0; k < esito.tenute.length; k++) {
+      righe = righe.concat(_aCapo_(esito.tenute[k].nome + ': ' + esito.tenute[k].perche, '  - ', '    '));
+    }
+  }
+  righe.push('');
+  if (!esito.finito) {
+    righe = righe.concat(_aCapo_('TEMPO FINITO: esegui di nuovo questa funzione, finche\' non lo dice piu\'.', '', ''));
+  }
+  righe = righe.concat(_aCapo_(prova
+    ? 'Per cancellarle davvero: in Configurazione.gs metti provaSenzaModifiche: false ed esegui di nuovo ' +
+      'EXTRA_cancellaEtichette.'
+    : 'Non ho cancellato nessun messaggio: le rimaste dai filtri uniti li hanno con l\'etichetta della regola, ' +
+      'le altre erano vuote. Non ho toccato le etichette delle regole, quelle con delle sottoetichette, ' +
+      'quelle dei filtri di Gmail ne\' quelle con dei messaggi.', '', ''));
+  if (!prova && esito.cancellate.length) {
+    righe = righe.concat(_aCapo_('Cancellata un\'etichetta rimasta, ANNULLA_etichettatura toglierebbe a quei ' +
+      'messaggi anche l\'etichetta della regola, e resterebbero senza.', '', ''));
+  }
+  return righe;
+}
+
+
+// ===========================================================================
 //  EXTRA - RIPULIRE LE ETICHETTE DELLE REGOLE (facoltativo)
 //  Dopo aver cambiato una regola in Campanella (un'esclusione, una parola
 //  dell'oggetto in meno, un mittente tolto) e copiato di nuovo la
@@ -1937,6 +2096,8 @@ function _righeUnisci_(coppie, esito, prova) {
           'senza segnare come letto.'
         : 'Non ho messo nessuna etichetta, e non ho tolto ne\' cancellato niente.', '', ''));
       if (cancellabili) {
+        righe = righe.concat(_aCapo_('Quelle che si possono cancellare le cancella anche EXTRA_cancellaEtichette.',
+          '', ''));
         righe = righe.concat(_aCapo_('Cancellata un\'etichetta rimasta, ANNULLA_etichettatura toglierebbe a quei ' +
           'messaggi anche l\'etichetta della regola, e resterebbero senza.', '', ''));
       }

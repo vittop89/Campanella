@@ -50,6 +50,7 @@ namespace Campanella
         // spunta per coppia, nell'ordine di FiltriGmail.EtichetteRimaste
         GroupBox grpEtichette;
         ElencoSpunte clbEtichette;
+        Button btnGiaCancellata;
         List<CoppiaEtichette> coppieMostrate = new List<CoppiaEtichette>();
         bool aggiornandoEtichette = false;
         TextBox txtPrefisso;
@@ -213,9 +214,10 @@ namespace Campanella
                   "Se vuoi, da' alle etichette i colori che scegli, crea anche i veri filtri di Gmail e " +
                   "toglie i filtri vecchi che scegli tu." },
                 { "Che cosa NON fa",
-                  "Non cancella messaggi ne' etichette, non svuota il cestino, non segnala come spam, non " +
+                  "Non cancella messaggi, non svuota il cestino, non segnala come spam, non " +
                   "manda messaggi al posto tuo. Al massimo archivia, cioe' toglie dalla Posta in arrivo: " +
-                  "il messaggio resta comunque in \"Tutti i messaggi\"." },
+                  "il messaggio resta comunque in \"Tutti i messaggi\". Cancella un'etichetta solo se esegui tu " +
+                  "EXTRA_cancellaEtichette: quelle rimaste dai filtri uniti, gia' unite, e quelle vuote." },
                 { "Prima si prova",
                   "La prima esecuzione parte sempre in modalita' prova: conta i messaggi e ti dice " +
                   "cosa farebbe, senza modificare nulla. Solo quando il risultato ti convince togli " +
@@ -859,7 +861,7 @@ namespace Campanella
             // le etichette rimaste dai filtri uniti a una regola con un'altra
             // etichetta: le unisce EXTRA_unisciEtichette. Senza coppie non si vede
             // (AggiornaEtichetteRimaste)
-            grpEtichette = Tema.Gruppo("Etichette rimaste dai filtri uniti", 420, y + 410, 480, 150);
+            grpEtichette = Tema.Gruppo("Etichette rimaste dai filtri uniti", 420, y + 410, 480, 160);
             clbEtichette = new ElencoSpunte();
             clbEtichette.Location = new Point(14, 26);
             clbEtichette.Size = new Size(452, 68);
@@ -885,9 +887,17 @@ namespace Campanella
                 if (e.NewValue != CheckState.Checked) S.EtichetteDaNonUnire.Add(da);
             };
             grpEtichette.Controls.Add(clbEtichette);
-            string unisci = "Le unisce EXTRA_unisciEtichette: mette ai loro messaggi l'etichetta della regola. " +
-                            "Poi le cancelli tu da Gmail.";
-            grpEtichette.Controls.Add(Tema.Testo1(unisci, 14, 100, 420, Tema.Piccolo, Ruolo.Tenue));
+            // cancellata da Gmail: Campanella non lo vede, lo dice il docente
+            btnGiaCancellata = Tema.Bottone("Gia' cancellata", 14, 100, 130, delegate { GiaCancellata(); });
+            btnGiaCancellata.Enabled = false;
+            clbEtichette.SelectedIndexChanged += delegate
+            {
+                btnGiaCancellata.Enabled = clbEtichette.SelectedIndex >= 0 && clbEtichette.SelectedIndex < coppieMostrate.Count;
+            };
+            grpEtichette.Controls.Add(btnGiaCancellata);
+            string unisci = "Le unisce EXTRA_unisciEtichette; poi le cancella EXTRA_cancellaEtichette, o tu da Gmail. " +
+                            "Cancellata una, selezionala e premi \"Gia' cancellata\".";
+            grpEtichette.Controls.Add(Tema.Testo1(unisci, 154, 100, 284, Tema.Piccolo, Ruolo.Tenue));
             grpEtichette.Controls.Add(Tema.Aiuto(446, 102, "Le etichette rimaste dai filtri uniti",
                 "Un filtro che hai unito a una regola con un'altra etichetta (Famiglie a Genitori, la casella della " +
                 "scuola a Segreteria) lascia la sua etichetta in Gmail, con i messaggi di prima: tolto il filtro " +
@@ -896,15 +906,19 @@ namespace Campanella
                 "basta: non archivia, non segna come letto, non toglie e non cancella niente. Un'etichetta che un " +
                 "filtro di Gmail mette ancora non la unisce: e' ancora in uso (e se un altro filtro con la stessa " +
                 "etichetta resta in Gmail, qui la coppia non c'e'). Poi dice quali " +
-                "etichette rimaste puoi cancellare tu da Gmail (nel menu a sinistra, i tre puntini accanto " +
-                "all'etichetta -> Rimuovi etichetta): i messaggi restano, con l'etichetta della regola. Dice anche " +
+                "etichette rimaste puoi cancellare (in Gmail: nel menu a sinistra, i tre puntini accanto " +
+                "all'etichetta -> Rimuovi etichetta; oppure con EXTRA_cancellaEtichette, che cancella solo quelle " +
+                "gia' unite): i messaggi restano, con l'etichetta della regola. Dice anche " +
                 "quali altre etichette non mette nessuna regola, se non ti servono.\r\n\r\n" +
                 "Togli la spunta a una coppia che non vuoi unire, poi copia di nuovo la configurazione (passo 5). " +
                 "Una coppia \"(riapri il file dei filtri)\" viene da un filtro scelto prima della 1.6.2, che non " +
                 "ricordava se in Gmail ne restava un altro con la stessa etichetta: riapri il file in \"Filtri che " +
                 "hai gia' in Gmail...\" e premi \"Usa questa scelta\"; intanto lo script non la unisce, e non te la " +
                 "propone da cancellare. " +
-                "Con la modalita' prova la funzione conta soltanto."));
+                "Con la modalita' prova la funzione conta soltanto.\r\n\r\n" +
+                "Campanella non vede Gmail: quando un'etichetta rimasta l'hai cancellata (o l'ha cancellata " +
+                "EXTRA_cancellaEtichette), selezionala qui e premi \"Gia' cancellata\". Sparisce dal riquadro e dalla " +
+                "configurazione; se poi scegli di nuovo un filtro con quell'etichetta, torna."));
             grpEtichette.Visible = false;
             p.Controls.Add(grpEtichette);
 
@@ -1092,9 +1106,12 @@ namespace Campanella
                 "(va anche senza il servizio): mette ai loro messaggi l'etichetta della regola e dice quali " +
                 "cancellare tu da Gmail. Se cambi una regola (una parola dell'oggetto, un mittente, " +
                 "un'esclusione) e copi di nuovo la configurazione, esegui  EXTRA_ripulisciEtichette: toglie la " +
-                "sua etichetta dalle conversazioni che la regola non prende piu', e basta. Con la modalita' prova " +
+                "sua etichetta dalle conversazioni che la regola non prende piu', e basta. EXTRA_cancellaEtichette " +
+                "(con il servizio) cancella le etichette rimaste gia' unite e quelle vuote che nessuna regola " +
+                "usa. Con la modalita' prova " +
                 "accesa queste funzioni non cambiano niente; quelle dei colori, EXTRA_togliFiltri, " +
-                "EXTRA_unisciEtichette ed EXTRA_ripulisciEtichette dicono che cosa farebbero.",
+                "EXTRA_unisciEtichette, EXTRA_ripulisciEtichette ed EXTRA_cancellaEtichette dicono che cosa " +
+                "farebbero.",
                 new string[] { }, new EventHandler[] { });
 
             return p;
@@ -2550,6 +2567,27 @@ namespace Campanella
         /// la coppia non va nella configurazione (Stato.EtichetteDaNonUnire).
         /// Senza coppie il riquadro non si vede.
         /// </summary>
+        /// <summary>
+        /// "Gia' cancellata": la coppia selezionata non si mostra piu' e non va
+        /// nella configurazione (Stato.EtichetteGiaCancellate), finche' un filtro
+        /// con quell'etichetta non viene scelto di nuovo.
+        /// </summary>
+        void GiaCancellata()
+        {
+            int i = clbEtichette.SelectedIndex;
+            if (i < 0 || i >= coppieMostrate.Count) return;
+            string da = coppieMostrate[i].Da;
+            if (S.EtichetteGiaCancellate == null) S.EtichetteGiaCancellate = new List<string>();
+            if (!FiltriGmail.GiaCancellata(S, da)) S.EtichetteGiaCancellate.Add(da);
+            if (S.EtichetteDaNonUnire != null)
+                S.EtichetteDaNonUnire.RemoveAll(delegate(string x)
+                {
+                    return string.Equals((x ?? "").Trim(), da.Trim(), StringComparison.OrdinalIgnoreCase);
+                });
+            AggiornaEtichetteRimaste();
+            Guscio.Stato1(da + " tolta dalle etichette rimaste. Copia di nuovo la configurazione (passo 5).");
+        }
+
         void AggiornaEtichetteRimaste()
         {
             if (grpEtichette == null) return;
@@ -2565,6 +2603,7 @@ namespace Campanella
             }
             finally { aggiornandoEtichette = false; }
             grpEtichette.Visible = coppieMostrate.Count > 0;
+            btnGiaCancellata.Enabled = false;
         }
 
         /// <summary>

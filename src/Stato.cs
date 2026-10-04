@@ -420,6 +420,10 @@ namespace Campanella
         // etichetta che il docente non vuole unire (FiltriGmail.EtichetteRimaste):
         // solo nomi di etichette, con i dati personali come i filtri da cui vengono
         public List<string> EtichetteDaNonUnire = new List<string>();
+        // quelle che il docente ha gia' cancellato da Gmail ("Gia' cancellata"):
+        // non si mostrano piu' e non vanno nella configurazione, finche' un
+        // filtro con quell'etichetta non viene scelto di nuovo. Solo nomi
+        public List<string> EtichetteGiaCancellate = new List<string>();
 
         // ---- cartelle (generatore anno scolastico) --------------------------
         // Vuoto finche' Carica non lo legge dal file o, se non c'e' niente di
@@ -693,6 +697,8 @@ namespace Campanella
             if (Regole != null) foreach (Regola r in Regole) c.Regole.Add(r == null ? null : r.Copia());
             c.FiltriDaTogliere = new List<FiltroDaTogliere>();
             if (FiltriDaTogliere != null) foreach (FiltroDaTogliere f in FiltriDaTogliere) c.FiltriDaTogliere.Add(f == null ? null : f.Copia());
+            // le scelte la cambiano (un filtro scelto di nuovo): nella copia, non qui
+            c.EtichetteGiaCancellate = new List<string>(EtichetteGiaCancellate ?? new List<string>());
             return c;
         }
 
@@ -1250,6 +1256,9 @@ namespace Campanella
             List<object> nonUnire = new List<object>();
             if (EtichetteDaNonUnire != null) foreach (string e in EtichetteDaNonUnire) nonUnire.Add(e);
             r["etichetteDaNonUnire"] = nonUnire;
+            List<object> giaCancellate = new List<object>();
+            if (EtichetteGiaCancellate != null) foreach (string e in EtichetteGiaCancellate) giaCancellate.Add(e);
+            r["etichetteGiaCancellate"] = giaCancellate;
 
             List<object> madri = new List<object>();
             if (MadriClassi != null) foreach (string m in MadriClassi) madri.Add(m);
@@ -1623,6 +1632,8 @@ namespace Campanella
 
             // le etichette rimaste dai filtri uniti che il docente non vuole unire
             if (r.ContainsKey("etichetteDaNonUnire")) EtichetteDaNonUnire = Lista(r, "etichetteDaNonUnire");
+            // e quelle gia' cancellate da Gmail
+            if (r.ContainsKey("etichetteGiaCancellate")) EtichetteGiaCancellate = Lista(r, "etichetteGiaCancellate");
 
             object[] lez = r.ContainsKey("lezioni") ? r["lezioni"] as object[] : null;
             if (lez != null)

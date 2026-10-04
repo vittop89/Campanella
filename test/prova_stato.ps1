@@ -1304,6 +1304,20 @@ static class ProvaStato
         Stato t = Carica();
         Verifica("e si rileggono uguali", string.Join("|", ((List<string>)campo.GetValue(t)).ToArray()) ==
             "Famiglie|Sindacati e normativa");
+        // quelle gia' cancellate da Gmail ("Gia' cancellata"), come quelle da non unire
+        FieldInfo campoGia = t.GetType().GetField("EtichetteGiaCancellate");
+        Verifica("lo Stato ha le etichette gia' cancellate (Stato.EtichetteGiaCancellate)",
+            campoGia != null && campoGia.GetValue(t) is List<string>);
+        if (campoGia != null)
+        {
+            ((List<string>)campoGia.GetValue(t)).Add("Vecchia scuola");
+            t.Salva();
+            Verifica("stanno nel file dei dati, non nelle impostazioni, e si rileggono",
+                ListaNelFile(Json(FileDati(c)), "etichetteGiaCancellate") == "Vecchia scuola" &&
+                !Json(Impostazioni()).ContainsKey("etichetteGiaCancellate") &&
+                string.Join("|", ((List<string>)campoGia.GetValue(Carica())).ToArray()) == "Vecchia scuola");
+            t = Carica();
+        }
         // un filtro da togliere ricorda se in Gmail ne restava un altro con la
         // stessa etichetta (1.6.2): si scrive solo se si sa, e si rilegge
         AggiungiFiltro(t, "Famiglie", "query", "from:(@famiglie.example)");

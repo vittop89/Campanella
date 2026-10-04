@@ -267,8 +267,11 @@ tutte, una per una e dall'ora di arrivo, in un foglio vecchio.
   regole di Campanella), solo quelli, dopo averne scritto una copia nel
   registro per rifarli a mano. `EXTRA_unisciEtichette` aggiunge soltanto
   l'etichetta di una regola ai messaggi di un'etichetta rimasta da un filtro
-  unito a quella regola: lo script non cancella mai un'etichetta, quella
-  rimasta la cancelli tu, se vuoi. Dopo che hai cambiato una regola,
+  unito a quella regola. Le etichette le cancella solo
+  `EXTRA_cancellaEtichette`, quando la esegui tu con il servizio Gmail API:
+  quelle rimaste dai filtri uniti le cui conversazioni hanno già tutte
+  l'etichetta della regola, e quelle vuote che nessuna regola né filtro usa;
+  mai un'etichetta delle regole o una con altri messaggi. Dopo che hai cambiato una regola,
   `EXTRA_ripulisciEtichette` toglie la sua etichetta dalle conversazioni che
   la regola non prende più, e nient'altro (in prova conta soltanto).
 - La prima esecuzione del riordino parte sempre in modalità prova, e in prova
