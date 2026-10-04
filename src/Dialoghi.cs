@@ -3062,6 +3062,11 @@ namespace Campanella
         public readonly Dictionary<string, string> TitoliOre = new Dictionary<string, string>();
         /// <summary>Le ore della finestra, in ordine.</summary>
         public readonly List<OraDelCalendario> Ore;
+        /// <summary>
+        /// Vero: un titolo nuovo prende un colore che gli altri non usano.
+        /// Falso (di partenza): tiene il colore che le sue ore avevano.
+        /// </summary>
+        public bool ColoreNuovoPerTitolo;
 
         readonly bool conColloqui;
         readonly List<string> chiaviDiPrima;
@@ -3073,6 +3078,7 @@ namespace Campanella
         readonly Label lblScelta, notaColore;
         readonly ComboBox cmbTitolo, tendina;
         readonly Button btnClasse;
+        readonly CheckBox chkColoreNuovo;
         bool riempiendo = false;
         // le ore scelte sono i colloqui (dalla legenda): solo il colore
         bool colloquiScelti = false;
@@ -3110,7 +3116,15 @@ namespace Campanella
         /// <summary>Con le ore soltanto: i giorni sono quelli delle ore, nel loro ordine, e le ore fino all'ultima.</summary>
         public FormColoriClassi(List<OraDelCalendario> ore, bool colloqui, Dictionary<string, string> colori,
                                 List<string> aMano, Dictionary<string, string> scritti, Dictionary<string, string> titoliOre)
-            : this(ore, GiorniDi(ore), OreFinoA(ore), colloqui, colori, aMano, scritti, titoliOre)
+            : this(ore, GiorniDi(ore), OreFinoA(ore), colloqui, colori, aMano, scritti, titoliOre, false)
+        {
+        }
+
+        /// <summary>Con l'opzione di partenza: un titolo nuovo tiene il colore delle sue ore.</summary>
+        public FormColoriClassi(List<OraDelCalendario> ore, List<string> giorni, int quanteOre, bool colloqui,
+                                Dictionary<string, string> colori, List<string> aMano, Dictionary<string, string> scritti,
+                                Dictionary<string, string> titoliOre)
+            : this(ore, giorni, quanteOre, colloqui, colori, aMano, scritti, titoliOre, false)
         {
         }
 
@@ -3134,11 +3148,13 @@ namespace Campanella
         /// <param name="colloqui">vero se ci sono colloqui che vanno sul calendario: hanno la loro voce nella legenda</param>
         /// <param name="scritti">i colori nell'ultimo DatiOrari.gs uscito (Stato.CalColoriScritti), anche null</param>
         /// <param name="titoliOre">i titoli scelti prima (Stato.CalTitoliOre), anche null</param>
+        /// <param name="coloreNuovo">vero se un titolo nuovo prende un colore suo (Stato.CalColoreNuovoPerTitolo)</param>
         public FormColoriClassi(List<OraDelCalendario> ore, List<string> giorni, int quanteOre, bool colloqui,
                                 Dictionary<string, string> colori, List<string> aMano, Dictionary<string, string> scritti,
-                                Dictionary<string, string> titoliOre)
+                                Dictionary<string, string> titoliOre, bool coloreNuovo)
         {
             Ore = new List<OraDelCalendario>(ore ?? new List<OraDelCalendario>());
+            ColoreNuovoPerTitolo = coloreNuovo;
             conColloqui = colloqui;
             Colori = new Dictionary<string, string>(colori ?? new Dictionary<string, string>());
             chiaviDiPrima = new List<string>(Colori.Keys);
@@ -3168,7 +3184,8 @@ namespace Campanella
                 "Il tuo orario, con ogni lezione del colore del suo titolo. Il titolo e' come la lezione si chiamera' " +
                 "sul calendario: di partenza e' la classe del tabellone, e puoi cambiarlo o completarlo (per esempio " +
                 "\"2B - MAT\" e \"2B - FIS\"). Il colore va con il titolo: le ore con lo stesso titolo hanno lo stesso " +
-                "colore, e le ore una dopo l'altra con lo stesso titolo diventano un evento solo." +
+                "colore, e un titolo nuovo tiene quello che le sue ore avevano (o ne prende uno suo, con la spunta " +
+                "\"Titolo nuovo, colore nuovo\"). Le ore una dopo l'altra con lo stesso titolo diventano un evento solo." +
                 (conColloqui ? " I colloqui con le famiglie hanno il loro colore, nella legenda." : ""),
                 16, y, larga, Tema.Normale, Ruolo.Tenue);
             Controls.Add(spiega);
@@ -3244,6 +3261,16 @@ namespace Campanella
             Controls.Add(cmbTitolo);
             btnClasse = Tema.Bottone("Rimetti la classe", 480, y, 160, delegate { ApplicaTitolo(""); });
             Controls.Add(btnClasse);
+            // la spunta del colore di un titolo nuovo, sotto la legenda, sulla riga del titolo
+            chkColoreNuovo = Tema.SpuntaAiuto(this, "Titolo nuovo, colore nuovo", xl, y + 5,
+                "Il colore di un titolo nuovo",
+                "Senza la spunta (di partenza), un titolo nuovo tiene il colore che le sue ore avevano: scritto " +
+                "\"2B - MAT\" al posto di \"S2 B\", quelle ore restano del colore di S2 B, e se S2 B ha ancora " +
+                "altre ore restano dello stesso colore anche loro. Il colore lo cambi quando vuoi dalla tendina.\r\n\r\n" +
+                "Con la spunta, un titolo nuovo prende un colore che nessun altro titolo usa, cosi' ogni titolo ha " +
+                "il suo. Vale per i titoli che scrivi da quel momento: quelli che ci sono gia' tengono il loro colore.");
+            chkColoreNuovo.Checked = ColoreNuovoPerTitolo;
+            chkColoreNuovo.CheckedChanged += delegate { ColoreNuovoPerTitolo = chkColoreNuovo.Checked; };
             y += 38;
             Controls.Add(Tema.Testo1("Colore", 16, y + 5, 150, Tema.Normale, Ruolo.Normale));
             tendina = new ComboBox();
@@ -3400,11 +3427,28 @@ namespace Campanella
         {
             if (colloquiScelti || tabellone.Scelte.Count == 0) return;
             string t = (titolo ?? "").Trim();
+            // il titolo che le ore avevano: uno nuovo tiene il colore della prima
+            string prima = TitoloDi(tabellone.Scelte[0]);
             foreach (string k in tabellone.Scelte)
             {
                 OraDelCalendario o;
                 if (!perChiave.TryGetValue(k, out o)) continue;
                 if (t == "" || t == o.Classe) TitoliOre.Remove(k); else TitoliOre[k] = t;
+            }
+            string nuovo = TitoloDi(tabellone.Scelte[0]);
+            if (!ColoreNuovoPerTitolo && nuovo != prima && !Classi.Contains(nuovo) && Colori.ContainsKey(prima))
+            {
+                Colori[nuovo] = Colori[prima];
+                // se il titolo di prima ha ancora delle ore, i due colori uguali
+                // sono una scelta: scelti a mano tutti e due, se no Campanella ne
+                // darebbe subito un altro a uno dei due (ColoriLezioni.Completa)
+                bool restaPrima = false;
+                foreach (OraDelCalendario o in Ore) if (TitoloDi(o.Chiave()) == prima) restaPrima = true;
+                if (restaPrima || AMano.Contains(prima))
+                {
+                    if (!AMano.Contains(nuovo)) AMano.Add(nuovo);
+                    if (restaPrima && !AMano.Contains(prima)) AMano.Add(prima);
+                }
             }
             Rifai();
         }

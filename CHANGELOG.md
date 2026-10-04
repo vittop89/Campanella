@@ -130,8 +130,11 @@ step 2).
   whole column or row, a legend entry for all the hours of that title, or
   the arrows and the space bar), then write the title and choose the colour
   below. The colour goes with the title: hours with the same title share it,
-  and changed for one cell it changes in the others; every new title gets
-  one the others do not use. The colloqui keep their colour in the legend. Consecutive hours become one event only
+  and changed for one cell it changes in the others. A new title keeps the
+  colour its hours had (if the old title still has other hours, both keep
+  it, as chosen by hand); with "Titolo nuovo, colore nuovo" (off by default,
+  `Stato.CalColoreNuovoPerTitolo`) it gets one the others do not use. The
+  colloqui keep their colour in the legend. Consecutive hours become one event only
   with the same title. A title belongs to that day, hour and class
   (`Stato.CalTitoliOre`, key day|hour|class): with a new timetable that has
   another class there it no longer applies. It goes into DatiOrari.gs

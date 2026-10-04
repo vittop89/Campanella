@@ -956,7 +956,10 @@ ORARI - le email a te e il calendario
    poi sotto scrivi il titolo e scegli il colore. "Rimetti la classe"
    toglie il titolo. Il colore va con il titolo: le ore con lo stesso
    titolo hanno lo stesso colore, e cambiato per una cella cambia anche
-   nelle altre; ogni titolo nuovo ne prende uno che gli altri non usano.
+   nelle altre. Un titolo nuovo tiene il colore che le sue ore avevano
+   (scritto "2B - MAT" al posto di "S2 B", quelle ore restano del colore
+   di S2 B); con la spunta "Titolo nuovo, colore nuovo", spenta di
+   partenza, ne prende uno che gli altri titoli non usano.
    Le ore una dopo l'altra con lo stesso titolo diventano un evento solo
    (MAT alla 2a e FIS alla 3a sono due eventi). Il titolo vale per quel
    giorno, quell'ora e quella classe: con un orario nuovo che li' ha

@@ -504,6 +504,10 @@ namespace Campanella
         // classi e materie: sta nelle impostazioni. I colori vanno con il
         // titolo (CalColori)
         public Dictionary<string, string> CalTitoliOre = new Dictionary<string, string>();
+        // vero = un titolo nuovo prende un colore che gli altri non usano; falso
+        // (di partenza) = tiene il colore che le sue ore avevano ("Titoli e
+        // colori delle lezioni...")
+        public bool CalColoreNuovoPerTitolo = false;
         // vero = l'avviso dell'avvio sul fuso dei calendari messi con la 1.5 o
         // prima e' gia' stato dato (o non serviva): non si ripete
         public bool AvvisoFusoCalendarioDato = false;
@@ -1167,6 +1171,7 @@ namespace Campanella
                 foreach (KeyValuePair<string, string> kv in CalTitoliOre)
                     if ((kv.Value ?? "").Trim() != "") titoli[kv.Key] = kv.Value.Trim();
             r["calTitoliOre"] = titoli;
+            r["calColoreNuovoPerTitolo"] = CalColoreNuovoPerTitolo;
             r["avvisoFusoCalendario"] = AvvisoFusoCalendarioDato;
             r["anonIndirizzo"] = AnonIndirizzo;
             r["anonDestinazione"] = AnonDestinazione;
@@ -1366,6 +1371,7 @@ namespace Campanella
                         string titolo = (kv.Value == null) ? "" : Convert.ToString(kv.Value, CultureInfo.InvariantCulture).Trim();
                         if (ora != "" && titolo != "") s.CalTitoliOre[ora] = titolo;
                     }
+                s.CalColoreNuovoPerTitolo = Bool(r, "calColoreNuovoPerTitolo", false);
                 s.AvvisoFusoCalendarioDato = Bool(r, "avvisoFusoCalendario", false);
                 s.AnonIndirizzo = Str(r, "anonIndirizzo", s.AnonIndirizzo);
                 s.AnonDestinazione = Str(r, "anonDestinazione", "");

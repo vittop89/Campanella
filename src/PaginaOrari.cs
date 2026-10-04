@@ -771,7 +771,8 @@ namespace Campanella
                 "(Ctrl+clic per sceglierne altre, un clic sul giorno o sull'ora per tutta la colonna o la riga, uno " +
                 "sulla legenda per tutte le ore di quel titolo), poi sotto scrivi il titolo (per esempio \"2B - MAT\" " +
                 "o \"2B - FIS\") e scegli il colore, che va con il titolo: le ore con lo stesso titolo hanno lo stesso " +
-                "colore. Le ore una " +
+                "colore, e un titolo nuovo tiene quello che le sue ore avevano (con la spunta \"Titolo nuovo, colore " +
+                "nuovo\" ne prende uno suo). Le ore una " +
                 "dopo l'altra con lo stesso titolo diventano un evento solo. Le lezioni che lo script mette da quel " +
                 "momento prendono i titoli; per quelle gia' sul calendario: ORARI_ANNULLA_calendario e poi " +
                 "ORARI_4_calendario."));
@@ -1582,9 +1583,11 @@ namespace Campanella
             using (FormColoriClassi f = new FormColoriClassi(AnalisiOrario.OreDelDocente(orario, docenteC),
                                                              orario.Giorni, orario.OrePerGiorno,
                                                              classi.Contains(ColoriLezioni.Colloqui), S.CalColori,
-                                                             S.CalColoriAMano, S.CalColoriScritti, S.CalTitoliOre))
+                                                             S.CalColoriAMano, S.CalColoriScritti, S.CalTitoliOre,
+                                                             S.CalColoreNuovoPerTitolo))
             {
                 if (f.ShowDialog(this) != DialogResult.OK) return;
+                S.CalColoreNuovoPerTitolo = f.ColoreNuovoPerTitolo;
                 S.CalColori = new Dictionary<string, string>(f.Colori);
                 S.CalColoriAMano = new List<string>(f.AMano);
                 // i titoli delle ore di questa finestra; quelli di ore che qui non

@@ -1318,6 +1318,21 @@ static class ProvaStato
                 string.Join("|", ((List<string>)campoGia.GetValue(Carica())).ToArray()) == "Vecchia scuola");
             t = Carica();
         }
+        // Orari: un titolo nuovo prende un colore suo solo con la spunta (di partenza no)
+        FieldInfo campoNuovo = t.GetType().GetField("CalColoreNuovoPerTitolo");
+        Verifica("lo Stato ha la spunta del colore di un titolo nuovo, spenta (Stato.CalColoreNuovoPerTitolo)",
+            campoNuovo != null && object.Equals(campoNuovo.GetValue(t), false));
+        if (campoNuovo != null)
+        {
+            campoNuovo.SetValue(t, true);
+            t.Salva();
+            Verifica("sta nelle impostazioni e si rilegge accesa",
+                object.Equals(Json(Impostazioni())["calColoreNuovoPerTitolo"], true) &&
+                object.Equals(campoNuovo.GetValue(Carica()), true));
+            campoNuovo.SetValue(t, false);
+            t.Salva();
+            t = Carica();
+        }
         // un filtro da togliere ricorda se in Gmail ne restava un altro con la
         // stessa etichetta (1.6.2): si scrive solo se si sa, e si rilegge
         AggiungiFiltro(t, "Famiglie", "query", "from:(@famiglie.example)");

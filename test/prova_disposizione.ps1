@@ -1507,9 +1507,9 @@ if ($null -ne $tFCC -and $null -ne $tOra) {
     $fc.ScegliOre((Riga $fc '10A')); $fc.ApplicaTitolo('2B')
     $fc.ScegliOre((Riga $fc '1A')); $fc.CasellaTitolo.Text = '1A - MAT'; $fc.ScriviTitolo()
     $fc.ScegliOre((Riga $fc '3B LSA')); $fc.ApplicaTitolo('3B LSA')
-    Verifica "scritti i titoli, la finestra li tiene ($(@($fc.TitoliOre.Keys | ForEach-Object { $_ + '=' + $fc.TitoliOre[$_] }) -join '; ')), e sono le voci della legenda ($(ColoriDi $fc))" (
+    Verifica "scritti i titoli, la finestra li tiene ($(@($fc.TitoliOre.Keys | ForEach-Object { $_ + '=' + $fc.TitoliOre[$_] }) -join '; ')), sono le voci della legenda, e senza la spunta 1A - MAT tiene il Pomodoro della 1A ($(ColoriDi $fc))" (
         $fc.TitoliOre.Count -eq 2 -and $fc.TitoliOre[(Riga $fc '1A')] -eq '1A - MAT' -and
-        ($fc.Classi -join ',') -eq '1A - MAT,2B,3B LSA,A disposizione' -and $fc.Colori['1A - MAT'] -ne '' -and
+        ($fc.Classi -join ',') -eq '1A - MAT,2B,3B LSA,A disposizione' -and $fc.Colori['1A - MAT'] -eq '11' -and -not $fc.ColoreNuovoPerTitolo -and
         (Colore $fc '10A') -eq $fc.Colori['2B'] -and $fc.Legenda.Items.Count -eq 4 -and
         (Voce $fc '2B').ToString() -match '^2B: .*, 2 ore$')
     $fc.ScegliTitolo('2B')
@@ -1611,6 +1611,20 @@ if ($null -ne $tFCC -and $null -ne $tOra) {
     Verifica "  ...e la freccia a destra sceglie l'ora accanto, giovedi' 1a, che e' vuota: nessuna" ($tab.Scelte.Count -eq 0)
     $tab.GetType().GetMethod('OnKeyDown', $FIm).Invoke($tab, [object[]]@([System.Windows.Forms.KeyEventArgs]::new([System.Windows.Forms.Keys]::Down)))
     Verifica "  ...e la freccia in giu' giovedi' 2a, S3 B" ($tab.Scelte.Count -eq 1 -and $tab.Scelte[0] -eq 'Giovedi''|2|S3 B')
+    # di partenza un titolo nuovo tiene il colore delle sue ore; con la spunta ne prende uno suo
+    $coloreS2 = $fw.Colori['S2 B']
+    $fw.ScegliOre('Lunedi''|2|S2 B'); $fw.ApplicaTitolo('2B - MAT')
+    Verifica "senza la spunta, 2B - MAT scritto per un'ora di S2 B tiene il suo colore, e le altre ore di S2 B anche: tutti e due scelti a mano ($(ColoriDi $fw))" (
+        -not $fw.ColoreNuovoPerTitolo -and $fw.Colori['2B - MAT'] -eq $coloreS2 -and $fw.Colori['S2 B'] -eq $coloreS2 -and
+        $fw.AMano.Contains('2B - MAT') -and $fw.AMano.Contains('S2 B'))
+    $chk = @($fw.Controls | Where-Object { $_ -is [System.Windows.Forms.CheckBox] })[0]
+    $chk.Checked = $true
+    $coloreS3 = $fw.Colori['S3 B']
+    $fw.ScegliOre('Giovedi''|2|S3 B'); $fw.ApplicaTitolo('3B - LAB')
+    Verifica "con la spunta, 3B - LAB scritto per un'ora di S3 B prende un colore che nessun altro titolo usa, e S3 B tiene il suo ($(ColoriDi $fw))" (
+        $fw.ColoreNuovoPerTitolo -and $fw.Colori['3B - LAB'] -ne $coloreS3 -and $fw.Colori['S3 B'] -eq $coloreS3 -and
+        @($fw.Classi | Where-Object { $_ -ne '3B - LAB' } | ForEach-Object { $fw.Colori[$_] }) -notcontains $fw.Colori['3B - LAB'])
+    $fw.ApplicaTitolo('')
     $fw.ScegliTitolo('S2 B'); $fw.ApplicaTitolo('2B - MAT')
     Verifica "scelte le ore di S2 B dalla legenda e scritto 2B - MAT: lo prendono le tre ore ancora S2 B, non quella 2B - FIS ($(ColoriDi $fw))" (
         ($fw.Classi -join ',') -eq '2B - FIS,2B - MAT,A5 AR,S3 B,A disposizione' -and (Voce $fw '2B - MAT').QuanteOre -eq 3 -and
