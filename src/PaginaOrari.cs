@@ -764,11 +764,14 @@ namespace Campanella
                 "che mettono. Per le lezioni gia' sul calendario rigenera e incolla DatiOrari.gs, poi esegui " +
                 "ORARI_6_coloraLezioni: cambia solo il colore, senza rifare ne' spostare niente. Le lezioni di una " +
                 "classe a cui togli il colore restano come sono: il colore lo togli da Google Calendar.\r\n\r\n" +
-                "Se hai scritto dei colloqui con le famiglie, anche loro hanno un colore: la riga Colloqui, dopo le " +
-                "classi. Di partenza e' uno che le classi non usano.\r\n\r\n" +
-                "La finestra ha una riga per ogni ora del tuo orario: per ognuna scrivi il titolo della lezione sul " +
-                "calendario (per esempio \"2B - MAT\" o \"2B - FIS\"; vuoto, resta la classe del tabellone) e scegli " +
-                "il colore, che va con il titolo: le ore con lo stesso titolo hanno lo stesso colore. Le ore una " +
+                "Se hai scritto dei colloqui con le famiglie, anche loro hanno un colore: la voce Colloqui nella " +
+                "legenda, dopo le classi. Di partenza e' uno che le classi non usano.\r\n\r\n" +
+                "La finestra mostra il tuo orario come un tabellone, con ogni lezione del colore del suo titolo e " +
+                "accanto la legenda. Il titolo di partenza di un'ora e' la classe del tabellone: clicca una cella " +
+                "(Ctrl+clic per sceglierne altre, un clic sul giorno o sull'ora per tutta la colonna o la riga, uno " +
+                "sulla legenda per tutte le ore di quel titolo), poi sotto scrivi il titolo (per esempio \"2B - MAT\" " +
+                "o \"2B - FIS\") e scegli il colore, che va con il titolo: le ore con lo stesso titolo hanno lo stesso " +
+                "colore. Le ore una " +
                 "dopo l'altra con lo stesso titolo diventano un evento solo. Le lezioni che lo script mette da quel " +
                 "momento prendono i titoli; per quelle gia' sul calendario: ORARI_ANNULLA_calendario e poi " +
                 "ORARI_4_calendario."));
@@ -1577,6 +1580,7 @@ namespace Campanella
             }
             string docenteC = orario.TrovaDocente(S.CalDocente);
             using (FormColoriClassi f = new FormColoriClassi(AnalisiOrario.OreDelDocente(orario, docenteC),
+                                                             orario.Giorni, orario.OrePerGiorno,
                                                              classi.Contains(ColoriLezioni.Colloqui), S.CalColori,
                                                              S.CalColoriAMano, S.CalColoriScritti, S.CalTitoliOre))
             {

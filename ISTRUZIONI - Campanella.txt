@@ -946,11 +946,16 @@ ORARI - le email a te e il calendario
    DatiOrari.gs lo tiene: una classe che arriva dopo (anche una che aveva
    un colore un altro anno) ne prende uno che le altre non hanno. Le ore a
    disposizione sono grigie (Grafite). "Titoli e colori delle lezioni..."
-   ha una riga per ogni ora del tuo orario (LUN 2a, S2 B): ci scrivi il
-   titolo della lezione sul calendario (per esempio "2B - MAT" il lunedi'
-   e "2B - FIS" il giovedi'; vuoto, resta la classe del tabellone) e
-   scegli il colore. Il colore va con il titolo: le ore con lo stesso
-   titolo hanno lo stesso colore, e cambiato in una riga cambia anche
+   mostra il tuo orario come un tabellone, giorni per ore, con ogni
+   lezione del colore del suo titolo, e accanto la legenda dei titoli. Il
+   titolo di un'ora e' di partenza la classe del tabellone (S2 B), e lo
+   cambi o lo completi (per esempio "2B - MAT" il lunedi' e "2B - FIS" il
+   giovedi'): clicca una cella (Ctrl+clic per sceglierne altre, un clic
+   sul giorno o sull'ora per tutta la colonna o la riga, uno sulla legenda
+   per tutte le ore di quel titolo; o le frecce e la barra spaziatrice),
+   poi sotto scrivi il titolo e scegli il colore. "Rimetti la classe"
+   toglie il titolo. Il colore va con il titolo: le ore con lo stesso
+   titolo hanno lo stesso colore, e cambiato per una cella cambia anche
    nelle altre; ogni titolo nuovo ne prende uno che gli altri non usano.
    Le ore una dopo l'altra con lo stesso titolo diventano un evento solo
    (MAT alla 2a e FIS alla 3a sono due eventi). Il titolo vale per quel

@@ -122,12 +122,16 @@ step 2).
 **Orari: title and colour hour by hour**
 
 - "Titoli e colori delle lezioni..." (step 4, it was "Colori delle
-  classi...") has a row for every hour of the teacher's timetable (LUN 2a,
-  S2 B), with the title of that lesson on Google Calendar ("2B - MAT" on
-  Monday, "2B - FIS" on Thursday; empty, the class of the timetable stays)
-  and its colour. The colour goes with the title: hours with the same title
-  share it, and changed in one row it changes in the others; every new title
-  gets one the others do not use. Consecutive hours become one event only
+  classi...") shows the teacher's timetable as a grid, days by hours, with
+  every lesson coloured as its title, and beside it the legend of the
+  titles. The title of an hour starts as the class of the timetable (S2 B)
+  and can be changed or completed ("2B - MAT" on Monday, "2B - FIS" on
+  Thursday): click a cell (Ctrl+click for more, a day or an hour for the
+  whole column or row, a legend entry for all the hours of that title, or
+  the arrows and the space bar), then write the title and choose the colour
+  below. The colour goes with the title: hours with the same title share it,
+  and changed for one cell it changes in the others; every new title gets
+  one the others do not use. The colloqui keep their colour in the legend. Consecutive hours become one event only
   with the same title. A title belongs to that day, hour and class
   (`Stato.CalTitoliOre`, key day|hour|class): with a new timetable that has
   another class there it no longer applies. It goes into DatiOrari.gs
