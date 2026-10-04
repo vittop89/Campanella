@@ -1188,6 +1188,20 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
     # per prefisso) le impostazioni non cambiano. I colori restano quando
     # DatiOrari.gs esce da Campanella, copiato o salvato (DatiOrariDaDare)
     $cmbDoc = $tPO.GetField('cmbDocente', $FIp).GetValue($orari)
+    # il nome del calendario segue il nome del docente solo se era quello
+    # proposto: uno scritto a mano (anche "Orario ...") resta, se no lo
+    # script creerebbe un calendario nuovo
+    $txtCalNomeT = $tPO.GetField('txtCalNome', $FIp).GetValue($orari)
+    $nomePrima = $txtCalNomeT.Text
+    $cmbDoc.Text = 'BIANCHI'
+    [System.Windows.Forms.Application]::DoEvents()
+    $seguito = $txtCalNomeT.Text
+    $txtCalNomeT.Text = 'Orario mio di prova'
+    $cmbDoc.Text = 'ROSSI'
+    [System.Windows.Forms.Application]::DoEvents()
+    Verifica "il nome del calendario proposto segue il nome ('$nomePrima' -> '$seguito'); uno scritto a mano, anche 'Orario ...', resta ('$($txtCalNomeT.Text)')" (
+        $seguito -eq 'Orario BIANCHI' -and $txtCalNomeT.Text -eq 'Orario mio di prova')
+    $txtCalNomeT.Text = $nomePrima
     $cmbDoc.Text = 'B'
     [System.Windows.Forms.Application]::DoEvents()
     $cmbDoc.Text = 'ROSSI'

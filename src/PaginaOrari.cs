@@ -90,6 +90,9 @@ namespace Campanella
         List<Control> sottoRiepilogo = new List<Control>();
         List<int> distanzeRiepilogo = new List<int>();
         bool zitto4 = false;
+        // il nome del calendario che Campanella ha proposto dal nome del docente
+        // ("Orario " + nome): solo quello segue il nome; uno scritto a mano resta
+        string nomeCalProposto = "";
 
         public PaginaOrari(Guscio g) : base(g)
         {
@@ -671,8 +674,13 @@ namespace Campanella
             cmbDocente.TextChanged += delegate
             {
                 if (zitto4) return;
-                if (txtCalNome.Text.Trim() == "" || txtCalNome.Text.StartsWith("Orario "))
-                    txtCalNome.Text = (cmbDocente.Text.Trim() == "") ? "" : "Orario " + cmbDocente.Text.Trim();
+                // cambiare il nome del calendario vuol dire un calendario nuovo: segue
+                // il nome del docente solo se era vuoto o quello proposto da Campanella
+                if (txtCalNome.Text.Trim() == "" || txtCalNome.Text == nomeCalProposto)
+                {
+                    nomeCalProposto = (cmbDocente.Text.Trim() == "") ? "" : "Orario " + cmbDocente.Text.Trim();
+                    txtCalNome.Text = nomeCalProposto;
+                }
                 AggiornaCalendario();
             };
             p.Controls.Add(cmbDocente);
@@ -1315,6 +1323,7 @@ namespace Campanella
             RiempiMenu4();
             cmbDocente.Text = S.CalDocente;
             txtCalNome.Text = S.CalNome;
+            nomeCalProposto = (S.CalDocente ?? "").Trim() == "" ? "" : "Orario " + S.CalDocente.Trim();
             DateTime inizio, fine;
             dtInizio.Value = LeggiData(S.CalInizio, out inizio) ? inizio : DateTime.Today;
             dtFine.Value = LeggiData(S.CalFine, out fine) ? fine : FineLezioni(DateTime.Today);
@@ -1542,9 +1551,22 @@ namespace Campanella
             List<string> classi = AnalisiOrario.VociDeiColori(orario, S, orario.TrovaDocente(S.CalDocente));
             if (classi.Count == 0)
             {
-                Guscio.Stato1(orario.Lezioni.Count == 0
-                    ? "Prima carica l'orario (passo 1) e scegli il tuo nome: i colori vanno alle classi del tuo orario."
-                    : "Prima scegli il tuo nome: i colori vanno alle classi del tuo orario.", Tema.Ambra);
+                // nella riga in basso non si vedeva: il bottone sembrava non fare niente
+                string omonimi = (S.CalDocente != "") ? QualeDegliOmonimi() : "";
+                string perche = orario.Lezioni.Count == 0
+                    ? "Prima carica l'orario (passo 1): i colori vanno alle classi del tuo orario."
+                    : S.CalDocente == ""
+                        ? "Prima scegli il tuo nome nella casella \"Il tuo nome\", qui sopra: i colori vanno alle " +
+                          "classi del tuo orario."
+                        : omonimi != ""
+                            ? omonimi
+                            : "\"" + S.CalDocente + "\" non e' fra i docenti del tabellone, quindi non trovo le tue " +
+                              "classi. Nella casella \"Il tuo nome\", qui sopra, scegli il tuo nome dall'elenco: e' " +
+                              "scritto come nel tabellone (di solito il cognome). Il nome del calendario lo cambi " +
+                              "nella casella accanto.";
+                Guscio.Stato1(perche, Tema.Ambra);
+                MessageBox.Show(this, perche, "Colori delle classi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (orario.Lezioni.Count > 0 && cmbDocente != null) cmbDocente.Focus();
                 return;
             }
             using (FormColoriClassi f = new FormColoriClassi(classi, S.CalColori, S.CalColoriAMano, S.CalColoriScritti))
