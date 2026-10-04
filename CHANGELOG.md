@@ -5,6 +5,10 @@
 Organizzazione_Gmail.gs changes (1.6.2): paste it again, together with a new
 Configurazione.gs (Posta, step 5).
 
+Moduli.gs and Pannello.gs change only in their messages (sentences no
+longer broken across lines): paste them again when convenient (Cartelle,
+step 2).
+
 **Posta: the labels left by the Gmail filters merged into a rule**
 
 - A Gmail filter merged into a rule with another label ("Unisci a ...", or
@@ -114,6 +118,16 @@ Configurazione.gs (Posta, step 5).
 - EXTRA_unisciEtichette, with a configuration copied before the pairs,
   marks the labels of filters chosen for removal in the list of the other
   labels, and says to check Campanella before deleting them.
+
+**Scripts: sentences on one line**
+
+- The log and the e-mail summaries of the scripts no longer break a sentence
+  in the middle ("...della" / "regola"): the Apps Script log and the mail
+  programs wrap by themselves. Only lists, tables and a new sentence under
+  its list keep their own lines. `test/mock_apps_script.js` checks that no
+  sentence is broken, instead of the 100-character limit.
+- EXTRA_cancellaEtichette, when it deletes nothing, says so, instead of the
+  sentence about the deleted labels.
 
 **Campanella**
 

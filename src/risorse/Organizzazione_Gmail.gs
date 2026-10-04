@@ -119,7 +119,6 @@ var _INDIRIZZI_PER_QUERY    = 20;    // spezza le ricerche troppo lunghe
 var _THREAD_INDIRIZZI       = 4000;  // tetto di EXTRA_elencaIndirizziScuola
 var _RIGHE_PER_SCRITTA      = 40;    // il registro taglia le scritte lunghe
 var _TETTO_ANTEPRIMA        = 500;   // PASSO_1 conta fino a qui per ricerca (massimo di Gmail)
-var _LARGHEZZA_RIGA         = 96;    // le note dell'anteprima vanno a capo qui
 var _LARGHEZZA_TABELLA      = 100;   // e le righe della sua tabella non vanno oltre
 var _CHIAVE_PROGRESSO       = 'ORGGMAIL_PROGRESSO';
 var _CHIAVE_CREATE          = 'ORGGMAIL_ETICHETTE_CREATE';  // le etichette nate qui
@@ -323,12 +322,10 @@ function PASSO_1_anteprima() {
   righe.push('');
   if (cfg.provaSenzaModifiche) {
     // in prova PASSO_2 elenca soltanto: le etichette le crea il riordino vero
-    righe.push('Se il risultato ti convince: in Configurazione.gs metti');
-    righe.push('  provaSenzaModifiche: false');
-    righe.push('ed esegui PASSO_3_riordinaPostaEsistente, che crea anche le etichette.');
+    righe.push('Se il risultato ti convince: in Configurazione.gs metti provaSenzaModifiche: false ed esegui ' +
+               'PASSO_3_riordinaPostaEsistente, che crea anche le etichette.');
   } else {
-    righe.push('Se il risultato ti convince: esegui PASSO_2_creaEtichette');
-    righe.push('e poi PASSO_3_riordinaPostaEsistente.');
+    righe.push('Se il risultato ti convince: esegui PASSO_2_creaEtichette e poi PASSO_3_riordinaPostaEsistente.');
   }
 
   var testo = righe.join('\n');
@@ -538,20 +535,12 @@ function _tuttoIlPersonale_(regola) {
 
 /** Spezza un testo in righe corte per il registro: "prima" apre la prima riga, "dopo" le altre. */
 function _aCapo_(testo, prima, dopo) {
-  var parole = String(testo).split(' ');
-  var righe = [], riga = prima, vuota = true;
-  for (var i = 0; i < parole.length; i++) {
-    if (!parole[i]) continue;
-    if (!vuota && riga.length + 1 + parole[i].length > _LARGHEZZA_RIGA) {
-      righe.push(riga);
-      riga = dopo + parole[i];
-    } else {
-      riga += (vuota ? '' : ' ') + parole[i];
-    }
-    vuota = false;
-  }
-  righe.push(riga);
-  return righe;
+  // una riga sola: il registro di Apps Script e i programmi di posta vanno a
+  // capo da soli, e una frase spezzata a meta' si legge peggio. "dopo" resta
+  // per chi la chiama; "prima" apre la riga (un rientro, il trattino di un elenco)
+  var parole = String(testo).split(' '), pulite = [];
+  for (var i = 0; i < parole.length; i++) if (parole[i]) pulite.push(parole[i]);
+  return [prima + pulite.join(' ')];
 }
 
 /**
@@ -795,8 +784,7 @@ function _riordina_() {
   var vecchi = _avvisoFileVecchi_(cfg, regole);
   var riepilogo = (cfg.provaSenzaModifiche
         ? 'PROVA COMPLETATA - nessuna modifica applicata.\n' +
-          'Per applicare davvero: in Configurazione.gs metti\n' +
-          '  provaSenzaModifiche: false\n\n'
+          'Per applicare davvero: in Configurazione.gs metti provaSenzaModifiche: false.\n\n'
         : 'RIORDINO COMPLETATO.\n\n') + _riepilogo_(stato.fatti) +
         (vecchi ? '\n\n' + _aCapo_(vecchi, '', '').join('\n') : '');
   _azzeraProgresso_();
@@ -973,7 +961,7 @@ function EXTRA_elencaIndirizziScuola() {
   var inviata = _inviaReport_('Indirizzi @' + dominio + ' trovati nella tua casella',
     'Trovati ' + elenco.length + ' indirizzi, esaminando ' + start + ' conversazioni.' +
     dove + '\n\n' +
-    'Copia tutto il blocco qui sotto e incollalo in Campanella, strumento Posta,\n' +
+    'Copia tutto il blocco qui sotto e incollalo in Campanella, strumento Posta, ' +
     'passo 3 (Il personale), pulsante "Incolla elenco".\n\n' +
     'INDIRIZZO\tNOME\tN. MESSAGGI\n' + tsv);
 
@@ -1012,7 +1000,7 @@ function EXTRA_creaFiltriGmail() {
   if (cfg.provaSenzaModifiche) {
     // i filtri cambiano la posta che arriva: in prova non si crea niente
     var inProva = 'MODALITA\' PROVA: i filtri di Gmail non vengono creati, come le etichette.\n' +
-      'Quando il riordino ti convince, in Configurazione.gs metti  provaSenzaModifiche: false,\n' +
+      'Quando il riordino ti convince, in Configurazione.gs metti provaSenzaModifiche: false, ' +
       'esegui PASSO_3_riordinaPostaEsistente e poi di nuovo questa funzione.';
     Logger.log(inProva);
     return inProva;
@@ -1120,19 +1108,19 @@ function EXTRA_creaFiltriGmail() {
               (daTogliere.length
                 ? '\nNon creati, perche\' in Campanella li hai scelti fra i filtri da togliere ' +
                   '(EXTRA_togliFiltri): ' + daTogliere.join(', ') +
-                  '\n  (se li rivuoi, togli la spunta in Campanella, Posta, passo 4, "Filtri che hai gia\' ' +
-                  'in Gmail...", copia di nuovo la configurazione e riesegui questa funzione)'
+                  '\n  Se li rivuoi, togli la spunta in Campanella, Posta, passo 4, "Filtri che hai gia\' ' +
+                  'in Gmail...", copia di nuovo la configurazione e riesegui questa funzione.'
                 : '') +
               (alloScript.length
                 ? '\nSenza filtro, restano allo smistamento dello script: ' + alloScript.join(', ') +
-                  '\n  (escludono le etichette delle altre regole, e un filtro di Gmail non lo sa fare:' +
-                  '\n  li prenderebbe tutti, colleghi compresi)'
+                  '\n  Escludono le etichette delle altre regole, e un filtro di Gmail non lo sa fare: ' +
+                  'li prenderebbe tutti, colleghi compresi.'
                 : '') +
               (classi.length
                 ? '\nPer le classi il filtro cerca solo l\'oggetto: ' + classi.join(', ') +
-                  '\n  (gli indirizzi degli studenti non vanno nei filtri di Gmail: resterebbero nelle' +
-                  '\n  impostazioni dell\'account anche cancellando il file della classe. I loro messaggi' +
-                  '\n  li etichetta lo smistamento dello script)'
+                  '\n  Gli indirizzi degli studenti non vanno nei filtri di Gmail: resterebbero nelle ' +
+                  'impostazioni dell\'account anche cancellando il file della classe. I loro messaggi ' +
+                  'li etichetta lo smistamento dello script.'
                 : '') +
               (tranne.length
                 ? '\n\nDa adesso Gmail smista da solo la posta in arrivo, tranne ' + tranne.join(', ') +
@@ -1798,12 +1786,20 @@ function _righeCancella_(esito, prova) {
   if (!esito.finito) {
     righe = righe.concat(_aCapo_('TEMPO FINITO: esegui di nuovo questa funzione, finche\' non lo dice piu\'.', '', ''));
   }
-  righe = righe.concat(_aCapo_(prova
-    ? 'Per cancellarle davvero: in Configurazione.gs metti provaSenzaModifiche: false ed esegui di nuovo ' +
-      'EXTRA_cancellaEtichette.'
-    : 'Non ho cancellato nessun messaggio: le rimaste dai filtri uniti li hanno con l\'etichetta della regola, ' +
-      'le altre erano vuote. Non ho toccato le etichette delle regole, quelle con delle sottoetichette, ' +
-      'quelle dei filtri di Gmail ne\' quelle con dei messaggi.', '', ''));
+  if (prova) {
+    if (esito.cancellate.length) {
+      righe = righe.concat(_aCapo_('Per cancellarle davvero: in Configurazione.gs metti provaSenzaModifiche: ' +
+        'false ed esegui di nuovo EXTRA_cancellaEtichette.', '', ''));
+    }
+  } else if (esito.cancellate.length) {
+    righe = righe.concat(_aCapo_('Non ho cancellato nessun messaggio: le rimaste dai filtri uniti li hanno con ' +
+      'l\'etichetta della regola, le altre erano vuote. Non ho toccato le etichette delle regole, quelle con ' +
+      'delle sottoetichette, quelle dei filtri di Gmail ne\' quelle con dei messaggi.', '', ''));
+  } else {
+    righe = righe.concat(_aCapo_('Le etichette rimaste dai filtri uniti non ci sono piu\' in Gmail (o non sono ' +
+      'ancora unite, qui sopra), e non ci sono etichette vuote che nessuna regola usa. Non ho toccato niente.',
+      '', ''));
+  }
   if (!prova && esito.cancellate.length) {
     righe = righe.concat(_aCapo_('Cancellata un\'etichetta rimasta, ANNULLA_etichettatura toglierebbe a quei ' +
       'messaggi anche l\'etichetta della regola, e resterebbero senza.', '', ''));

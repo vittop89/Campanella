@@ -58,7 +58,7 @@ var MODULO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _MODULO_VERSIONE = '1.5.0';
+var _MODULO_VERSIONE = '1.6.2';
 var _MODULO_TRIGGER  = 'MODULO_chiusura';
 var _MODULO_CHIAVE   = 'CAMPANELLA_MODULO';
 
@@ -92,15 +92,15 @@ function MODULO_PASSA_AL_FOGLIO() {
     var righe = ['PASSO IL COMANDO AL FOGLIO DI CONTROLLO', ''];
     righe.push(tolti > 0 ? 'Chiusura programmata da qui: tolta.'
                          : 'Chiusura programmata da qui: non ce n\'era.');
-    righe.push('Il collegamento al foglio delle risposte NON e\' stato toccato: il modulo');
-    righe.push('continua a scrivere dove scriveva.');
+    righe.push('Il collegamento al foglio delle risposte NON e\' stato toccato: il modulo continua a scrivere ' +
+               'dove scriveva.');
     righe.push('');
-    righe.push('Adesso, nel foglio di controllo, metti una riga per questo modulo con la');
-    righe.push('STESSA cartella e lo STESSO nome del foglio che vedi qui sopra: cosi\' lo');
-    righe.push('riconosce e non ne crea un altro. Poi "Prepara l\'anno nuovo" da li\'.');
+    righe.push('Adesso, nel foglio di controllo, metti una riga per questo modulo con la STESSA cartella e lo ' +
+               'STESSO nome del foglio che vedi qui sopra: cosi\' lo riconosce e non ne crea un altro. Poi ' +
+               '"Prepara l\'anno nuovo" da li\'.');
     righe.push('');
-    righe.push('Se cambi idea: "Prepara l\'anno nuovo" da questo menu riprende il comando');
-    righe.push('(e ricordati di togliere la spunta "Attivo" nella riga del foglio).');
+    righe.push('Se cambi idea: "Prepara l\'anno nuovo" da questo menu riprende il comando (e ricordati di ' +
+               'togliere la spunta "Attivo" nella riga del foglio).');
     return righe.join('\n');
   });
 }
@@ -331,9 +331,9 @@ function _moduloEsegui_(davvero) {
     righe.push('Cartella del foglio');
     dest = _moduloCartella_(anno, davvero, righe);
   } else {
-    righe.push('Cartella del foglio: questo script non ha il permesso per Drive. Il foglio nasce');
-    righe.push('  nella radice di "Il mio Drive": spostalo tu nella cartella dell\'anno, dal PC o');
-    righe.push('  dal sito di Drive. Spostarlo non rompe il collegamento con il modulo.');
+    righe.push('Cartella del foglio: questo script non ha il permesso per Drive. Il foglio nasce nella radice ' +
+               'di "Il mio Drive": spostalo tu nella cartella dell\'anno, dal PC o dal sito di Drive. Spostarlo ' +
+               'non rompe il collegamento con il modulo.');
   }
   righe.push('');
 
@@ -391,8 +391,8 @@ function _moduloEsegui_(davvero) {
     // a Google tutte le risposte in una scheda nuova dello stesso foglio. (Un foglio ancora
     // intatto, invece, non e' mai stato collegato: una preparazione rotta a meta'.)
     righe.push('Collegamento: quest\'anno il modulo scriveva in questo foglio, e adesso non ci scrive piu\'.');
-    righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va');
-    righe.push('  ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
+    righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va ' +
+               'ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
   } else {
     if (quante > 0) _moduloRisposteVecchie_(form, quante, collegatoA, idFoglio, memoria, davvero, righe);
     if (davvero) {
@@ -428,8 +428,8 @@ function _moduloEsegui_(davvero) {
     righe.push('Foglio: ' + SpreadsheetApp.openById(idFoglio).getUrl());
     righe.push('Il foglio e\' tuo: se il modulo ha altri editor che devono vedere le risposte, condividilo tu.');
     righe.push('');
-    righe.push('FATTO. L\'anno prossimo, dal primo settembre: apri il modulo, icona a forma di pezzo di');
-    righe.push('puzzle, menu Campanella -> "Prepara l\'anno nuovo". Non serve reincollare niente.');
+    righe.push('FATTO. L\'anno prossimo, dal primo settembre: apri il modulo, icona a forma di pezzo di ' +
+               'puzzle, menu Campanella -> "Prepara l\'anno nuovo". Non serve reincollare niente.');
   } else {
     righe.push('');
     righe.push('Se ti convince: esegui MODULO_2_prepara (o, dal modulo, menu Campanella).');
@@ -447,10 +447,10 @@ function _moduloEsegui_(davvero) {
  */
 function _moduloRisposteVecchie_(form, quante, collegatoA, idFoglio, memoria, davvero, righe) {
   if (!MODULO.svuotaRisposte) {
-    righe.push('Risposte gia\' nel modulo: ' + quante + '. Collegando il foglio nuovo Google ce le ricopia');
-    righe.push('  dentro. Per cominciare l\'anno con il foglio vuoto rigenera lo script con la spunta');
-    righe.push('  "togli dal modulo le risposte degli anni scorsi", oppure toglile tu dal modulo (Risposte');
-    righe.push('  -> tre puntini -> Elimina tutte le risposte) PRIMA di eseguire MODULO_2_prepara.');
+    righe.push('Risposte gia\' nel modulo: ' + quante + '. Collegando il foglio nuovo Google ce le ricopia ' +
+               'dentro. Per cominciare l\'anno con il foglio vuoto rigenera lo script con la spunta "togli dal ' +
+               'modulo le risposte degli anni scorsi", oppure toglile tu dal modulo (Risposte -> tre puntini -> ' +
+               'Elimina tutte le risposte) PRIMA di eseguire MODULO_2_prepara.');
     return;
   }
   var candidati = [];
@@ -464,10 +464,9 @@ function _moduloRisposteVecchie_(form, quante, collegatoA, idFoglio, memoria, da
   if (alSicuro.mancano > 0) {
     righe.push('Risposte gia\' nel modulo: ' + quante + '. NON le tolgo: ' +
                (alSicuro.mancano === quante ? 'non le ritrovo' : alSicuro.mancano + ' non le ritrovo') +
-               ' in nessun foglio degli anni scorsi');
-    righe.push('  (le cerco una per una, dal momento in cui sono arrivate), e toglierle sarebbe cancellarle.');
-    righe.push('  Finiranno anche nel foglio nuovo. Se sei sicuro che non servono, toglile tu dal modulo');
-    righe.push('  (Risposte -> Elimina tutte le risposte).');
+               ' in nessun foglio degli anni scorsi (le cerco una per una, dal momento in cui sono arrivate), ' +
+               'e toglierle sarebbe cancellarle. Finiranno anche nel foglio nuovo. Se sei sicuro che non ' +
+               'servono, toglile tu dal modulo (Risposte -> Elimina tutte le risposte).');
     return;
   }
   if (davvero) {

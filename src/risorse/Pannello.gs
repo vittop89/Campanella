@@ -65,7 +65,7 @@ var PANNELLO = {
 };
 // <<< CONFIGURAZIONE <<<
 
-var _PAN_VERSIONE   = '1.5.0';
+var _PAN_VERSIONE   = '1.6.2';
 var _PAN_TRIGGER    = 'PANNELLO_chiusura';
 var _PAN_CHIAVE     = 'CAMPANELLA_PANNELLO';
 var _PAN_CHIAVE_FOGLI = 'CAMPANELLA_PANNELLO_FOGLI_';   // + anno: i fogli di quell'anno
@@ -323,7 +323,7 @@ function _panPreparaIlFoglio_() {
   return 'Scheda "' + PANNELLO.scheda + '" pronta' +
     (righe.length ? ', con ' + (righe.length === 1 ? 'una riga' : righe.length + ' righe') + ' di partenza' : '') + '.\n' +
     _panRaccontaSchede_(schede) + '\n\n' +
-    'Adesso: incolla il link di ogni modulo nella colonna "Link del modulo", oppure usa\n' +
+    'Adesso: incolla il link di ogni modulo nella colonna "Link del modulo", oppure usa ' +
     '"Trova i moduli nel Drive" e li cerca lui dal nome. Poi "Anteprima".';
 }
 
@@ -674,8 +674,8 @@ function _panEsegui_(davvero, inizioEsecuzione) {
     } else if (daFare.length) {
       // l'anteprima non segna niente: rieseguita guarda di nuovo le stesse righe, nello stesso ordine
       righe.push('    Non guardate: ' + daFare.join(', ') + '.');
-      righe.push('    L\'anteprima guarda ogni volta le stesse righe, e a queste non arriva. "Prepara');
-      righe.push('    l\'anno nuovo" le prepara lo stesso: se non finisce, riparte da quelle mancanti.');
+      righe.push('    L\'anteprima guarda ogni volta le stesse righe, e a queste non arriva. "Prepara ' +
+                 'l\'anno nuovo" le prepara lo stesso: se non finisce, riparte da quelle mancanti.');
     }
     if (giaPronte.length) {
       righe.push('    Gia\' pronte per quest\'anno, non ricontrollate adesso: ' + giaPronte.join(', ') + '.');
@@ -852,8 +852,8 @@ function _panUnaRiga_(r, anno, davvero, righe) {
     // una versione di prima - e allora lo collego.)
     scollegatoAMano = true;
     righe.push('  collegamento: quest\'anno era collegato, e adesso non scrive piu\' nel suo foglio.');
-    righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va');
-    righe.push('  ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
+    righe.push('  Non lo ricollego: Google ricopierebbe tutte le risposte in una scheda nuova. Se va ' +
+               'ricollegato davvero, fallo da Google Moduli (Risposte -> Collega a Fogli).');
   } else {
     if (quante > 0) _panRisposteVecchie_(form, r, quante, collegatoA, idFoglio, memoria, davvero, righe);
     if (davvero) {

@@ -352,6 +352,20 @@ for (let i = 0; i < 250; i++) {
 function intestazione(t) { console.log('\n' + '='.repeat(72) + '\n  ' + t + '\n' + '='.repeat(72)); }
 function ultimoLog() { return registro[registro.length - 1]; }
 
+// Le frasi spezzate a meta': una riga che finisce senza punteggiatura e la
+// dopo che continua in minuscolo. Il registro di Apps Script e le email vanno
+// a capo da soli: lo script non spezza le frasi. Le righe delle tabelle (con
+// le colonne staccate da piu' spazi) non contano
+function frasiSpezzate(testo) {
+  const righe = String(testo).split('\n'), fuori = [];
+  for (let i = 0; i + 1 < righe.length; i++) {
+    const a = righe[i].replace(/\s+$/, ''), b = righe[i + 1].trim();
+    if (!a || !b || /\S {2,}\S/.test(a.trim()) || /[.:!?;)\]]$/.test(a)) continue;
+    if (/^[a-z(]/.test(b)) fuori.push(a.slice(-40) + ' / ' + b.slice(0, 40));
+  }
+  return fuori;
+}
+
 let fallimenti = 0;
 function verifica(descrizione, condizione) {
   console.log((condizione ? '  OK   ' : '  FALLITO  ') + descrizione);
@@ -375,8 +389,7 @@ verifica('l\'anteprima dice la versione dello script',
     righe[4].indexOf('Persone in elenco: ') === 0 && righe[5].indexOf('Periodo: ') === 0);
   verifica('e subito dopo l\'impronta della configurazione',
     /^Configurazione: impronta [0-9A-F]{8}$/.test(righe[6]) && righe[6].indexOf(contesto.CONFIG.impronta) > 0);
-  verifica('nessuna riga dell\'anteprima supera i 100 caratteri',
-    righe.every(r => r.length <= 100));
+  verifica('nessuna frase dell\'anteprima va a capo a meta\'', frasiSpezzate(righe.join('\n')).length === 0);
   const piatta = anteprima.replace(/\s+/g, ' ');
   // le etichette escluse da Studenti non ci sono ancora e le loro regole hanno
   // da etichettare: qui quei messaggi finiscono anche in Studenti
@@ -1141,7 +1154,7 @@ const configDiPrima = contesto.CONFIG;
     casella.map(t => [...t.labels].sort().join('|')).join('\n') === primaDellAnteprima &&
     etichette.size === 2 && proprieta.get('ORGGMAIL_ETICHETTE_CREATE') === '["Sindacati"]');
   verifica('scrive l\'impronta della configurazione', a.split('\n')[6] === 'Configurazione: impronta A1B2C3D4');
-  verifica('nessuna riga supera i 100 caratteri', a.split('\n').every(r => r.length <= 100));
+  verifica('nessuna frase va a capo a meta\'', frasiSpezzate(a).length === 0);
   verifica('i numeri al tetto delle ricerche hanno il +: Segreteria 500+',
     stesseColonne(a, 'Segreteria', ['Segreteria', '500+', '-', 'da creare']) &&
     stesseColonne(a, 'Studenti', ['Studenti', '500+', '-', 'da creare']));
@@ -1162,7 +1175,7 @@ const configDiPrima = contesto.CONFIG;
     const i = righe.findIndex(r => r.indexOf('  Registro elettronico ') === 0);
     verifica('il registro con l\'indirizzo sbagliato: 0, e sotto il consiglio di controllare il mittente',
       stesseColonne(a, 'Registro elettronico', ['Registro elettronico', '0', '-', 'da creare']) &&
-      i > 0 && (righe[i + 1] + ' ' + righe[i + 2]).replace(/\s+/g, ' ').trim() ===
+      i > 0 && righe[i + 1].replace(/\s+/g, ' ').trim() ===
         'nessun messaggio da questi mittenti: controlla gli indirizzi (per il registro elettronico, ' +
         'guarda il mittente vero di una notifica)');
     verifica('e solo li\'', (a.match(/nessun messaggio da questi mittenti/g) || []).length === 1);
@@ -1307,8 +1320,8 @@ intestazione('ANTEPRIMA: PIU\' MITTENTI, NOMI LUNGHI, UN GRUPPO DELLA 1.4');
   const lunga = contesto.PASSO_1_anteprima();
   console.log(lunga);
   const righeL = lunga.split('\n');
-  const lunghe = righeL.filter(r => r.length > 100);
-  verifica('con nomi lunghi nessuna riga supera i 100 caratteri' +
+  const lunghe = righeL.filter(r => r.length > 100 && /\S {2,}\S/.test(r.trim()));
+  verifica('con nomi lunghi nessuna riga della tabella supera i 100 caratteri' +
     (lunghe.length ? ': ' + lunghe[0].length + ' in "' + lunghe[0] + '"' : ''), lunghe.length === 0);
   const testata = righeL.find(r => r.indexOf('  ETICHETTA') === 0) || '';
   const fineDa = testata.indexOf('DA ETICHETTARE') + 'DA ETICHETTARE'.length;
@@ -1473,7 +1486,7 @@ intestazione('I COLORI DELLE ETICHETTE');
       riga === 'Colori: 3 etichette con un colore, ma senza il servizio Gmail API non si possono applicare.');
     verifica('in una riga sola, sotto l\'impronta, prima della tabella',
       a.indexOf(riga) > 6 && a.indexOf(riga) < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) &&
-      a.every(r => r.length <= 100));
+      frasiSpezzate(a.join('\n')).length === 0);
   }
 
   // --- con il servizio: le etichette nuove nascono colorate ------------------
@@ -1770,7 +1783,7 @@ intestazione('TOGLIERE I FILTRI DI GMAIL CHE AVEVI GIA\'');
     const i = a.findIndex(r => r.indexOf('filtri di Gmail da togliere') >= 0);
     verifica('l\'anteprima dice in una riga quanti filtri ci sono da togliere, e con quale funzione',
       i > 6 && a[i] === '5 filtri di Gmail da togliere: esegui EXTRA_togliFiltri (serve il servizio Gmail API).' &&
-      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && a.every(r => r.length <= 100));
+      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && frasiSpezzate(a.join('\n')).length === 0);
     const senza = contesto.CONFIG.filtriDaTogliere;
     contesto.CONFIG.filtriDaTogliere = [];
     verifica('e senza filtri da togliere non dice niente',
@@ -2025,7 +2038,7 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
     const i = a.findIndex(r => r.indexOf('dai filtri uniti') >= 0);
     verifica('l\'anteprima dice in una riga quante etichette ci sono da unire, e con quale funzione',
       i > 6 && a[i] === '5 etichette rimaste dai filtri uniti: esegui EXTRA_unisciEtichette (dopo EXTRA_togliFiltri).' &&
-      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && a.every(r => r.length <= 100));
+      i < a.findIndex(r => r.indexOf('  ETICHETTA') === 0) && frasiSpezzate(a.join('\n')).length === 0);
   }
 
   // --- con il blocco preso non tocca niente ------------------------------------
@@ -2097,7 +2110,7 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
     piatto.indexOf('Non ho tolto ne\' cancellato niente: ho solo aggiunto l\'etichetta della regola, senza archiviare ' +
                    'e senza segnare come letto.') >= 0);
   verifica('non manda email', posta.length === postaMandata);
-  verifica('nessuna riga del riepilogo supera i 100 caratteri', t.split('\n').every(r => r.length <= 100));
+  verifica('nessuna frase del riepilogo va a capo a meta\'', frasiSpezzate(t).length === 0);
 
   // --- rieseguita: niente cambia, e lo dice ------------------------------------------
   const dopo = fotoPosta();
@@ -2334,7 +2347,7 @@ intestazione('LE ETICHETTE RIMASTE DAI FILTRI UNITI A UNA REGOLA');
                      'di nuovo la configurazione (passo 5) ed esegui di nuovo questa funzione. Intanto non cancellarle: ' +
                      'prima vanno unite.') >= 0 &&
       piatto.indexOf('Famiglie -> Genitori: e\' anche fra quelle da controllare: non la unisco') >= 0 &&
-      t.indexOf('Nessuna etichetta da unire') < 0 && t.split('\n').every(r => r.length <= 100));
+      t.indexOf('Nessuna etichetta da unire') < 0 && frasiSpezzate(t).length === 0);
     const altreDopo = t.slice(t.indexOf('Etichette che nessuna regola mette'));
     verifica('e l\'elenco delle altre etichette non le propone da cancellare',
       t.indexOf('Etichette che nessuna regola mette') > 0 && altreDopo.indexOf('  - Famiglie (') < 0 &&
@@ -2452,7 +2465,7 @@ intestazione('LE CLASSI: L\'OGGETTO OPPURE GLI STUDENTI (unoQualsiasi)');
   verifica('e l\'anteprima lo dice: manca il file, conta solo l\'oggetto',
     a.replace(/\s+/g, ' ').indexOf('manca il file Classe_3B.gs: conta solo l\'oggetto') > 0 &&
     stesseColonne(a, 'Classi 2026-27/3B', ['Classi 2026-27/3B', '1', '-', 'da creare']));
-  verifica('nessuna riga dell\'anteprima supera i 100 caratteri', a.split('\n').every(r => r.length <= 100));
+  verifica('nessuna frase dell\'anteprima va a capo a meta\'', frasiSpezzate(a).length === 0);
   const soloTesto = contesto._criteriFiltro_(cfg, classe);
   verifica('e il filtro di Gmail e\' quello dell\'oggetto', soloTesto.length === 1 &&
     soloTesto[0].subject === '3B OR "3 B" OR "III B"' && !soloTesto[0].from);
@@ -3100,7 +3113,7 @@ intestazione('EXTRA_ripulisciEtichette: VIA LE ETICHETTE CHE LA REGOLA NON PREND
     spenta.labels.has('Vecchia regola') && dalTecnico.labels.has('Colleghi/Tecnici') &&
     aggiornamento.inInbox === false && corso.unread === false && docente.unread === true &&
     fotoEtichetteR() === etichettePrima);
-  verifica('nessuna riga del riepilogo supera i 100 caratteri', t.split('\n').every(r => r.length <= 100));
+  verifica('nessuna frase del riepilogo va a capo a meta\'', frasiSpezzate(t).length === 0);
   t = contesto.EXTRA_ripulisciEtichette();
   verifica('rieseguita non trova piu\' niente', t.indexOf('Niente da ripulire') === 0);
   // con un'altra regola con la stessa etichetta resta quello che prende una delle due
@@ -3199,7 +3212,7 @@ intestazione('EXTRA_cancellaEtichette: SOLO LE RIMASTE GIA\' UNITE E LE VUOTE');
   const piatto = t.replace(/\s+/g, ' ');
   verifica('dice perche\' tiene le rimaste non ancora unite',
     piatto.indexOf('xyis01200z: ha conversazioni senza Segreteria: esegui prima EXTRA_unisciEtichette') >= 0 &&
-    piatto.indexOf('Ex: ha delle sottoetichette') >= 0 && t.split('\n').every(r => r.length <= 100));
+    piatto.indexOf('Ex: ha delle sottoetichette') >= 0 && frasiSpezzate(t).length === 0);
   t = contesto.EXTRA_cancellaEtichette();
   verifica('rieseguita non trova piu\' niente', t.indexOf('Niente da cancellare.') === 0);
   delete contesto.Gmail;
