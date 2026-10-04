@@ -1179,8 +1179,8 @@ if ($mancanti.Count -eq 0 -and $null -ne $tStato.GetField('CalSospensioni', $FI)
     $riepColori = if ($null -ne $campoRiepColori) { $campoRiepColori.GetValue($orari) } else { $null }
     $classiRossi = @($tA.GetMethod('ClassiDelCalendario', $FS).Invoke($null, @($tPO.GetField('orario', $FIp).GetValue($orari), [string]'ROSSI')))
     $senzaColore = @($classiRossi | Where-Object { $null -ne $riepColori -and $riepColori.Text -notlike "*$_ *" })
-    Verifica "accanto a 'Colori delle classi...' ci sono le $($classiRossi.Count) classi di ROSSI con il loro colore, tutte visibili ($(if ($riepColori) { $riepColori.Text }))" (
-        $null -ne $btnColori -and $btnColori.Visible -and $btnColori.Text -eq 'Colori delle classi...' -and
+    Verifica "accanto a 'Colori e titoli delle classi...' ci sono le $($classiRossi.Count) classi di ROSSI con il loro colore, tutte visibili ($(if ($riepColori) { $riepColori.Text }))" (
+        $null -ne $btnColori -and $btnColori.Visible -and $btnColori.Text -eq 'Colori e titoli delle classi...' -and
         $null -ne $riepColori -and $riepColori.Visible -and $classiRossi.Count -gt 1 -and $riepColori.Text -like 'Colori: *' -and
         $senzaColore.Count -eq 0 -and $riepColori.Visibili -eq $classiRossi.Count -and
         $riepColori.Bottom -le $txtSosp.Top -and $riepColori.Left -gt $btnColori.Right)
@@ -1446,6 +1446,17 @@ if ($null -ne $tFCC) {
     $fc = FinestraColori @('3B LSA', '1A', '2B', 'A disposizione', '10A') @{ '2B' = '5' } @('2B')
     ControllaPannello $fc 'Colori delle classi'
     ControllaPannello $fc.Righe 'Colori delle classi, le righe'
+    # il titolo sul calendario: una casella per classe; scritto, va in Titoli;
+    # vuoto o uguale alla classe, no
+    $caselleT = $tFCC.GetField('caselleTitolo', $FIf).GetValue($fc)
+    Verifica "ogni classe ha la sua casella del titolo sul calendario ($($caselleT.Count))" (
+        $caselleT.Count -eq 5 -and @($caselleT.Values | Where-Object { -not $_.Visible }).Count -eq 0)
+    $caselleT['2B'].Text = '2B - Fisica'
+    $caselleT['1A'].Text = '1A'
+    Verifica "scritto un titolo, la finestra lo tiene; uguale alla classe, no ($(@($fc.Titoli.Keys) -join ','))" (
+        $fc.Titoli.Count -eq 1 -and $fc.Titoli['2B'] -eq '2B - Fisica')
+    $caselleT['2B'].Text = ''
+    Verifica "  ...e cancellato, nemmeno" ($fc.Titoli.Count -eq 0)
     $tendine = $tFCC.GetField('tendine', $FIf).GetValue($fc)
     $quadrati = $tFCC.GetField('quadrati', $FIf).GetValue($fc)
     $note = $tFCC.GetField('note', $FIf).GetValue($fc)

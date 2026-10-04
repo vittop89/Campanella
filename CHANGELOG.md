@@ -119,6 +119,23 @@ step 2).
   marks the labels of filters chosen for removal in the list of the other
   labels, and says to check Campanella before deleting them.
 
+**Orari: the title of the lessons on the calendar**
+
+- "Colori e titoli delle classi..." (step 4, it was "Colori delle classi...")
+  has, for every class of the timetable ("3B - FIS"), a box for the title
+  of its lessons on Google Calendar ("3B - Fisica"); empty, the name of the
+  timetable stays. It goes into DatiOrari.gs (`calendario.titoli`) and the
+  colour of the class is written with both names, so the lessons already on
+  the calendar keep theirs. ORARI_4_calendario and ORARI_5_cambioOrario give
+  the new titles to the lessons they create; for those already there:
+  ORARI_ANNULLA_calendario, then ORARI_4_calendario. Orari.gs 1.6.2.
+- The button with no classes (the name written in "Il tuo nome" is not in
+  the timetable) says so in a window, not only in the bottom line, where it
+  looked like it did nothing; and the calendar name follows the teacher's
+  name only if it was the one Campanella proposed: one written by hand, even
+  "Orario ...", stays (changing it would make the script create a new
+  calendar).
+
 **Scripts: sentences on one line**
 
 - The log and the e-mail summaries of the scripts no longer break a sentence

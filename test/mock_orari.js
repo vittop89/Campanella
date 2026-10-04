@@ -2680,6 +2680,31 @@ if (conCalendario) {
   verifica('senza colori, la riga dice che tutte le lezioni hanno il colore del calendario',
     /Colori delle classi: nessuno, tutte le lezioni hanno il colore del calendario/.test(contesto.ORARI_1_anteprima()));
 
+  // i titoli sul calendario scelti in Campanella (calendario.titoli): le
+  // lezioni nuove li prendono, e il colore vale con il titolo, come lo scrive
+  // Campanella (con tutti e due i nomi)
+  {
+    const classeT = colorate[0];
+    const titoloT = classeT + ' - Titolo scelto';
+    contesto.ORARI.calendario = Object.assign({}, calendarioDati, {
+      colori: Object.assign({}, coloriProva, { [titoloT]: coloriProva[classeT] }),
+      titoli: { [classeT]: titoloT, 'CLASSE CHE NON C\'E\'': 'Niente', [colorate[1]]: '   ' } });
+    azzeraCalendario();
+    contesto.ORARI_4_calendario();
+    const calT = calendari[0];
+    const conTitolo = vive(calT).filter(s => s.titolo === titoloT);
+    verifica('ORARI_4_calendario da\' alle lezioni di ' + classeT + ' il titolo scelto (' + conTitolo.length + ' serie), ' +
+             'con il loro colore; un titolo vuoto lascia la classe com\'e\'',
+      conTitolo.length > 0 && conTitolo.length === piano.tratti.filter(tr => tr.blocco.testo === classeT).length &&
+      vive(calT).every(s => s.titolo !== classeT) &&
+      conTitolo.every(s => s.getColor() === colorabile(coloriProva[classeT])) &&
+      vive(calT).some(s => s.titolo === colorate[1]) && vive(calT).length === piano.tratti.length);
+    verifica('una classe scritta con altre maiuscole o altri spazi prende lo stesso titolo',
+      contesto._orariTitolo_({ [' ' + classeT.toLowerCase() + ' ']: 'X' }, classeT) === 'X' &&
+      contesto._orariTitolo_({}, classeT) === classeT);
+    conColori(coloriProva);
+  }
+
   // un colore che Google non mette non ferma il lavoro: il messaggio dice
   // quale serie, e ORARI_6_coloraLezioni glielo mette
   for (const messaggio of ['Errore interno di prova', 'Rate Limit Exceeded']) {

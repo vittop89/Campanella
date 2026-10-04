@@ -91,7 +91,7 @@
  * ============================================================================
  */
 
-var _ORARI_VERSIONE      = '1.6.0';
+var _ORARI_VERSIONE      = '1.6.2';
 var _ORARI_MAX_SECONDI   = 260;
 // [SOLO EMAIL] -----------------------------------------------------------------
 // l'invio degli orari: dove si ricorda il punto, chi riprende, l'etichetta
@@ -2133,7 +2133,7 @@ function _orariFineColori_(c, stato, conti) {
          ': ' + stato.esempiNonMessi.join('; ') + (n > stato.esempiNonMessi.length ? '; ...' : '') + '. Riesegui ' +
          'ORARI_6_coloraLezioni piu\' tardi.\n' : '') +
     '\nLe lezioni non le ho rifatte ne\' spostate: ho cambiato solo il colore. I colori li scegli in Campanella ' +
-    '(Orari, passo 4, "Colori delle classi..."): per cambiarli rigenera DatiOrari.gs, incollalo e riesegui ' +
+    '(Orari, passo 4, "Colori e titoli delle classi..."): per cambiarli rigenera DatiOrari.gs, incollalo e riesegui ' +
     'ORARI_6_coloraLezioni.';
 }
 
@@ -2643,6 +2643,10 @@ function _orariValidoDal_(c, periodo) {
  */
 function _orariPiano_(d, doc, periodo, dal) {
   var blocchi = _orariBlocchi_(doc.celle, d);
+  // il titolo sul calendario: quello scelto in Campanella per la classe, o la
+  // classe com'e' (le ore consecutive della stessa classe restano un blocco)
+  var titoli = (d.calendario && d.calendario.titoli && typeof d.calendario.titoli === 'object') ? d.calendario.titoli : {};
+  for (var t = 0; t < blocchi.length; t++) blocchi[t].testo = _orariTitolo_(titoli, blocchi[t].testo);
   var piano = { serie: [], lezioni: 0, saltate: 0, blocchiFuori: 0 };
   for (var b = 0; b < blocchi.length; b++) {
     var blocco = blocchi[b];
@@ -3234,6 +3238,24 @@ function _mostraCella_(v) {
   var s = String(v).trim().toUpperCase();
   if (s === 'D' || s === 'DISP' || s === 'DISP.' || s === 'DISPOSIZIONE') return 'a disposizione';
   return String(v).trim();
+}
+
+/**
+ * Il titolo sul calendario delle lezioni di una classe del tabellone: quello
+ * scelto in Campanella (calendario.titoli, "3B - FIS": "3B - Fisica"; la
+ * classe scritta con altre maiuscole o altri spazi e' la stessa), o la classe
+ * com'e'. Un titolo vuoto non conta.
+ */
+function _orariTitolo_(titoli, testo) {
+  var classe = String(testo == null ? '' : testo), chiave = _orariChiave_(classe), trovato = '';
+  for (var k in titoli) {
+    if (k !== classe && (!chiave || _orariChiave_(k) !== chiave)) continue;
+    var v = (typeof titoli[k] === 'string') ? titoli[k].trim() : '';
+    if (!v) continue;
+    trovato = v;
+    if (k === classe) break;
+  }
+  return trovato || classe;
 }
 
 /** Ore consecutive della stessa classe nello stesso giorno: un blocco solo. */

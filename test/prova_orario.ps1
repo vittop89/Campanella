@@ -1564,6 +1564,20 @@ console.log(JSON.stringify(c && c.colori && typeof c.colori === 'object' ? c.col
         Verifica "  ...ma l'anteprima non li scrive nelle impostazioni" (
             $s.CalColori.Count -eq 0 -and $s.CalColoriScritti.Count -eq 0)
         Verifica "rigenerato, DatiOrari.gs ha gli stessi colori" ((ColoriGenerati $oc $s) -eq $partenza)
+        # il titolo sul calendario di una classe (Stato.CalTitoli): in titoli, e
+        # il colore vale con tutti e due i nomi; un titolo vuoto non conta
+        $s.CalTitoli['2B'] = '2B - Fisica'
+        $s.CalTitoli['1A'] = '   '
+        $fT = Join-Path $tmp 'DatiOrari_titoli.gs'
+        [System.IO.File]::WriteAllText($fT, (GeneraDati $oc $s $false), $utf8)
+        $esitoT = & node -e "const vm=require('vm'),fs=require('fs');const c=vm.createContext({});vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);const k=c.ORARI.calendario;console.log(JSON.stringify({t:k.titoli||null,c:k.colori}))" $fT
+        $jT = ($esitoT | Select-Object -Last 1) | ConvertFrom-Json
+        Verifica "il titolo scelto per 2B va in titoli, solo lui, e il colore vale anche con il titolo ($esitoT)" (
+            $null -ne $jT -and $null -ne $jT.t -and @($jT.t.PSObject.Properties).Count -eq 1 -and $jT.t.'2B' -eq '2B - Fisica' -and
+            $jT.c.'2B' -eq '10' -and $jT.c.'2B - Fisica' -eq '10' -and $null -eq $jT.c.'   ')
+        $s.CalTitoli.Clear()
+        Verifica "  ...e senza titoli DatiOrari.gs e' quello di prima" ((ColoriGenerati $oc $s) -eq $partenza -and
+            -not ((GeneraDati $oc $s $false) -match 'titoli:'))
         Uscito $oc $s
         Verifica "copiato o salvato, i suoi colori restano nelle impostazioni, nessuno scelto a mano, e sono quelli sul calendario ($(Elenco $s.CalColoriScritti))" (
             $s.CalColori.Count -eq 6 -and $s.CalColori['10A'] -eq '3' -and $s.CalColoriAMano.Count -eq 0 -and

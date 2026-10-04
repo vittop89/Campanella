@@ -737,16 +737,31 @@ namespace Campanella
             // (i colloqui, se ci sono, prendono il loro con le classi: VociDeiColori)
             List<string> classiCal = VociDeiColori(o, s, docenteCal);
             Dictionary<string, string> coloriCal = ColoriLezioni.DelCalendario(s, classiCal);
-            StringBuilder colori = new StringBuilder();
+            StringBuilder colori = new StringBuilder(), titoli = new StringBuilder();
+            List<string> chiaviColori = new List<string>();
             foreach (string k in classiCal)
             {
                 string v;
                 if (k == ColoriLezioni.Colloqui) continue;
+                // il titolo scelto per la classe (Stato.CalTitoli): le lezioni nuove
+                // lo prendono, e il colore vale con tutti e due i nomi, cosi' anche
+                // quelle gia' sul calendario con il nome di prima hanno il loro
+                string titolo = TitoloSulCalendario(s, k);
+                if (titolo != k)
+                    titoli.Append((titoli.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(titolo) + "\"");
                 if (!coloriCal.TryGetValue(k, out v) || v == "") continue;
-                colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(k) + "\": \"" + Js(v) + "\"");
+                foreach (string nome in new string[] { k, titolo })
+                {
+                    if (chiaviColori.Contains(nome)) continue;
+                    chiaviColori.Add(nome);
+                    colori.Append((colori.Length > 0 ? ", " : " ") + "\"" + Js(nome) + "\": \"" + Js(v) + "\"");
+                }
             }
             sb.AppendLine("    colori:    {" + colori + (colori.Length > 0 ? " " : "") + "},   " +
                           "// il colore delle lezioni di ogni classe (Google Calendar, da 1 a 11); le altre, quello del calendario");
+            if (titoli.Length > 0)
+                sb.AppendLine("    titoli:    {" + titoli + " },   " +
+                              "// il titolo sul calendario delle lezioni di una classe; le altre, la classe com'e'");
 
             // i giorni senza lezione: solo le righe capite, con le date
             // intere (l'anno delle righe che non ce l'hanno e' gia' deciso qui)
@@ -782,6 +797,20 @@ namespace Campanella
                                                    DateTimeStyles.None, out validoDal) ? s.CalValidoDal : "";
             sb.AppendLine("    validoDal: \"" + cambio + "\"   // l'orario cambiato vale da qui (ORARI_5_cambioOrario); vuoto = nessun cambio");
             sb.AppendLine("  }");
+        }
+
+        /// <summary>
+        /// Il titolo sul calendario delle lezioni di una classe del tabellone:
+        /// quello scelto in "Colori e titoli delle classi..." (Stato.CalTitoli),
+        /// o la classe com'e'.
+        /// </summary>
+        public static string TitoloSulCalendario(Stato s, string classe)
+        {
+            string t;
+            if (s != null && s.CalTitoli != null && classe != null && s.CalTitoli.TryGetValue(classe, out t) &&
+                (t ?? "").Trim() != "")
+                return t.Trim();
+            return classe ?? "";
         }
 
         /// <summary>
